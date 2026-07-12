@@ -7,10 +7,10 @@ Project 4 continues from Project 3.5. It should preserve the document workflow, 
 ## Current Status
 
 ```text
-Current phase: Step 0 through Step 9 complete; document-operation refactor sprints in progress before the project can be called feature-complete
+Current phase: Step 0 through Step 9 complete; document-operation refactor and UX simplification are complete for the invoice-first workflow; a second executable document workflow remains intentionally deferred
 Source baseline: ../3.5-agentops-reliability-dashboard-github-refactored
 Active agents: Codex only
-Latest verification: document-operation AgentOps evidence and pivot status docs updated; frontend tests, frontend build, backend AgentOps tests, SQLite persistence tests, full backend suite, and public artifact tests passed in recent sprints
+Latest verification: frontend tests/build passed after UX simplification; public artifact packaging script passed in a temp output folder; backend AgentOps tests, SQLite persistence tests, full backend suite, and public artifact tests passed in recent backend/product sprints
 Single source of truth: this ROADMAP plus `docs/pivot/*`; local-only completion TODO files are intentionally excluded from the public artifact
 ```
 

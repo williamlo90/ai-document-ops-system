@@ -1,6 +1,6 @@
 # Feature-to-API Matrix
 
-Status: Main Sprint 0 inventory, 2026-07-08.
+Status: Updated after document-operation refactor and UX simplification, 2026-07-12.
 
 | Product capability | Current UI | Current API / module | Pivot decision | Next contract |
 |---|---|---|---|---|
@@ -10,15 +10,15 @@ Status: Main Sprint 0 inventory, 2026-07-08.
 | Source preview | Workspace PDF preview | `/documents/{id}/content`, `/documents/{id}/download-url` | Keep | No domain rename |
 | Extraction evidence | Workspace evidence panels | `GET /documents/{id}`; `extraction/schemas.py` | Refactor | Generic evidence serializer plus invoice adapter |
 | Validation | Validation findings and line-item checks | `validation/invoice.py`, review APIs | Refactor | Validator selected by document type |
-| Document queue | Operations queue and exceptions | `/backoffice/workspace`, `/backoffice/work-items/*` | Refactor | Generic operation vocabulary with compatibility mapping |
-| Workflow projection | Workspace Activity | `GET /documents/{id}/workflow`, `GET /invoices/{id}/workflow`; `backoffice/workflow_projection.py` | Keep extending | Generic route is primary; invoice route remains compatibility alias |
-| Planning and policy | Plan and Governance tabs | `/backoffice/work-items/{id}/plan`; planner/policy modules | Refactor | Operation template drives plan; policy remains backend authority |
-| Human approval | Approval inbox/detail | `/backoffice/approvals/{id}/approve|reject` | Keep | Do not add unsupported approval states |
-| Correction/escalation | Activity recovery commands | `/invoices/{id}/request-correction|escalate` | Refactor | Generic document-operation commands with invoice aliases |
+| Document queue | Work Queue and Exceptions | `/backoffice/workspace`, `/backoffice/work-items/*` | Refactor | Generic operation vocabulary with compatibility mapping |
+| Workflow projection | History | `GET /documents/{id}/workflow`, `GET /invoices/{id}/workflow`; `backoffice/workflow_projection.py` | Keep extending | Generic route is primary; invoice route remains compatibility alias |
+| Planning and policy | Next Steps and Safety Rules | `/backoffice/work-items/{id}/plan`; planner/policy modules | Refactor | Operation template drives plan; policy remains backend authority |
+| Human approval | Approval Decision | `/backoffice/approvals/{id}/approve|reject` | Keep | Do not add unsupported approval states |
+| Correction/escalation | History recovery commands | `/invoices/{id}/request-correction|escalate` | Refactor | Generic document-operation commands with invoice aliases |
 | Controlled execution | Approved plan-step execution | `/backoffice/work-items/{id}/steps/{step_id}/execute` | Keep | Type-aware tool policy |
 | Export | Export action and CSV/JSON artifacts | `/exports/*`, `/integrations/accounting/documents/{id}/export` | Refactor | Generic document export contract; retain invoice CSV |
-| Durable activity/audit | Activity and Operational Controls | workflow projection, `/operations/audit.csv`, jobs APIs | Keep | Generic event vocabulary, no invented events |
-| Reliability evidence | Technical Evidence pages | `/agentops/*`, benchmark/evaluation modules | Refactor | Preserve document/operation typed scenario evidence |
+| Durable activity/audit | History and Runtime Diagnostics | workflow projection, `/operations/audit.csv`, jobs APIs | Keep | Generic event vocabulary, no invented events |
+| Reliability evidence | Technical Evidence, System Reliability, Reliability Checks, Test Scenarios, Run Traces | `/agentops/*`, benchmark/evaluation modules | Refactor | Preserve document/operation typed scenario evidence |
 | Provider/runtime status | System health, Integrations, Settings | `/providers/health`, `/integrations/status`, `/operations/jobs` | Keep | Evidence-based status labels only |
 
 ## Current Boundary
