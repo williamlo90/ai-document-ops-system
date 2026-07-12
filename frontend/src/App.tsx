@@ -151,7 +151,7 @@ type DocumentWorkflow = {
 type UserRole = 'intake' | 'administrator'
 type IntakeView = 'new' | 'submissions' | 'invoices' | 'guide'
 type PageId = 'runs' | 'drafts' | 'approvals' | 'operations' | 'policies' | 'guardrails' | 'integrations' | 'settings' | 'reliability' | 'evaluation' | 'datasets'
-type Screen = { kind: 'overview' } | { kind: 'queue'; filter?: QueueFilter } | { kind: 'workitems' } | { kind: 'detail'; id: string } | { kind: 'documents' } | { kind: 'history' } | { kind: 'page'; page: PageId } | { kind: 'intake'; view: IntakeView }
+type Screen = { kind: 'overview' } | { kind: 'queue'; filter?: QueueFilter } | { kind: 'workitems' } | { kind: 'detail'; id: string } | { kind: 'documents' } | { kind: 'page'; page: PageId } | { kind: 'intake'; view: IntakeView }
 type QueueFilter = 'all' | 'attention' | 'progress' | 'approval' | 'completed' | 'blocked'
 type AgentRun = {
   id: string
@@ -233,6 +233,7 @@ type PromptVersionMetric = { prompt_version: string; total_runs: number; evaluat
 const queryClient = new QueryClient()
 const PRODUCT_NAME = 'Invoice Review'
 const workTypes = ['invoice_review', 'invoice_export', 'accounting_note', 'vendor_follow_up', 'exception_handling', 'insufficient_evidence']
+const technicalPages: PageId[] = ['runs', 'reliability', 'evaluation', 'datasets', 'operations', 'integrations', 'settings', 'drafts', 'approvals', 'policies', 'guardrails']
 
 function api<T>(path: string, init?: RequestInit): Promise<T> {
   return fetch(path, {
@@ -304,7 +305,10 @@ function SessionGate() {
 
 function CommandCenter() {
   const [role, setRole] = useState<UserRole>(() => (localStorage.getItem('docops-role') as UserRole | null) ?? 'intake')
-  const [screen, setScreen] = useState<Screen>(() => role === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'queue' })
+  const [screen, setScreen] = useState<Screen>(() => {
+    const page = new URLSearchParams(window.location.search).get('technical')
+    return page && technicalPages.includes(page as PageId) ? { kind: 'page', page: page as PageId } : role === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'queue' }
+  })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const workspace = useQuery({
     queryKey: ['workspace'],
@@ -331,7 +335,6 @@ function CommandCenter() {
         role={role}
         goIntake={(view) => setScreen({ kind: 'intake', view })}
         openDocuments={() => setScreen({ kind: 'documents' })}
-        openHistory={() => setScreen({ kind: 'history' })}
       />
       <div className="app-main">
         <TopBar
@@ -361,8 +364,6 @@ function CommandCenter() {
           <QueuePage workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} exceptionMode />
         ) : screen.kind === 'documents' ? (
           <DocumentsPage workspace={workspace.data} loading={workspace.isLoading} />
-        ) : screen.kind === 'history' ? (
-          <HistoryPage workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} role={role} />
         ) : screen.kind === 'page' ? (
           <SectionPage page={screen.page} workspace={workspace.data} loadingWorkspace={workspace.isLoading} openItem={openItem} />
         ) : (
@@ -386,7 +387,6 @@ function Sidebar({
   role,
   goIntake,
   openDocuments,
-  openHistory,
 }: {
   open: boolean
   screen: Screen
@@ -396,13 +396,11 @@ function Sidebar({
   role: UserRole
   goIntake: (view: IntakeView) => void
   openDocuments: () => void
-  openHistory: () => void
 }) {
   if (role === 'intake') {
     const intakeItems = [
       [Upload, 'Upload Invoice', () => goIntake('new'), screen.kind === 'intake' && screen.view === 'new'],
       [FileText, 'My Invoices', () => goIntake('invoices'), screen.kind === 'intake' && screen.view === 'invoices'],
-      [FileClock, 'History', openHistory, screen.kind === 'history'],
     ] as const
     return (
       <>
@@ -422,7 +420,6 @@ function Sidebar({
   const reviewerItems = [
     [ClipboardCheck, 'Approvals', () => goQueue(), screen.kind === 'queue' || screen.kind === 'detail', inboxCount],
     [FileText, 'Invoices', openDocuments, screen.kind === 'documents', null],
-    [FileClock, 'History', openHistory, screen.kind === 'history', null],
   ] as const
 
   return (
@@ -492,7 +489,7 @@ function TopBar({
         <button className="mobile-menu" onClick={openMenu} aria-label="Open navigation"><Menu size={20} /></button>
         {screen.kind === 'detail' ? (
           <><h1>Invoice Review</h1><button className="back-link" onClick={() => goQueue('all')}><ArrowLeft size={14} /> Back to approvals</button></>
-        ) : <h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Dashboard' : screen.kind === 'workitems' ? 'Needs Review' : screen.kind === 'documents' ? 'Invoices' : screen.kind === 'history' ? 'History' : screen.kind === 'page' ? pageTitle(screen.page) : 'Approvals'}</h1>}
+        ) : <h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Dashboard' : screen.kind === 'workitems' ? 'Needs Review' : screen.kind === 'documents' ? 'Invoices' : screen.kind === 'page' ? pageTitle(screen.page) : 'Approvals'}</h1>}
       </div>
       <div className="topbar-actions">
         <span className={`health ${healthy ? '' : 'unhealthy'}`}><ShieldCheck size={15} /> {healthy ? 'Online' : 'Offline'}</span>
@@ -659,7 +656,7 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
   const maxBytes = uploadPolicy.data?.max_upload_bytes ?? 15 * 1024 * 1024
   return (
     <main className="guided-page">
-      <section className="guided-heading"><div><span>UPLOAD INVOICE</span><h2>Upload and check an invoice</h2><p>Upload a PDF invoice, check the detected fields, then send it for reviewer approval.</p></div><WorkflowOrientation step={steps[Math.min(step, 3)]} owner={step < 3 ? 'You' : 'System'} waiting={step === 0 ? 'Invoice PDF' : undefined} next={step === 0 ? 'Upload invoice' : step === 1 ? 'Read invoice data' : step === 2 ? 'Check detected fields' : 'Send for review'} /></section>
+      <section className="guided-heading"><div><span>UPLOAD INVOICE</span><h2>Upload and check an invoice</h2><p>Upload a PDF invoice, check the detected fields, then send it for reviewer approval.</p></div></section>
       <div className="wizard-stepper">{steps.map((label, index) => <div className={index < step ? 'complete' : index === step ? 'active' : ''} key={label}><span>{index < step ? <Check size={15} /> : index + 1}</span><strong>{label}</strong></div>)}</div>
       <section className="wizard-card">
         {step === 0 ? <div className="upload-layout"><div className="upload-step"><label className="upload-zone"><Upload size={32} /><strong>{file?.name ?? 'Choose an invoice PDF'}</strong><span>PDF only, up to {formatBytes(maxBytes)}.</span>{file ? <small>{formatBytes(file.size)} - ready to upload</small> : null}<input type="file" accept="application/pdf,.pdf" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setUploadProgress(0) }} /></label>{duplicate ? <div className="duplicate-warning"><AlertTriangle size={16} /><span><strong>Possible duplicate</strong>A file with the same name and size was submitted {formatDate(duplicate.created_at)}.</span></div> : null}{uploadMutation.isPending ? <div className="upload-progress"><span style={{ width: `${uploadProgress}%` }} /><strong>{uploadProgress}% uploaded</strong></div> : null}<button className="primary-button wizard-primary" disabled={!file || file.size > maxBytes || uploadMutation.isPending} onClick={() => uploadMutation.mutate()}>{uploadMutation.isPending ? <Loader2 className="spin" size={17} /> : <Upload size={17} />} Upload Invoice</button>{uploadMutation.error ? <p className="wizard-error">{(uploadMutation.error as Error).message}</p> : null}</div><PdfPreview url={pdfUrl} filename={file?.name ?? ''} /></div> : null}
@@ -780,10 +777,6 @@ function invoiceArithmeticIssues(fields: Record<string, string>, items: LineItem
 }
 
 const guidedFields: Array<[string, string, string]> = [['vendor_name','Vendor','text'],['invoice_number','Invoice number','text'],['invoice_date','Invoice date','date'],['due_date','Due date','date'],['subtotal','Subtotal','number'],['tax','Tax','number'],['total','Total','number'],['currency','Currency','text']]
-
-function WorkflowOrientation({ step, owner, waiting, next }: { step: string; owner: string; waiting?: string; next: string }) {
-  return <aside className="orientation-panel"><div><span>Owner</span><strong>{owner}</strong></div><div><span>Step</span><strong>{step}</strong></div>{waiting ? <div><span>Needs</span><strong>{waiting}</strong></div> : null}<div className="next"><span>Next</span><strong>{next}</strong></div></aside>
-}
 
 function StageActivity({ events, active }: { events: DocumentDetail['audit_events']; active: boolean }) {
   const stages = [{ label: 'PDF received', done: true }, { label: 'Invoice data found', done: !active && events.some((event) => event.event_type === 'processing_succeeded'), active }, { label: 'Basic checks completed', done: !active && events.some((event) => event.event_type === 'processing_succeeded') }]
@@ -1064,13 +1057,6 @@ function WorkItemPage({
     queryFn: () => api<DocumentDetail>(`/documents/${linkedDocument?.id}`),
     enabled: Boolean(linkedDocument),
   })
-  const documentWorkflow = useQuery({
-    queryKey: ['document-workflow', linkedDocument?.id],
-    queryFn: () => api<DocumentWorkflow>(`/documents/${linkedDocument?.id}/workflow`),
-    enabled: Boolean(linkedDocument),
-    refetchInterval: 5000,
-  })
-
   if (detail.error) return <ErrorState message={(detail.error as Error).message} retry={() => detail.refetch()} />
   if (!item || loadingWorkspace) return <LoadingState />
 
@@ -1104,9 +1090,6 @@ function WorkItemPage({
           document={linkedDocument}
           extraction={documentDetail.data?.extraction ?? null}
           loading={documentDetail.isLoading}
-          workflow={documentWorkflow.data}
-          workflowLoading={documentWorkflow.isLoading}
-          workflowError={documentWorkflow.error as Error | null}
         />
       </section>
     </main>
@@ -1160,17 +1143,11 @@ function ReviewerReviewPage({
   document,
   extraction,
   loading,
-  workflow,
-  workflowLoading,
-  workflowError,
 }: {
   item: WorkItemDetail
   document?: DocumentSummary
   extraction: Extraction | null
   loading: boolean
-  workflow?: DocumentWorkflow
-  workflowLoading: boolean
-  workflowError: Error | null
 }) {
   const queryClient = useQueryClient()
   const [notes, setNotes] = useState('')
@@ -1244,10 +1221,6 @@ function ReviewerReviewPage({
           </section>
         ) : null}
 
-        <details className="review-history">
-          <summary>History</summary>
-          <ActivityTab workflow={workflow} documentId={document?.id} loading={workflowLoading} error={workflowError} />
-        </details>
       </aside>
     </div>
   )
@@ -1440,7 +1413,7 @@ function DraftPreview({ drafts }: { drafts: Draft[] }) {
 function TraceCard({ item }: { item: WorkItemDetail }) {
   const steps = item.current_plan?.steps ?? []
   const runId = item.current_plan?.agent_run_id
-  return <section className="panel trace-card"><PanelTitle title="Agent Trace (Latest Run)" /><DetailRow label="Run ID" value={runId ? shortId(runId) : '-'} /><DetailRow label="Started" value={item.current_plan ? formatDate(item.current_plan.created_at) : '-'} /><DetailRow label="Steps" value={`${steps.length} steps`} /><DetailRow label="Status" value={item.current_plan ? (item.current_plan.requires_human ? 'Human action required' : 'Plan ready') : 'Not started'} /><div className="panel-actions"><button className="outline-button" disabled={!runId} onClick={() => runId && window.open(`/ui/agentops?run_id=${runId}`, '_blank')}><Link2 size={14} /> View Full Trace</button><button className="outline-button" onClick={() => window.open('/ui/agentops', '_blank')}><Boxes size={14} /> Open in AgentOps</button></div></section>
+  return <section className="panel trace-card"><PanelTitle title="Agent Trace (Latest Run)" /><DetailRow label="Run ID" value={runId ? shortId(runId) : '-'} /><DetailRow label="Started" value={item.current_plan ? formatDate(item.current_plan.created_at) : '-'} /><DetailRow label="Steps" value={`${steps.length} steps`} /><DetailRow label="Status" value={item.current_plan ? (item.current_plan.requires_human ? 'Human action required' : 'Plan ready') : 'Not started'} /><div className="panel-actions"><button className="outline-button" disabled={!runId} onClick={() => runId && window.open('/?technical=runs', '_blank')}><Link2 size={14} /> View Full Trace</button><button className="outline-button" onClick={() => window.open('/?technical=runs', '_blank')}><Boxes size={14} /> Open technical view</button></div></section>
 }
 
 function CreateWorkItemModal({ documents, close, openItem }: { documents: DocumentSummary[]; close: () => void; openItem: (id: string) => void }) {
@@ -1800,49 +1773,6 @@ function DocumentsPage({ workspace, loading }: { workspace?: Workspace; loading:
   )
 }
 
-function HistoryPage({ workspace, loading, openItem, role }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void; role: UserRole }) {
-  const uploaderView = role === 'intake'
-  const items = workspace?.work_items ?? []
-  const documentEvents = (workspace?.documents ?? []).map((document) => ({
-    id: `document-${document.id}`,
-    title: invoiceHistoryTitle(document.status, uploaderView),
-    body: invoiceHistoryBody({ ...document, filename: historyDocumentName(document.filename) }, uploaderView),
-    at: document.created_at,
-    status: document.status,
-    action: !uploaderView && document.status === 'needs_review'
-      ? (() => {
-        const item = items.find((candidate) => candidate.linked_document_ids.includes(document.id))
-        if (item) openItem(item.id)
-      })
-      : null as null | (() => void),
-  }))
-  const reviewEvents = items.filter((item) => !linkedDocumentForItem(item, workspace?.documents ?? [])).map((item) => ({
-    id: `item-${item.id}`,
-    title: historyTitle(item, uploaderView),
-    body: historyBody(item, uploaderView),
-    at: item.updated_at,
-    status: item.status,
-    action: uploaderView ? null as null | (() => void) : () => openItem(item.id),
-  }))
-  const events = [...documentEvents, ...reviewEvents].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 20)
-  return (
-    <main className="queue-page">
-      <section className="page-heading">
-        <div><span className="section-eyebrow">ACTIVITY</span><h2>History</h2><p>{uploaderView ? 'A simple record of your invoice submissions and their latest status.' : 'A simple record of invoices waiting for your decision or already reviewed.'}</p></div><span className="history-count">{events.length} updates</span>
-      </section>
-      <section className="queue-surface history-list">
-        {loading ? <LoadingState label="Loading history" /> : events.length ? events.map((event) => (
-          <article key={event.id}>
-            <span className="activity-dot source-system"><Check size={13} /></span>
-            <div className="history-copy"><strong>{event.title}</strong><p>{event.body}</p></div>
-            <div className="history-event-meta"><small>{formatDate(event.at)}</small><div><Status value={event.status} />{event.action ? <button className="outline-button" onClick={event.action}>Review invoice <ChevronRight size={14} /></button> : null}</div></div>
-          </article>
-        )) : <EmptyState title="No history yet" body={uploaderView ? 'Upload an invoice, then its status history will appear here.' : 'Reviewer decisions will appear here after invoices are checked.'} />}
-      </section>
-    </main>
-  )
-}
-
 function DocumentTab({ document, documentDetail, extraction, loading }: { document?: DocumentSummary; documentDetail?: ApiDocument; extraction: Extraction | null; loading: boolean }) {
   if (loading) return <LoadingState label="Loading invoice PDF" />
   if (!document) return <EmptyState title="No invoice PDF linked" body="Link an invoice PDF before reviewing this item." next="Do not approve invoice work until the PDF is linked or manually checked." />
@@ -1926,7 +1856,7 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
 
       <section className="panel decision-result-panel">
         <PanelTitle title="What happens next" />
-        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{activityLabel(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} - {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Waiting for your decision</strong><p>After you approve, reject, or ask for correction, the decision is saved in history.</p></div></div>}
+        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{activityLabel(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} - {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Waiting for your decision</strong><p>Approve, reject, or request a correction after checking the invoice.</p></div></div>}
       </section>
     </div>
   )
@@ -1946,53 +1876,11 @@ function EvidenceExcerpts({ evidence = [] }: { evidence?: Extraction['confidence
 
 function AgentOpsTab({ item }: { item: WorkItemDetail }) {
   const linked = item.activity.filter((event) => event.agent_run_id)
-  return <div className="tab-content"><TraceCard item={item} />{linked.length ? <section className="panel"><PanelTitle title="Linked Trace Activity" /><div className="activity-list">{linked.map((event) => <article key={event.id}><span className="activity-dot source-agentops"><Activity size={13} /></span><div><strong>{humanize(event.event_type)}</strong><p>{event.summary}</p><small>Run {shortId(event.agent_run_id!)} Â· {formatDate(event.created_at)}</small></div><button className="outline-button" onClick={() => window.open(`/ui/agentops?run_id=${event.agent_run_id}`, '_blank')}>Open trace</button></article>)}</div></section> : null}</div>
+  return <div className="tab-content"><TraceCard item={item} />{linked.length ? <section className="panel"><PanelTitle title="Linked Trace Activity" /><div className="activity-list">{linked.map((event) => <article key={event.id}><span className="activity-dot source-agentops"><Activity size={13} /></span><div><strong>{humanize(event.event_type)}</strong><p>{event.summary}</p><small>Run {shortId(event.agent_run_id!)} Â· {formatDate(event.created_at)}</small></div><button className="outline-button" onClick={() => window.open('/?technical=runs', '_blank')}>Open trace</button></article>)}</div></section> : null}</div>
 }
 
 const hiddenDetailViews = [PlanTab, RecordTab, GovernanceTab, AgentOpsTab] as const
 void hiddenDetailViews
-
-function ActivityTab({ workflow, documentId, loading, error }: { workflow?: DocumentWorkflow; documentId?: string; loading: boolean; error: Error | null }) {
-  const queryClient = useQueryClient()
-  const [reason, setReason] = useState('')
-  const command = useMutation({
-    mutationFn: (action: 'retry' | 'request-correction' | 'escalate') => api(`/documents/${documentId}/${action}`, action === 'retry' ? { method: 'POST' } : { method: 'POST', body: JSON.stringify({ reason: reason.trim() || (action === 'escalate' ? 'Manual escalation requested by reviewer.' : 'Please correct the invoice evidence.') }) }),
-    onSuccess: () => {
-      setReason('')
-      queryClient.invalidateQueries({ queryKey: ['document-workflow', documentId] })
-      queryClient.invalidateQueries({ queryKey: ['workspace'] })
-      if (workflow?.work_item?.id) queryClient.invalidateQueries({ queryKey: ['work-item', workflow.work_item.id] })
-    },
-  })
-  if (loading) return <LoadingState label="Loading history" />
-  if (error) return <ErrorState message={error.message} retry={() => queryClient.invalidateQueries({ queryKey: ['document-workflow', documentId] })} />
-  if (!workflow) return <EmptyState title="No history yet" body="History appears after the invoice is uploaded, checked, or reviewed." />
-  return <div className="activity-tab">
-    <section className="workflow-orientation">
-      <DetailField label="Status" value={invoiceStageCopy(workflow.current_stage)} />
-      <DetailField label="Owner" value={workflow.current_owner} />
-      <DetailField label="Waiting for" value={workflow.waiting_for ? plainNextAction(workflow.waiting_for) : 'Nothing right now'} />
-      <DetailField label="Next" value={plainNextAction(workflow.next_action)} />
-      {workflow.attention_reason ? <div className="notice warning"><AlertTriangle size={16} /><div><strong>Attention required</strong><p>{workflow.attention_reason}</p></div></div> : null}
-    </section>
-    <section className="panel workflow-activity">
-      <PanelTitle title="History" action={<span className="version">{workflow.activity.length} updates</span>} />
-      <div className="activity-list">{workflow.activity.map((event) => <article key={event.id}><span className={`activity-dot source-${event.source}`}><Check size={13} /></span><div><strong>{activityLabel(event.event_type)}</strong><p>{event.summary}</p><small>{event.actor} - {formatDate(event.created_at)}</small></div></article>)}</div>
-      {!workflow.activity.length ? <EmptyState title="No history yet" body="No upload, check, approval, or correction updates have been saved yet." next="Upload, check, or decide on an invoice to create history." /> : null}
-    </section>
-    <section className="panel recovery-panel">
-      <PanelTitle title="Fix invoice" />
-      <p>Use these only when the invoice needs another read, a correction request, or reviewer help. Every action is saved in history.</p>
-      {workflow.work_item ? <textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason or correction note" /> : null}
-      <div className="panel-actions">
-        {workflow.current_stage === 'failed' ? <button className="outline-button" disabled={command.isPending} onClick={() => command.mutate('retry')}><RefreshCw size={14} /> Read again</button> : null}
-        {workflow.work_item && workflow.current_stage !== 'completed' ? <button className="outline-button" disabled={command.isPending} onClick={() => command.mutate('request-correction')}><Pencil size={14} /> Ask for correction</button> : null}
-        {workflow.work_item && workflow.current_stage !== 'completed' ? <button className="outline-button" disabled={command.isPending} onClick={() => command.mutate('escalate')}><UserRound size={14} /> Send to reviewer</button> : null}
-      </div>
-      {command.error ? <p className="form-error">{(command.error as Error).message}</p> : null}
-    </section>
-  </div>
-}
 
 function PanelTitle({ title, action }: { title: string; action?: React.ReactNode }) {
   return <div className="panel-title"><h3>{title}</h3>{action}</div>
@@ -2143,51 +2031,6 @@ function activityLabel(value: string) {
     escalated: 'Sent to reviewer',
   }
   return labels[value] ?? humanize(value)
-}
-function historyTitle(item: WorkItemSummary, uploaderView: boolean) {
-  if (uploaderView) {
-    if (item.status === 'awaiting_human') return 'Sent for review'
-    if (item.status === 'resolved') return 'Completed'
-    if (item.status === 'blocked' || item.status === 'failed') return 'Needs correction'
-    if (item.status === 'rejected') return 'Rejected'
-    return 'Status updated'
-  }
-  if (item.status === 'awaiting_human') return 'Waiting for decision'
-  if (item.status === 'resolved') return 'Decision completed'
-  if (item.status === 'blocked' || item.status === 'failed') return 'Correction needed'
-  if (item.status === 'rejected') return 'Rejected'
-  return 'Review updated'
-}
-function historyBody(item: WorkItemSummary, uploaderView: boolean) {
-  if (uploaderView) {
-    if (item.status === 'awaiting_human') return `${item.title} is waiting for a reviewer.`
-    if (item.status === 'resolved') return `${item.title} has been completed.`
-    if (item.status === 'blocked' || item.status === 'failed') return `${item.title} needs correction before it can continue.`
-    return item.title
-  }
-  if (item.status === 'awaiting_human') return `${item.title} needs approve, reject, or correction.`
-  if (item.status === 'resolved') return `${item.title} has a recorded decision.`
-  if (item.status === 'blocked' || item.status === 'failed') return `${item.title} needs reviewer follow-up.`
-  return item.title
-}
-function invoiceHistoryTitle(status: string, uploaderView: boolean) {
-  if (status === 'approved') return 'Approved'
-  if (status === 'rejected') return 'Rejected'
-  if (status === 'exported') return 'Completed'
-  if (status === 'needs_review') return uploaderView ? 'Sent for review' : 'Waiting for decision'
-  if (status === 'failed') return 'Needs correction'
-  if (status === 'cancelled') return 'Cancelled'
-  return uploaderView ? 'Uploaded' : 'Invoice received'
-}
-function invoiceHistoryBody(document: DocumentSummary, uploaderView: boolean) {
-  if (document.status === 'approved') return `${document.filename} was approved.`
-  if (document.status === 'rejected') return `${document.filename} was rejected.`
-  if (document.status === 'needs_review') return uploaderView ? `${document.filename} is waiting for a reviewer.` : `${document.filename} needs approve, reject, or correction.`
-  if (document.status === 'failed') return `${document.filename} needs correction before it can continue.`
-  return uploaderView ? `${document.filename} was added to My Invoices.` : document.filename
-}
-function historyDocumentName(filename: string) {
-  return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.pdf$/i.test(filename) ? 'An uploaded invoice' : filename
 }
 function businessActionLabel(value: string) {
   const labels: Record<string, string> = {

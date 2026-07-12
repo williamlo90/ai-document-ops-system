@@ -216,7 +216,7 @@ describe('application shell', () => {
     expect(screen.queryByRole('button', { name: /upload invoice/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /invoices/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /approvals/i })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /history/i }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /^history$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /system reliability/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /new document task/i })).not.toBeInTheDocument()
@@ -248,7 +248,7 @@ describe('application shell', () => {
     expect(screen.queryByRole('button', { name: /approvals/i })).not.toBeInTheDocument()
   })
 
-  it('shows role-specific history receipts', async () => {
+  it('keeps history out of primary navigation', async () => {
     const user = userEvent.setup()
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
@@ -261,20 +261,17 @@ describe('application shell', () => {
     })
 
     render(<App />)
-    await user.click(await screen.findByRole('button', { name: /history/i }))
-    expect(await screen.findByText(/A simple record of your invoice submissions/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/Approved/i).length).toBeGreaterThan(0)
-    expect(screen.queryByText(/In progress/i)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /open review/i })).not.toBeInTheDocument()
+    expect((await screen.findAllByRole('button', { name: /upload invoice/i })).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /my invoices/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^history$/i })).not.toBeInTheDocument()
 
     await user.selectOptions(
       screen.getByRole('combobox', { name: /view application as role/i }),
       'administrator',
     )
-    await user.click(await screen.findByRole('button', { name: /history/i }))
-    expect(await screen.findByText(/A simple record of invoices waiting for your decision/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/Approved/i).length).toBeGreaterThan(0)
-    expect(screen.queryByText(/Waiting for decision/i)).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /approvals/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^invoices$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^history$/i })).not.toBeInTheDocument()
   })
 
   it('shows submitted invoices in reviewer approvals when the document needs review', async () => {
@@ -394,7 +391,7 @@ describe('application shell', () => {
     render(<App />)
     expect(await screen.findByRole('button', { name: /approvals/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /invoices/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /history/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^history$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /reliability checks/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /test scenarios/i })).not.toBeInTheDocument()
