@@ -1,6 +1,6 @@
 # UI Role Refactor Sprint Plan
 
-Status: UI-R1 through UI-R3 implemented; UI-R4 through UI-R6 pending.
+Status: UI-R1 through UI-R4 implemented; UI-R5 through UI-R6 pending.
 
 Source inputs:
 
@@ -148,6 +148,8 @@ Risk:
 - Some old admin diagnostic components still exist in `App.tsx`. Do not delete backend capabilities; hide or isolate them from the main role path.
 
 ## Sprint UI-R4 - Invoice Review And Decision Copy
+
+Implementation status: completed.
 
 Goal:
 Make the final reviewer decision obvious and non-technical.

@@ -1064,9 +1064,9 @@ function DetailDecisionSummary({ item, document, openDecision }: { item: WorkIte
         <p>{decisionRequired(item)}</p>
       </article>
       <article>
-        <span>Recommended next step</span>
+        <span>Suggested action</span>
         <strong>{nextStep ? businessActionLabel(nextStep.action_type) : item.current_plan ? 'No open action' : 'Check invoice first'}</strong>
-        <p>{nextStep?.why_this ?? item.requested_outcome ?? 'Check the invoice before taking action.'}</p>
+        <p>{pendingApproval ? 'Decide whether to approve, reject, or ask for correction.' : item.requested_outcome ?? 'Check the invoice before taking action.'}</p>
       </article>
       <article>
         <span>Reviewer decision</span>
@@ -1636,7 +1636,7 @@ function HistoryPage({ workspace, loading, openItem }: { workspace?: Workspace; 
 function DocumentTab({ document, documentDetail, extraction, loading }: { document?: DocumentSummary; documentDetail?: ApiDocument; extraction: Extraction | null; loading: boolean }) {
   if (loading) return <LoadingState label="Loading invoice PDF" />
   if (!document) return <EmptyState title="No invoice PDF linked" body="Link an invoice PDF before reviewing this item." next="Do not approve invoice work until the PDF is linked or manually checked." />
-  return <div className="document-review-layout"><AuthenticatedPdfPreview document={document} /><section className="panel document-evidence"><PanelTitle title="Invoice Data" action={<Status value={document.status} />} /><SchemaMeta document={documentDetail} extraction={extraction} /><div className="invoice-fields">{invoiceFields(extraction).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong><small><i /> {value === '-' ? 'Missing' : 'Found'}</small></div>)}</div>{extraction?.confidence?.length ? <div className="evidence-list">{extraction.confidence.map((evidence) => <article key={evidence.field_name}><strong>{humanize(evidence.field_name)}</strong><EvidenceConfidence score={evidence.score} /><p>{evidence.source_text || 'No PDF snippet stored. Compare with the PDF before deciding.'}</p></article>)}</div> : <EmptyState title="No PDF snippets available" body="The app did not store snippets for these fields." next="Compare visible invoice values with the PDF before approving." />}{extraction?.validation?.length ? <div className="validation-list">{extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation blockers.</div>}</section></div>
+  return <div className="document-review-layout"><AuthenticatedPdfPreview document={document} /><section className="panel document-evidence"><PanelTitle title="Invoice Data" action={<Status value={document.status} />} /><SchemaMeta document={documentDetail} extraction={extraction} /><div className="invoice-fields">{invoiceFields(extraction).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong><small><i /> {value === '-' ? 'Missing' : 'Found'}</small></div>)}</div>{extraction?.confidence?.length ? <div className="evidence-list trust-snippets">{extraction.confidence.map((evidence) => <article key={evidence.field_name}><strong>{humanize(evidence.field_name)}</strong><EvidenceConfidence score={evidence.score} /><p>{evidence.source_text || 'No PDF snippet stored. Compare with the PDF before deciding.'}</p></article>)}</div> : <EmptyState title="No PDF snippets available" body="The app did not store snippets for these fields." next="Compare visible invoice values with the PDF before approving." />}{extraction?.validation?.length ? <div className="validation-list">{extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation blockers.</div>}</section></div>
 }
 
 function SchemaMeta({ document, extraction, compact = false }: { document?: ApiDocument | DocumentSummary; extraction: Extraction | null; compact?: boolean }) {
@@ -1685,25 +1685,22 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
   const signals = exceptionSignals(item, extraction)
   const evidence = extraction?.confidence ?? []
   const validation = extraction?.validation ?? []
-  const latestPolicy = item.policy_decisions.at(-1)
-  const pendingStep = item.current_plan?.steps.find((candidate) => candidate.id === pending?.action_step_id) ?? item.current_plan?.steps.find((step) => step.requires_approval) ?? item.current_plan?.steps[0]
-  const approvalReason = latestPolicy?.reason ?? item.current_plan?.escalation_reason ?? pendingStep?.why_this ?? 'This action can affect document records and needs a reviewer decision before execution.'
 
   return (
     <div className="decision-page">
       <section className="panel decision-hero">
-        <PanelTitle title="Decision Needed" action={<Status value={item.status} />} />
-        <p>{approvalReason}</p>
+        <PanelTitle title="Make a decision" action={<Status value={item.status} />} />
+        <p>Check the invoice details against the PDF, then choose whether this invoice can continue.</p>
         <div className="exception-signal-grid">{signals.map((signal) => <article className={`exception-signal exception-${signal.tone}`} key={signal.label}><AlertTriangle size={15} /><div><strong>{signal.label}</strong><p>{signal.detail}</p></div></article>)}</div>
       </section>
 
       <section className="panel decision-checklist">
-        <PanelTitle title="Check Before You Decide" action={<span className="version">{evidence.length} fields</span>} />
+        <PanelTitle title="Check before deciding" action={<span className="version">{evidence.length} checked</span>} />
         <div className="evidence-snapshot">
           <DetailField label="Invoice" value={document?.filename ?? 'No linked PDF'} />
           <DetailField label="Issues found" value={validation.length} />
-          <DetailField label="Fields checked" value={evidence.length} />
-          <DetailField label="Recommended next step" value={pendingStep ? businessActionLabel(pendingStep.action_type) : 'Review invoice'} />
+          <DetailField label="Matched fields" value={evidence.length} />
+          <DetailField label="Decision needed" value={pending ? 'Yes' : 'No'} />
         </div>
         {validation.length ? <div className="validation-issues compact">{validation.slice(0, 3).map((issue, index) => <article key={index}><AlertTriangle size={14} /><div><strong>{humanize(issue.field_name ?? issue.field ?? 'Invoice data')}</strong><p>{issue.message ?? 'This needs review.'}</p></div></article>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No blockers found.</div>}
         <EvidenceExcerpts evidence={evidence} />
@@ -1724,8 +1721,8 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
       </section>
 
       <section className="panel decision-result-panel">
-        <PanelTitle title="Result" />
-        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{activityLabel(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} - {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Not finished yet</strong><p>The result will appear here after the decision is completed.</p></div></div>}
+        <PanelTitle title="What happens next" />
+        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{activityLabel(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} - {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Waiting for your decision</strong><p>After you approve, reject, or ask for correction, the decision is saved in history.</p></div></div>}
       </section>
     </div>
   )
@@ -1737,6 +1734,7 @@ function EvidenceExcerpts({ evidence = [] }: { evidence?: Extraction['confidence
   if (!excerpts.length) return <div className="missing-evidence"><AlertTriangle size={16} /><div><strong>No PDF snippets available</strong><p>Compare the invoice details with the PDF before deciding.</p></div></div>
   return (
     <div className="approval-evidence-excerpts">
+      <strong className="trust-snippet-heading">Why the app thinks this matches</strong>
       {excerpts.map((entry) => <article key={entry.field_name}><strong>{humanize(entry.field_name)}</strong><EvidenceConfidence score={entry.score} /><p>{entry.source_text}</p></article>)}
     </div>
   )

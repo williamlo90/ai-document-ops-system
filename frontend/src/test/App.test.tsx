@@ -291,9 +291,11 @@ describe('application shell', () => {
     await user.click(await screen.findByRole('button', { name: /review invoice/i }))
     await user.click(await screen.findByRole('button', { name: /make decision/i }))
 
-    expect((await screen.findAllByText(/Decision Needed/i)).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/changes downstream accounting records/i).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText(/Make a decision/i)).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Check the invoice details against the PDF/i)).toBeInTheDocument()
+    expect(screen.queryByText(/changes downstream accounting records/i)).not.toBeInTheDocument()
     expect(screen.getByText('Invoice total $100.00')).toBeInTheDocument()
+    expect(screen.getByText(/Why the app thinks this matches/i)).toBeInTheDocument()
     expect(screen.getByText(/Approve only when the invoice details match the PDF/i)).toBeInTheDocument()
     expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'What did you check?')
     expect(screen.getByRole('button', { name: /approve invoice/i })).toBeInTheDocument()
