@@ -13,7 +13,7 @@ function aggregate(approvalStatus = 'pending') {
 
 async function mockWorkflow(page: Page, calls: string[], approvalStatus = 'pending', stage = 'needs_attention') {
   const item = aggregate(approvalStatus)
-  const document = { id: 'doc-1', filename: 'acme.pdf', original_filename: 'acme.pdf', status: 'approved', created_at: now }
+  const document = { id: 'doc-1', filename: 'acme.pdf', original_filename: 'acme.pdf', status: 'approved', document_type: 'invoice', supported_extraction_schema: 'invoice_v1', created_at: now }
   await page.route('**/*', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
@@ -23,7 +23,7 @@ async function mockWorkflow(page: Page, calls: string[], approvalStatus = 'pendi
     if (path === '/providers/health') return route.fulfill({ json: { overall_status: 'healthy', providers: [] } })
     if (path === '/operations/jobs') return route.fulfill({ json: { worker: { status: 'healthy', queued_jobs: 0, failed_jobs: 0, stalled_jobs: 0, evidence: 'ok' }, failed_jobs: [] } })
     if (path === '/backoffice/work-items/item-1') return route.fulfill({ json: { work_item: item } })
-    if (path === '/documents/doc-1') return route.fulfill({ json: { document, extraction: { data: {}, confidence: [], validation: [{ field_name: 'total', message: 'Total does not match line items', severity: 'error' }] }, audit_events: [] } })
+    if (path === '/documents/doc-1') return route.fulfill({ json: { document, extraction: { document_type: 'invoice', schema_version: 'invoice_v1', data: {}, confidence: [], validation: [{ field_name: 'total', message: 'Total does not match line items', severity: 'error' }] }, audit_events: [] } })
     if (path === '/documents/doc-1/content') return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4\n%%EOF' })
     if (path === '/documents/doc-1/workflow') return route.fulfill({ json: { document, extraction: null, work_item: item, current_stage: stage, current_owner: 'Finance reviewer', waiting_for: 'Human decision', next_action: 'Review', attention_reason: 'Approval required', activity: [] } })
     if (path === '/invoices/doc-1/workflow') return route.fulfill({ status: 410, json: { detail: 'Use the document workflow projection.' } })
@@ -88,6 +88,7 @@ test('durable workflow is restored after a browser reload', async ({ page }) => 
 test('validation failures are visible with their stored evidence', async ({ page }) => {
   const calls: string[] = []
   await mockWorkflow(page, calls)
+  await expect(page.getByText('invoice_v1').first()).toBeVisible()
   await expect(page.getByText('1 validation issue requires review')).toBeVisible()
   await expect(page.getByText('Total does not match line items')).toBeVisible()
 })

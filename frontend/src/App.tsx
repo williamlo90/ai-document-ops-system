@@ -124,11 +124,13 @@ type Workspace = {
 }
 type LineItem = { description?: string | null; quantity?: string | null; unit_price?: string | null; amount?: string | null }
 type Extraction = {
+  document_type?: string
+  schema_version?: string
   data?: Record<string, unknown>
   confidence?: Array<{ field_name: string; score: number | null; source_page?: number | null; source_text?: string | null }>
   validation?: Array<{ field?: string; field_name?: string; message?: string; severity?: string }>
 }
-type ApiDocument = { id: string; original_filename: string; status: string; created_at: string; updated_at?: string; error_message?: string | null; submitted_by?: string; size_bytes?: number }
+type ApiDocument = { id: string; original_filename: string; status: string; created_at: string; updated_at?: string; error_message?: string | null; submitted_by?: string; size_bytes?: number; document_type?: string; supported_extraction_schema?: string }
 type InvoiceListItem = ApiDocument & { vendor_name?: string | null; total?: string | null; currency?: string | null; current_owner: string; current_stage: string; work_item_id?: string | null }
 type InvoiceList = { items: InvoiceListItem[]; page: number; page_size: number; total: number; total_pages: number }
 type DocumentDetail = { document: ApiDocument; extraction: Extraction | null; audit_events: Array<{ id?: string; event_type?: string; created_at?: string; payload_summary?: string }> }
@@ -1116,7 +1118,7 @@ function WorkItemPage({
           ))}
         </div>
         {activeTab === 'Workspace' ? (
-          <WorkspaceTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
+          <WorkspaceTab item={item} document={linkedDocument} documentDetail={documentDetail.data?.document} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
         ) : activeTab === 'Plan' ? (
           <PlanTab item={item} />
         ) : activeTab === 'Details' ? (
@@ -1124,7 +1126,7 @@ function WorkItemPage({
         ) : activeTab === 'Governance' ? (
           <GovernanceTab item={item} />
         ) : activeTab.startsWith('Documents') ? (
-          <DocumentTab document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
+          <DocumentTab document={linkedDocument} documentDetail={documentDetail.data?.document} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
         ) : activeTab.startsWith('Drafts') ? <DraftTab item={item} /> :
           activeTab === 'Approvals' ? <ApprovalTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} /> :
             activeTab === 'Activity' ? <ActivityTab workflow={documentWorkflow.data} documentId={linkedDocument?.id} loading={documentWorkflow.isLoading} error={documentWorkflow.error as Error | null} /> :
@@ -1149,7 +1151,7 @@ function InboxCard({ item, active, open }: { item: WorkItemSummary; active: bool
   )
 }
 
-function WorkspaceTab({ item, document, extraction, loading }: { item: WorkItemDetail; document?: DocumentSummary; extraction: Extraction | null; loading: boolean }) {
+function WorkspaceTab({ item, document, documentDetail, extraction, loading }: { item: WorkItemDetail; document?: DocumentSummary; documentDetail?: ApiDocument; extraction: Extraction | null; loading: boolean }) {
   const fields = invoiceFields(extraction)
   const issues = extraction?.validation ?? []
   const evidence = extraction?.confidence ?? []
@@ -1175,6 +1177,7 @@ function WorkspaceTab({ item, document, extraction, loading }: { item: WorkItemD
           <section className="panel workspace-fields">
             <PanelTitle title="Extracted Invoice Fields" action={<TypeBadge value="invoice" />} />
             <p className="workspace-context">Current extraction schema is invoice-specific. Unavailable values remain visibly unverified.</p>
+            <SchemaMeta document={documentDetail} extraction={extraction} />
             <div className="invoice-fields">{fields.map(([label, value]) => <div className={value === '-' ? 'field-missing' : ''} key={label}><span>{label}</span><strong>{value}</strong><small><i /> {value === '-' ? 'Missing evidence' : 'Stored extraction'}</small></div>)}</div>
           </section>
 
@@ -1642,10 +1645,16 @@ function DocumentsPage({ workspace, loading }: { workspace?: Workspace; loading:
   return <main className="queue-page"><section className="page-heading"><div><h2>Document Library</h2><p>Source records available to document operations workflows.</p></div></section><section className="queue-surface document-list">{loading ? <LoadingState /> : workspace?.documents.map((doc) => <article key={doc.id}><WorkIcon type="invoice_review" /><div><strong>{doc.filename}</strong><span>{shortId(doc.id)} · {formatDate(doc.created_at)}</span></div><Status value={doc.status} /></article>)}</section></main>
 }
 
-function DocumentTab({ document, extraction, loading }: { document?: DocumentSummary; extraction: Extraction | null; loading: boolean }) {
+function DocumentTab({ document, documentDetail, extraction, loading }: { document?: DocumentSummary; documentDetail?: ApiDocument; extraction: Extraction | null; loading: boolean }) {
   if (loading) return <LoadingState />
   if (!document) return <EmptyState title="No linked document" body="Link a document to inspect extraction and validation evidence." />
-  return <div className="document-review-layout"><AuthenticatedPdfPreview document={document} /><section className="panel document-evidence"><PanelTitle title="Extraction Evidence" action={<Status value={document.status} />} /><div className="invoice-fields">{invoiceFields(extraction).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong><small><i /> Stored extraction</small></div>)}</div>{extraction?.confidence?.length ? <div className="evidence-list">{extraction.confidence.map((evidence) => <article key={evidence.field_name}><strong>{humanize(evidence.field_name)}</strong><span>{evidence.score == null ? 'Not scored' : `${Math.round(evidence.score * 100)}%`}</span><p>{evidence.source_text || 'No source excerpt stored.'}</p></article>)}</div> : null}{extraction?.validation?.length ? <div className="validation-list">{extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation blockers.</div>}</section></div>
+  return <div className="document-review-layout"><AuthenticatedPdfPreview document={document} /><section className="panel document-evidence"><PanelTitle title="Extraction Evidence" action={<Status value={document.status} />} /><SchemaMeta document={documentDetail} extraction={extraction} /><div className="invoice-fields">{invoiceFields(extraction).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong><small><i /> Stored extraction</small></div>)}</div>{extraction?.confidence?.length ? <div className="evidence-list">{extraction.confidence.map((evidence) => <article key={evidence.field_name}><strong>{humanize(evidence.field_name)}</strong><span>{evidence.score == null ? 'Not scored' : `${Math.round(evidence.score * 100)}%`}</span><p>{evidence.source_text || 'No source excerpt stored.'}</p></article>)}</div> : null}{extraction?.validation?.length ? <div className="validation-list">{extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation blockers.</div>}</section></div>
+}
+
+function SchemaMeta({ document, extraction }: { document?: ApiDocument; extraction: Extraction | null }) {
+  const documentType = extraction?.document_type ?? document?.document_type ?? 'invoice'
+  const schema = extraction?.schema_version ?? document?.supported_extraction_schema ?? 'invoice_v1'
+  return <div className="schema-meta"><span><FileText size={12} /> {humanize(documentType)}</span><span><Database size={12} /> {schema}</span></div>
 }
 
 function AuthenticatedPdfPreview({ document }: { document: DocumentSummary }) {
