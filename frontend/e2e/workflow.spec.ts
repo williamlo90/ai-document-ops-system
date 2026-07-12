@@ -25,7 +25,8 @@ async function mockWorkflow(page: Page, calls: string[], approvalStatus = 'pendi
     if (path === '/backoffice/work-items/item-1') return route.fulfill({ json: { work_item: item } })
     if (path === '/documents/doc-1') return route.fulfill({ json: { document, extraction: { data: {}, confidence: [], validation: [{ field_name: 'total', message: 'Total does not match line items', severity: 'error' }] }, audit_events: [] } })
     if (path === '/documents/doc-1/content') return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4\n%%EOF' })
-    if (path === '/invoices/doc-1/workflow') return route.fulfill({ json: { document, extraction: null, work_item: item, current_stage: stage, current_owner: 'Finance reviewer', waiting_for: 'Human decision', next_action: 'Review', attention_reason: 'Approval required', activity: [] } })
+    if (path === '/documents/doc-1/workflow') return route.fulfill({ json: { document, extraction: null, work_item: item, current_stage: stage, current_owner: 'Finance reviewer', waiting_for: 'Human decision', next_action: 'Review', attention_reason: 'Approval required', activity: [] } })
+    if (path === '/invoices/doc-1/workflow') return route.fulfill({ status: 410, json: { detail: 'Use the document workflow projection.' } })
     if (request.method() !== 'GET') {
       calls.push(`${request.method()} ${path}`)
       return route.fulfill({ json: { status: 'ok', work_item: item } })

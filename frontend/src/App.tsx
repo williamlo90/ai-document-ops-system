@@ -133,7 +133,7 @@ type InvoiceListItem = ApiDocument & { vendor_name?: string | null; total?: stri
 type InvoiceList = { items: InvoiceListItem[]; page: number; page_size: number; total: number; total_pages: number }
 type DocumentDetail = { document: ApiDocument; extraction: Extraction | null; audit_events: Array<{ id?: string; event_type?: string; created_at?: string; payload_summary?: string }> }
 type WorkflowActivity = { id: string; event_type: string; actor: string; summary: string; source: string; document_id?: string | null; work_item_id?: string | null; agent_run_id?: string | null; created_at: string }
-type InvoiceWorkflow = {
+type DocumentWorkflow = {
   document: ApiDocument
   extraction: Extraction | null
   work_item: WorkItemDetail | null
@@ -851,7 +851,7 @@ function IntakeLibrary({ view, openItem }: { view: IntakeView; openItem: (id: st
 }
 
 function InvoiceStatusPanel({ documentId, close, openItem, refresh }: { documentId: string; close: () => void; openItem: (id: string) => void; refresh: () => void }) {
-  const workflow = useQuery({ queryKey: ['invoice-library-detail', documentId], queryFn: () => api<InvoiceWorkflow>(`/invoices/${documentId}/workflow`), refetchInterval: 5000 })
+  const workflow = useQuery({ queryKey: ['document-workflow', documentId], queryFn: () => api<DocumentWorkflow>(`/documents/${documentId}/workflow`), refetchInterval: 5000 })
   const [pdfUrl, setPdfUrl] = useState('')
   const [escalationReason, setEscalationReason] = useState('')
   useEffect(() => {
@@ -1066,9 +1066,9 @@ function WorkItemPage({
     queryFn: () => api<DocumentDetail>(`/documents/${linkedDocument?.id}`),
     enabled: Boolean(linkedDocument),
   })
-  const invoiceWorkflow = useQuery({
-    queryKey: ['invoice-workflow', linkedDocument?.id],
-    queryFn: () => api<InvoiceWorkflow>(`/invoices/${linkedDocument?.id}/workflow`),
+  const documentWorkflow = useQuery({
+    queryKey: ['document-workflow', linkedDocument?.id],
+    queryFn: () => api<DocumentWorkflow>(`/documents/${linkedDocument?.id}/workflow`),
     enabled: Boolean(linkedDocument),
     refetchInterval: 5000,
   })
@@ -1127,7 +1127,7 @@ function WorkItemPage({
           <DocumentTab document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
         ) : activeTab.startsWith('Drafts') ? <DraftTab item={item} /> :
           activeTab === 'Approvals' ? <ApprovalTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} /> :
-            activeTab === 'Activity' ? <ActivityTab workflow={invoiceWorkflow.data} documentId={linkedDocument?.id} loading={invoiceWorkflow.isLoading} error={invoiceWorkflow.error as Error | null} /> :
+            activeTab === 'Activity' ? <ActivityTab workflow={documentWorkflow.data} documentId={linkedDocument?.id} loading={documentWorkflow.isLoading} error={documentWorkflow.error as Error | null} /> :
               activeTab === 'Technical Evidence' ? <AgentOpsTab item={item} /> :
                 <EmptyState title={`${activeTab} timeline`} body="This view is not available for the current workflow." />}
       </section>
@@ -1691,20 +1691,20 @@ function AgentOpsTab({ item }: { item: WorkItemDetail }) {
   return <div className="tab-content"><TraceCard item={item} />{linked.length ? <section className="panel"><PanelTitle title="Linked Trace Activity" /><div className="activity-list">{linked.map((event) => <article key={event.id}><span className="activity-dot source-agentops"><Activity size={13} /></span><div><strong>{humanize(event.event_type)}</strong><p>{event.summary}</p><small>Run {shortId(event.agent_run_id!)} · {formatDate(event.created_at)}</small></div><button className="outline-button" onClick={() => window.open(`/ui/agentops?run_id=${event.agent_run_id}`, '_blank')}>Open trace</button></article>)}</div></section> : null}</div>
 }
 
-function ActivityTab({ workflow, documentId, loading, error }: { workflow?: InvoiceWorkflow; documentId?: string; loading: boolean; error: Error | null }) {
+function ActivityTab({ workflow, documentId, loading, error }: { workflow?: DocumentWorkflow; documentId?: string; loading: boolean; error: Error | null }) {
   const queryClient = useQueryClient()
   const [reason, setReason] = useState('')
   const command = useMutation({
     mutationFn: (action: 'retry' | 'request-correction' | 'escalate') => api(`/invoices/${documentId}/${action}`, action === 'retry' ? { method: 'POST' } : { method: 'POST', body: JSON.stringify({ reason: reason.trim() || (action === 'escalate' ? 'Manual escalation requested by reviewer.' : 'Please correct the invoice evidence.') }) }),
     onSuccess: () => {
       setReason('')
-      queryClient.invalidateQueries({ queryKey: ['invoice-workflow', documentId] })
+      queryClient.invalidateQueries({ queryKey: ['document-workflow', documentId] })
       queryClient.invalidateQueries({ queryKey: ['workspace'] })
       if (workflow?.work_item?.id) queryClient.invalidateQueries({ queryKey: ['work-item', workflow.work_item.id] })
     },
   })
   if (loading) return <LoadingState />
-  if (error) return <ErrorState message={error.message} retry={() => queryClient.invalidateQueries({ queryKey: ['invoice-workflow', documentId] })} />
+  if (error) return <ErrorState message={error.message} retry={() => queryClient.invalidateQueries({ queryKey: ['document-workflow', documentId] })} />
   if (!workflow) return <EmptyState title="No workflow activity" body="Link a document to load its durable workflow history." />
   return <div className="activity-tab">
     <section className="workflow-orientation">
