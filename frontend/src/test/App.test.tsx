@@ -72,6 +72,68 @@ const workspaceWithPlannedWorkItem = {
   ...workspaceWithLinkedDocument,
   work_items: [plannedWorkItem],
 }
+const pendingApproval = {
+  id: 'approval-1',
+  work_item_id: 'item-1',
+  action_step_id: 'step-1',
+  status: 'pending',
+  reviewer_notes: null,
+  reviewed_by: null,
+  reviewed_at: null,
+  created_at: now,
+}
+const pendingApprovalWorkItemDetail = {
+  ...workItemDetail,
+  current_plan_id: 'plan-1',
+  approvals: [pendingApproval],
+  policy_decisions: [{
+    id: 'policy-1',
+    action_step_id: 'step-1',
+    action_type: 'invoice_export',
+    autonomy_level: 'balanced',
+    risk_level: 'high',
+    allowed: true,
+    requires_confirmation: true,
+    reason: 'Exporting an approved invoice changes downstream accounting records.',
+  }],
+  current_plan: {
+    id: 'plan-1',
+    planner_version: 'planner-v1',
+    overall_confidence: 'medium',
+    escalation_reason: 'Accounting export requires reviewer confirmation.',
+    requires_human: true,
+    created_at: now,
+    steps: [{
+      id: 'step-1',
+      action_type: 'invoice_export',
+      risk_level: 'high',
+      tool_name: 'accounting_export',
+      requires_approval: true,
+      status: 'waiting_for_approval',
+      why_this: 'Invoice total and vendor evidence are ready for export.',
+      why_not: null,
+    }],
+  },
+}
+const workspaceWithPendingApproval = {
+  ...workspaceWithLinkedDocument,
+  work_items: [{ ...workItem, current_plan_id: 'plan-1' }],
+  pending_approvals: [pendingApproval],
+  metrics: { work_items: 1, pending_approvals: 1, drafts: 0, policy_decisions: 1 },
+}
+const extractionWithEvidence = {
+  document_type: 'invoice',
+  schema_version: 'invoice_v1',
+  fields: {},
+  line_items: [],
+  validation: [],
+  confidence: [{
+    field_name: 'invoice_total',
+    score: 0.94,
+    source_text: 'Invoice total $100.00',
+    source_page: 1,
+  }],
+}
 
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), {
@@ -205,6 +267,37 @@ describe('application shell', () => {
 
     expect((await screen.findAllByText('invoice_v1')).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Invoice').length).toBeGreaterThan(0)
+  })
+
+  it('explains approval evidence and decision outcomes', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem('docops-role', 'administrator')
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/backoffice/workspace') return json(workspaceWithPendingApproval)
+      if (path === '/backoffice/work-items/item-1') return json({ work_item: pendingApprovalWorkItemDetail })
+      if (path === '/documents/doc-1') return json({ document: linkedDocument, extraction: extractionWithEvidence, audit_events: [] })
+      if (path === '/documents/doc-1/workflow') return json({ document: linkedDocument, extraction: extractionWithEvidence, work_item: pendingApprovalWorkItemDetail, current_stage: 'needs_attention', current_owner: 'Finance reviewer', waiting_for: 'approval', next_action: 'Review approval', attention_reason: null, activity: [] })
+      if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
+      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+    await user.click(await screen.findByText('Review ACME invoice'))
+    await user.click(await screen.findByRole('button', { name: /approval decision/i }))
+
+    expect(await screen.findByText(/Why Approval Is Required/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/changes downstream accounting records/i).length).toBeGreaterThan(0)
+    expect(screen.getByText('Invoice total $100.00')).toBeInTheDocument()
+    expect(screen.getByText(/Allows the proposed action to continue/i)).toBeInTheDocument()
+    expect(screen.getByText(/Stops this approval request/i)).toBeInTheDocument()
+    expect(screen.getByText(/not a third approval status/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
   })
 
   it('shows document operation metadata in evaluation cases', async () => {

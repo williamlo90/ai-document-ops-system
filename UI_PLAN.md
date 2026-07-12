@@ -117,6 +117,8 @@ Acceptance criteria:
 
 ### UX Sprint 3 - Evidence And Approval Guidance
 
+Status: complete.
+
 Goal:
 Make the approval flow understandable without knowing the internal policy engine.
 

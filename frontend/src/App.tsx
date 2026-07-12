@@ -1744,7 +1744,80 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
   const evidence = extraction?.confidence ?? []
   const validation = extraction?.validation ?? []
   const latestPolicy = item.policy_decisions.at(-1)
-  return <div className="reviewer-flow"><div className="reviewer-stepper">{['Understand','Review Plan','Decide','Confirm Result'].map((label,index) => <div className={index < stage ? 'complete' : index === stage ? 'active' : ''} key={label}><span>{index < stage ? <Check size={14} /> : index + 1}</span><strong>{label}</strong></div>)}</div><section className="panel review-understand"><PanelTitle title="1. Understand the Exception" action={<Status value={item.status} />} /><p>{attentionReason(item)} {decisionRequired(item)}</p><div className="exception-signal-grid">{signals.map((signal) => <article className={`exception-signal exception-${signal.tone}`} key={signal.label}><AlertTriangle size={15} /><div><strong>{signal.label}</strong><p>{signal.detail}</p></div></article>)}</div><div className="detail-definition-grid"><DetailField label="Priority" value={<Priority value={item.priority} />} /><DetailField label="Assignee" value={item.assignee} /><DetailField label="Requested outcome" value={item.requested_outcome || 'Not provided'} /><DetailField label="Source document" value={document?.filename ?? 'No linked document'} /></div></section><section className="panel review-evidence"><PanelTitle title="Evidence Snapshot" action={<span className="version">{evidence.length} fields</span>} /><div className="evidence-snapshot"><DetailField label="Document state" value={<Status value={document?.status ?? 'missing'} />} /><DetailField label="Validation findings" value={validation.length} /><DetailField label="Field evidence" value={evidence.length} /><DetailField label="Plan version" value={item.current_plan ? `${item.current_plan.planner_version} · ${shortId(item.current_plan.id)}` : 'No plan'} /></div>{validation.length ? <div className="validation-issues compact">{validation.slice(0, 3).map((issue, index) => <article key={index}><AlertTriangle size={14} /><div><strong>{humanize(issue.field_name ?? issue.field ?? 'Document data')}</strong><p>{issue.message ?? 'Validation review required.'}</p></div></article>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation findings were returned.</div>}{!evidence.length ? <div className="missing-evidence"><AlertTriangle size={16} /><div><strong>Field-level evidence unavailable</strong><p>Compare the proposal with the linked source before deciding.</p></div></div> : null}</section><section className="panel review-plan"><PanelTitle title="2. Review the Proposed Plan" action={item.current_plan ? <Confidence value={item.current_plan.overall_confidence} /> : undefined} />{item.current_plan ? <div className="proposal-meta"><span>Plan {shortId(item.current_plan.id)}</span><span>{item.current_plan.planner_version}</span><span>{formatDate(item.current_plan.created_at)}</span></div> : null}{item.current_plan?.steps.map((step,index) => <article key={step.id}><span>{index + 1}</span><div><strong>{humanize(step.action_type)}</strong><p>{step.why_this || 'Bounded workflow action.'}</p>{step.why_not ? <small>Not recommended: {step.why_not}</small> : null}</div><Priority value={step.risk_level} /></article>) ?? <EmptyState title="No plan" body="Generate a plan before making a decision." />}</section><section className="panel review-risks"><PanelTitle title="Risk Triggers" /><div className="risk-trigger-list"><DetailRow label="Policy risk" value={<Priority value={latestPolicy?.risk_level ?? item.priority} />} /><DetailRow label="Approval gate" value={item.current_plan?.requires_human ? 'Required' : 'Not required'} /><DetailRow label="Policy decision" value={latestPolicy?.reason ?? 'No policy decision recorded'} /><DetailRow label="Escalation reason" value={item.current_plan?.escalation_reason ?? 'No escalation reason recorded'} /></div></section><section className="panel review-decision"><PanelTitle title="3. Record the Human Decision" />{pending ? <><label className="decision-notes"><span>Decision reason</span><textarea value={notes} placeholder="Decision notes and evidence considered..." onChange={(event) => setNotes(event.target.value)} /></label><p className="decision-guidance"><FileClock size={14} /> Need more information? Use Request Correction from the Activity tab; no separate approval state is supported.</p><div className="panel-actions"><button className="reject-action" disabled={decision.isPending} onClick={() => decision.mutate('reject')}><X size={15} /> Reject</button><button className="approve-action" disabled={decision.isPending} onClick={() => decision.mutate('approve')}><CheckCircle2 size={15} /> Approve</button></div>{decision.error ? <p className="form-error">{(decision.error as Error).message}</p> : null}</> : latestDecision ? <div className="decision-result"><Status value={latestDecision.status} /><p>{latestDecision.reviewer_notes || 'Decision recorded without notes.'}</p><small>{latestDecision.reviewed_by} · {latestDecision.reviewed_at ? formatDate(latestDecision.reviewed_at) : ''}</small></div> : <p>No approval is required for the current plan.</p>}</section><section className="panel review-result"><PanelTitle title="4. Confirm Result" />{executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{humanize(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} · {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Execution has not completed</strong><p>After approval, execute the approved step from the Plan tab. The final audit evidence will appear here.</p></div></div>}</section></div>
+  const pendingStep = item.current_plan?.steps.find((candidate) => candidate.id === pending?.action_step_id) ?? item.current_plan?.steps.find((step) => step.requires_approval) ?? item.current_plan?.steps[0]
+  const approvalReason = latestPolicy?.reason ?? item.current_plan?.escalation_reason ?? pendingStep?.why_this ?? 'This action can affect document records and needs a reviewer decision before execution.'
+
+  return (
+    <div className="reviewer-flow">
+      <div className="reviewer-stepper">
+        {['Understand','Review Evidence','Decide','Confirm Result'].map((label,index) => <div className={index < stage ? 'complete' : index === stage ? 'active' : ''} key={label}><span>{index < stage ? <Check size={14} /> : index + 1}</span><strong>{label}</strong></div>)}
+      </div>
+
+      <section className="panel review-understand">
+        <PanelTitle title="1. Why Approval Is Required" action={<Status value={item.status} />} />
+        <p>{approvalReason}</p>
+        <div className="exception-signal-grid">{signals.map((signal) => <article className={`exception-signal exception-${signal.tone}`} key={signal.label}><AlertTriangle size={15} /><div><strong>{signal.label}</strong><p>{signal.detail}</p></div></article>)}</div>
+        <div className="detail-definition-grid">
+          <DetailField label="Priority" value={<Priority value={item.priority} />} />
+          <DetailField label="Assignee" value={item.assignee} />
+          <DetailField label="Requested outcome" value={item.requested_outcome || 'Not provided'} />
+          <DetailField label="Source document" value={document?.filename ?? 'No linked document'} />
+        </div>
+      </section>
+
+      <section className="panel review-evidence">
+        <PanelTitle title="Evidence To Check Before Deciding" action={<span className="version">{evidence.length} fields</span>} />
+        <div className="evidence-snapshot">
+          <DetailField label="Document state" value={<Status value={document?.status ?? 'missing'} />} />
+          <DetailField label="Validation findings" value={validation.length} />
+          <DetailField label="Field evidence" value={evidence.length} />
+          <DetailField label="Plan version" value={item.current_plan ? `${item.current_plan.planner_version} · ${shortId(item.current_plan.id)}` : 'No plan'} />
+        </div>
+        {validation.length ? <div className="validation-issues compact">{validation.slice(0, 3).map((issue, index) => <article key={index}><AlertTriangle size={14} /><div><strong>{humanize(issue.field_name ?? issue.field ?? 'Document data')}</strong><p>{issue.message ?? 'Validation review required.'}</p></div></article>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation findings were returned.</div>}
+        <EvidenceExcerpts evidence={evidence} />
+      </section>
+
+      <section className="panel review-plan">
+        <PanelTitle title="2. Proposed Action" action={item.current_plan ? <Confidence value={item.current_plan.overall_confidence} /> : undefined} />
+        {pendingStep ? <article><span>1</span><div><strong>{humanize(pendingStep.action_type)}</strong><p>{pendingStep.why_this || 'This bounded workflow action is waiting for a reviewer decision.'}</p>{pendingStep.why_not ? <small>Not recommended: {pendingStep.why_not}</small> : null}</div><Priority value={pendingStep.risk_level} /></article> : <EmptyState title="No proposed action" body="Generate a plan before making a decision." />}
+        <div className="action-meaning-grid">
+          <article><CheckCircle2 size={15} /><strong>Approve</strong><p>Allows the proposed action to continue. Use it only after the evidence and risk reason are acceptable.</p></article>
+          <article><X size={15} /><strong>Reject</strong><p>Stops this approval request and records why the proposed action should not continue.</p></article>
+          <article><Pencil size={15} /><strong>Request Correction</strong><p>Ask for more information from the History tab. It is not a third approval status.</p></article>
+        </div>
+      </section>
+
+      <section className="panel review-risks">
+        <PanelTitle title="Risk Reason" />
+        <div className="risk-trigger-list">
+          <DetailRow label="Policy risk" value={<Priority value={latestPolicy?.risk_level ?? pendingStep?.risk_level ?? item.priority} />} />
+          <DetailRow label="Approval gate" value={item.current_plan?.requires_human || pending ? 'Required' : 'Not required'} />
+          <DetailRow label="Business reason" value={approvalReason} />
+          <DetailRow label="Escalation reason" value={item.current_plan?.escalation_reason ?? 'No escalation reason recorded'} />
+        </div>
+      </section>
+
+      <section className="panel review-decision">
+        <PanelTitle title="3. Record The Human Decision" />
+        {pending ? <><label className="decision-notes"><span>Decision reason</span><textarea value={notes} placeholder="What evidence did you check, and why is this safe or unsafe?" onChange={(event) => setNotes(event.target.value)} /></label><p className="decision-guidance"><FileClock size={14} /> Need more information? Open History and use Request Correction. The approval itself only supports approve or reject.</p><div className="panel-actions"><button className="reject-action" disabled={decision.isPending} onClick={() => decision.mutate('reject')}><X size={15} /> Reject</button><button className="approve-action" disabled={decision.isPending} onClick={() => decision.mutate('approve')}><CheckCircle2 size={15} /> Approve</button></div>{decision.error ? <p className="form-error">{(decision.error as Error).message}</p> : null}</> : latestDecision ? <div className="decision-result"><Status value={latestDecision.status} /><p>{latestDecision.reviewer_notes || 'Decision recorded without notes.'}</p><small>{latestDecision.reviewed_by} · {latestDecision.reviewed_at ? formatDate(latestDecision.reviewed_at) : ''}</small></div> : <p>No approval is required for the current plan.</p>}
+      </section>
+
+      <section className="panel review-result">
+        <PanelTitle title="4. Confirm Result" />
+        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{humanize(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} · {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Execution has not completed</strong><p>After approval, execute the approved step from Next Steps. The final audit evidence will appear here.</p></div></div>}
+      </section>
+    </div>
+  )
+}
+
+function EvidenceExcerpts({ evidence = [] }: { evidence?: Extraction['confidence'] }) {
+  const excerpts = evidence.filter((entry) => entry.source_text).slice(0, 3)
+  if (!excerpts.length) return <div className="missing-evidence"><AlertTriangle size={16} /><div><strong>Field-level evidence unavailable</strong><p>Compare the proposal with the linked source before deciding.</p></div></div>
+  return (
+    <div className="approval-evidence-excerpts">
+      {excerpts.map((entry) => <article key={entry.field_name}><strong>{humanize(entry.field_name)}</strong><EvidenceConfidence score={entry.score} /><p>{entry.source_text}</p></article>)}
+    </div>
+  )
 }
 
 function AgentOpsTab({ item }: { item: WorkItemDetail }) {
