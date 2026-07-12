@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from fastapi.responses import FileResponse
 
 from app.api.dependencies import AppContainer, get_container, require_admin_context
+from app.api.document_workflow import document_workflow_response
 from app.api.serializers import audit_response, document_response, extraction_response, job_response
 from app.core.security import SecurityContext
 from app.documents.repositories import NotFoundError
@@ -94,6 +95,15 @@ def get_document(
             audit_response(event) for event in container.audits.list_for_document(document_id)
         ],
     }
+
+
+@router.get("/{document_id}/workflow")
+def document_workflow(
+    document_id: UUID,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    return document_workflow_response(container, context, document_id)
 
 
 @router.get("/{document_id}/content")

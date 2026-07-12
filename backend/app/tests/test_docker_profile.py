@@ -30,15 +30,19 @@ class DockerProfileTests(unittest.TestCase):
         self.assertIn("uvicorn", dockerfile)
         self.assertIn("app.main:app", dockerfile)
 
-    def test_deployment_readiness_documents_honest_cloud_path(self) -> None:
-        readiness = (ROOT / "DEPLOYMENT_READINESS.md").read_text(encoding="utf-8")
+    def test_published_deployment_docs_describe_honest_cloud_path(self) -> None:
+        docker_profile = (ROOT / "docs" / "docker_profile.md").read_text(encoding="utf-8")
+        aws_deployment = (ROOT / "docs" / "aws_deployment.md").read_text(encoding="utf-8")
+        runbook = (ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
 
-        self.assertIn("Local Deployment Path", readiness)
-        self.assertIn("CI Quality Gates", readiness)
-        self.assertIn("Production Readiness Gaps", readiness)
-        self.assertIn("AWS Production-Shaped Split", readiness)
-        self.assertIn("Kubernetes Path", readiness)
-        self.assertIn("not yet a hosted production SaaS", readiness)
+        self.assertIn("production-shaped Docker topology", docker_profile)
+        self.assertIn("does not make the project a production SaaS", docker_profile)
+        self.assertIn("hosted or production certified", aws_deployment)
+        self.assertIn("ECS", aws_deployment)
+        self.assertIn("RDS", aws_deployment)
+        self.assertIn("docs/docker_profile.md", runbook)
+        self.assertIn("docs/aws_deployment.md", runbook)
+        self.assertNotIn("DEPLOYMENT_READINESS.md", runbook)
 
 
 if __name__ == "__main__":

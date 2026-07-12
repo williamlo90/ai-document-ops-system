@@ -50,6 +50,16 @@ class InvoiceWorkflowApiTests(unittest.TestCase):
         timestamps = [event["created_at"] for event in workflow["activity"]]
         self.assertEqual(timestamps, sorted(timestamps))
 
+    def test_document_workflow_matches_invoice_alias_for_invoice_documents(self) -> None:
+        document_id, _work_item_id = self._approved_invoice_with_plan()
+
+        invoice_response = self.client.get(f"/invoices/{document_id}/workflow", headers=HEADERS)
+        document_response = self.client.get(f"/documents/{document_id}/workflow", headers=HEADERS)
+
+        self.assertEqual(invoice_response.status_code, 200)
+        self.assertEqual(document_response.status_code, 200)
+        self.assertEqual(document_response.json(), invoice_response.json())
+
     def test_correction_and_escalation_are_durable_workflow_actions(self) -> None:
         document_id, _work_item_id = self._approved_invoice_with_plan()
 
@@ -102,6 +112,16 @@ class InvoiceWorkflowApiTests(unittest.TestCase):
 
         response = self.client.get(
             f"/invoices/{document_id}/workflow",
+            headers={**HEADERS, "X-Workspace-Id": "other"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_document_workflow_is_workspace_scoped(self) -> None:
+        document_id, _work_item_id = self._approved_invoice_with_plan()
+
+        response = self.client.get(
+            f"/documents/{document_id}/workflow",
             headers={**HEADERS, "X-Workspace-Id": "other"},
         )
 

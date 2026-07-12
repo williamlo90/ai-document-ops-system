@@ -9,8 +9,14 @@ from pydantic import BaseModel, Field
 
 from app.api.backoffice import _work_item_detail
 from app.api.dependencies import AppContainer, get_container, require_admin_context
-from app.api.serializers import audit_response, document_response, extraction_response
-from app.backoffice.models import WorkflowEvent, WorkItem
+from app.api.document_workflow import (
+    current_work_item,
+    document_for_context,
+    document_workflow_response,
+    extraction_or_none,
+    required_work_item,
+)
+from app.api.serializers import document_response, extraction_response
 from app.backoffice.workflow_projection import project_workflow
 from app.core.security import SecurityContext, UnauthorizedError, require_any_role
 from app.documents.models import AuditEvent
@@ -77,9 +83,9 @@ def list_invoices(
     start = (page - 1) * page_size
     items = []
     for document in filtered[start : start + page_size]:
-        work_item = _current_work_item(container, context, document.id)
+        work_item = current_work_item(container, context, document.id)
         projection = project_workflow(document, work_item, container.backoffice_approvals)
-        extraction = _extraction_or_none(container, document.id)
+        extraction = extraction_or_none(container, document.id)
         response = document_response(document)
         response.update(
             {
@@ -115,21 +121,7 @@ def invoice_workflow(
     context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    document = _document_for_context(container, context, document_id)
-    extraction = _extraction_or_none(container, document_id)
-    work_item = _current_work_item(container, context, document_id)
-    projection = project_workflow(document, work_item, container.backoffice_approvals)
-    return {
-        "document": document_response(document),
-        "extraction": extraction_response(extraction),
-        "work_item": (_work_item_detail(container, context, work_item) if work_item else None),
-        "current_stage": projection.current_stage,
-        "current_owner": projection.current_owner,
-        "waiting_for": projection.waiting_for,
-        "next_action": projection.next_action,
-        "attention_reason": projection.attention_reason,
-        "activity": _activity(container, context, document_id),
-    }
+    return document_workflow_response(container, context, document_id)
 
 
 @router.post("/{document_id}/draft")
@@ -139,13 +131,13 @@ def save_intake_draft(
     context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    document = _document_for_context(container, context, document_id)
+    document = document_for_context(container, context, document_id)
     if document.status in {DocumentStatus.REJECTED, DocumentStatus.EXPORTED}:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Finalized invoices cannot be edited.",
         )
-    stored = _extraction_or_none(container, document_id)
+    stored = extraction_or_none(container, document_id)
     if stored is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -246,7 +238,7 @@ def request_invoice_correction(
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     _require_role(context, {"admin", "reviewer"})
-    work_item = _required_work_item(container, context, document_id)
+    work_item = required_work_item(container, context, document_id)
     updated = container.backoffice_service.request_correction(
         work_item_id=work_item.id,
         context=context,
@@ -263,107 +255,13 @@ def escalate_invoice(
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     _require_role(context, {"admin", "operator", "reviewer"})
-    work_item = _required_work_item(container, context, document_id)
+    work_item = required_work_item(container, context, document_id)
     updated = container.backoffice_service.escalate_work_item(
         work_item_id=work_item.id,
         context=context,
         reason=payload.reason,
     )
     return {"work_item": _work_item_detail(container, context, updated)}
-
-
-def _document_for_context(container: AppContainer, context: SecurityContext, document_id: UUID):
-    try:
-        document = container.documents.get(document_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
-    if document.workspace_id != context.workspace_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
-    return document
-
-
-def _extraction_or_none(container: AppContainer, document_id: UUID):
-    try:
-        return container.extractions.get_for_document(document_id)
-    except NotFoundError:
-        return None
-
-
-def _current_work_item(
-    container: AppContainer, context: SecurityContext, document_id: UUID
-) -> WorkItem | None:
-    matches = [
-        item
-        for item in container.backoffice_work_items.list_by_workspace(context.workspace_id)
-        if document_id in item.linked_document_ids
-    ]
-    return max(matches, key=lambda item: item.updated_at) if matches else None
-
-
-def _required_work_item(
-    container: AppContainer, context: SecurityContext, document_id: UUID
-) -> WorkItem:
-    _document_for_context(container, context, document_id)
-    work_item = _current_work_item(container, context, document_id)
-    if work_item is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Invoice does not have a linked work item.",
-        )
-    return work_item
-
-
-def _activity(
-    container: AppContainer, context: SecurityContext, document_id: UUID
-) -> list[dict[str, object]]:
-    document_events = [
-        {
-            **audit_response(event),
-            "source": "document",
-            "summary": event.payload_summary or _document_event_summary(event.event_type),
-            "work_item_id": None,
-        }
-        for event in container.audits.list_for_document(document_id)
-    ]
-    workflow_events = [
-        _workflow_event_response(event)
-        for event in container.workflow_events.list_for_document(context.workspace_id, document_id)
-    ]
-    return sorted(
-        [*document_events, *workflow_events],
-        key=lambda event: str(event["created_at"]),
-    )
-
-
-def _workflow_event_response(event: WorkflowEvent) -> dict[str, object]:
-    return {
-        "id": str(event.id),
-        "event_type": event.event_type,
-        "actor": event.actor,
-        "summary": event.summary,
-        "source": "backoffice",
-        "document_id": str(event.document_id) if event.document_id else None,
-        "work_item_id": str(event.work_item_id) if event.work_item_id else None,
-        "created_at": event.created_at.isoformat(),
-    }
-
-
-def _document_event_summary(event_type: str) -> str:
-    return {
-        "document_uploaded": "Invoice PDF received.",
-        "processing_queued": "Invoice queued for extraction.",
-        "processing_started": "Invoice extraction started.",
-        "processing_finished": "Invoice extraction completed.",
-        "review_required": "Validation requires human review.",
-        "document_approved": "Invoice document approved.",
-        "document_rejected": "Invoice document rejected.",
-        "processing_failed": "Invoice processing failed.",
-        "document_exported": "Invoice exported.",
-        "extraction_updated": "Corrected extraction saved.",
-        "review_saved": "Review changes saved.",
-        "intake_cancelled": "Invoice intake cancelled.",
-        "intake_draft_saved": "Operator corrections saved.",
-    }.get(event_type, event_type.replace("_", " ").capitalize())
 
 
 def _require_role(context: SecurityContext, roles: set[str]) -> None:

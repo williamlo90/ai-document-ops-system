@@ -67,25 +67,22 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue((Path(self.output) / "ROADMAP.md").exists())
 
-    def test_includes_portfolio_story(self) -> None:
-        result = self._run_script(self.output)
-        self.assertEqual(result.returncode, 0, msg=result.stderr)
-        self.assertTrue((Path(self.output) / "PORTFOLIO_STORY.md").exists())
-
-    def test_includes_agentic_project_documents(self) -> None:
+    def test_excludes_local_only_planning_documents(self) -> None:
         result = self._run_script(self.output)
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         output = Path(self.output)
-        self.assertTrue((output / "AGENT_TOOL_CONTRACTS.md").exists())
-        self.assertTrue((output / "AGENT_GUARDRAILS.md").exists())
-        self.assertTrue((output / "AGENTOPS_EVALUATION_PLAN.md").exists())
-        self.assertTrue((output / "EVALUATION_DATASET.md").exists())
-        self.assertTrue((output / "AUTONOMY_POLICY.md").exists())
-        self.assertTrue((output / "BACKOFFICE_WORKFLOW.md").exists())
-        self.assertTrue((output / "PROJECT_4_READINESS.md").exists())
-        self.assertTrue((output / "DEPLOYMENT_READINESS.md").exists())
-        self.assertTrue((output / "FUNCTIONAL_COMPLETION_TODO.md").exists())
-        self.assertFalse((output / "PROJECT_3_5_READINESS.md").exists())
+        self.assertFalse((output / "_local_docs").exists())
+        self.assertFalse((output / "AGENTS.md").exists())
+        self.assertFalse((output / "PORTFOLIO_STORY.md").exists())
+        self.assertFalse((output / "AGENT_TOOL_CONTRACTS.md").exists())
+        self.assertFalse((output / "AGENT_GUARDRAILS.md").exists())
+        self.assertFalse((output / "AGENTOPS_EVALUATION_PLAN.md").exists())
+        self.assertFalse((output / "EVALUATION_DATASET.md").exists())
+        self.assertFalse((output / "AUTONOMY_POLICY.md").exists())
+        self.assertFalse((output / "BACKOFFICE_WORKFLOW.md").exists())
+        self.assertFalse((output / "PROJECT_4_READINESS.md").exists())
+        self.assertFalse((output / "DEPLOYMENT_READINESS.md").exists())
+        self.assertFalse((output / "FUNCTIONAL_COMPLETION_TODO.md").exists())
 
     def test_includes_quality_gate_files(self) -> None:
         result = self._run_script(self.output)

@@ -125,7 +125,8 @@ Explain:
 Open:
 
 ```text
-DEPLOYMENT_READINESS.md
+docs/docker_profile.md
+docs/aws_deployment.md
 ```
 
 Show:
@@ -172,4 +173,4 @@ Say clearly:
 - this is local bounded autonomy, not a hosted production SaaS
 - metrics and scenarios are trace-derived
 - LLM judge evaluation is intentionally out of scope for this slice
-- cloud deployment requires the staged work listed in `DEPLOYMENT_READINESS.md`
+- cloud deployment requires the staged work listed in `docs/docker_profile.md` and `docs/aws_deployment.md`

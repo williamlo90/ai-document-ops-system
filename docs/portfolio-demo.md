@@ -12,7 +12,7 @@ Project 4 demonstrates bounded autonomous back-office workflow orchestration on 
 6. Execute only after approval.
 7. Open `/ui/agentops`.
 8. Show Project 4 back-office scenarios.
-9. Show `DEPLOYMENT_READINESS.md`.
+9. Show `docs/docker_profile.md` and `docs/aws_deployment.md`.
 10. Close with honest production gaps.
 
 ## Best Portfolio Claim

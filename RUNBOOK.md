@@ -112,6 +112,6 @@ examples/agentops/project4_scenarios_v1.json
 
 Project 4 is not a full autonomous ERP or hosted production SaaS. It is a production-shaped local platform that demonstrates bounded autonomy, human approvals, controlled tool execution, and reliability measurement.
 
-For deployment gaps and the staged cloud path, see `DEPLOYMENT_READINESS.md`.
-For the ECS/RDS/R2 target, see `docs/aws_deployment.md`. Backup, restore,
-retention, and migration drills are in `BACKUP_AND_RESTORE.md`.
+For deployment gaps and the staged cloud path, see `docs/docker_profile.md`
+and `docs/aws_deployment.md`. Object-storage notes live in
+`docs/object_storage.md`.
