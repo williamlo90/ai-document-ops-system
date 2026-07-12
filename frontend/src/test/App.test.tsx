@@ -51,6 +51,27 @@ const workspaceWithLinkedDocument = {
   documents: [linkedDocument],
   metrics: { work_items: 1, pending_approvals: 0, drafts: 0, policy_decisions: 0 },
 }
+const plannedWorkItem = {
+  ...workItem,
+  current_plan_id: 'plan-1',
+}
+const plannedWorkItemDetail = {
+  ...workItemDetail,
+  current_plan_id: 'plan-1',
+  current_plan: {
+    id: 'plan-1',
+    planner_version: 'planner-v1',
+    overall_confidence: 'high',
+    escalation_reason: null,
+    requires_human: false,
+    created_at: now,
+    steps: [],
+  },
+}
+const workspaceWithPlannedWorkItem = {
+  ...workspaceWithLinkedDocument,
+  work_items: [plannedWorkItem],
+}
 
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), {
@@ -176,5 +197,47 @@ describe('application shell', () => {
 
     expect(await screen.findByText('invoice_v1')).toBeInTheDocument()
     expect(screen.getByText('Invoice')).toBeInTheDocument()
+  })
+
+  it('shows document operation metadata in evaluation cases', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem('docops-role', 'administrator')
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/backoffice/workspace') return json(workspaceWithPlannedWorkItem)
+      if (path === '/backoffice/work-items/item-1') return json({ work_item: plannedWorkItemDetail })
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
+      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
+      if (path === '/agentops/runs?limit=50') return json({ runs: [] })
+      if (path === '/agentops/scenarios') return json({ dataset_id: 'agentops_core', dataset_version: 'v1', description: 'Agent cases', scenario_count: 0, scenarios: [], required_fields: [] })
+      if (path === '/agentops/backoffice/scenarios') {
+        return json({
+          dataset_id: 'project4_backoffice',
+          dataset_version: 'v1',
+          description: 'Backoffice cases',
+          scenario_count: 1,
+          required_fields: ['document_type', 'operation_type'],
+          scenarios: [{
+            id: 'invoice_review_read_only',
+            title: 'Review a linked invoice without mutating state',
+            document_type: 'invoice',
+            operation_type: 'document_review',
+            work_type: 'invoice_review',
+            expected_confidence: 'high',
+          }],
+        })
+      }
+      if (path === '/agentops/evaluations?limit=100') return json({ evaluations: [] })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+    await user.click(screen.getAllByRole('button', { name: /technical evidence/i })[0])
+    await user.click(await screen.findByRole('button', { name: /evaluation cases/i }))
+
+    expect(await screen.findByText('Document: Invoice')).toBeInTheDocument()
+    expect(screen.getByText('Operation: Document Review')).toBeInTheDocument()
   })
 })

@@ -204,6 +204,8 @@ type Scenario = {
   id: string
   title?: string
   message?: string
+  document_type?: string
+  operation_type?: string
   work_type?: string
   expected_tool?: string
   expected_risk?: string
@@ -1608,7 +1610,7 @@ function EvaluationPage({ agent, backoffice, runs, items, evaluations }: { agent
       </div>
       <div className="scenario-list">{dataset?.scenarios.map((scenario, index) => {
         const result = results[scenario.id]
-        return <article key={scenario.id}><span className="scenario-number">{String(index + 1).padStart(2, '0')}</span><div><h3>{scenario.title ?? humanize(scenario.id)}</h3><p>{scenario.message ?? `${humanize(scenario.work_type ?? 'backoffice')} scenario with deterministic plan expectations.`}</p><div className="scenario-tags">{scenario.expected_tool ? <span>Tool: {humanize(scenario.expected_tool)}</span> : null}{scenario.expected_risk ? <span>Risk: {humanize(scenario.expected_risk)}</span> : null}{scenario.expected_confidence ? <span>Confidence: {scenario.expected_confidence}</span> : null}{result ? <Status value={result.passed ? 'approved' : 'failed'} /> : null}</div>{result ? <small>{Object.entries(result.checks).map(([name, passed]) => `${humanize(name)}: ${passed ? 'pass' : 'fail'}`).join(' · ')}</small> : null}</div><button className="outline-button" disabled={!selectedTarget || evaluation.isPending} onClick={() => evaluation.mutate({ scenarioId: scenario.id })}>{evaluation.isPending ? <Loader2 size={14} /> : <Play size={14} />} Evaluate</button></article>
+        return <article key={scenario.id}><span className="scenario-number">{String(index + 1).padStart(2, '0')}</span><div><h3>{scenario.title ?? humanize(scenario.id)}</h3><p>{scenario.message ?? `${humanize(scenario.work_type ?? 'backoffice')} scenario with deterministic plan expectations.`}</p><div className="scenario-tags">{scenario.document_type ? <span>Document: {humanize(scenario.document_type)}</span> : null}{scenario.operation_type ? <span>Operation: {humanize(scenario.operation_type)}</span> : null}{scenario.expected_tool ? <span>Tool: {humanize(scenario.expected_tool)}</span> : null}{scenario.expected_risk ? <span>Risk: {humanize(scenario.expected_risk)}</span> : null}{scenario.expected_confidence ? <span>Confidence: {scenario.expected_confidence}</span> : null}{result ? <Status value={result.passed ? 'approved' : 'failed'} /> : null}</div>{result ? <small>{Object.entries(result.checks).map(([name, passed]) => `${humanize(name)}: ${passed ? 'pass' : 'fail'}`).join(' · ')}</small> : null}</div><button className="outline-button" disabled={!selectedTarget || evaluation.isPending} onClick={() => evaluation.mutate({ scenarioId: scenario.id })}>{evaluation.isPending ? <Loader2 size={14} /> : <Play size={14} />} Evaluate</button></article>
       })}</div>
       {evaluation.error ? <div className="notice danger"><AlertTriangle size={16} /><p>{evaluation.error.message}</p></div> : null}
     </section>
