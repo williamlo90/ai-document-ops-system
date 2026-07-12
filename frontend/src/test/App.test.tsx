@@ -318,6 +318,7 @@ describe('application shell', () => {
       if (path === '/backoffice/workspace') return json(workspaceWithNeedsReviewDocument)
       if (path === '/backoffice/work-items/item-1') return json({ work_item: workItemDetail })
       if (path === '/documents/doc-1') return json({ document: needsReviewDocument, extraction: null, audit_events: [] })
+      if (path === '/review/doc-1/approve') return json({ status: 'approved' })
       if (path === '/documents/doc-1/workflow') return json({ document: needsReviewDocument, extraction: null, work_item: workItemDetail, current_stage: 'needs_attention', current_owner: 'Finance reviewer', waiting_for: null, next_action: 'Review', attention_reason: null, activity: [] })
       if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
       if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
@@ -341,6 +342,9 @@ describe('application shell', () => {
     expect(screen.getByRole('link', { name: /open pdf/i })).toHaveAttribute('href', '/documents/doc-1/content')
     expect(document.querySelector('canvas.pdf-canvas')).not.toBeNull()
     expect(document.querySelector('iframe')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /^approve$/i }))
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith('/review/doc-1/approve', expect.objectContaining({ method: 'POST' }))
 
     await user.click(screen.getByRole('button', { name: /back to approvals/i }))
     expect(await screen.findByRole('button', { name: /review invoice/i })).toBeInTheDocument()
