@@ -1078,9 +1078,9 @@ function DetailDecisionSummary({ item, document, openDecision }: { item: WorkIte
         <button className="inline-decision-button" onClick={openDecision}>Go to decision</button>
       </article>
       <article>
-        <span>Source document</span>
-        <strong>{document?.filename ?? 'No linked source'}</strong>
-        <p>{document ? `Document status: ${humanize(document.status)}.` : 'Link a source document before making a final decision.'}</p>
+        <span>Invoice PDF</span>
+        <strong>{document?.filename ?? 'No PDF linked'}</strong>
+        <p>{document ? `Invoice status: ${statusLabel(document.status)}.` : 'Link an invoice PDF before making a final decision.'}</p>
       </article>
     </section>
   )
@@ -1596,7 +1596,7 @@ function BotIcon() {
 
 function DocumentsPage({ workspace, loading }: { workspace?: Workspace; loading: boolean }) {
   const documents = workspace?.documents ?? []
-  return <main className="queue-page"><section className="page-heading"><div><h2>Invoices</h2><p>Uploaded invoice PDFs and their current status.</p></div></section><section className="queue-surface document-list">{loading ? <LoadingState label="Loading invoices" /> : documents.length ? documents.map((doc) => <article key={doc.id}><WorkIcon type="invoice_review" /><div><strong>{doc.filename}</strong><span>{shortId(doc.id)} Â· {formatDate(doc.created_at)}</span></div><Status value={doc.status} /></article>) : <EmptyState title="No invoices yet" body="Upload an invoice first." />}</section></main>
+  return <main className="queue-page"><section className="page-heading"><div><h2>Invoices</h2><p>Uploaded invoice PDFs and their current status.</p></div></section><section className="queue-surface document-list">{loading ? <LoadingState label="Loading invoices" /> : documents.length ? documents.map((doc) => <article key={doc.id}><WorkIcon type="invoice_review" /><div><strong>{doc.filename}</strong><span>{shortId(doc.id)} - {formatDate(doc.created_at)}</span></div><Status value={doc.status} /></article>) : <EmptyState title="No invoices yet" body="Upload an invoice first." />}</section></main>
 }
 
 function HistoryPage({ workspace, loading, openItem }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void }) {
@@ -1637,9 +1637,9 @@ function HistoryPage({ workspace, loading, openItem }: { workspace?: Workspace; 
 }
 
 function DocumentTab({ document, documentDetail, extraction, loading }: { document?: DocumentSummary; documentDetail?: ApiDocument; extraction: Extraction | null; loading: boolean }) {
-  if (loading) return <LoadingState label="Loading linked document evidence" />
-  if (!document) return <EmptyState title="No linked document" body="Link a source document to inspect extraction, validation, and source evidence." next="Do not approve document-dependent work until a source document is linked or manually verified." />
-  return <div className="document-review-layout"><AuthenticatedPdfPreview document={document} /><section className="panel document-evidence"><PanelTitle title="Extraction Evidence" action={<Status value={document.status} />} /><SchemaMeta document={documentDetail} extraction={extraction} /><div className="invoice-fields">{invoiceFields(extraction).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong><small><i /> Stored extraction</small></div>)}</div>{extraction?.confidence?.length ? <div className="evidence-list">{extraction.confidence.map((evidence) => <article key={evidence.field_name}><strong>{humanize(evidence.field_name)}</strong><span>{evidence.score == null ? 'Not scored' : `${Math.round(evidence.score * 100)}%`}</span><p>{evidence.source_text || 'No source excerpt stored. Compare with the PDF before deciding.'}</p></article>)}</div> : <EmptyState title="No extraction evidence stored" body="The document exists, but no field confidence or source excerpts are available." next="Compare visible invoice values with the source PDF before approving or exporting." />}{extraction?.validation?.length ? <div className="validation-list">{extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation blockers.</div>}</section></div>
+  if (loading) return <LoadingState label="Loading invoice PDF" />
+  if (!document) return <EmptyState title="No invoice PDF linked" body="Link an invoice PDF before reviewing this item." next="Do not approve invoice work until the PDF is linked or manually checked." />
+  return <div className="document-review-layout"><AuthenticatedPdfPreview document={document} /><section className="panel document-evidence"><PanelTitle title="Invoice Data" action={<Status value={document.status} />} /><SchemaMeta document={documentDetail} extraction={extraction} /><div className="invoice-fields">{invoiceFields(extraction).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong><small><i /> {value === '-' ? 'Missing' : 'Found'}</small></div>)}</div>{extraction?.confidence?.length ? <div className="evidence-list">{extraction.confidence.map((evidence) => <article key={evidence.field_name}><strong>{humanize(evidence.field_name)}</strong><EvidenceConfidence score={evidence.score} /><p>{evidence.source_text || 'No PDF snippet stored. Compare with the PDF before deciding.'}</p></article>)}</div> : <EmptyState title="No PDF snippets available" body="The app did not store snippets for these fields." next="Compare visible invoice values with the PDF before approving." />}{extraction?.validation?.length ? <div className="validation-list">{extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation blockers.</div>}</section></div>
 }
 
 function SchemaMeta({ document, extraction, compact = false }: { document?: ApiDocument | DocumentSummary; extraction: Extraction | null; compact?: boolean }) {
@@ -1723,7 +1723,7 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
             <button className="outline-button" disabled={!document || decision.isPending || correction.isPending} onClick={() => correction.mutate()}><Pencil size={15} /> Ask for correction</button>
           </div>
           {decision.error || correction.error ? <p className="form-error">{((decision.error || correction.error) as Error).message}</p> : null}
-        </> : latestDecision ? <div className="decision-result"><Status value={latestDecision.status} /><p>{latestDecision.reviewer_notes || 'Decision recorded without notes.'}</p><small>{latestDecision.reviewed_by} Â· {latestDecision.reviewed_at ? formatDate(latestDecision.reviewed_at) : ''}</small></div> : <p>No decision is required right now.</p>}
+        </> : latestDecision ? <div className="decision-result"><Status value={latestDecision.status} /><p>{latestDecision.reviewer_notes || 'Decision recorded without notes.'}</p><small>{latestDecision.reviewed_by} - {latestDecision.reviewed_at ? formatDate(latestDecision.reviewed_at) : ''}</small></div> : <p>No decision is required right now.</p>}
       </section>
 
       <section className="panel decision-result-panel">
