@@ -358,7 +358,7 @@ function CommandCenter() {
         ) : screen.kind === 'documents' ? (
           <DocumentsPage workspace={workspace.data} loading={workspace.isLoading} />
         ) : screen.kind === 'history' ? (
-          <HistoryPage workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} />
+          <HistoryPage workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} role={role} />
         ) : screen.kind === 'page' ? (
           <SectionPage page={screen.page} workspace={workspace.data} loadingWorkspace={workspace.isLoading} openItem={openItem} />
         ) : (
@@ -1596,28 +1596,29 @@ function DocumentsPage({ workspace, loading }: { workspace?: Workspace; loading:
   return <main className="queue-page"><section className="page-heading"><div><h2>Invoices</h2><p>Uploaded invoice PDFs and their current status.</p></div></section><section className="queue-surface document-list">{loading ? <LoadingState label="Loading invoices" /> : documents.length ? documents.map((doc) => <article key={doc.id}><WorkIcon type="invoice_review" /><div><strong>{doc.filename}</strong><span>{shortId(doc.id)} - {formatDate(doc.created_at)}</span></div><Status value={doc.status} /></article>) : <EmptyState title="No invoices yet" body="Upload an invoice first." />}</section></main>
 }
 
-function HistoryPage({ workspace, loading, openItem }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void }) {
+function HistoryPage({ workspace, loading, openItem, role }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void; role: UserRole }) {
+  const uploaderView = role === 'intake'
   const documentEvents = (workspace?.documents ?? []).map((document) => ({
     id: `document-${document.id}`,
-    title: 'Invoice uploaded',
-    body: document.filename,
+    title: uploaderView ? 'Uploaded' : 'Invoice received',
+    body: uploaderView ? `${document.filename} was added to My Invoices.` : document.filename,
     at: document.created_at,
     status: document.status,
     action: null as null | (() => void),
   }))
   const reviewEvents = (workspace?.work_items ?? []).map((item) => ({
     id: `item-${item.id}`,
-    title: item.status === 'resolved' ? 'Review completed' : 'Review updated',
-    body: item.title,
+    title: historyTitle(item, uploaderView),
+    body: historyBody(item, uploaderView),
     at: item.updated_at,
     status: item.status,
-    action: () => openItem(item.id),
+    action: uploaderView ? null as null | (() => void) : () => openItem(item.id),
   }))
   const events = [...documentEvents, ...reviewEvents].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 20)
   return (
     <main className="queue-page">
       <section className="page-heading">
-        <div><h2>History</h2><p>A simple timeline of uploaded invoices and reviewer decisions.</p></div>
+        <div><h2>History</h2><p>{uploaderView ? 'A receipt of invoices you uploaded and their latest status.' : 'A receipt of invoice checks and reviewer decisions.'}</p></div>
       </section>
       <section className="queue-surface history-list">
         {loading ? <LoadingState label="Loading history" /> : events.length ? events.map((event) => (
@@ -1625,9 +1626,9 @@ function HistoryPage({ workspace, loading, openItem }: { workspace?: Workspace; 
             <span className="activity-dot source-system"><Check size={13} /></span>
             <div><strong>{event.title}</strong><p>{event.body}</p><small>{formatDate(event.at)}</small></div>
             <Status value={event.status} />
-            {event.action ? <button className="outline-button" onClick={event.action}>Open</button> : null}
+            {event.action ? <button className="outline-button" onClick={event.action}>Open review</button> : null}
           </article>
-        )) : <EmptyState title="No history yet" body="Upload an invoice, then review activity will appear here." />}
+        )) : <EmptyState title="No history yet" body={uploaderView ? 'Upload an invoice, then its status history will appear here.' : 'Reviewer decisions will appear here after invoices are checked.'} />}
       </section>
     </main>
   )
@@ -1908,6 +1909,32 @@ function activityLabel(value: string) {
     escalated: 'Sent to reviewer',
   }
   return labels[value] ?? humanize(value)
+}
+function historyTitle(item: WorkItemSummary, uploaderView: boolean) {
+  if (uploaderView) {
+    if (item.status === 'awaiting_human') return 'Sent for review'
+    if (item.status === 'resolved') return 'Completed'
+    if (item.status === 'blocked' || item.status === 'failed') return 'Needs correction'
+    if (item.status === 'rejected') return 'Rejected'
+    return 'Status updated'
+  }
+  if (item.status === 'awaiting_human') return 'Waiting for decision'
+  if (item.status === 'resolved') return 'Decision completed'
+  if (item.status === 'blocked' || item.status === 'failed') return 'Correction needed'
+  if (item.status === 'rejected') return 'Rejected'
+  return 'Review updated'
+}
+function historyBody(item: WorkItemSummary, uploaderView: boolean) {
+  if (uploaderView) {
+    if (item.status === 'awaiting_human') return `${item.title} is waiting for a reviewer.`
+    if (item.status === 'resolved') return `${item.title} has been completed.`
+    if (item.status === 'blocked' || item.status === 'failed') return `${item.title} needs correction before it can continue.`
+    return item.title
+  }
+  if (item.status === 'awaiting_human') return `${item.title} needs approve, reject, or correction.`
+  if (item.status === 'resolved') return `${item.title} has a recorded decision.`
+  if (item.status === 'blocked' || item.status === 'failed') return `${item.title} needs reviewer follow-up.`
+  return item.title
 }
 function businessActionLabel(value: string) {
   const labels: Record<string, string> = {

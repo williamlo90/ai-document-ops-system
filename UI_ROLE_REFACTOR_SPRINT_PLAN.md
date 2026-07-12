@@ -1,6 +1,6 @@
 # UI Role Refactor Sprint Plan
 
-Status: UI-R1 through UI-R4 implemented; UI-R5 through UI-R6 pending.
+Status: UI-R1 through UI-R5 implemented; UI-R6 pending.
 
 Source inputs:
 
@@ -179,6 +179,8 @@ Risk:
 - Too much hidden evidence can reduce trust for technical demos. Keep a small "Why this looks correct" area, but avoid raw tables.
 
 ## Sprint UI-R5 - Role-Specific History
+
+Implementation status: completed.
 
 Goal:
 Make history read like a receipt, not a system log.

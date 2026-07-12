@@ -224,6 +224,35 @@ describe('application shell', () => {
     expect(screen.queryByRole('button', { name: /approvals/i })).not.toBeInTheDocument()
   })
 
+  it('shows role-specific history receipts', async () => {
+    const user = userEvent.setup()
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/backoffice/workspace') return json(workspaceWithLinkedDocument)
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
+      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: /history/i }))
+    expect(await screen.findByText(/A receipt of invoices you uploaded/i)).toBeInTheDocument()
+    expect(screen.getByText(/^Uploaded$/i)).toBeInTheDocument()
+    expect(screen.getByText(/Sent for review/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /open review/i })).not.toBeInTheDocument()
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: /view application as role/i }),
+      'administrator',
+    )
+    await user.click(await screen.findByRole('button', { name: /history/i }))
+    expect(await screen.findByText(/A receipt of invoice checks and reviewer decisions/i)).toBeInTheDocument()
+    expect(screen.getByText(/Waiting for decision/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /open review/i })).toBeInTheDocument()
+  })
+
   it('shows actionable secure session errors without raw implementation detail', async () => {
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
