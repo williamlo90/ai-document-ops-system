@@ -361,7 +361,7 @@ function CommandCenter() {
         ) : screen.kind === 'workitems' ? (
           <QueuePage workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} exceptionMode />
         ) : screen.kind === 'documents' ? (
-          <DocumentsPage workspace={workspace.data} loading={workspace.isLoading} />
+          <DocumentsPage workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} />
         ) : screen.kind === 'page' ? (
           <SectionPage page={screen.page} workspace={workspace.data} loadingWorkspace={workspace.isLoading} openItem={openItem} />
         ) : (
@@ -1568,7 +1568,8 @@ function BotIcon() {
   return <Sparkles size={18} />
 }
 
-function DocumentsPage({ workspace, loading }: { workspace?: Workspace; loading: boolean }) {
+function DocumentsPage({ workspace, loading, openItem }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void }) {
+  const [selectedId, setSelectedId] = useState('')
   const invoices = useQuery({
     queryKey: ['reviewer-invoices'],
     queryFn: () => api<InvoiceList>('/invoices?page=1&page_size=100'),
@@ -1586,7 +1587,11 @@ function DocumentsPage({ workspace, loading }: { workspace?: Workspace; loading:
       <section className="page-heading"><div><h2>Invoices</h2><p>Uploaded invoice PDFs and their current status.</p></div></section>
       <section className="queue-surface document-list">
         {loading || invoices.isLoading ? <LoadingState label="Loading invoices" /> : invoices.error ? <ErrorState message={(invoices.error as Error).message} retry={() => invoices.refetch()} /> : documents.length ? documents.map((doc) => (
-          <article key={doc.id}>
+          <button key={doc.id} type="button" onClick={() => {
+            const review = workspace?.work_items.find((item) => item.linked_document_ids.includes(doc.id))
+            if (review) openItem(review.id)
+            else setSelectedId(doc.id)
+          }}>
             <WorkIcon type="invoice_review" />
             <div>
               <strong>{doc.vendor_name || doc.original_filename}</strong>
@@ -1594,9 +1599,11 @@ function DocumentsPage({ workspace, loading }: { workspace?: Workspace; loading:
               <small>{invoiceDisplayStage(doc)} - {invoiceOwnerCopy(doc)}</small>
             </div>
             <Status value={doc.status} />
-          </article>
+            <ChevronRight size={16} />
+          </button>
         )) : <EmptyState title="No invoices yet" body="Upload an invoice first." />}
       </section>
+      {selectedId ? <InvoiceStatusPanel documentId={selectedId} close={() => setSelectedId('')} refresh={() => invoices.refetch()} /> : null}
     </main>
   )
 }
