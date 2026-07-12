@@ -16,7 +16,7 @@ from app.api.document_commands import (
 from app.api.dependencies import AppContainer, get_container, require_admin_context
 from app.api.document_workflow import document_workflow_response
 from app.api.serializers import audit_response, document_response, extraction_response, job_response
-from app.core.security import SecurityContext
+from app.core.security import SecurityContext, UnauthorizedError, is_intake_role
 from app.documents.repositories import NotFoundError
 from app.documents.status import InvalidStatusTransition
 from app.providers.storage import StorageError
@@ -37,6 +37,7 @@ def upload_policy(
         for document in container.documents.list_by_workspace(context.workspace_id)
         if document.original_filename.casefold() == filename.casefold()
         and (size_bytes == 0 or document.size_bytes == size_bytes)
+        and _document_visible_to_context(document, context)
     ]
     return {
         "accepted_content_types": ["application/pdf"],
@@ -62,6 +63,8 @@ def upload_document(
         )
     except StorageError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except UnauthorizedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden") from exc
     return {
         "document": document_response(result.document),
         "job": job_response(result.job),
@@ -76,6 +79,7 @@ def list_documents(
     return [
         document_response(document)
         for document in container.documents.list_by_workspace(context.workspace_id)
+        if _document_visible_to_context(document, context)
     ]
 
 
@@ -89,7 +93,9 @@ def get_document(
         document = container.documents.get(document_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
-    if document.workspace_id != _context.workspace_id:
+    if document.workspace_id != _context.workspace_id or not _document_visible_to_context(
+        document, _context
+    ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     extraction = None
     try:
@@ -169,7 +175,9 @@ def get_document_content(
 ) -> FileResponse:
     try:
         document = container.documents.get(document_id)
-        if document.workspace_id != context.workspace_id:
+        if document.workspace_id != context.workspace_id or not _document_visible_to_context(
+            document, context
+        ):
             raise NotFoundError("Not found")
         path = container.storage.open_for_parser(document.storage_key)
     except (NotFoundError, StorageError) as exc:
@@ -190,7 +198,9 @@ def get_document_download_url(
 ) -> dict[str, object]:
     try:
         document = container.documents.get(document_id)
-        if document.workspace_id != context.workspace_id:
+        if document.workspace_id != context.workspace_id or not _document_visible_to_context(
+            document, context
+        ):
             raise NotFoundError("Not found")
         signed_url = container.storage.create_download_url(
             document.storage_key, expires_seconds=300
@@ -216,6 +226,12 @@ def process_document(
         job = container.jobs.get_latest_for_document(document_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except UnauthorizedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden") from exc
     except InvalidStatusTransition as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return {"document": document_response(document), "job": job_response(job)}
+
+
+def _document_visible_to_context(document, context: SecurityContext) -> bool:
+    return not is_intake_role(context) or document.submitted_by == context.user_id

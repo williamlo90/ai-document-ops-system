@@ -98,6 +98,71 @@ class IntakeApiTests(unittest.TestCase):
         self.assertEqual(dated.json()["total"], 3)
         self.assertEqual(future.json()["total"], 0)
 
+    def test_uploader_role_can_only_work_with_own_invoices(self) -> None:
+        base = {"X-Admin-Token": TOKEN, "X-Workspace-Id": "alpha"}
+        william_headers = {
+            **base,
+            "X-User-Id": "William Lo",
+            "X-Role": "uploader",
+        }
+        other_headers = {
+            **base,
+            "X-User-Id": "Other Operator",
+            "X-Role": "uploader",
+        }
+        reviewer_headers = {
+            **base,
+            "X-User-Id": "Finance Reviewer",
+            "X-Role": "reviewer",
+        }
+
+        william_upload = self.client.post(
+            "/documents/upload",
+            headers=william_headers,
+            files={"file": ("william.pdf", PDF, "application/pdf")},
+        )
+        other_upload = self.client.post(
+            "/documents/upload",
+            headers=other_headers,
+            files={"file": ("other.pdf", PDF, "application/pdf")},
+        )
+        reviewer_upload = self.client.post(
+            "/documents/upload",
+            headers=reviewer_headers,
+            files={"file": ("reviewer.pdf", PDF, "application/pdf")},
+        )
+        william_document_id = william_upload.json()["document"]["id"]
+        other_document_id = other_upload.json()["document"]["id"]
+
+        william_list = self.client.get("/invoices", headers=william_headers)
+        william_documents = self.client.get("/documents", headers=william_headers)
+        william_detail = self.client.get(f"/documents/{william_document_id}", headers=william_headers)
+        hidden_detail = self.client.get(f"/documents/{other_document_id}", headers=william_headers)
+        hidden_workflow = self.client.get(
+            f"/documents/{other_document_id}/workflow",
+            headers=william_headers,
+        )
+        own_process = self.client.post(
+            f"/documents/{william_document_id}/process",
+            headers=william_headers,
+        )
+        cross_process = self.client.post(
+            f"/documents/{other_document_id}/process",
+            headers=william_headers,
+        )
+
+        self.assertEqual(william_upload.status_code, 200)
+        self.assertEqual(other_upload.status_code, 200)
+        self.assertEqual(reviewer_upload.status_code, 403)
+        self.assertEqual(william_list.json()["total"], 1)
+        self.assertEqual(william_list.json()["items"][0]["submitted_by"], "William Lo")
+        self.assertEqual(len(william_documents.json()), 1)
+        self.assertEqual(william_detail.status_code, 200)
+        self.assertEqual(hidden_detail.status_code, 404)
+        self.assertEqual(hidden_workflow.status_code, 404)
+        self.assertEqual(own_process.status_code, 200)
+        self.assertEqual(cross_process.status_code, 404)
+
     def test_intake_draft_persists_line_items_and_revalidates_arithmetic(self) -> None:
         headers = {"X-Admin-Token": TOKEN, "X-User-Id": "William Lo"}
         upload = self.client.post(

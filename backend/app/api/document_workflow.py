@@ -9,7 +9,7 @@ from app.api.dependencies import AppContainer
 from app.api.serializers import audit_response, document_response, extraction_response
 from app.backoffice.models import WorkflowEvent, WorkItem
 from app.backoffice.workflow_projection import project_workflow
-from app.core.security import SecurityContext
+from app.core.security import SecurityContext, is_intake_role
 from app.documents.repositories import NotFoundError
 
 
@@ -45,6 +45,8 @@ def document_for_context(
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
     if document.workspace_id != context.workspace_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    if is_intake_role(context) and document.submitted_by != context.user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     return document
 

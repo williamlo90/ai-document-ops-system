@@ -7,16 +7,17 @@ Project 4 continues from Project 3.5. It should preserve the document workflow, 
 ## Current Status
 
 ```text
-Current phase: Step 0 through Step 9 complete; document-operation refactor and UX simplification are complete for the invoice-first workflow; a second executable document workflow remains intentionally deferred
+Current phase: Step 0 through Step 9 complete; document-operation refactor and UX simplification are complete for the invoice-first workflow; backend role-contract alignment is complete for uploader-owned invoice intake; a second executable document workflow remains intentionally deferred
 Source baseline: ../3.5-agentops-reliability-dashboard-github-refactored
 Active agents: Codex only
-Latest verification: full backend suite passed with 356 tests OK and 2 skipped; frontend tests, lint, and production build passed; Docker compose config passed; public artifact packaging script passed in a temp output folder
+Latest verification: full backend suite passed with 357 tests OK and 2 skipped; frontend tests, lint, and production build passed; Docker compose config passed; public artifact packaging script passed in a temp output folder
 Single source of truth: this ROADMAP plus `docs/pivot/*`; local-only completion TODO files are intentionally excluded from the public artifact
 ```
 
 ## Active Completion Backlog
 
 - Keep generic `/documents/*` contracts additive while preserving invoice compatibility aliases; generic workflow projection is already covered by parity tests.
+- Preserve role-scoped invoice intake: uploader/intake/operator roles may upload and process their own invoices, while reviewer approval remains separate from upload permissions.
 - Preserve persisted `document_type`, supported schema metadata, and AgentOps document/operation evidence.
 - Add a second executable document workflow only when extraction, validation, planning, execution, and evaluation contracts are all covered.
 - Keep public artifact hygiene green: no `.env`, `.venv`, upload folders, SQLite files, cache folders, or local-only planning files.

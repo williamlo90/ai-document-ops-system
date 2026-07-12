@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
 
-from app.core.security import SecurityContext, require_admin
+from app.core.security import INTAKE_ROLES, SecurityContext, is_intake_role, require_admin, require_any_role
 from app.core.upload_scanning import SignatureUploadScanner, UploadScanner
 from app.core.observability import OperationEvent, log_operation
 from app.documents.jobs import ProcessingJob, ProcessingJobStatus
@@ -53,7 +53,7 @@ class DocumentUploadService:
         chunks: list[bytes],
         context: SecurityContext,
     ) -> UploadResult:
-        require_admin(context)
+        require_any_role(context, {"admin", *INTAKE_ROLES})
         stored = self.storage.save_upload_stream(
             original_filename, content_type, self.upload_scanner.scan(chunks)
         )
@@ -115,7 +115,10 @@ class DocumentProcessingService:
         return self._process_job(job, context)
 
     def process_document(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
-        require_admin(context)
+        require_any_role(context, {"admin", *INTAKE_ROLES})
+        document = self.documents.get(document_id)
+        _require_workspace(document, context)
+        _require_owner_for_intake_role(document, context)
         job = self.jobs.get_latest_for_document(document_id)
         return self._process_job(job, context)
 
@@ -321,4 +324,9 @@ def _should_retry(exc: Exception, job: ProcessingJob, max_attempts: int) -> bool
 
 def _require_workspace(document: DocumentRecord, context: SecurityContext) -> None:
     if document.workspace_id != context.workspace_id:
+        raise NotFoundError(f"Document not found: {document.id}")
+
+
+def _require_owner_for_intake_role(document: DocumentRecord, context: SecurityContext) -> None:
+    if is_intake_role(context) and document.submitted_by != context.user_id:
         raise NotFoundError(f"Document not found: {document.id}")

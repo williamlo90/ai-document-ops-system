@@ -25,6 +25,7 @@ from app.api.document_workflow import (
 from app.api.serializers import document_response, extraction_response
 from app.backoffice.workflow_projection import project_workflow
 from app.core.security import SecurityContext
+from app.core.security import is_intake_role
 from app.documents.models import AuditEvent
 from app.documents.status import DocumentStatus
 from app.extraction.schemas import InvoiceData, InvoiceExtraction, InvoiceLineItem
@@ -76,6 +77,7 @@ def list_invoices(
         if (not needle or needle in document.original_filename.casefold())
         and (not normalized_status or document.status.value == normalized_status)
         and (not normalized_submitter or document.submitted_by.casefold() == normalized_submitter)
+        and (not is_intake_role(context) or document.submitted_by == context.user_id)
         and (created_from is None or document.created_at.date() >= created_from)
         and (created_to is None or document.created_at.date() <= created_to)
     ]

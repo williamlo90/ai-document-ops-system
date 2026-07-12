@@ -26,6 +26,10 @@ class SecurityContext:
     role: str = "admin"
 
 
+INTAKE_ROLES = {"intake", "operator", "uploader"}
+REVIEW_ROLES = {"reviewer"}
+
+
 class SessionStore:
     """Process-local opaque sessions; credentials never leave the server after login."""
 
@@ -116,3 +120,7 @@ def require_any_role(context: SecurityContext, allowed_roles: set[str]) -> None:
         raise UnauthorizedError("Admin role requires admin access")
     if context.role not in allowed_roles:
         raise UnauthorizedError("Required role not present")
+
+
+def is_intake_role(context: SecurityContext) -> bool:
+    return not context.is_admin and context.role in INTAKE_ROLES
