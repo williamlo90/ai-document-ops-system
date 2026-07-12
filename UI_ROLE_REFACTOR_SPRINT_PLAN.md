@@ -1,6 +1,6 @@
 # UI Role Refactor Sprint Plan
 
-Status: UI-R1 implemented; UI-R2 through UI-R6 pending.
+Status: UI-R1 and UI-R2 implemented; UI-R3 through UI-R6 pending.
 
 Source inputs:
 
@@ -95,6 +95,8 @@ Risk:
 - Existing frontend state may still allow stale screens after role switching. Fix by normalizing screen state on role change.
 
 ## Sprint UI-R2 - Uploader Status Experience
+
+Implementation status: completed.
 
 Goal:
 Make uploader flow feel reliable after upload.

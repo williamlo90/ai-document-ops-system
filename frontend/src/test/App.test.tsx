@@ -51,6 +51,27 @@ const workspaceWithLinkedDocument = {
   documents: [linkedDocument],
   metrics: { work_items: 1, pending_approvals: 0, drafts: 0, policy_decisions: 0 },
 }
+const invoiceListWithReviewItem = {
+  items: [{
+    id: 'doc-1',
+    original_filename: 'acme.pdf',
+    status: 'awaiting_human',
+    created_at: now,
+    updated_at: now,
+    document_type: 'invoice',
+    supported_extraction_schema: 'invoice_v1',
+    vendor_name: 'Acme Supplies',
+    total: '100.00',
+    currency: 'USD',
+    current_owner: 'Finance reviewer',
+    current_stage: 'waiting_approval',
+    work_item_id: 'item-1',
+  }],
+  page: 1,
+  page_size: 8,
+  total: 1,
+  total_pages: 1,
+}
 const plannedWorkItem = {
   ...workItem,
   current_plan_id: 'plan-1',
@@ -178,6 +199,29 @@ describe('application shell', () => {
     expect(await screen.findByText(/No invoices waiting for approval/i)).toBeInTheDocument()
     expect(screen.getByText(/Uploaded PDFs appear under Invoices first/i)).toBeInTheDocument()
     expect(localStorage.getItem('docops-role')).toBe('administrator')
+  })
+
+  it('keeps uploader invoice list status-only', async () => {
+    const user = userEvent.setup()
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/backoffice/workspace') return json(workspaceWithLinkedDocument)
+      if (path.startsWith('/invoices?')) return json(invoiceListWithReviewItem)
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
+      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: /my invoices/i }))
+
+    expect((await screen.findAllByRole('heading', { name: /my invoices/i })).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Acme Supplies/i)).toBeInTheDocument()
+    expect(screen.getByText(/View status/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Open review/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /approvals/i })).not.toBeInTheDocument()
   })
 
   it('shows actionable secure session errors without raw implementation detail', async () => {

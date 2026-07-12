@@ -343,7 +343,7 @@ function CommandCenter() {
         {workspace.error ? (
           <ErrorState message={(workspace.error as Error).message} retry={() => workspace.refetch()} />
         ) : screen.kind === 'intake' ? (
-          screen.view === 'new' ? <GuidedInvoiceWizard onSubmitted={() => setScreen({ kind: 'intake', view: 'invoices' })} onReviewSubmitted={(itemId) => { localStorage.setItem('docops-role', 'administrator'); setRole('administrator'); setScreen({ kind: 'detail', id: itemId }) }} /> : <IntakeLibrary view={screen.view} openItem={openItem} />
+          screen.view === 'new' ? <GuidedInvoiceWizard onSubmitted={() => setScreen({ kind: 'intake', view: 'invoices' })} /> : <IntakeLibrary view={screen.view} />
         ) : screen.kind === 'overview' ? (
           <OperationsOverview workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} goQueue={goQueue} />
         ) : screen.kind === 'detail' ? (
@@ -504,7 +504,7 @@ function TopBar({
   )
 }
 
-function GuidedInvoiceWizard({ onSubmitted, onReviewSubmitted }: { onSubmitted: () => void; onReviewSubmitted: (itemId: string) => void }) {
+function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
   const queryClient = useQueryClient()
   const [step, setStep] = useState(0)
   const [file, setFile] = useState<File | null>(null)
@@ -670,7 +670,7 @@ function GuidedInvoiceWizard({ onSubmitted, onReviewSubmitted }: { onSubmitted: 
         {step === 1 ? <div className="extract-step"><StageActivity events={detail.data?.audit_events ?? []} active={processMutation.isPending} /><div className="wizard-actions"><button className="danger-outline-button" disabled={cancelMutation.isPending || !['queued','failed'].includes(document?.status ?? '')} onClick={() => cancelMutation.mutate()}><X size={16} /> Cancel Upload</button><button className="primary-button" disabled={processMutation.isPending || document?.status === 'failed'} onClick={() => { setProcessMessage(''); processMutation.mutate() }}>{processMutation.isPending ? <Loader2 className="spin" size={17} /> : <Sparkles size={17} />} Read Invoice Data</button></div>{processMessage ? <p className="wizard-error">{processMessage}</p> : null}{processMutation.error ? <p className="wizard-error">{(processMutation.error as Error).message}</p> : null}{cancelMutation.error ? <p className="wizard-error">{(cancelMutation.error as Error).message}</p> : null}</div> : null}
         {step === 2 ? <div className="verification-layout"><PdfPreview url={pdfUrl} filename={document?.original_filename ?? ''} /><div className="verify-step"><div className="verify-header"><div><Status value={document?.status ?? 'processing'} /><h3>Check invoice data</h3><p>Compare the detected values with the PDF before sending it for review.</p></div><span className="confidence">{detail.data?.extraction?.confidence?.length ?? 0} fields found</span></div><div className="verify-grid">{guidedFields.map(([key, label, type]) => { const evidence = detail.data?.extraction?.confidence?.find((item) => item.field_name === key); return <label key={key}><span>{label}{evidence?.score != null ? <b>{matchCopy(evidence.score)}</b> : null}</span><input type={type} value={fields[key] ?? ''} onChange={(event) => setFields((current) => ({ ...current, [key]: event.target.value }))} />{evidence?.source_text ? <small title={evidence.source_text}>Page {evidence.source_page ?? 1}: {evidence.source_text}</small> : null}</label> })}</div><LineItemEditor items={lineItems} onChange={setLineItems} />{[...validation.map((issue) => `${issue.field_name ?? issue.field ?? 'Invoice data'}: ${issue.message}`), ...arithmeticIssues].length ? <div className="validation-list">{[...validation.map((issue) => `${issue.field_name ?? issue.field ?? 'Invoice data'}: ${issue.message}`), ...arithmeticIssues].map((message, index) => <p key={index}><AlertTriangle size={14} /><span>{message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={16} /> Totals look consistent.</div>}<div className="wizard-actions">{['extracted','needs_review'].includes(document?.status ?? '') ? <button className="outline-button" disabled={reprocessMutation.isPending} onClick={() => reprocessMutation.mutate()}><RefreshCw size={15} /> Read Again</button> : null}<button className="primary-button" disabled={arithmeticIssues.length > 0} onClick={() => setStep(3)}><Check size={17} /> Continue</button></div></div></div> : null}
         {step === 3 ? <div className="submit-step"><div className="submit-summary"><WorkIcon type="invoice_review" /><div><span>READY FOR REVIEW</span><h3>{fields.vendor_name || document?.original_filename || 'Invoice'}</h3><p>{fields.invoice_number || shortId(documentId)} - {fields.currency || '-'} {fields.total || '-'}</p></div></div><div className="notice"><FileCheck2 size={17} /><div><strong>Send to reviewer</strong><p>This creates one review item so a reviewer can approve, reject, or ask for correction.</p></div></div><div className="wizard-actions"><button className="outline-button" onClick={() => setStep(2)}>Back</button><button className="primary-button" disabled={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{submitMutation.isPending ? <Loader2 className="spin" size={17} /> : <Play size={17} />} Send for Review</button></div>{submitMutation.error ? <p className="wizard-error">{(submitMutation.error as Error).message}</p> : null}</div> : null}
-        {step === 4 ? <div className="submission-success"><CheckCircle2 size={42} /><span>SENT FOR REVIEW</span><h3>Invoice is waiting for approval</h3><p>Reference: <strong>{shortId(documentId)}</strong>. You can review it now or track it from Invoices.</p><div className="success-status"><Status value={submittedItem?.status ?? 'planning'} /><span>Owner<strong>Reviewer</strong></span><span>Next<strong>Review this invoice</strong></span></div><div className="wizard-actions"><button className="outline-button" onClick={() => { setStep(0); setFile(null); setDocumentId(''); setSubmittedItem(null); setFields({}); setLineItems([]) }}><Plus size={16} /> Upload Another Invoice</button><button className="outline-button" onClick={onSubmitted}><FileClock size={16} /> View Invoices</button><button className="primary-button" disabled={!submittedItem?.id} onClick={() => submittedItem?.id && onReviewSubmitted(submittedItem.id)}><ClipboardCheck size={16} /> Review This Invoice</button></div></div> : null}
+        {step === 4 ? <div className="submission-success"><CheckCircle2 size={42} /><span>SENT FOR REVIEW</span><h3>Invoice is waiting for approval</h3><p>Reference: <strong>{shortId(documentId)}</strong>. Track it from My Invoices while a reviewer checks it.</p><div className="success-status"><Status value={submittedItem?.status ?? 'planning'} /><span>Owner<strong>Reviewer</strong></span><span>Next<strong>Reviewer decision</strong></span></div><div className="wizard-actions"><button className="outline-button" onClick={() => { setStep(0); setFile(null); setDocumentId(''); setSubmittedItem(null); setFields({}); setLineItems([]) }}><Plus size={16} /> Upload Another Invoice</button><button className="primary-button" onClick={onSubmitted}><FileClock size={16} /> View My Invoices</button></div></div> : null}
       </section>
     </main>
   )
@@ -711,7 +711,7 @@ function StageActivity({ events, active }: { events: DocumentDetail['audit_event
   return <div className="stage-activity"><h3>{active ? 'Reading invoice data' : 'Ready to read invoice data'}</h3><p>The app will detect key invoice fields and show them for checking.</p>{stages.map((stage) => <div key={stage.label} className={stage.done ? 'done' : stage.active ? 'active' : ''}><span>{stage.done ? <Check size={15} /> : stage.active ? <Loader2 className="spin" size={15} /> : null}</span><strong>{stage.label}</strong></div>)}</div>
 }
 
-function IntakeLibrary({ view, openItem }: { view: IntakeView; openItem: (id: string) => void }) {
+function IntakeLibrary({ view }: { view: IntakeView }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [createdFrom, setCreatedFrom] = useState('')
@@ -739,8 +739,8 @@ function IntakeLibrary({ view, openItem }: { view: IntakeView; openItem: (id: st
       <section className="section-heading">
         <div>
           <span className="section-eyebrow">DOCUMENT WORK</span>
-          <h2>Invoices</h2>
-          <p>Every uploaded invoice appears here, including invoices waiting for reviewer approval.</p>
+          <h2>My Invoices</h2>
+          <p>Track uploaded invoices and see whether they are waiting for review, approved, or need correction.</p>
         </div>
       </section>
       <div className="invoice-toolbar">
@@ -773,18 +773,18 @@ function IntakeLibrary({ view, openItem }: { view: IntakeView; openItem: (id: st
               <Status value={doc.status} />
               <small>{invoiceStageCopy(doc.current_stage)}</small>
             </div>
-            <span className="primary-button">{doc.work_item_id ? 'Open review' : 'Check status'}</span>
+            <span className="primary-button">View status</span>
           </button>
         ))}
         {!invoices.isLoading && !invoices.data?.items.length ? <EmptyState title={search || statusFilter || createdFrom || createdTo ? 'No invoices match your filters' : 'No invoices yet'} body={search || statusFilter || createdFrom || createdTo ? 'Clear the filters or search for another vendor, file, or invoice number.' : 'Upload your first invoice, then it will appear here automatically.'} /> : null}
       </section>
       {invoices.data && invoices.data.total_pages > 1 ? <div className="invoice-pagination"><button className="icon-button" disabled={page === 1} onClick={() => setPage((current) => current - 1)}><ChevronLeft size={16} /></button><span>Page {page} of {invoices.data.total_pages} - {invoices.data.total} invoices</span><button className="icon-button" disabled={page === invoices.data.total_pages} onClick={() => setPage((current) => current + 1)}><ChevronRight size={16} /></button></div> : null}
-      {selectedId ? <InvoiceStatusPanel documentId={selectedId} close={() => setSelectedId('')} openItem={openItem} refresh={() => invoices.refetch()} /> : null}
+      {selectedId ? <InvoiceStatusPanel documentId={selectedId} close={() => setSelectedId('')} refresh={() => invoices.refetch()} /> : null}
     </main>
   )
 }
 
-function InvoiceStatusPanel({ documentId, close, openItem, refresh }: { documentId: string; close: () => void; openItem: (id: string) => void; refresh: () => void }) {
+function InvoiceStatusPanel({ documentId, close, refresh }: { documentId: string; close: () => void; refresh: () => void }) {
   const workflow = useQuery({ queryKey: ['document-workflow', documentId], queryFn: () => api<DocumentWorkflow>(`/documents/${documentId}/workflow`), refetchInterval: 5000 })
   const [pdfUrl, setPdfUrl] = useState('')
   const [escalationReason, setEscalationReason] = useState('')
@@ -824,14 +824,14 @@ function InvoiceStatusPanel({ documentId, close, openItem, refresh }: { document
           {data.extraction?.validation?.length ? <div className="validation-list">{data.extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.field_name ?? issue.field}: {issue.message}</span></p>)}</div> : null}
           {data.attention_reason ? <div className="duplicate-warning"><AlertTriangle size={16} /><span><strong>Attention required</strong>{data.attention_reason}</span></div> : null}
           <section className="status-activity"><h3>Recent history</h3>{data.activity.slice(-5).reverse().map((event) => <div key={event.id}><span /><p><strong>{activityLabel(event.event_type)}</strong><small>{event.actor} - {formatDate(event.created_at)}</small></p></div>)}</section>
-          {data.work_item ? <section className="escalation-control"><label>Reviewer note<textarea value={escalationReason} placeholder="Explain why another reviewer is needed..." onChange={(event) => setEscalationReason(event.target.value)} /></label><button className="outline-button" disabled={!escalationReason.trim() || escalate.isPending} onClick={() => escalate.mutate()}><AlertTriangle size={15} /> Send to reviewer</button></section> : null}
+          {data.work_item ? <section className="escalation-control"><label>Correction note<textarea value={escalationReason} placeholder="Explain what needs attention on this invoice..." onChange={(event) => setEscalationReason(event.target.value)} /></label><button className="outline-button" disabled={!escalationReason.trim() || escalate.isPending} onClick={() => escalate.mutate()}><AlertTriangle size={15} /> Ask for help</button></section> : null}
           {mutationError ? <p className="wizard-error">{(mutationError as Error).message}</p> : null}
           <footer>
             {pdfUrl ? <a className="outline-button" href={pdfUrl} download={data.document.original_filename}><FileText size={15} /> Download PDF</a> : null}
             {data.document.status === 'failed' ? <button className="outline-button" disabled={retry.isPending} onClick={() => retry.mutate()}><RefreshCw size={15} /> Read again</button> : null}
             {['extracted','needs_review','cancelled'].includes(data.document.status) ? <button className="outline-button" disabled={reprocess.isPending} onClick={() => reprocess.mutate()}><RefreshCw size={15} /> Read again</button> : null}
             {['queued','failed'].includes(data.document.status) ? <button className="danger-outline-button" disabled={cancel.isPending} onClick={() => cancel.mutate()}><X size={15} /> Cancel upload</button> : null}
-            {data.work_item ? <button className="primary-button" onClick={() => openItem(data.work_item!.id)}><FileClock size={15} /> Review invoice</button> : null}
+            <button className="primary-button" onClick={close}><FileClock size={15} /> Back to My Invoices</button>
           </footer>
         </> : <ErrorState message={(workflow.error as Error)?.message ?? 'Invoice unavailable'} retry={() => workflow.refetch()} />}
       </aside>
