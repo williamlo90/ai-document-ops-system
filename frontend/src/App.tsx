@@ -1,4 +1,4 @@
-﻿import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
   AlertTriangle,
@@ -14,7 +14,6 @@ import {
   ClipboardCheck,
   Columns3,
   Database,
-  ExternalLink,
   FileCheck2,
   FileClock,
   FileText,
@@ -37,11 +36,9 @@ import {
   Workflow,
   X,
   Zap,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react'
-import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
-import { useEffect, useRef, useState } from 'react'
+import { PdfPreview } from './components/PdfPreview'
+import { useEffect, useState } from 'react'
 
 type Metrics = { work_items: number; pending_approvals: number; drafts: number; policy_decisions: number }
 type DocumentSummary = { id: string; filename: string; status: string; created_at: string; document_type?: string; supported_extraction_schema?: string; vendor_name?: string | null; total?: string | null; currency?: string | null }
@@ -666,93 +663,6 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
         {step === 4 ? <div className="submission-success"><CheckCircle2 size={42} /><span>SENT FOR REVIEW</span><h3>Invoice is waiting for approval</h3><p>Reference: <strong>{shortId(documentId)}</strong>. Track it from My Invoices while a reviewer checks it.</p><div className="success-status"><Status value={submittedItem?.status ?? 'planning'} /><span>Owner<strong>Reviewer</strong></span><span>Next<strong>Reviewer decision</strong></span></div><div className="wizard-actions"><button className="outline-button" onClick={() => { setStep(0); setFile(null); setDocumentId(''); setSubmittedItem(null); setFields({}); setLineItems([]) }}><Plus size={16} /> Upload Another Invoice</button><button className="primary-button" onClick={onSubmitted}><FileClock size={16} /> View My Invoices</button></div></div> : null}
       </section>
     </main>
-  )
-}
-
-function PdfPreview({ url, filename }: { url: string; filename: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const stageRef = useRef<HTMLDivElement>(null)
-  const topScrollRef = useRef<HTMLDivElement>(null)
-  const [pageNumber, setPageNumber] = useState(1)
-  const [pageCount, setPageCount] = useState(0)
-  const [zoom, setZoom] = useState(1)
-  const [scrollWidth, setScrollWidth] = useState(0)
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
-
-  useEffect(() => {
-    setPageNumber(1)
-    setPageCount(0)
-  }, [url])
-
-  useEffect(() => {
-    if (!url) return
-    let cancelled = false
-    let loadingTask: { destroy: () => Promise<void> | void } | undefined
-
-    const renderPage = async () => {
-      setStatus('loading')
-      try {
-        const response = await fetch(url, url.startsWith('blob:') ? undefined : { credentials: 'include' })
-        if (!response.ok) throw new Error('Invoice PDF is unavailable')
-        const data = new Uint8Array(await response.arrayBuffer())
-        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-        if (cancelled) return
-        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
-        const task = pdfjs.getDocument({ data })
-        loadingTask = task
-        const pdf = await task.promise
-        const safePageNumber = Math.min(Math.max(pageNumber, 1), pdf.numPages)
-        if (cancelled) return
-        setPageCount(pdf.numPages)
-        const page = await pdf.getPage(safePageNumber)
-        const canvas = canvasRef.current
-        const context = canvas?.getContext('2d')
-        if (!canvas || !context || cancelled) return
-        const viewport = page.getViewport({ scale: 1.25 * zoom })
-        canvas.width = Math.ceil(viewport.width)
-        canvas.height = Math.ceil(viewport.height)
-        await page.render({ canvas, canvasContext: context, viewport }).promise
-        if (!cancelled) setStatus('ready')
-      } catch {
-        if (!cancelled) setStatus('error')
-      }
-    }
-
-    void renderPage()
-    return () => {
-      cancelled = true
-      void loadingTask?.destroy()
-    }
-  }, [url, pageNumber, zoom])
-
-  useEffect(() => {
-    const stage = stageRef.current
-    if (!stage) return
-    const updateScrollWidth = () => setScrollWidth(stage.scrollWidth)
-    updateScrollWidth()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(updateScrollWidth)
-    observer.observe(stage)
-    if (canvasRef.current) observer.observe(canvasRef.current)
-    return () => observer.disconnect()
-  }, [url, pageNumber, zoom, status])
-
-  const syncTopScroll = (scrollLeft: number) => {
-    if (stageRef.current) stageRef.current.scrollLeft = scrollLeft
-  }
-
-  const syncStageScroll = (scrollLeft: number) => {
-    if (topScrollRef.current) topScrollRef.current.scrollLeft = scrollLeft
-  }
-
-  return (
-    <aside className="pdf-preview">
-      <div className="pdf-preview-title">
-        <FileText size={17} />
-        <strong>{filename || 'Invoice'}</strong>
-      </div>
-      {url ? <><div className="pdf-toolbar"><div className="pdf-page-controls"><button className="icon-button" aria-label="Previous page" title="Previous page" disabled={pageNumber <= 1} onClick={() => setPageNumber((current) => current - 1)}><ChevronLeft size={15} /></button><span>{pageCount ? `Page ${pageNumber} of ${pageCount}` : 'Loading PDF'}</span><button className="icon-button" aria-label="Next page" title="Next page" disabled={!pageCount || pageNumber >= pageCount} onClick={() => setPageNumber((current) => current + 1)}><ChevronRight size={15} /></button></div><div className="pdf-zoom-controls"><button className="icon-button" aria-label="Zoom out" title="Zoom out" disabled={zoom <= .75} onClick={() => setZoom((current) => Number((current - .25).toFixed(2)))}><ZoomOut size={15} /></button><span>{Math.round(zoom * 100)}%</span><button className="icon-button" aria-label="Zoom in" title="Zoom in" disabled={zoom >= 1.75} onClick={() => setZoom((current) => Number((current + .25).toFixed(2)))}><ZoomIn size={15} /></button><a className="outline-button pdf-open-link" href={url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open PDF</a></div></div><div ref={topScrollRef} className="pdf-horizontal-scroll" aria-label="Scroll invoice horizontally" onScroll={(event) => syncTopScroll(event.currentTarget.scrollLeft)}><div style={{ width: scrollWidth }} /></div><div ref={stageRef} className="pdf-canvas-stage" aria-live="polite" onScroll={(event) => syncStageScroll(event.currentTarget.scrollLeft)}><canvas ref={canvasRef} className="pdf-canvas" aria-label={`Page ${pageNumber} of ${filename || 'invoice'}`} />{status === 'loading' ? <div className="pdf-loading"><Loader2 className="spin" size={20} /><span>Loading invoice...</span></div> : null}{status === 'error' ? <div className="pdf-error"><FileText size={30} /><strong>We could not display this PDF here.</strong><a className="outline-button" href={url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open PDF</a></div> : null}</div></> : <div className="preview-empty"><FileText size={34} /><span>Choose a PDF to view it here.</span></div>}
-    </aside>
   )
 }
 
@@ -1548,7 +1458,7 @@ function SectionHeading({ page }: { page: PageId }) {
 function RunsPage({ runs }: { runs: AgentRun[] }) {
   const [selected, setSelected] = useState<string | null>(runs[0]?.id ?? null)
   const current = runs.find((run) => run.id === selected) ?? runs[0]
-  return <div className="split-page"><section className="data-panel"><DataPanelHeader icon={<Activity size={17} />} title="Recent AI Work" count={runs.length} /><div className="run-list">{runs.map((run) => <button className={current?.id === run.id ? 'active' : ''} key={run.id} onClick={() => setSelected(run.id)}><span className={`run-dot ${run.evaluation.successful_completion ? 'success' : 'warning'}`} /><div><strong>{humanize(run.intent)}</strong><p>{run.request}</p><small>{formatDate(run.created_at)} Â· {run.prompt_version}</small></div><Status value={run.evaluation.successful_completion ? 'resolved' : run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></button>)}</div>{runs.length === 0 ? <EmptyState title="No AI work recorded yet" body="Run a document workflow or reliability check to create trace evidence." next="Start from Work Queue or Reliability Checks after at least one document task exists." /> : null}</section><section className="data-panel run-detail"><DataPanelHeader icon={<Workflow size={17} />} title="Decision Trace" />{current ? <><div className="run-hero"><span className="work-icon purple"><BotIcon /></span><div><span>Run {shortId(current.id)}</span><h3>{humanize(current.intent)}</h3><p>{current.evaluation.decision_reason}</p></div></div><div className="stats-grid compact"><Stat label="Confidence" value={`${Math.round(current.evaluation.confidence_score * 100)}%`} /><Stat label="Tool calls" value={current.evaluation.tool_call_count} /><Stat label="Cost" value={currency(current.evaluation.estimated_cost_usd)} /><Stat label="Blocked actions" value={current.evaluation.blocked_action_count} /></div><div className="trace-comparison"><TraceValue label="Expected action" value={current.evaluation.expected_tool ?? 'Not scored'} /><ChevronRight size={16} /><TraceValue label="Actual action" value={current.evaluation.selected_tool ?? 'No action'} /></div>{current.evaluation.failure_type ? <div className="notice danger"><AlertTriangle size={16} /><div><strong>{humanize(current.evaluation.failure_type)}</strong><p>This run is listed as a known weak spot in the local reliability evidence.</p></div></div> : <div className="notice success"><CheckCircle2 size={16} /><div><strong>Trace passed reliability checks</strong><p>No known weak spot was recorded for this run.</p></div></div>}</> : <EmptyState title="Select a run" body="Decision trace and evaluation evidence will appear here." next="Choose a run from the left after trace data exists." />}</section></div>
+  return <div className="split-page"><section className="data-panel"><DataPanelHeader icon={<Activity size={17} />} title="Recent AI Work" count={runs.length} /><div className="run-list">{runs.map((run) => <button className={current?.id === run.id ? 'active' : ''} key={run.id} onClick={() => setSelected(run.id)}><span className={`run-dot ${run.evaluation.successful_completion ? 'success' : 'warning'}`} /><div><strong>{humanize(run.intent)}</strong><p>{run.request}</p><small>{formatDate(run.created_at)} · {run.prompt_version}</small></div><Status value={run.evaluation.successful_completion ? 'resolved' : run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></button>)}</div>{runs.length === 0 ? <EmptyState title="No AI work recorded yet" body="Run a document workflow or reliability check to create trace evidence." next="Start from Work Queue or Reliability Checks after at least one document task exists." /> : null}</section><section className="data-panel run-detail"><DataPanelHeader icon={<Workflow size={17} />} title="Decision Trace" />{current ? <><div className="run-hero"><span className="work-icon purple"><BotIcon /></span><div><span>Run {shortId(current.id)}</span><h3>{humanize(current.intent)}</h3><p>{current.evaluation.decision_reason}</p></div></div><div className="stats-grid compact"><Stat label="Confidence" value={`${Math.round(current.evaluation.confidence_score * 100)}%`} /><Stat label="Tool calls" value={current.evaluation.tool_call_count} /><Stat label="Cost" value={currency(current.evaluation.estimated_cost_usd)} /><Stat label="Blocked actions" value={current.evaluation.blocked_action_count} /></div><div className="trace-comparison"><TraceValue label="Expected action" value={current.evaluation.expected_tool ?? 'Not scored'} /><ChevronRight size={16} /><TraceValue label="Actual action" value={current.evaluation.selected_tool ?? 'No action'} /></div>{current.evaluation.failure_type ? <div className="notice danger"><AlertTriangle size={16} /><div><strong>{humanize(current.evaluation.failure_type)}</strong><p>This run is listed as a known weak spot in the local reliability evidence.</p></div></div> : <div className="notice success"><CheckCircle2 size={16} /><div><strong>Trace passed reliability checks</strong><p>No known weak spot was recorded for this run.</p></div></div>}</> : <EmptyState title="Select a run" body="Decision trace and evaluation evidence will appear here." next="Choose a run from the left after trace data exists." />}</section></div>
 }
 
 function DraftsPage({ items, openItem }: { items: WorkItemDetail[]; openItem: (id: string) => void }) {
@@ -1560,7 +1470,7 @@ function ApprovalsPage({ items, openItem }: { items: WorkItemDetail[]; openItem:
   const approvals = items.flatMap((item) => item.approvals.map((approval) => ({ approval, item })))
   const pending = approvals.filter(({ approval }) => approval.status === 'pending').length
   const highRisk = approvals.filter(({ item }) => ['high', 'urgent'].includes(item.priority)).length
-  return <><div className="approval-summary"><Stat label="Pending decisions" value={pending} icon={<FileClock size={18} />} /><Stat label="High-risk gates" value={highRisk} icon={<ShieldCheck size={18} />} /><Stat label="Decisions recorded" value={approvals.length - pending} icon={<ClipboardCheck size={18} />} /></div><section className="data-panel"><DataPanelHeader icon={<ClipboardCheck size={17} />} title="Human Approval Inbox" count={approvals.length} /><div className="approval-table enhanced">{approvals.map(({ approval, item }) => { const signals = exceptionSignals(item); const step = item.current_plan?.steps.find((candidate) => candidate.id === approval.action_step_id); return <article key={approval.id}><span className={`approval-icon ${approval.status}`}><ClipboardCheck size={17} /></span><div><h3>{item.title}</h3><p>{businessId(item)} Â· {signals[0]?.label ?? 'Policy approval gate'}</p><div className="exception-chip-row">{signals.slice(0, 2).map((signal) => <span className={`exception-chip exception-${signal.tone}`} key={signal.label}>{signal.label}</span>)}</div></div><div className="approval-proposal"><small>Proposed action</small><strong>{humanize(step?.action_type ?? 'Awaiting plan')}</strong></div><Priority value={step?.risk_level ?? item.priority} /><Status value={approval.status} /><span>{formatDate(approval.created_at)}</span><button className="outline-button" onClick={() => openItem(item.id)}>Review decision <ChevronRight size={14} /></button></article> })}</div>{approvals.length === 0 ? <EmptyState title="Approval inbox is clear" body="New human gates will appear here when a plan requests confirmation." /> : null}</section></>
+  return <><div className="approval-summary"><Stat label="Pending decisions" value={pending} icon={<FileClock size={18} />} /><Stat label="High-risk gates" value={highRisk} icon={<ShieldCheck size={18} />} /><Stat label="Decisions recorded" value={approvals.length - pending} icon={<ClipboardCheck size={18} />} /></div><section className="data-panel"><DataPanelHeader icon={<ClipboardCheck size={17} />} title="Human Approval Inbox" count={approvals.length} /><div className="approval-table enhanced">{approvals.map(({ approval, item }) => { const signals = exceptionSignals(item); const step = item.current_plan?.steps.find((candidate) => candidate.id === approval.action_step_id); return <article key={approval.id}><span className={`approval-icon ${approval.status}`}><ClipboardCheck size={17} /></span><div><h3>{item.title}</h3><p>{businessId(item)} · {signals[0]?.label ?? 'Policy approval gate'}</p><div className="exception-chip-row">{signals.slice(0, 2).map((signal) => <span className={`exception-chip exception-${signal.tone}`} key={signal.label}>{signal.label}</span>)}</div></div><div className="approval-proposal"><small>Proposed action</small><strong>{humanize(step?.action_type ?? 'Awaiting plan')}</strong></div><Priority value={step?.risk_level ?? item.priority} /><Status value={approval.status} /><span>{formatDate(approval.created_at)}</span><button className="outline-button" onClick={() => openItem(item.id)}>Review decision <ChevronRight size={14} /></button></article> })}</div>{approvals.length === 0 ? <EmptyState title="Approval inbox is clear" body="New human gates will appear here when a plan requests confirmation." /> : null}</section></>
 }
 
 function OperationalControlsPage({ data }: { data?: OperationsJobs }) {
@@ -1591,13 +1501,13 @@ function OperationalControlsPage({ data }: { data?: OperationsJobs }) {
       setToast({ kind: 'danger', message: (error as Error).message })
     }
   }
-  return <><div className="stats-grid"><Stat label="Worker status" value={humanize(data?.worker.status ?? 'checking')} icon={<CircleGauge size={18} />} /><Stat label="Queued jobs" value={data?.worker.queued_jobs ?? 0} icon={<FileClock size={18} />} /><Stat label="Failed jobs" value={data?.worker.failed_jobs ?? 0} icon={<AlertTriangle size={18} />} /><Stat label="Stalled jobs" value={data?.worker.stalled_jobs ?? 0} icon={<Activity size={18} />} /></div><section className="data-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Worker Health" /><div className={`notice ${data?.worker.status === 'degraded' ? 'danger' : 'success'}`}><ShieldCheck size={16} /><div><strong>{humanize(data?.worker.status ?? 'checking')}</strong><p>{data?.worker.evidence}</p></div></div><div className="panel-actions"><button className="outline-button" onClick={downloadAudit}><FileText size={14} /> Export audit CSV</button></div></section><section className="data-panel"><DataPanelHeader icon={<AlertTriangle size={17} />} title="Failed And Dead-Letter Jobs" count={data?.failed_jobs.length ?? 0} /><div className="approval-table">{data?.failed_jobs.map((job) => <article key={job.id}><span className="approval-icon rejected"><AlertTriangle size={17} /></span><div><h3>Document {shortId(job.document_id)}</h3><p>{job.error_message || 'Persistent processing failure.'}</p></div><Status value={job.status} /><span>{job.provider_name ?? 'unknown provider'} Â· {job.attempt_count} attempts</span><button className="outline-button" disabled={retry.isPending} onClick={() => retry.mutate(job.id)}><RefreshCw size={14} /> Retry</button></article>)}</div>{!data?.failed_jobs.length ? <EmptyState title="No failed jobs" body="Worker failures and dead-letter jobs will remain visible here until resolved." /> : null}</section>{toast ? <div className={`app-toast ${toast.kind}`} role="status"><span>{toast.kind === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}</span><p>{toast.message}</p><button onClick={() => setToast(null)}><X size={14} /></button></div> : null}</>
+  return <><div className="stats-grid"><Stat label="Worker status" value={humanize(data?.worker.status ?? 'checking')} icon={<CircleGauge size={18} />} /><Stat label="Queued jobs" value={data?.worker.queued_jobs ?? 0} icon={<FileClock size={18} />} /><Stat label="Failed jobs" value={data?.worker.failed_jobs ?? 0} icon={<AlertTriangle size={18} />} /><Stat label="Stalled jobs" value={data?.worker.stalled_jobs ?? 0} icon={<Activity size={18} />} /></div><section className="data-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Worker Health" /><div className={`notice ${data?.worker.status === 'degraded' ? 'danger' : 'success'}`}><ShieldCheck size={16} /><div><strong>{humanize(data?.worker.status ?? 'checking')}</strong><p>{data?.worker.evidence}</p></div></div><div className="panel-actions"><button className="outline-button" onClick={downloadAudit}><FileText size={14} /> Export audit CSV</button></div></section><section className="data-panel"><DataPanelHeader icon={<AlertTriangle size={17} />} title="Failed And Dead-Letter Jobs" count={data?.failed_jobs.length ?? 0} /><div className="approval-table">{data?.failed_jobs.map((job) => <article key={job.id}><span className="approval-icon rejected"><AlertTriangle size={17} /></span><div><h3>Document {shortId(job.document_id)}</h3><p>{job.error_message || 'Persistent processing failure.'}</p></div><Status value={job.status} /><span>{job.provider_name ?? 'unknown provider'} · {job.attempt_count} attempts</span><button className="outline-button" disabled={retry.isPending} onClick={() => retry.mutate(job.id)}><RefreshCw size={14} /> Retry</button></article>)}</div>{!data?.failed_jobs.length ? <EmptyState title="No failed jobs" body="Worker failures and dead-letter jobs will remain visible here until resolved." /> : null}</section>{toast ? <div className={`app-toast ${toast.kind}`} role="status"><span>{toast.kind === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}</span><p>{toast.message}</p><button onClick={() => setToast(null)}><X size={14} /></button></div> : null}</>
 }
 
 function PoliciesPage({ items }: { items: WorkItemDetail[] }) {
   const decisions = items.flatMap((item) => item.policy_decisions.map((decision) => ({ decision, item })))
   const allowed = decisions.filter(({ decision }) => decision.allowed).length
-  return <><div className="stats-grid"><Stat label="Policy decisions" value={decisions.length} icon={<FileCheck2 size={18} />} /><Stat label="Allowed actions" value={allowed} icon={<CheckCircle2 size={18} />} /><Stat label="Confirmation gates" value={decisions.filter(({ decision }) => decision.requires_confirmation).length} icon={<UserRound size={18} />} /><Stat label="Blocked actions" value={decisions.length - allowed} icon={<ShieldCheck size={18} />} /></div><section className="data-panel"><DataPanelHeader icon={<FileCheck2 size={17} />} title="Policy Decision Log" count={decisions.length} /><div className="policy-list">{decisions.map(({ decision, item }) => <article key={decision.id}><div className="policy-main"><span className={`policy-result ${decision.allowed ? 'allowed' : 'blocked'}`}>{decision.allowed ? <Check size={15} /> : <X size={15} />}</span><div><h3>{humanize(decision.action_type)}</h3><p>{decision.reason}</p><small>{item.title} Â· {formatDate(item.updated_at)}</small></div></div><div className="policy-tags"><Priority value={decision.risk_level} /><span className="type-badge">{humanize(decision.autonomy_level)}</span>{decision.requires_confirmation ? <Status value="awaiting_human" /> : <Status value="approved" />}</div></article>)}</div></section></>
+  return <><div className="stats-grid"><Stat label="Policy decisions" value={decisions.length} icon={<FileCheck2 size={18} />} /><Stat label="Allowed actions" value={allowed} icon={<CheckCircle2 size={18} />} /><Stat label="Confirmation gates" value={decisions.filter(({ decision }) => decision.requires_confirmation).length} icon={<UserRound size={18} />} /><Stat label="Blocked actions" value={decisions.length - allowed} icon={<ShieldCheck size={18} />} /></div><section className="data-panel"><DataPanelHeader icon={<FileCheck2 size={17} />} title="Policy Decision Log" count={decisions.length} /><div className="policy-list">{decisions.map(({ decision, item }) => <article key={decision.id}><div className="policy-main"><span className={`policy-result ${decision.allowed ? 'allowed' : 'blocked'}`}>{decision.allowed ? <Check size={15} /> : <X size={15} />}</span><div><h3>{humanize(decision.action_type)}</h3><p>{decision.reason}</p><small>{item.title} · {formatDate(item.updated_at)}</small></div></div><div className="policy-tags"><Priority value={decision.risk_level} /><span className="type-badge">{humanize(decision.autonomy_level)}</span>{decision.requires_confirmation ? <Status value="awaiting_human" /> : <Status value="approved" />}</div></article>)}</div></section></>
 }
 
 function GuardrailsPage({ items }: { items: WorkItemDetail[] }) {
@@ -1630,7 +1540,7 @@ function SettingsPage({ workspace }: { workspace?: Workspace }) {
   const providers = useQuery({ queryKey: ['provider-health'], queryFn: () => api<ProviderHealth>('/providers/health') })
   const integrations = useQuery({ queryKey: ['integration-status'], queryFn: () => api<IntegrationStatus>('/integrations/status') })
   const refresh = () => { setSaved(true); queryClient.invalidateQueries() }
-  return <div className="settings-layout"><section className="data-panel settings-panel"><DataPanelHeader icon={<Settings size={17} />} title="Workspace Configuration" /><label><span>Workspace</span><input value={workspace?.workspace_id ?? 'default'} disabled /></label><DetailRow label="Authentication" value="Opaque HttpOnly server session" /><DetailRow label="Credential storage" value="Server-side only; no browser token" /><label><span>Backend endpoint</span><input value="Same origin" disabled /></label><label><span>Frontend endpoint</span><input value={window.location.origin} disabled /></label><div className="settings-actions"><button className="primary-button" onClick={refresh}><RefreshCw size={15} /> Refresh configuration</button>{saved ? <span><CheckCircle2 size={14} /> Refreshed</span> : null}</div></section><section className="data-panel settings-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Runtime And Providers" /><div className="mode-banner"><strong>Production-shaped runtime</strong><p>Secrets stay in the server-side .env file and are never returned to this browser.</p></div>{providers.data?.providers.map((provider) => <DetailRow key={provider.role} label={`${humanize(provider.role)} provider`} value={`${provider.provider_name} Â· ${humanize(provider.status)}`} />)}{integrations.data?.integrations.map((integration) => <DetailRow key={integration.name} label={humanize(integration.name)} value={`${integration.provider} Â· ${humanize(integration.status)}`} />)}<DetailRow label="Fallback state" value={providers.data?.overall_status === 'healthy' ? 'Local deterministic providers active' : 'Real provider configured; mock remains available via .env'} /><DetailRow label="Telemetry" value="Durable local AgentOps" /></section></div>
+  return <div className="settings-layout"><section className="data-panel settings-panel"><DataPanelHeader icon={<Settings size={17} />} title="Workspace Configuration" /><label><span>Workspace</span><input value={workspace?.workspace_id ?? 'default'} disabled /></label><DetailRow label="Authentication" value="Opaque HttpOnly server session" /><DetailRow label="Credential storage" value="Server-side only; no browser token" /><label><span>Backend endpoint</span><input value="Same origin" disabled /></label><label><span>Frontend endpoint</span><input value={window.location.origin} disabled /></label><div className="settings-actions"><button className="primary-button" onClick={refresh}><RefreshCw size={15} /> Refresh configuration</button>{saved ? <span><CheckCircle2 size={14} /> Refreshed</span> : null}</div></section><section className="data-panel settings-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Runtime And Providers" /><div className="mode-banner"><strong>Production-shaped runtime</strong><p>Secrets stay in the server-side .env file and are never returned to this browser.</p></div>{providers.data?.providers.map((provider) => <DetailRow key={provider.role} label={`${humanize(provider.role)} provider`} value={`${provider.provider_name} · ${humanize(provider.status)}`} />)}{integrations.data?.integrations.map((integration) => <DetailRow key={integration.name} label={humanize(integration.name)} value={`${integration.provider} · ${humanize(integration.status)}`} />)}<DetailRow label="Fallback state" value={providers.data?.overall_status === 'healthy' ? 'Local deterministic providers active' : 'Real provider configured; mock remains available via .env'} /><DetailRow label="Telemetry" value="Durable local AgentOps" /></section></div>
 }
 
 function ReliabilityPage({ summary, runs, regression, promptVersions }: { summary?: ReliabilitySummary; runs: AgentRun[]; regression?: Regression; promptVersions: PromptVersionMetric[] }) {
@@ -1652,7 +1562,7 @@ function ReliabilityPage({ summary, runs, regression, promptVersions }: { summar
       <section className="data-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Confidence Calibration" />{enoughObservations ? <div className="failure-bars">{Object.entries(summary?.confidence_distribution ?? {}).map(([name, count]) => <div key={name}><span>{humanize(name)}</span><i><b style={{ width: `${Math.min(100, count / Math.max(summary?.total_runs ?? 1, 1) * 100)}%` }} /></i><strong>{count}</strong></div>)}</div> : <EmptyState title="Calibration pending" body="Confidence distribution appears after five observed runs." />}</section>
       <section className="data-panel"><DataPanelHeader icon={<Workflow size={17} />} title="Planning Version Evidence" />{promptVersions.map((version) => <div className="trace-comparison" key={version.prompt_version}><TraceValue label="Version" value={version.prompt_version} /><TraceValue label="Runs" value={String(version.total_runs)} /><TraceValue label="Action match" value={percent(version.tool_selection_accuracy)} /></div>)}</section>
       <section className="data-panel"><DataPanelHeader icon={<Columns3 size={17} />} title="Regression Comparison" />{regression?.deltas.map((delta) => <div className="trace-comparison" key={delta.metric}><TraceValue label="Metric" value={delta.metric} /><TraceValue label="Previous" value={percent(delta.previous)} /><TraceValue label="Current" value={percent(delta.current)} /><Status value={delta.regressed ? 'failed' : 'approved'} /></div>)}{!regression?.deltas.length ? <EmptyState title="No comparison window" body="More runs are needed to compare current and previous windows." /> : null}</section>
-      <section className="data-panel known-failures"><DataPanelHeader icon={<AlertTriangle size={17} />} title="Known Weak Spots" count={failedRuns.length} />{failedRuns.slice(0, 6).map((run) => <article key={run.id}><span className="approval-icon rejected"><AlertTriangle size={15} /></span><div><strong>{humanize(run.evaluation.failure_type ?? 'Incomplete run')}</strong><p>{run.evaluation.decision_reason}</p><small>{humanize(run.intent)} Â· Run {shortId(run.id)} Â· {formatDate(run.created_at)}</small></div><Status value={run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></article>)}{!failedRuns.length ? <EmptyState title="No weak spots in this sample" body="This only describes the stored local observation set." /> : null}</section>
+      <section className="data-panel known-failures"><DataPanelHeader icon={<AlertTriangle size={17} />} title="Known Weak Spots" count={failedRuns.length} />{failedRuns.slice(0, 6).map((run) => <article key={run.id}><span className="approval-icon rejected"><AlertTriangle size={15} /></span><div><strong>{humanize(run.evaluation.failure_type ?? 'Incomplete run')}</strong><p>{run.evaluation.decision_reason}</p><small>{humanize(run.intent)} · Run {shortId(run.id)} · {formatDate(run.created_at)}</small></div><Status value={run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></article>)}{!failedRuns.length ? <EmptyState title="No weak spots in this sample" body="This only describes the stored local observation set." /> : null}</section>
       <section className="data-panel evidence-limitations"><DataPanelHeader icon={<ShieldCheck size={17} />} title="Known Limitations" /><p><Check size={14} /> Invoice is the only complete document schema in the current workflow.</p><p><Check size={14} /> Metrics depend on stored local runs and may have a small sample size.</p><p><Check size={14} /> Confidence distribution is descriptive, not calibrated against production outcomes.</p><p><Check size={14} /> Provider and external integration quality are evaluated separately.</p></section>
     </div>
   </>
@@ -1670,8 +1580,8 @@ function EvaluationPage({ agent, backoffice, runs, items, evaluations }: { agent
   }, [evaluations])
   const dataset = tab === 'agent' ? agent : backoffice
   const targets = tab === 'agent'
-    ? runs.map((run) => ({ id: run.id, label: `${humanize(run.intent)} Â· ${shortId(run.id)}` }))
-    : items.filter((item) => item.current_plan).map((item) => ({ id: item.id, label: `${item.title} Â· ${shortId(item.current_plan!.id)}` }))
+    ? runs.map((run) => ({ id: run.id, label: `${humanize(run.intent)} · ${shortId(run.id)}` }))
+    : items.filter((item) => item.current_plan).map((item) => ({ id: item.id, label: `${item.title} · ${shortId(item.current_plan!.id)}` }))
   const selectedTarget = targets.some((target) => target.id === targetId) ? targetId : targets[0]?.id ?? ''
   const evaluation = useMutation({
     mutationFn: ({ scenarioId }: { scenarioId: string }) => api<{ result: ScenarioResult }>(
@@ -1688,16 +1598,16 @@ function EvaluationPage({ agent, backoffice, runs, items, evaluations }: { agent
   return <>
     <EvidenceScope title="Repeatable reliability checks" detail="Each result compares one stored plan or run with a versioned expected outcome. Passing a case does not imply broad document or production coverage." />
     <div className="stats-grid"><Stat label="AI action checks" value={agent?.scenario_count ?? 0} icon={<BotIcon />} /><Stat label="Document workflow checks" value={backoffice?.scenario_count ?? 0} icon={<Workflow size={18} />} /><Stat label="Observed runs" value={runs.length} icon={<Activity size={18} />} /><Stat label="Check mode" value="Repeatable" icon={<CheckCircle2 size={18} />} /></div>
-    <div className="evaluation-result-strip"><strong>{completedResults.length ? `${passedResults} of ${completedResults.length} checked cases passed` : 'No cases checked yet'}</strong><span>Results are saved against scenario IDs and versioned test sets.</span>{completedResults.some((result) => result.actual_document_type || result.actual_operation_type) ? <div className="scenario-tags">{completedResults.map((result, index) => <span key={index}>{[result.actual_document_type && `Actual document: ${humanize(result.actual_document_type)}`, result.actual_operation_type && `Actual operation: ${humanize(result.actual_operation_type)}`].filter(Boolean).join(' Â· ')}</span>)}</div> : null}</div>
+    <div className="evaluation-result-strip"><strong>{completedResults.length ? `${passedResults} of ${completedResults.length} checked cases passed` : 'No cases checked yet'}</strong><span>Results are saved against scenario IDs and versioned test sets.</span>{completedResults.some((result) => result.actual_document_type || result.actual_operation_type) ? <div className="scenario-tags">{completedResults.map((result, index) => <span key={index}>{[result.actual_document_type && `Actual document: ${humanize(result.actual_document_type)}`, result.actual_operation_type && `Actual operation: ${humanize(result.actual_operation_type)}`].filter(Boolean).join(' · ')}</span>)}</div> : null}</div>
     <section className="data-panel">
       <div className="evaluation-toolbar">
         <div className="segment-control"><button className={tab === 'backoffice' ? 'active' : ''} onClick={() => setTab('backoffice')}>Document workflow</button><button className={tab === 'agent' ? 'active' : ''} onClick={() => setTab('agent')}>AI tool use</button></div>
         <select value={selectedTarget} onChange={(event) => setTargetId(event.target.value)} aria-label="Evaluation target">{targets.length ? targets.map((target) => <option value={target.id} key={target.id}>{target.label}</option>) : <option value="">No compatible observations</option>}</select>
-        <span>{dataset?.dataset_id} Â· {dataset?.dataset_version}</span>
+        <span>{dataset?.dataset_id} · {dataset?.dataset_version}</span>
       </div>
       <div className="scenario-list">{dataset?.scenarios.map((scenario, index) => {
         const result = results[scenario.id]
-        return <article key={scenario.id}><span className="scenario-number">{String(index + 1).padStart(2, '0')}</span><div><h3>{scenario.title ?? humanize(scenario.id)}</h3><p>{scenario.message ?? `${humanize(scenario.work_type ?? 'backoffice')} scenario with deterministic plan expectations.`}</p><div className="scenario-tags">{scenario.document_type ? <span>Document: {humanize(scenario.document_type)}</span> : null}{scenario.operation_type ? <span>Operation: {humanize(scenario.operation_type)}</span> : null}{scenario.expected_tool ? <span>Tool: {humanize(scenario.expected_tool)}</span> : null}{scenario.expected_risk ? <span>Risk: {humanize(scenario.expected_risk)}</span> : null}{scenario.expected_confidence ? <span>Confidence: {scenario.expected_confidence}</span> : null}{result ? <Status value={result.passed ? 'approved' : 'failed'} /> : null}</div>{result ? <small>{Object.entries(result.checks).map(([name, passed]) => `${humanize(name)}: ${passed ? 'pass' : 'fail'}`).join(' Â· ')}</small> : null}<ScenarioResultEvidence scenario={scenario} result={result} /></div><button className="outline-button" disabled={!selectedTarget || evaluation.isPending} onClick={() => evaluation.mutate({ scenarioId: scenario.id })}>{evaluation.isPending ? <Loader2 size={14} /> : <Play size={14} />} Evaluate</button></article>
+        return <article key={scenario.id}><span className="scenario-number">{String(index + 1).padStart(2, '0')}</span><div><h3>{scenario.title ?? humanize(scenario.id)}</h3><p>{scenario.message ?? `${humanize(scenario.work_type ?? 'backoffice')} scenario with deterministic plan expectations.`}</p><div className="scenario-tags">{scenario.document_type ? <span>Document: {humanize(scenario.document_type)}</span> : null}{scenario.operation_type ? <span>Operation: {humanize(scenario.operation_type)}</span> : null}{scenario.expected_tool ? <span>Tool: {humanize(scenario.expected_tool)}</span> : null}{scenario.expected_risk ? <span>Risk: {humanize(scenario.expected_risk)}</span> : null}{scenario.expected_confidence ? <span>Confidence: {scenario.expected_confidence}</span> : null}{result ? <Status value={result.passed ? 'approved' : 'failed'} /> : null}</div>{result ? <small>{Object.entries(result.checks).map(([name, passed]) => `${humanize(name)}: ${passed ? 'pass' : 'fail'}`).join(' · ')}</small> : null}<ScenarioResultEvidence scenario={scenario} result={result} /></div><button className="outline-button" disabled={!selectedTarget || evaluation.isPending} onClick={() => evaluation.mutate({ scenarioId: scenario.id })}>{evaluation.isPending ? <Loader2 size={14} /> : <Play size={14} />} Evaluate</button></article>
       })}</div>
       {evaluation.error ? <div className="notice danger"><AlertTriangle size={16} /><p>{evaluation.error.message}</p></div> : null}
     </section>
@@ -1795,7 +1705,7 @@ function DraftTab({ item }: { item: WorkItemDetail }) {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['work-item', item.id] })
   const edit = useMutation({ mutationFn: ({ id, value }: { id: string; value: string }) => api(`/backoffice/work-items/${item.id}/drafts/${id}`, { method: 'PATCH', body: JSON.stringify({ preview_content: value }) }), onSuccess: () => { setEditing(''); refresh() } })
   const regenerate = useMutation({ mutationFn: (id: string) => api(`/backoffice/work-items/${item.id}/drafts/${id}/regenerate`, { method: 'POST' }), onSuccess: refresh })
-  return <div className="tab-content"><div className="draft-history-heading"><div><h3>Draft Version History</h3><p>Every regeneration creates a separate reviewable record.</p></div><span>{item.drafts.length} versions</span></div>{item.drafts.length ? [...item.drafts].reverse().map((draft, index) => <section className="panel draft-card" key={draft.id}><PanelTitle title={`${humanize(draft.draft_type)} Â· Version ${item.drafts.length - index}`} action={<Status value={draft.status} />} />{editing === draft.id ? <textarea className="draft-editor" value={content} onChange={(event) => setContent(event.target.value)} /> : <pre>{draft.preview_content}</pre>}<small>Updated {formatDate(draft.updated_at)}</small><div className="panel-actions">{editing === draft.id ? <><button className="outline-button" onClick={() => setEditing('')}>Cancel</button><button className="primary-button" disabled={!content.trim() || edit.isPending} onClick={() => edit.mutate({ id: draft.id, value: content })}><Check size={14} /> Save Draft</button></> : <><button className="outline-button" disabled={regenerate.isPending} onClick={() => regenerate.mutate(draft.id)}><RefreshCw size={14} /> Regenerate</button><button className="outline-button" disabled={draft.status !== 'drafted'} onClick={() => { setEditing(draft.id); setContent(draft.preview_content) }}><Pencil size={14} /> Edit</button></>}</div></section>) : <EmptyState title="No drafts" body="Drafts produced by the plan will appear here." />}</div>
+  return <div className="tab-content"><div className="draft-history-heading"><div><h3>Draft Version History</h3><p>Every regeneration creates a separate reviewable record.</p></div><span>{item.drafts.length} versions</span></div>{item.drafts.length ? [...item.drafts].reverse().map((draft, index) => <section className="panel draft-card" key={draft.id}><PanelTitle title={`${humanize(draft.draft_type)} · Version ${item.drafts.length - index}`} action={<Status value={draft.status} />} />{editing === draft.id ? <textarea className="draft-editor" value={content} onChange={(event) => setContent(event.target.value)} /> : <pre>{draft.preview_content}</pre>}<small>Updated {formatDate(draft.updated_at)}</small><div className="panel-actions">{editing === draft.id ? <><button className="outline-button" onClick={() => setEditing('')}>Cancel</button><button className="primary-button" disabled={!content.trim() || edit.isPending} onClick={() => edit.mutate({ id: draft.id, value: content })}><Check size={14} /> Save Draft</button></> : <><button className="outline-button" disabled={regenerate.isPending} onClick={() => regenerate.mutate(draft.id)}><RefreshCw size={14} /> Regenerate</button><button className="outline-button" disabled={draft.status !== 'drafted'} onClick={() => { setEditing(draft.id); setContent(draft.preview_content) }}><Pencil size={14} /> Edit</button></>}</div></section>) : <EmptyState title="No drafts" body="Drafts produced by the plan will appear here." />}</div>
 }
 
 function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; document?: DocumentSummary; extraction: Extraction | null }) {
@@ -1876,7 +1786,7 @@ function EvidenceExcerpts({ evidence = [] }: { evidence?: Extraction['confidence
 
 function AgentOpsTab({ item }: { item: WorkItemDetail }) {
   const linked = item.activity.filter((event) => event.agent_run_id)
-  return <div className="tab-content"><TraceCard item={item} />{linked.length ? <section className="panel"><PanelTitle title="Linked Trace Activity" /><div className="activity-list">{linked.map((event) => <article key={event.id}><span className="activity-dot source-agentops"><Activity size={13} /></span><div><strong>{humanize(event.event_type)}</strong><p>{event.summary}</p><small>Run {shortId(event.agent_run_id!)} Â· {formatDate(event.created_at)}</small></div><button className="outline-button" onClick={() => window.open('/?technical=runs', '_blank')}>Open trace</button></article>)}</div></section> : null}</div>
+  return <div className="tab-content"><TraceCard item={item} />{linked.length ? <section className="panel"><PanelTitle title="Linked Trace Activity" /><div className="activity-list">{linked.map((event) => <article key={event.id}><span className="activity-dot source-agentops"><Activity size={13} /></span><div><strong>{humanize(event.event_type)}</strong><p>{event.summary}</p><small>Run {shortId(event.agent_run_id!)} · {formatDate(event.created_at)}</small></div><button className="outline-button" onClick={() => window.open('/?technical=runs', '_blank')}>Open trace</button></article>)}</div></section> : null}</div>
 }
 
 const hiddenDetailViews = [PlanTab, RecordTab, GovernanceTab, AgentOpsTab] as const
