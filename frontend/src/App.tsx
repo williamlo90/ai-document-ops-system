@@ -674,9 +674,12 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
 
 function PdfPreview({ url, filename }: { url: string; filename: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const topScrollRef = useRef<HTMLDivElement>(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(1)
+  const [scrollWidth, setScrollWidth] = useState(0)
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
 
   useEffect(() => {
@@ -725,13 +728,33 @@ function PdfPreview({ url, filename }: { url: string; filename: string }) {
     }
   }, [url, pageNumber, zoom])
 
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const updateScrollWidth = () => setScrollWidth(stage.scrollWidth)
+    updateScrollWidth()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(updateScrollWidth)
+    observer.observe(stage)
+    if (canvasRef.current) observer.observe(canvasRef.current)
+    return () => observer.disconnect()
+  }, [url, pageNumber, zoom, status])
+
+  const syncTopScroll = (scrollLeft: number) => {
+    if (stageRef.current) stageRef.current.scrollLeft = scrollLeft
+  }
+
+  const syncStageScroll = (scrollLeft: number) => {
+    if (topScrollRef.current) topScrollRef.current.scrollLeft = scrollLeft
+  }
+
   return (
     <aside className="pdf-preview">
       <div className="pdf-preview-title">
         <FileText size={17} />
         <strong>{filename || 'Invoice'}</strong>
       </div>
-      {url ? <><div className="pdf-toolbar"><div className="pdf-page-controls"><button className="icon-button" aria-label="Previous page" title="Previous page" disabled={pageNumber <= 1} onClick={() => setPageNumber((current) => current - 1)}><ChevronLeft size={15} /></button><span>{pageCount ? `Page ${pageNumber} of ${pageCount}` : 'Loading PDF'}</span><button className="icon-button" aria-label="Next page" title="Next page" disabled={!pageCount || pageNumber >= pageCount} onClick={() => setPageNumber((current) => current + 1)}><ChevronRight size={15} /></button></div><div className="pdf-zoom-controls"><button className="icon-button" aria-label="Zoom out" title="Zoom out" disabled={zoom <= .75} onClick={() => setZoom((current) => Number((current - .25).toFixed(2)))}><ZoomOut size={15} /></button><span>{Math.round(zoom * 100)}%</span><button className="icon-button" aria-label="Zoom in" title="Zoom in" disabled={zoom >= 1.75} onClick={() => setZoom((current) => Number((current + .25).toFixed(2)))}><ZoomIn size={15} /></button><a className="outline-button pdf-open-link" href={url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open PDF</a></div></div><div className="pdf-canvas-stage" aria-live="polite"><canvas ref={canvasRef} className="pdf-canvas" aria-label={`Page ${pageNumber} of ${filename || 'invoice'}`} />{status === 'loading' ? <div className="pdf-loading"><Loader2 className="spin" size={20} /><span>Loading invoice...</span></div> : null}{status === 'error' ? <div className="pdf-error"><FileText size={30} /><strong>We could not display this PDF here.</strong><a className="outline-button" href={url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open PDF</a></div> : null}</div></> : <div className="preview-empty"><FileText size={34} /><span>Choose a PDF to view it here.</span></div>}
+      {url ? <><div className="pdf-toolbar"><div className="pdf-page-controls"><button className="icon-button" aria-label="Previous page" title="Previous page" disabled={pageNumber <= 1} onClick={() => setPageNumber((current) => current - 1)}><ChevronLeft size={15} /></button><span>{pageCount ? `Page ${pageNumber} of ${pageCount}` : 'Loading PDF'}</span><button className="icon-button" aria-label="Next page" title="Next page" disabled={!pageCount || pageNumber >= pageCount} onClick={() => setPageNumber((current) => current + 1)}><ChevronRight size={15} /></button></div><div className="pdf-zoom-controls"><button className="icon-button" aria-label="Zoom out" title="Zoom out" disabled={zoom <= .75} onClick={() => setZoom((current) => Number((current - .25).toFixed(2)))}><ZoomOut size={15} /></button><span>{Math.round(zoom * 100)}%</span><button className="icon-button" aria-label="Zoom in" title="Zoom in" disabled={zoom >= 1.75} onClick={() => setZoom((current) => Number((current + .25).toFixed(2)))}><ZoomIn size={15} /></button><a className="outline-button pdf-open-link" href={url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open PDF</a></div></div><div ref={topScrollRef} className="pdf-horizontal-scroll" aria-label="Scroll invoice horizontally" onScroll={(event) => syncTopScroll(event.currentTarget.scrollLeft)}><div style={{ width: scrollWidth }} /></div><div ref={stageRef} className="pdf-canvas-stage" aria-live="polite" onScroll={(event) => syncStageScroll(event.currentTarget.scrollLeft)}><canvas ref={canvasRef} className="pdf-canvas" aria-label={`Page ${pageNumber} of ${filename || 'invoice'}`} />{status === 'loading' ? <div className="pdf-loading"><Loader2 className="spin" size={20} /><span>Loading invoice...</span></div> : null}{status === 'error' ? <div className="pdf-error"><FileText size={30} /><strong>We could not display this PDF here.</strong><a className="outline-button" href={url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open PDF</a></div> : null}</div></> : <div className="preview-empty"><FileText size={34} /><span>Choose a PDF to view it here.</span></div>}
     </aside>
   )
 }
