@@ -674,7 +674,7 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: (workItemId: string
     },
   })
   const cancelMutation = useMutation({
-    mutationFn: () => api(`/invoices/${documentId}/cancel`, { method: 'POST' }),
+    mutationFn: () => api(`/documents/${documentId}/cancel`, { method: 'POST' }),
     onSuccess: () => {
       localStorage.removeItem('active-invoice-document')
       setDocumentId('')
@@ -686,7 +686,7 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: (workItemId: string
     },
   })
   const reprocessMutation = useMutation({
-    mutationFn: () => api(`/invoices/${documentId}/reprocess`, { method: 'POST' }),
+    mutationFn: () => api(`/documents/${documentId}/reprocess`, { method: 'POST' }),
     onSuccess: async () => {
       await detail.refetch()
       setStep(1)
@@ -869,11 +869,11 @@ function InvoiceStatusPanel({ documentId, close, openItem, refresh }: { document
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [documentId])
   const refreshAll = () => { workflow.refetch(); refresh() }
-  const retry = useMutation({ mutationFn: () => api(`/invoices/${documentId}/retry`, { method: 'POST' }), onSuccess: refreshAll })
-  const reprocess = useMutation({ mutationFn: () => api(`/invoices/${documentId}/reprocess`, { method: 'POST' }), onSuccess: refreshAll })
-  const cancel = useMutation({ mutationFn: () => api(`/invoices/${documentId}/cancel`, { method: 'POST' }), onSuccess: refreshAll })
+  const retry = useMutation({ mutationFn: () => api(`/documents/${documentId}/retry`, { method: 'POST' }), onSuccess: refreshAll })
+  const reprocess = useMutation({ mutationFn: () => api(`/documents/${documentId}/reprocess`, { method: 'POST' }), onSuccess: refreshAll })
+  const cancel = useMutation({ mutationFn: () => api(`/documents/${documentId}/cancel`, { method: 'POST' }), onSuccess: refreshAll })
   const escalate = useMutation({
-    mutationFn: () => api(`/invoices/${documentId}/escalate`, { method: 'POST', body: JSON.stringify({ reason: escalationReason.trim() }) }),
+    mutationFn: () => api(`/documents/${documentId}/escalate`, { method: 'POST', body: JSON.stringify({ reason: escalationReason.trim() }) }),
     onSuccess: () => { setEscalationReason(''); refreshAll() },
   })
   const data = workflow.data
@@ -1695,7 +1695,7 @@ function ActivityTab({ workflow, documentId, loading, error }: { workflow?: Docu
   const queryClient = useQueryClient()
   const [reason, setReason] = useState('')
   const command = useMutation({
-    mutationFn: (action: 'retry' | 'request-correction' | 'escalate') => api(`/invoices/${documentId}/${action}`, action === 'retry' ? { method: 'POST' } : { method: 'POST', body: JSON.stringify({ reason: reason.trim() || (action === 'escalate' ? 'Manual escalation requested by reviewer.' : 'Please correct the invoice evidence.') }) }),
+    mutationFn: (action: 'retry' | 'request-correction' | 'escalate') => api(`/documents/${documentId}/${action}`, action === 'retry' ? { method: 'POST' } : { method: 'POST', body: JSON.stringify({ reason: reason.trim() || (action === 'escalate' ? 'Manual escalation requested by reviewer.' : 'Please correct the invoice evidence.') }) }),
     onSuccess: () => {
       setReason('')
       queryClient.invalidateQueries({ queryKey: ['document-workflow', documentId] })

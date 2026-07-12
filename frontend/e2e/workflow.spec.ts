@@ -27,6 +27,7 @@ async function mockWorkflow(page: Page, calls: string[], approvalStatus = 'pendi
     if (path === '/documents/doc-1/content') return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4\n%%EOF' })
     if (path === '/documents/doc-1/workflow') return route.fulfill({ json: { document, extraction: null, work_item: item, current_stage: stage, current_owner: 'Finance reviewer', waiting_for: 'Human decision', next_action: 'Review', attention_reason: 'Approval required', activity: [] } })
     if (path === '/invoices/doc-1/workflow') return route.fulfill({ status: 410, json: { detail: 'Use the document workflow projection.' } })
+    if (path.startsWith('/invoices/doc-1/') && ['retry', 'request-correction', 'escalate'].some((action) => path.endsWith(`/${action}`))) return route.fulfill({ status: 410, json: { detail: 'Use the document workflow command.' } })
     if (request.method() !== 'GET') {
       calls.push(`${request.method()} ${path}`)
       return route.fulfill({ json: { status: 'ok', work_item: item } })
@@ -63,9 +64,9 @@ test('correction and escalation commands remain available from workflow activity
   await page.getByRole('button', { name: 'Activity' }).click()
   await page.getByRole('textbox', { name: 'Reason or correction instruction' }).fill('PO evidence is ambiguous')
   await page.getByRole('button', { name: 'Request Correction' }).click()
-  await expect.poll(() => calls).toContain('POST /invoices/doc-1/request-correction')
+  await expect.poll(() => calls).toContain('POST /documents/doc-1/request-correction')
   await page.getByRole('button', { name: 'Escalate' }).click()
-  await expect.poll(() => calls).toContain('POST /invoices/doc-1/escalate')
+  await expect.poll(() => calls).toContain('POST /documents/doc-1/escalate')
 })
 
 test('approved execution calls the bounded step endpoint', async ({ page }) => {
@@ -96,5 +97,5 @@ test('provider failure exposes a durable retry command', async ({ page }) => {
   await mockWorkflow(page, calls, 'pending', 'failed')
   await page.getByRole('button', { name: 'Activity' }).click()
   await page.getByRole('button', { name: 'Retry Processing' }).click()
-  await expect.poll(() => calls).toContain('POST /invoices/doc-1/retry')
+  await expect.poll(() => calls).toContain('POST /documents/doc-1/retry')
 })
