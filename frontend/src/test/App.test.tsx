@@ -235,7 +235,9 @@ describe('application shell', () => {
           result: {
             passed: true,
             checks: { document_type: true, operation_type: true },
+            expected_document_type: 'invoice',
             actual_document_type: 'invoice',
+            expected_operation_type: 'document_review',
             actual_operation_type: 'document_review',
           },
         })
@@ -252,6 +254,10 @@ describe('application shell', () => {
     await user.click(screen.getByRole('button', { name: /evaluate/i }))
     expect(await screen.findByText(/Actual document: Invoice/)).toBeInTheDocument()
     expect(screen.getByText(/Actual operation: Document Review/)).toBeInTheDocument()
+    expect(screen.getByText('Expected document')).toBeInTheDocument()
+    expect(screen.getByText('Actual document')).toBeInTheDocument()
+    expect(screen.getByText('Expected operation')).toBeInTheDocument()
+    expect(screen.getByText('Actual operation')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /test datasets/i }))
     await user.click(await screen.findByRole('button', { name: /review a linked invoice without mutating state/i }))
