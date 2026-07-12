@@ -1041,7 +1041,7 @@ function WorkItemPage({
   if (detail.error) return <ErrorState message={(detail.error as Error).message} retry={() => detail.refetch()} />
   if (!item || loadingWorkspace) return <LoadingState />
 
-  const tabs = ['Review', 'Next Steps', 'Approval Decision', 'Record', 'History']
+  const tabs = ['Review', 'Decision', 'History']
 
   return (
     <main className="detail-page">
@@ -1082,15 +1082,8 @@ function WorkItemPage({
         </div>
         {activeTab === 'Review' ? (
           <WorkspaceTab item={item} document={linkedDocument} documentDetail={documentDetail.data?.document} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
-        ) : activeTab === 'Next Steps' ? (
-          <PlanTab item={item} />
-        ) : activeTab === 'Record' ? (
-          <RecordTab item={item} documents={workspace?.documents.filter((document) => item.linked_document_ids.includes(document.id)) ?? []} document={linkedDocument} documentDetail={documentDetail.data?.document} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
-        ) : activeTab === 'Safety Rules' ? (
-          <GovernanceTab item={item} />
-        ) : activeTab === 'Approval Decision' ? <ApprovalTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} /> :
+        ) : activeTab === 'Decision' ? <ApprovalTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} /> :
             activeTab === 'History' ? <ActivityTab workflow={documentWorkflow.data} documentId={linkedDocument?.id} loading={documentWorkflow.isLoading} error={documentWorkflow.error as Error | null} /> :
-              activeTab === 'Technical Evidence' ? <AgentOpsTab item={item} /> :
                 <EmptyState title={`${activeTab} timeline`} body="This view is not available for the current workflow." />}
       </section>
       {editOpen ? <EditWorkItemModal item={item} close={() => setEditOpen(false)} /> : null}
@@ -1117,7 +1110,7 @@ function DetailDecisionSummary({ item, document }: { item: WorkItemDetail; docum
       <article>
         <span>Decision needed</span>
         <strong>{pendingApproval ? 'Approval decision pending' : item.current_plan?.requires_human ? 'Human review required' : 'No approval gate open'}</strong>
-        <p>{pendingApproval ? 'Open Approval Decision to approve or reject the controlled action.' : item.current_plan?.requires_human ? 'Review the plan and evidence before execution.' : 'Continue from the next available workflow step.'}</p>
+        <p>{pendingApproval ? 'Open Decision to approve or reject the controlled action.' : item.current_plan?.requires_human ? 'Review the plan and evidence before execution.' : 'Continue from the next available workflow step.'}</p>
       </article>
       <article>
         <span>Source evidence</span>
@@ -1762,7 +1755,7 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
 
       <section className="panel review-result">
         <PanelTitle title="4. Confirm Result" />
-        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{humanize(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} · {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Execution has not completed</strong><p>After approval, execute the approved step from Next Steps. The final audit evidence will appear here.</p></div></div>}
+        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{humanize(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} · {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Execution has not completed</strong><p>After approval, execute the approved step from the Review tab. The final audit evidence will appear here.</p></div></div>}
       </section>
     </div>
   )
@@ -1782,6 +1775,9 @@ function AgentOpsTab({ item }: { item: WorkItemDetail }) {
   const linked = item.activity.filter((event) => event.agent_run_id)
   return <div className="tab-content"><TraceCard item={item} />{linked.length ? <section className="panel"><PanelTitle title="Linked Trace Activity" /><div className="activity-list">{linked.map((event) => <article key={event.id}><span className="activity-dot source-agentops"><Activity size={13} /></span><div><strong>{humanize(event.event_type)}</strong><p>{event.summary}</p><small>Run {shortId(event.agent_run_id!)} · {formatDate(event.created_at)}</small></div><button className="outline-button" onClick={() => window.open(`/ui/agentops?run_id=${event.agent_run_id}`, '_blank')}>Open trace</button></article>)}</div></section> : null}</div>
 }
+
+const hiddenDetailViews = [PlanTab, RecordTab, GovernanceTab, AgentOpsTab] as const
+void hiddenDetailViews
 
 function ActivityTab({ workflow, documentId, loading, error }: { workflow?: DocumentWorkflow; documentId?: string; loading: boolean; error: Error | null }) {
   const queryClient = useQueryClient()
