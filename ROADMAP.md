@@ -21,6 +21,24 @@ Single source of truth: this ROADMAP plus `docs/pivot/*`; local-only completion 
 - Add a second executable document workflow only when extraction, validation, planning, execution, and evaluation contracts are all covered.
 - Keep public artifact hygiene green: no `.env`, `.venv`, upload folders, SQLite files, cache folders, or local-only planning files.
 
+## Consolidated Refactor Plan
+
+Older standalone sprint plans have been folded into this roadmap and `UI_PLAN.md`.
+
+Backend/product refactor order:
+
+1. Preserve the generic document workflow projection and invoice compatibility aliases.
+2. Keep extending document type taxonomy and operation templates beyond invoice defaults.
+3. Add generic evidence serialization while preserving invoice validation.
+4. Make work items, reviewer flows, and policy decisions document-operation aware.
+5. Preserve AgentOps document/operation scenario evidence and add new cases only when behavior exists.
+6. Keep provider, integration, and deployment readiness local-first and credential-late.
+7. Run final hardening through backend tests, frontend tests, build, public artifact tests, and release docs.
+
+Deferred:
+
+- A second executable non-invoice workflow remains deferred until document type, evidence, validation, planning, execution, and AgentOps coverage are all strong enough.
+
 ## Operating Rules
 
 - Roadmap first, PRD second, implementation third.
@@ -47,9 +65,7 @@ Delivered:
 - `PRD.md`
 - `ROADMAP.md`
 - `ARCHITECTURE.md`
-- `BACKOFFICE_WORKFLOW.md`
-- `AUTONOMY_POLICY.md`
-- `PROJECT_4_READINESS.md`
+- initial back-office workflow, autonomy policy, and readiness notes that are now consolidated into this roadmap, `PRD.md`, `ARCHITECTURE.md`, and `docs/final-release-notes.md`
 - Project 4 public artifact script metadata updated
 - public artifact tests updated for Project 4 setup docs
 
@@ -374,7 +390,7 @@ Delivered:
 - Evaluator checks workspace, work type, plan steps, step statuses, risk levels, policy decisions, human requirement, confidence, and escalation reason.
 - Added `/agentops/backoffice/scenarios`.
 - Added `/agentops/backoffice/scenarios/evaluate`.
-- Updated `EVALUATION_DATASET.md` and `AGENTOPS_EVALUATION_PLAN.md` with Project 4 scenario contract and evaluation scope.
+- Updated Project 4 scenario contract and evaluation scope, now consolidated into AgentOps tests, dataset fixtures, this roadmap, and release notes.
 - Added direct evaluator tests for matched and mismatched plans.
 - Added API tests for scenario contract, evaluation, and workspace scoping.
 
@@ -414,7 +430,7 @@ Acceptance criteria:
 
 Delivered:
 
-- Added `DEPLOYMENT_READINESS.md`.
+- Added deployment readiness material, now consolidated into `RUNBOOK.md`, `docs/docker_profile.md`, and `docs/final-release-notes.md`.
 - Documented local Docker Compose deployment path and smoke checks.
 - Documented CI quality gates and local equivalents.
 - Documented runtime configuration boundary for SQLite and local storage.
@@ -423,10 +439,10 @@ Delivered:
 - Added honest portfolio claim and anti-claims.
 - Updated `RUNBOOK.md` for Project 4 local UI, back-office inbox, AgentOps, and scenario checks.
 - Updated `docs/docker_profile.md` from Project 2 framing to Project 4 deployment boundary.
-- Updated `PROJECT_4_READINESS.md` from pre-implementation readiness to current implementation/deployment readiness.
+- Updated readiness material from pre-implementation notes to current implementation/deployment readiness, now consolidated into `RUNBOOK.md`, `docs/docker_profile.md`, and `docs/final-release-notes.md`.
 - Updated `docs/demo-script.md` and `docs/portfolio-demo.md` for Project 4 walkthrough.
-- Updated public artifact allowlist so `DEPLOYMENT_READINESS.md` is included in clean GitHub-ready artifacts.
-- Added tests proving deployment readiness docs exist and public artifact packaging includes the readiness doc and Project 4 scenario dataset.
+- Updated public artifact packaging rules for clean GitHub-ready artifacts.
+- Added tests proving deployment docs and the Project 4 scenario dataset are packaged correctly.
 
 Verification:
 

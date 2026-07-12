@@ -68,11 +68,8 @@ captures.
 - `PRD.md`
 - `ROADMAP.md`
 - `ARCHITECTURE.md`
-- `BACKOFFICE_WORKFLOW.md`
-- `AUTONOMY_POLICY.md`
-- `PROJECT_4_READINESS.md`
-- `AGENTOPS_EVALUATION_PLAN.md`
-- `EVALUATION_DATASET.md`
-- `docs/project-4-handoff.md`
 - `UI_PLAN.md`
 - `RUNBOOK.md`
+- `docs/pivot/FEATURE_API_MATRIX.md`
+- `docs/pivot/COMPATIBILITY_ALIASES.md`
+- `docs/final-release-notes.md`

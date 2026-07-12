@@ -66,6 +66,7 @@ class PublicArtifactTests(unittest.TestCase):
         result = self._run_script(self.output)
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue((Path(self.output) / "ROADMAP.md").exists())
+        self.assertTrue((Path(self.output) / "UI_PLAN.md").exists())
 
     def test_excludes_local_only_planning_documents(self) -> None:
         result = self._run_script(self.output)
@@ -83,6 +84,9 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertFalse((output / "PROJECT_4_READINESS.md").exists())
         self.assertFalse((output / "DEPLOYMENT_READINESS.md").exists())
         self.assertFalse((output / "FUNCTIONAL_COMPLETION_TODO.md").exists())
+        self.assertFalse((output / "SPRINT_PLAN.md").exists())
+        self.assertFalse((output / "BACKEND_SPRINT_PLAN.md").exists())
+        self.assertFalse((output / "FRONTEND_SPRINT_PLAN.md").exists())
 
     def test_includes_quality_gate_files(self) -> None:
         result = self._run_script(self.output)
