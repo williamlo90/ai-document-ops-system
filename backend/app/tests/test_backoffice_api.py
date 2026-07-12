@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 
 from app.core.settings import Settings
+from app.extraction.schemas import SCHEMA_VERSION
 from app.main import create_app
 
 
@@ -35,6 +36,13 @@ class BackofficeApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
 
     def test_workspace_lists_work_items_documents_and_metrics(self) -> None:
+        upload = self.client.post(
+            "/documents/upload",
+            headers=HEADERS,
+            files={"file": ("invoice.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+        )
+        self.assertEqual(upload.status_code, 200)
+
         response = self.client.get("/backoffice/workspace", headers=HEADERS)
 
         self.assertEqual(response.status_code, 200)
@@ -42,6 +50,12 @@ class BackofficeApiTests(unittest.TestCase):
         self.assertEqual(payload["workspace_id"], "default")
         self.assertEqual(payload["work_items"], [])
         self.assertEqual(payload["pending_approvals"], [])
+        self.assertEqual(len(payload["documents"]), 1)
+        self.assertEqual(payload["documents"][0]["document_type"], "invoice")
+        self.assertEqual(
+            payload["documents"][0]["supported_extraction_schema"],
+            SCHEMA_VERSION,
+        )
         self.assertIn("metrics", payload)
 
     def test_create_plan_approve_and_execute_export_via_json_api(self) -> None:

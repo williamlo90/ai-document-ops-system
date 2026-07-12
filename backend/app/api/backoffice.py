@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.api.dependencies import AppContainer, get_container, require_admin_context
+from app.api.serializers import SUPPORTED_DOCUMENT_TYPE
 from app.backoffice.models import (
     ActionDraft,
     ActionStep,
@@ -20,6 +21,7 @@ from app.backoffice.evidence import planning_input_from_evidence
 from app.backoffice.services import BackofficeWorkflowError
 from app.core.security import SecurityContext
 from app.documents.repositories import NotFoundError
+from app.extraction.schemas import SCHEMA_VERSION
 
 
 router = APIRouter(prefix="/backoffice", tags=["backoffice"])
@@ -73,6 +75,8 @@ def backoffice_workspace(
                 "id": str(document.id),
                 "filename": document.original_filename,
                 "status": document.status.value,
+                "document_type": SUPPORTED_DOCUMENT_TYPE,
+                "supported_extraction_schema": SCHEMA_VERSION,
                 "created_at": document.created_at.isoformat(),
             }
             for document in documents
