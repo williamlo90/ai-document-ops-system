@@ -50,7 +50,7 @@ Results:
 
 ## Contract Gaps Confirmed
 
-- FastAPI title is still `Doc Intel MVP`.
+- At Sprint 0, FastAPI title still used the older `Doc Intel MVP` naming.
 - `GET /documents/{id}/workflow` does not exist.
 - `GET /invoices/{id}/workflow` is the current workflow projection endpoint.
 - At Sprint 0, no persisted `document_type` or operation-template contract was found.
@@ -59,6 +59,7 @@ Results:
 Current update:
 
 - Documents now expose `document_type` and supported schema metadata in the document APIs and workspace UI.
+- FastAPI metadata now uses `AI Document Operations System`.
 - Back-office AgentOps scenario datasets now include `document_type` and `operation_type` dimensions.
 - Scenario evaluation results now persist expected and actual document/operation evidence for replay after refresh or app recreation.
 - Operation templates remain invoice-backed; a second executable document workflow is still deferred.

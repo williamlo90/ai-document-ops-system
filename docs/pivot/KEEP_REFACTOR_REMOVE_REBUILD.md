@@ -19,7 +19,7 @@ Status: Main Sprint 0 decision record, 2026-07-08.
 - Wrap invoice extraction in a generic evidence contract.
 - Generalize work-type and recovery-command vocabulary through adapters/mappers.
 - Keep extending AgentOps datasets with document type and operation type dimensions beyond the current Project 4 scenarios.
-- Rename backend product metadata from `Doc Intel MVP` after a metadata test is updated.
+- Keep backend product metadata aligned with `AI Document Operations System`.
 
 ## Hide Or Remove Later
 

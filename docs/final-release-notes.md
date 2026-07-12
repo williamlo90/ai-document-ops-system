@@ -1,34 +1,30 @@
-# Release Notes - Project 3.5 Portfolio Release
+# Release Notes - AI Document Operations System
 
-Status: portfolio-ready local AgentOps reliability release.
+Status: local-first Project 4 document-operations release candidate.
 
 Completed:
 
-- Project 3.5 created from the Project 3 release-locked baseline.
-- PRD, roadmap, architecture, evaluation plan, and dataset docs established.
-- AgentOps evaluation engine added over Project 3 copilot traces.
-- Reliability metrics added for tool selection, unsafe prevention, completion, escalation, confidence, tool calls, failure taxonomy, prompt versions, and regression comparison.
-- AgentOps API added under `/agentops`.
-- Versioned scenario dataset added at `examples/agentops/scenarios_v1.json`.
-- Scenario evaluator added for run-vs-scenario comparison.
-- Local AgentOps dashboard added at `/ui/agentops`.
-- Portfolio story, demo script, reliability report, and Project 4 handoff notes added.
+- Project 4 was built from the Project 3.5 AgentOps reliability baseline.
+- Document intake, storage, processing jobs, review queue, audit activity, and workflow evidence remain intact.
+- Back-office work items, bounded planning, policy checks, drafts, approvals, and controlled execution are implemented.
+- AgentOps APIs and UI support reliability summaries, run traces, prompt-version metrics, regression comparison, and scenario evaluation.
+- Project 4 back-office scenarios are versioned and evaluated with document type and operation type dimensions.
+- Scenario evaluation results persist expected and actual document/operation evidence for refresh and SQLite restart cases.
+- React operator UI exposes document-operation queues, detail evidence, AgentOps dashboards, datasets, and per-case evaluation evidence.
+- Docker, CI, public artifact packaging, integration setup guidance, and portfolio demo docs are included.
 
 Verification:
 
-- Black OK.
-- Ruff OK.
-- `docker compose config --quiet` OK.
-- Full test suite: 271 tests OK.
-- Real-provider tests: 2 skipped because credentials are not set.
+- Frontend tests and production build passed in the latest document-operation UI sprint.
+- Backend AgentOps API and SQLite persistence tests passed for persisted document-operation evidence.
+- Full backend suite passed: 356 tests OK, 2 skipped.
+- Public artifact tests passed: 16 tests OK.
 
 Known limitations:
 
-- This is local AgentOps, not hosted production monitoring.
-- Current prompt version is deterministic.
-- Average latency remains a placeholder.
+- Invoice is still the only complete extraction, validation, planning, and execution schema.
+- Generic `/documents/*` contracts are additive; invoice compatibility aliases remain intentionally supported.
+- A second executable document workflow is deferred until extraction, validation, planning, execution, and evaluation contracts are covered.
+- This is a local-first portfolio system, not hosted production SaaS.
+- Real customer deployment, tenancy, billing, backups, production monitoring, and live-provider credentials are out of scope for this release.
 - Token and real cost tracking require a future LLM planner.
-- Regression comparison is run-window based, not persisted snapshot based.
-- Scenario replay does not yet auto-provision every workflow state.
-- Project 4 is still needed for broader autonomous back-office workflows.
-

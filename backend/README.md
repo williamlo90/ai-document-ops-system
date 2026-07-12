@@ -1,6 +1,11 @@
 # Backend
 
-Initial backend foundation for Doc Intel MVP.
+Backend service for the AI Document Operations System.
+
+The API supports local-first document intake, invoice evidence validation, review queues,
+approval-gated document operations, AgentOps evaluation, and bounded back-office workflows.
+Invoice is the first complete document workflow; generic document contracts are additive and
+must preserve compatibility aliases.
 
 Run tests from this directory:
 

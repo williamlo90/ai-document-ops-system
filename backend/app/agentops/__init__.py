@@ -1,1 +1,1 @@
-"""AgentOps evaluation layer for Project 3.5."""
+"""AgentOps evaluation layer for document-operation reliability evidence."""

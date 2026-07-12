@@ -1,1 +1,1 @@
-"""Unit tests for Doc Intel MVP."""
+"""Unit tests for the AI Document Operations System."""
