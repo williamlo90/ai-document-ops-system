@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from fastapi import Cookie, Header, HTTPException, Request, status
+from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 
 from app.agent.repositories import (
     AgentRunRepository,
@@ -46,7 +46,12 @@ from app.benchmark.history import (
     InMemoryBenchmarkHistoryRepository,
     SqliteBenchmarkHistoryRepository,
 )
-from app.core.security import SecurityContext, UnauthorizedError, verify_admin_token
+from app.core.security import (
+    SecurityContext,
+    UnauthorizedError,
+    require_any_role,
+    verify_admin_token,
+)
 from app.core.upload_scanning import PassthroughUploadScanner, SignatureUploadScanner
 from app.core.settings import Settings
 from app.documents.repositories import (
@@ -294,6 +299,16 @@ def require_admin_context(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",
         ) from exc
+
+
+def require_review_context(
+    context: SecurityContext = Depends(require_admin_context),
+) -> SecurityContext:
+    try:
+        require_any_role(context, {"admin", "reviewer"})
+    except UnauthorizedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden") from exc
+    return context
 
 
 def _repository_ready(repository: DocumentRepository) -> bool:

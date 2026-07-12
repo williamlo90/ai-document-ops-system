@@ -353,6 +353,46 @@ class ApiTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 401)
                 self.assertEqual(response.json()["detail"], "Unauthorized")
 
+    def test_reviewer_role_can_use_review_api_without_admin_access(self) -> None:
+        upload_response = self.client.post(
+            "/documents/upload",
+            headers=HEADERS,
+            files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
+        )
+        document_id = upload_response.json()["document"]["id"]
+        self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        reviewer_headers = {**HEADERS, "X-Role": "reviewer", "X-User-Id": "reviewer-1"}
+
+        queue_response = self.client.get("/review/queue", headers=reviewer_headers)
+        approve_response = self.client.post(
+            f"/review/{document_id}/approve",
+            headers=reviewer_headers,
+        )
+
+        self.assertEqual(queue_response.status_code, 200)
+        self.assertEqual(queue_response.json()[0]["id"], document_id)
+        self.assertEqual(approve_response.status_code, 200)
+        self.assertEqual(approve_response.json()["review_task"]["status"], "approved")
+
+    def test_operator_role_cannot_use_review_api(self) -> None:
+        upload_response = self.client.post(
+            "/documents/upload",
+            headers=HEADERS,
+            files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
+        )
+        document_id = upload_response.json()["document"]["id"]
+        self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        operator_headers = {**HEADERS, "X-Role": "operator", "X-User-Id": "operator-1"}
+
+        queue_response = self.client.get("/review/queue", headers=operator_headers)
+        approve_response = self.client.post(
+            f"/review/{document_id}/approve",
+            headers=operator_headers,
+        )
+
+        self.assertEqual(queue_response.status_code, 403)
+        self.assertEqual(approve_response.status_code, 403)
+
     def test_upload_validation_errors_are_bad_request(self) -> None:
         cases = (
             ("invoice.txt", b"%PDF- invoice", "application/pdf"),

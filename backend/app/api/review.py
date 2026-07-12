@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.api.dependencies import AppContainer, get_container, require_admin_context
+from app.api.dependencies import AppContainer, get_container, require_review_context
 from app.api.serializers import document_response, review_task_response
 from app.core.security import SecurityContext
 from app.documents.repositories import NotFoundError
@@ -48,7 +48,7 @@ class RejectPayload(BaseModel):
 
 @router.get("/queue")
 def review_queue(
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_review_context),
     container: AppContainer = Depends(get_container),
 ) -> list[dict[str, object]]:
     return [
@@ -60,7 +60,7 @@ def review_queue(
 def save_review(
     document_id: UUID,
     payload: ReviewSavePayload,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_review_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:
@@ -81,7 +81,7 @@ def save_review(
 @router.post("/{document_id}/approve")
 def approve_review(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_review_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:
@@ -97,7 +97,7 @@ def approve_review(
 def reject_review(
     document_id: UUID,
     payload: RejectPayload,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_review_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:
