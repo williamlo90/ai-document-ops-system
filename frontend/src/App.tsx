@@ -406,12 +406,12 @@ function Sidebar({
     screen.kind === 'page'
       ? pageGroup(screen.page)
       : screen.kind === 'queue' || screen.kind === 'workitems' || screen.kind === 'detail' || screen.kind === 'overview'
-        ? 'Operations'
-        : 'Tools'
+        ? 'Daily Work'
+        : 'System Setup'
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    Operations: activeGroup === 'Operations',
-    Governance: activeGroup === 'Governance',
-    Tools: activeGroup === 'Tools',
+    'Daily Work': activeGroup === 'Daily Work',
+    'Safety Rules': activeGroup === 'Safety Rules',
+    'System Setup': activeGroup === 'System Setup',
     'Technical Evidence': activeGroup === 'Technical Evidence',
   })
   useEffect(() => {
@@ -419,25 +419,23 @@ function Sidebar({
   }, [activeGroup])
   const groups = [
     {
-      label: 'Operations',
+      label: 'Daily Work',
       icon: Inbox,
       items: [
-        [CircleGauge, 'Overview', goOverview, screen.kind === 'overview'],
-        [Inbox, 'Document Queue', goQueue, screen.kind === 'queue'],
+        [CircleGauge, 'Work Summary', goOverview, screen.kind === 'overview'],
+        [Inbox, 'Work Queue', goQueue, screen.kind === 'queue'],
         [ListChecks, 'Exceptions', goAllWork, screen.kind === 'workitems' || screen.kind === 'detail'],
-        [Activity, 'Runs & Traces', () => goPage('runs'), screen.kind === 'page' && screen.page === 'runs'],
         [FileClock, 'Drafts', () => goPage('drafts'), screen.kind === 'page' && screen.page === 'drafts'],
         [ClipboardCheck, 'Approvals', () => goPage('approvals'), screen.kind === 'page' && screen.page === 'approvals'],
-        [CircleGauge, 'Operational Controls', () => goPage('operations'), screen.kind === 'page' && screen.page === 'operations'],
       ],
     },
     {
-      label: 'Governance',
+      label: 'Safety Rules',
       icon: ShieldCheck,
-      items: [[FileCheck2, 'Policies', () => goPage('policies'), screen.kind === 'page' && screen.page === 'policies'], [ShieldCheck, 'Guardrails', () => goPage('guardrails'), screen.kind === 'page' && screen.page === 'guardrails']],
+      items: [[FileCheck2, 'Policy Rules', () => goPage('policies'), screen.kind === 'page' && screen.page === 'policies'], [ShieldCheck, 'Safety Boundaries', () => goPage('guardrails'), screen.kind === 'page' && screen.page === 'guardrails']],
     },
     {
-      label: 'Tools',
+      label: 'System Setup',
       icon: Network,
       items: [[Network, 'Integrations', () => goPage('integrations'), screen.kind === 'page' && screen.page === 'integrations'], [Settings, 'Settings', () => goPage('settings'), screen.kind === 'page' && screen.page === 'settings']],
     },
@@ -445,9 +443,11 @@ function Sidebar({
       label: 'Technical Evidence',
       icon: CircleGauge,
       items: [
-        [CircleGauge, 'Reliability Evidence', () => goPage('reliability'), screen.kind === 'page' && screen.page === 'reliability'],
-        [Workflow, 'Evaluation Cases', () => goPage('evaluation'), screen.kind === 'page' && screen.page === 'evaluation'],
-        [Database, 'Test Datasets', () => goPage('datasets'), screen.kind === 'page' && screen.page === 'datasets'],
+        [CircleGauge, 'System Reliability', () => goPage('reliability'), screen.kind === 'page' && screen.page === 'reliability'],
+        [Workflow, 'Reliability Checks', () => goPage('evaluation'), screen.kind === 'page' && screen.page === 'evaluation'],
+        [Database, 'Test Scenarios', () => goPage('datasets'), screen.kind === 'page' && screen.page === 'datasets'],
+        [Activity, 'Run Traces', () => goPage('runs'), screen.kind === 'page' && screen.page === 'runs'],
+        [CircleGauge, 'Runtime Diagnostics', () => goPage('operations'), screen.kind === 'page' && screen.page === 'operations'],
       ],
     },
   ] as const
@@ -499,7 +499,7 @@ function Sidebar({
                   {group.items.map(([Icon, label, action, active]) => (
                     <button key={label} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={() => { action(); close() }}>
                       <Icon size={18} /><span>{label}</span>
-                      {label === 'Document Queue' ? <b>{inboxCount}</b> : null}
+                      {label === 'Work Queue' ? <b>{inboxCount}</b> : null}
                     </button>
                   ))}
                 </div>
@@ -567,7 +567,7 @@ function TopBar({
         <button className="mobile-menu" onClick={openMenu} aria-label="Open navigation"><Menu size={20} /></button>
         {screen.kind === 'detail' ? (
           <><h1>Document Workspace</h1><button className="back-link" onClick={goQueue}><ArrowLeft size={14} /> Back to queue</button></>
-        ) : <h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Document Operations Overview' : screen.kind === 'workitems' ? 'Exception Queue' : screen.kind === 'documents' ? 'Document Library' : screen.kind === 'page' ? pageTitle(screen.page) : 'Document Queue'}</h1>}
+        ) : <h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Work Summary' : screen.kind === 'workitems' ? 'Exception Queue' : screen.kind === 'documents' ? 'Document Library' : screen.kind === 'page' ? pageTitle(screen.page) : 'Work Queue'}</h1>}
       </div>
       <div className="topbar-actions">
         <span className={`health ${healthy ? '' : 'unhealthy'}`}><ShieldCheck size={15} /> {healthy ? 'System healthy' : 'API unavailable'}</span>
@@ -929,7 +929,7 @@ function OperationsOverview({ workspace, loading, openItem, goQueue }: { workspa
     ['Provider health', humanize(providerHealth.data?.overall_status ?? 'checking'), <ShieldCheck key="health" size={18} />, undefined],
     ['Worker health', humanize(workerHealth.data?.worker.status ?? 'checking'), <CircleGauge key="worker" size={18} />, undefined],
   ]
-  return <main className="section-page"><section className="section-heading"><div><span className="section-eyebrow">ADMINISTRATOR / REVIEWER</span><h2>Document Operations Overview</h2><p>Document attention, approvals, failures, and completed work in one place.</p></div><div className="section-actions"><button className="outline-button" onClick={() => setCreateOpen(true)}><Plus size={15} /> New Document Task</button><button className="primary-button" onClick={() => goQueue('attention')}>Open Document Queue</button></div></section><div className="overview-metrics">{metrics.map(([label,value,icon,filter]) => <button key={label} disabled={!filter} onClick={() => filter && goQueue(filter)}><span>{icon}</span><small>{label}</small><strong>{loading ? '-' : value}</strong><ChevronRight size={15} /></button>)}</div><section className="provider-health-strip"><header><ShieldCheck size={17} /><strong>Provider Health</strong><Status value={providerHealth.data?.overall_status ?? 'checking'} /></header>{providerHealth.data?.providers.map((provider) => <article key={provider.role}><div><small>{humanize(provider.role)}</small><strong>{provider.provider_name}</strong></div><Status value={provider.status} /><span>{provider.observed_runs} runs · {provider.observed_failures} failures</span><p>{provider.evidence}</p></article>)}</section><section className="data-panel"><DataPanelHeader icon={<Inbox size={17} />} title="Needs Human Attention" count={attention.length} />{loading ? <LoadingState /> : attention.length ? <div className="overview-attention">{attention.map((item) => <button key={item.id} onClick={() => openItem(item.id)}><WorkIcon type={item.work_type} /><span><strong>{item.title}</strong><small>{attentionReason(item)} Decision: {decisionRequired(item)}</small></span><Status value={item.status} /><ChevronRight size={16} /></button>)}</div> : <div className="healthy-empty"><CheckCircle2 size={28} /><div><strong>No documents require attention</strong><p>Active processing is continuing normally.</p></div></div>}</section>{createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}</main>
+  return <main className="section-page"><section className="section-heading"><div><span className="section-eyebrow">ADMINISTRATOR / REVIEWER</span><h2>Work Summary</h2><p>Document attention, approvals, failures, and completed work in one place.</p></div><div className="section-actions"><button className="outline-button" onClick={() => setCreateOpen(true)}><Plus size={15} /> New Document Task</button><button className="primary-button" onClick={() => goQueue('attention')}>Open Work Queue</button></div></section><div className="overview-metrics">{metrics.map(([label,value,icon,filter]) => <button key={label} disabled={!filter} onClick={() => filter && goQueue(filter)}><span>{icon}</span><small>{label}</small><strong>{loading ? '-' : value}</strong><ChevronRight size={15} /></button>)}</div><section className="provider-health-strip"><header><ShieldCheck size={17} /><strong>Provider Health</strong><Status value={providerHealth.data?.overall_status ?? 'checking'} /></header>{providerHealth.data?.providers.map((provider) => <article key={provider.role}><div><small>{humanize(provider.role)}</small><strong>{provider.provider_name}</strong></div><Status value={provider.status} /><span>{provider.observed_runs} runs · {provider.observed_failures} failures</span><p>{provider.evidence}</p></article>)}</section><section className="data-panel"><DataPanelHeader icon={<Inbox size={17} />} title="Needs Human Attention" count={attention.length} />{loading ? <LoadingState /> : attention.length ? <div className="overview-attention">{attention.map((item) => <button key={item.id} onClick={() => openItem(item.id)}><WorkIcon type={item.work_type} /><span><strong>{item.title}</strong><small>{attentionReason(item)} Decision: {decisionRequired(item)}</small></span><Status value={item.status} /><ChevronRight size={16} /></button>)}</div> : <div className="healthy-empty"><CheckCircle2 size={28} /><div><strong>No documents require attention</strong><p>Active processing is continuing normally.</p></div></div>}</section>{createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}</main>
 }
 
 function QueuePage({ workspace, loading, openItem, attentionOnly = false, exceptionMode = false, initialFilter }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void; attentionOnly?: boolean; exceptionMode?: boolean; initialFilter?: QueueFilter }) {
@@ -971,7 +971,7 @@ function QueuePage({ workspace, loading, openItem, attentionOnly = false, except
   return (
     <main className="queue-page">
       <section className="page-heading">
-        <div><h2>{exceptionMode ? 'Exception Queue' : 'Document Queue'}</h2><p>{exceptionMode ? 'Only documents that require human review, correction, approval, or recovery.' : 'All incoming and in-progress document operations, organized by risk and next action.'}</p></div>
+        <div><h2>{exceptionMode ? 'Exception Queue' : 'Work Queue'}</h2><p>{exceptionMode ? 'Only documents that require human review, correction, approval, or recovery.' : 'All incoming and in-progress document operations, organized by risk and next action.'}</p></div>
         <div className="queue-tools">
           <label className="search-box"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search document tasks..." /><kbd>⌘ K</kbd></label>
           <button className={`outline-button ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters((value) => !value)}><Filter size={15} /> Filters</button>
@@ -1087,7 +1087,7 @@ function WorkItemPage({
   return (
     <main className="detail-page">
       <aside className="inbox-rail">
-        <div className="rail-title"><h2>Document Queue</h2><button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={15} /> New Document Task</button></div>
+        <div className="rail-title"><h2>Work Queue</h2><button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={15} /> New Document Task</button></div>
         <div className="rail-filter"><span>All ({items.length})</span><ChevronDown size={14} /><button aria-label="Filter inbox" title="Inbox filters are not available yet" disabled><Filter size={15} /></button><button aria-label="Inbox view options" title="View options are not available yet" disabled><Columns3 size={15} /></button></div>
         <div className="rail-items">
           {items.map((entry) => <InboxCard key={entry.id} item={entry} active={entry.id === item.id} open={() => openItem(entry.id)} />)}
@@ -1444,17 +1444,17 @@ function SectionPage({
 
 function SectionHeading({ page }: { page: PageId }) {
   const copy: Record<PageId, string> = {
-    runs: 'Inspect agent decisions, selected tools, confidence, cost, and failures.',
+    runs: 'Inspect the stored technical trace behind each AI-assisted work decision.',
     drafts: 'Review AI-generated accounting notes, messages, and export previews.',
     approvals: 'Resolve the human decisions blocking controlled execution.',
-    operations: 'Inspect worker failures, retry dead-letter jobs, and export authorized audit evidence.',
-    policies: 'See how document execution policy classified and constrained each action.',
-    guardrails: 'Monitor the safety boundaries enforced across document workflows.',
+    operations: 'Inspect worker failures, controlled retries, and authorized audit evidence.',
+    policies: 'See the backend rules that decide whether a document action is allowed.',
+    guardrails: 'Monitor the safety boundaries enforced across document work.',
     integrations: 'Manage the systems this document workflow can read from or write to.',
     settings: 'Configure this local workspace and its operator access.',
-    reliability: 'Inspect local document-operation quality, safety, escalation, and failure evidence.',
-    evaluation: 'Run deterministic document-operation cases against stored traces and plans.',
-    datasets: 'Inspect versioned test contracts and the scenarios behind evaluation results.',
+    reliability: 'Inspect local quality, safety, escalation, and failure evidence.',
+    evaluation: 'Run deterministic reliability checks against stored traces and plans.',
+    datasets: 'Inspect the versioned test scenarios behind reliability results.',
   }
   return <section className="section-heading"><div><span className="section-eyebrow">{pageGroup(page)}</span><h2>{pageTitle(page)}</h2><p>{copy[page]}</p></div><button className="outline-button" onClick={() => queryClient.invalidateQueries()}><RefreshCw size={15} /> Refresh data</button></section>
 }
@@ -1880,17 +1880,17 @@ function relativeTime(value: string) {
 }
 function pageTitle(page: PageId) {
   const titles: Record<PageId, string> = {
-    runs: 'Runs & Traces',
+    runs: 'Run Traces',
     drafts: 'Drafts',
     approvals: 'Approvals',
-    operations: 'Operational Controls',
-    policies: 'Policies',
-    guardrails: 'Guardrails',
+    operations: 'Runtime Diagnostics',
+    policies: 'Policy Rules',
+    guardrails: 'Safety Boundaries',
     integrations: 'Integrations',
     settings: 'Settings',
-    reliability: 'Reliability Evidence',
-    evaluation: 'Evaluation Cases',
-    datasets: 'Test Datasets',
+    reliability: 'System Reliability',
+    evaluation: 'Reliability Checks',
+    datasets: 'Test Scenarios',
   }
   return titles[page]
 }
@@ -1947,10 +1947,10 @@ function isToday(value: string) {
   return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
 }
 function pageGroup(page: PageId) {
-  if (['policies', 'guardrails'].includes(page)) return 'Governance'
-  if (['integrations', 'settings'].includes(page)) return 'Tools'
-  if (['reliability', 'evaluation', 'datasets'].includes(page)) return 'Technical Evidence'
-  return 'Operations'
+  if (['policies', 'guardrails'].includes(page)) return 'Safety Rules'
+  if (['integrations', 'settings'].includes(page)) return 'System Setup'
+  if (['reliability', 'evaluation', 'datasets', 'runs', 'operations'].includes(page)) return 'Technical Evidence'
+  return 'Daily Work'
 }
 function percent(value: number | null | undefined) {
   return value === null || value === undefined ? '-' : `${Math.round(value * 100)}%`

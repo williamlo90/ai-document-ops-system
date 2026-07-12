@@ -117,7 +117,11 @@ describe('application shell', () => {
       'administrator',
     )
 
-    expect((await screen.findAllByRole('heading', { name: /document queue/i })).length).toBeGreaterThan(0)
+    expect((await screen.findAllByRole('heading', { name: /work queue/i })).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /work queue/i })).toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: /technical evidence/i })[0])
+    expect(screen.getByRole('button', { name: /system reliability/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /runtime diagnostics/i })).toBeInTheDocument()
     const createButtons = screen.getAllByRole('button', { name: /new document task/i })
     expect(createButtons.length).toBeGreaterThan(0)
     expect(localStorage.getItem('docops-role')).toBe('administrator')
@@ -247,7 +251,7 @@ describe('application shell', () => {
 
     render(<App />)
     await user.click(screen.getAllByRole('button', { name: /technical evidence/i })[0])
-    await user.click(await screen.findByRole('button', { name: /evaluation cases/i }))
+    await user.click(await screen.findByRole('button', { name: /reliability checks/i }))
 
     expect(await screen.findByText('Document: Invoice')).toBeInTheDocument()
     expect(screen.getByText('Operation: Document Review')).toBeInTheDocument()
@@ -259,7 +263,7 @@ describe('application shell', () => {
     expect(screen.getByText('Expected operation')).toBeInTheDocument()
     expect(screen.getByText('Actual operation')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /test datasets/i }))
+    await user.click(screen.getByRole('button', { name: /test scenarios/i }))
     await user.click(await screen.findByRole('button', { name: /review a linked invoice without mutating state/i }))
 
     expect(screen.getAllByText('Document: Invoice').length).toBeGreaterThan(0)

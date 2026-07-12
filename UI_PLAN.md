@@ -64,11 +64,11 @@ For reviewers, engineers, and portfolio evaluation.
 
 Keep available:
 
-- Reliability Evidence
-- Evaluation Cases
-- Test Datasets
+- System Reliability
+- Reliability Checks
+- Test Scenarios
 - AgentOps trace links
-- Governance details
+- Policy and safety details
 - Provider/runtime status
 
 These areas should be reachable, but not required to understand the main document workflow.
@@ -77,13 +77,15 @@ These areas should be reachable, but not required to understand the main documen
 
 ### UX Sprint 1 - Navigation And IA Simplification
 
+Status: complete.
+
 Goal:
 Make the main navigation feel like a business workflow, not a technical sitemap.
 
 Changes:
 
 - Make Work Queue the default landing view.
-- Group AgentOps, Evaluation Cases, Test Datasets, and runtime diagnostics under Technical Evidence.
+- Group AgentOps, Reliability Checks, Test Scenarios, and runtime diagnostics under Technical Evidence.
 - Keep Settings and Integrations separate from daily operator work.
 - Review all page titles and nav labels for business readability.
 
@@ -130,6 +132,8 @@ Acceptance criteria:
 - The UI does not introduce unsupported approval states.
 
 ### UX Sprint 4 - Technical Evidence Rewording
+
+Status: partially folded into UX Sprint 1 for navigation and page titles.
 
 Goal:
 Preserve rigor while making reliability pages less intimidating.
