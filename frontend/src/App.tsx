@@ -38,6 +38,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { PdfPreview } from './components/PdfPreview'
+import { ReviewerDecisionPanel } from './components/ReviewerDecisionPanel'
 import { useEffect, useState } from 'react'
 
 type Metrics = { work_items: number; pending_approvals: number; drafts: number; policy_decisions: number }
@@ -1048,94 +1049,11 @@ function InboxCard({ item, documents, active, open }: { item: WorkItemSummary; d
   )
 }
 
-function ReviewerReviewPage({
-  item,
-  document,
-  extraction,
-  loading,
-}: {
-  item: WorkItemDetail
-  document?: DocumentSummary
-  extraction: Extraction | null
-  loading: boolean
-}) {
-  const queryClient = useQueryClient()
-  const [notes, setNotes] = useState('')
-  const fields = invoiceFields(extraction)
-  const importantFields = fields.filter(([label]) => ['Vendor', 'Invoice Number', 'Invoice Date', 'Total Amount', 'Currency'].includes(label))
-  const issues = extraction?.validation ?? []
-  const canDecide = document?.status === 'needs_review'
-  const approve = useMutation({
-    mutationFn: () => api(`/review/${document?.id}/approve`, { method: 'POST' }),
-    onSuccess: () => refreshReviewQueries(queryClient, item.id, document?.id),
-  })
-  const reject = useMutation({
-    mutationFn: () => api(`/review/${document?.id}/reject`, { method: 'POST', body: JSON.stringify({ notes: notes.trim() || 'Invoice rejected after review.' }) }),
-    onSuccess: () => refreshReviewQueries(queryClient, item.id, document?.id),
-  })
-  const correction = useMutation({
-    mutationFn: () => api(`/documents/${document?.id}/request-correction`, { method: 'POST', body: JSON.stringify({ reason: notes.trim() || 'Please correct the invoice information before approval.' }) }),
-    onSuccess: () => refreshReviewQueries(queryClient, item.id, document?.id),
-  })
-  const busy = approve.isPending || reject.isPending || correction.isPending
-  const error = approve.error || reject.error || correction.error
-
-  return (
-    <div className="reviewer-simple-page">
-      <section className="review-pdf-pane">
-        {loading ? <LoadingState label="Loading invoice PDF" /> : document ? <AuthenticatedPdfPreview document={document} /> : <EmptyState title="No invoice PDF" body="This review item has no linked PDF." />}
-      </section>
-      <aside className="review-decision-pane">
-        <section className="review-card review-summary-card">
-          <div>
-            <span>INVOICE DATA</span>
-            <h3>{invoiceReviewTitle(extraction, document)}</h3>
-            <p>{issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'} found. Check before approving.` : 'No validation blockers found.'}</p>
-          </div>
-        </section>
-
-        <section className="review-card reviewer-actions">
-          <div className="decision-card-heading"><span>REVIEW DECISION</span><strong>Choose the outcome for this invoice</strong></div>
-          <label>
-            <span>Note, optional</span>
-            <textarea value={notes} placeholder="Example: Total and vendor match the PDF." onChange={(event) => setNotes(event.target.value)} />
-          </label>
-          {canDecide ? (
-            <div className="decision-choice-grid">
-              <button className="approve-action" disabled={busy || !document} onClick={() => approve.mutate()}><CheckCircle2 size={16} /> Approve</button>
-              <button className="request-action" disabled={busy || !document} onClick={() => correction.mutate()}><Pencil size={16} /> Request correction</button>
-              <button className="reject-action" disabled={busy || !document} onClick={() => reject.mutate()}><X size={16} /> Reject</button>
-            </div>
-          ) : (
-            <div className="decision-result">
-              <Status value={document?.status ?? item.status} />
-              <p>{document?.status === 'approved' ? 'This invoice has been approved.' : document?.status === 'rejected' ? 'This invoice was rejected.' : 'No reviewer decision is available right now.'}</p>
-            </div>
-          )}
-          {error ? <p className="form-error">{(error as Error).message}</p> : null}
-        </section>
-
-        <section className="review-card compact-invoice-fields">
-          {importantFields.map(([label, value]) => (
-            <div className={value === '-' ? 'field-missing' : ''} key={label}>
-              <span>{label}</span>
-              <strong>{value}</strong>
-            </div>
-          ))}
-        </section>
-
-        {issues.length ? (
-          <section className="review-card review-issues">
-            <strong><AlertTriangle size={15} /> Check these first</strong>
-            {issues.slice(0, 3).map((issue, index) => <p key={index}>{issue.message ?? humanize(issue.field_name ?? issue.field ?? 'Invoice data')}</p>)}
-          </section>
-        ) : null}
-
-      </aside>
-    </div>
-  )
+function ReviewerReviewPage({ item, document, extraction, loading }: { item: WorkItemDetail; document?: DocumentSummary; extraction: Extraction | null; loading: boolean }) {
+  const queryClient = useQueryClient(); const fields = invoiceFields(extraction).filter(([label]) => ['Vendor', 'Invoice Number', 'Invoice Date', 'Total Amount', 'Currency'].includes(label)); const issues = extraction?.validation ?? []; const refresh = () => refreshReviewQueries(queryClient, item.id, document?.id)
+  const approve = useMutation({ mutationFn: () => api(`/review/${document?.id}/approve`, { method: 'POST' }), onSuccess: refresh }); const reject = useMutation({ mutationFn: (notes: string) => api(`/review/${document?.id}/reject`, { method: 'POST', body: JSON.stringify({ notes: notes || 'Invoice rejected after review.' }) }), onSuccess: refresh }); const correction = useMutation({ mutationFn: (notes: string) => api(`/documents/${document?.id}/request-correction`, { method: 'POST', body: JSON.stringify({ reason: notes || 'Please correct the invoice information before approval.' }) }), onSuccess: refresh }); const busy = approve.isPending || reject.isPending || correction.isPending
+  return <ReviewerDecisionPanel pdf={loading ? <LoadingState label="Loading invoice PDF" /> : document ? <AuthenticatedPdfPreview document={document} /> : <EmptyState title="No invoice PDF" body="This review item has no linked PDF." />} title={invoiceReviewTitle(extraction, document)} fields={fields} issues={issues} canDecide={document?.status === 'needs_review'} status={<><Status value={document?.status ?? item.status} /><p>{document?.status === 'approved' ? 'This invoice has been approved.' : document?.status === 'rejected' ? 'This invoice was rejected.' : 'No reviewer decision is available right now.'}</p></>} busy={busy || !document} error={(approve.error || reject.error || correction.error) ? String((approve.error || reject.error || correction.error)?.message) : undefined} onApprove={() => approve.mutate()} onReject={(notes) => reject.mutate(notes)} onCorrection={(notes) => correction.mutate(notes)} />
 }
-
 function refreshReviewQueries(queryClient: ReturnType<typeof useQueryClient>, itemId: string, documentId?: string) {
   queryClient.invalidateQueries({ queryKey: ['workspace'] })
   queryClient.invalidateQueries({ queryKey: ['work-item', itemId] })
