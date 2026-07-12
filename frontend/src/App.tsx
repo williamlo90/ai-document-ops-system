@@ -581,6 +581,7 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
       setStep(1)
       setUploadProgress(100)
       queryClient.invalidateQueries({ queryKey: ['workspace'] })
+      queryClient.invalidateQueries({ queryKey: ['invoice-library'] })
     },
   })
   const processMutation = useMutation({
@@ -595,6 +596,7 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
         setProcessMessage(status === 'failed' ? 'Extraction failed. Review the document event and try again.' : 'Processing is queued. Retry after the worker becomes available.')
       }
       queryClient.invalidateQueries({ queryKey: ['workspace'] })
+      queryClient.invalidateQueries({ queryKey: ['invoice-library'] })
     },
   })
   const cancelMutation = useMutation({
@@ -607,6 +609,7 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
       setLineItems([])
       setStep(0)
       queryClient.invalidateQueries({ queryKey: ['workspace'] })
+      queryClient.invalidateQueries({ queryKey: ['invoice-library'] })
     },
   })
   const reprocessMutation = useMutation({
@@ -615,6 +618,7 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
       await detail.refetch()
       setStep(1)
       queryClient.invalidateQueries({ queryKey: ['workspace'] })
+      queryClient.invalidateQueries({ queryKey: ['invoice-library'] })
     },
   })
   const draftPayload = () => ({
@@ -646,6 +650,7 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
     onSuccess: (item) => {
       localStorage.removeItem('active-invoice-document')
       queryClient.invalidateQueries({ queryKey: ['workspace'] })
+      queryClient.invalidateQueries({ queryKey: ['invoice-library'] })
       setSubmittedItem(item)
       setStep(4)
     },
@@ -717,7 +722,6 @@ function IntakeLibrary({ view, openItem }: { view: IntakeView; openItem: (id: st
   const params = new URLSearchParams({ search, status: statusFilter, page: String(page), page_size: '8' })
   if (createdFrom) params.set('created_from', createdFrom)
   if (createdTo) params.set('created_to', createdTo)
-  if (view === 'submissions') params.set('submitted_by', 'William Lo')
   const invoices = useQuery({
     queryKey: ['invoice-library', view, search, statusFilter, createdFrom, createdTo, page],
     queryFn: () => api<InvoiceList>(`/invoices?${params}`),
@@ -736,33 +740,44 @@ function IntakeLibrary({ view, openItem }: { view: IntakeView; openItem: (id: st
       <section className="section-heading">
         <div>
           <span className="section-eyebrow">DOCUMENT WORK</span>
-          <h2>{view === 'submissions' ? 'My Invoices' : 'Invoices'}</h2>
-          <p>{view === 'submissions' ? 'Invoices submitted by William Lo.' : 'All uploaded invoices and their current status.'}</p>
+          <h2>Invoices</h2>
+          <p>Every uploaded invoice appears here, including invoices waiting for reviewer approval.</p>
         </div>
       </section>
       <div className="invoice-toolbar">
-        <label><Search size={16} /><input value={search} placeholder="Search filename..." onChange={(event) => { setSearch(event.target.value); setPage(1) }} /></label>
+        <label><Search size={16} /><input value={search} placeholder="Search vendor, file, or invoice number..." onChange={(event) => { setSearch(event.target.value); setPage(1) }} /></label>
         <label className="date-filter"><span>From</span><input aria-label="Submitted from" type="date" value={createdFrom} max={createdTo || undefined} onChange={(event) => { setCreatedFrom(event.target.value); setPage(1) }} /></label>
         <label className="date-filter"><span>To</span><input aria-label="Submitted to" type="date" value={createdTo} min={createdFrom || undefined} onChange={(event) => { setCreatedTo(event.target.value); setPage(1) }} /></label>
         <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1) }}>
           <option value="">All statuses</option>
-          {['queued','processing','needs_review','approved','failed','cancelled','exported'].map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}
+          {['queued','processing','needs_review','awaiting_human','approved','rejected','failed','cancelled','exported'].map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
         </select>
         {(search || statusFilter || createdFrom || createdTo) ? <button className="outline-button" onClick={resetFilters}><X size={14} /> Clear</button> : null}
       </div>
-      <section className="data-panel invoice-table">
+      <section className="data-panel invoice-card-table">
         {invoices.isLoading ? <LoadingState /> : invoices.data?.items.map((doc) => (
-          <button key={doc.id} onClick={() => setSelectedId(doc.id)}>
-            <WorkIcon type="invoice_review" />
-            <span className="invoice-primary"><strong>{doc.vendor_name || doc.original_filename}</strong><small>{doc.original_filename} Â· {shortId(doc.id)}</small></span>
-            <span><small>Amount</small><strong>{doc.currency || '-'} {doc.total || '-'}</strong></span>
-            <span><small>Submitted</small><strong>{formatDate(doc.created_at)}</strong></span>
-            <span><small>Owner</small><strong>{doc.current_owner}</strong></span>
-            <span><small>Status detail</small><strong>{humanize(doc.current_stage)}</strong></span>
-            <Status value={doc.status} /><ChevronRight size={17} />
+          <button className="invoice-list-card" key={doc.id} onClick={() => setSelectedId(doc.id)}>
+            <div className="invoice-review-main">
+              <WorkIcon type="invoice_review" />
+              <div>
+                <span>{shortId(doc.id).toUpperCase()}</span>
+                <h3>{doc.vendor_name || doc.original_filename}</h3>
+                <p>{doc.original_filename}</p>
+              </div>
+            </div>
+            <div className="invoice-review-meta">
+              <span>Amount<strong>{invoiceAmount(doc)}</strong></span>
+              <span>Submitted<strong>{formatDate(doc.created_at)}</strong></span>
+              <span>Owner<strong>{doc.current_owner}</strong></span>
+            </div>
+            <div className="invoice-review-status">
+              <Status value={doc.status} />
+              <small>{invoiceStageCopy(doc.current_stage)}</small>
+            </div>
+            <span className="primary-button">{doc.work_item_id ? 'Open review' : 'Check status'}</span>
           </button>
         ))}
-        {!invoices.isLoading && !invoices.data?.items.length ? <EmptyState title="No matching invoices" body="Change the filters or upload a new invoice." /> : null}
+        {!invoices.isLoading && !invoices.data?.items.length ? <EmptyState title={search || statusFilter || createdFrom || createdTo ? 'No invoices match your filters' : 'No invoices yet'} body={search || statusFilter || createdFrom || createdTo ? 'Clear the filters or search for another vendor, file, or invoice number.' : 'Upload your first invoice, then it will appear here automatically.'} /> : null}
       </section>
       {invoices.data && invoices.data.total_pages > 1 ? <div className="invoice-pagination"><button className="icon-button" disabled={page === 1} onClick={() => setPage((current) => current - 1)}><ChevronLeft size={16} /></button><span>Page {page} of {invoices.data.total_pages} Â· {invoices.data.total} invoices</span><button className="icon-button" disabled={page === invoices.data.total_pages} onClick={() => setPage((current) => current + 1)}><ChevronRight size={16} /></button></div> : null}
       {selectedId ? <InvoiceStatusPanel documentId={selectedId} close={() => setSelectedId('')} openItem={openItem} refresh={() => invoices.refetch()} /> : null}
@@ -804,7 +819,7 @@ function InvoiceStatusPanel({ documentId, close, openItem, refresh }: { document
       <aside className="invoice-status-panel">
         <header><div><span>INVOICE STATUS</span><h2>{data?.document.original_filename ?? 'Loading invoice...'}</h2></div><button className="icon-button" aria-label="Close" onClick={close}><X size={18} /></button></header>
         {workflow.isLoading ? <LoadingState /> : data ? <>
-          <div className="status-orientation"><div><small>Stage</small><strong>{data.current_stage}</strong></div><div><small>Owner</small><strong>{data.current_owner}</strong></div><div><small>Next action</small><strong>{data.next_action}</strong></div><Status value={data.document.status} /></div>
+          <div className="status-orientation"><div><small>Stage</small><strong>{invoiceStageCopy(data.current_stage)}</strong></div><div><small>Owner</small><strong>{data.current_owner}</strong></div><div><small>Next action</small><strong>{plainNextAction(data.next_action)}</strong></div><Status value={data.document.status} /></div>
           <PdfPreview url={pdfUrl} filename={data.document.original_filename} />
           <section className="status-extraction"><h3>Extracted invoice</h3><div>{guidedFields.map(([key, label]) => <span key={key}><small>{label}</small><strong>{String(data.extraction?.data?.[key] ?? '-')}</strong></span>)}</div></section>
           {data.extraction?.validation?.length ? <div className="validation-list">{data.extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.field_name ?? issue.field}: {issue.message}</span></p>)}</div> : null}
@@ -1833,6 +1848,37 @@ function queueAmount(item: WorkItemSummary) {
   const amount = context.total ?? context.total_amount ?? context.amount
   const currencyCode = context.currency ?? ''
   return amount ? `${currencyCode} ${amount}`.trim() : 'Amount unavailable'
+}
+function invoiceAmount(document: InvoiceListItem) {
+  return document.total ? `${document.currency || ''} ${document.total}`.trim() : 'Amount unavailable'
+}
+function invoiceStageCopy(value: string) {
+  const labels: Record<string, string> = {
+    uploaded: 'Uploaded',
+    queued: 'Waiting to be read',
+    extracting: 'Reading invoice',
+    processing: 'Reading invoice',
+    needs_attention: 'Needs review',
+    needs_review: 'Needs review',
+    planning: 'Preparing review',
+    awaiting_human: 'Waiting approval',
+    waiting_approval: 'Waiting approval',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    completed: 'Completed',
+    resolved: 'Completed',
+    failed: 'Needs correction',
+    blocked: 'Needs correction',
+  }
+  return labels[value] ?? statusLabel(value)
+}
+function plainNextAction(value: string) {
+  const normalized = value.toLowerCase()
+  if (normalized.includes('approve') || normalized.includes('approval')) return 'Reviewer decision'
+  if (normalized.includes('review')) return 'Review invoice'
+  if (normalized.includes('correct')) return 'Ask for correction'
+  if (normalized.includes('export')) return 'Prepare export'
+  return value
 }
 function matchesFilter(item: WorkItemSummary, filter: QueueFilter) {
   if (filter === 'all') return true
