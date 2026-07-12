@@ -131,20 +131,15 @@ type Extraction = {
   validation?: Array<{ field?: string; field_name?: string; message?: string; severity?: string }>
 }
 type ApiDocument = { id: string; original_filename: string; status: string; created_at: string; updated_at?: string; error_message?: string | null; submitted_by?: string; size_bytes?: number; document_type?: string; supported_extraction_schema?: string }
-type InvoiceListItem = ApiDocument & { vendor_name?: string | null; total?: string | null; currency?: string | null; current_owner: string; current_stage: string; work_item_id?: string | null }
+type InvoiceListItem = ApiDocument & { vendor_name?: string | null; total?: string | null; currency?: string | null; current_stage: string; work_item_id?: string | null }
 type InvoiceList = { items: InvoiceListItem[]; page: number; page_size: number; total: number; total_pages: number }
 type DocumentDetail = { document: ApiDocument; extraction: Extraction | null; audit_events: Array<{ id?: string; event_type?: string; created_at?: string; payload_summary?: string }> }
 type WorkflowActivity = { id: string; event_type: string; actor: string; summary: string; source: string; document_id?: string | null; work_item_id?: string | null; agent_run_id?: string | null; created_at: string }
 type DocumentWorkflow = {
   document: ApiDocument
   extraction: Extraction | null
-  work_item: WorkItemDetail | null
   current_stage: string
-  current_owner: string
-  waiting_for: string | null
-  next_action: string
   attention_reason: string | null
-  activity: WorkflowActivity[]
 }
 type UserRole = 'intake' | 'administrator'
 type IntakeView = 'new' | 'submissions' | 'invoices' | 'guide'
@@ -750,7 +745,6 @@ function IntakeLibrary({ view }: { view: IntakeView }) {
             <div className="invoice-review-meta">
               <span>Amount<strong>{invoiceAmount(doc)}</strong></span>
               <span>Submitted<strong>{formatDate(doc.created_at)}</strong></span>
-              <span>Owner<strong>{invoiceOwnerCopy(doc)}</strong></span>
             </div>
             <div className="invoice-review-status">
               <Status value={doc.status} />
@@ -769,37 +763,28 @@ function IntakeLibrary({ view }: { view: IntakeView }) {
 
 function InvoiceStatusPanel({ documentId, close, refresh }: { documentId: string; close: () => void; refresh: () => void }) {
   const workflow = useQuery({ queryKey: ['document-workflow', documentId], queryFn: () => api<DocumentWorkflow>(`/documents/${documentId}/workflow`), refetchInterval: 5000 })
-  const [escalationReason, setEscalationReason] = useState('')
   const pdfUrl = `/documents/${documentId}/content`
   const refreshAll = () => { workflow.refetch(); refresh() }
   const retry = useMutation({ mutationFn: () => api(`/documents/${documentId}/retry`, { method: 'POST' }), onSuccess: refreshAll })
-  const reprocess = useMutation({ mutationFn: () => api(`/documents/${documentId}/reprocess`, { method: 'POST' }), onSuccess: refreshAll })
-  const cancel = useMutation({ mutationFn: () => api(`/documents/${documentId}/cancel`, { method: 'POST' }), onSuccess: refreshAll })
-  const escalate = useMutation({
-    mutationFn: () => api(`/documents/${documentId}/escalate`, { method: 'POST', body: JSON.stringify({ reason: escalationReason.trim() }) }),
-    onSuccess: () => { setEscalationReason(''); refreshAll() },
-  })
   const data = workflow.data
-  const mutationError = retry.error || reprocess.error || cancel.error || escalate.error
+  const foundFields = data ? guidedFields
+    .map(([key, label]) => [label, String(data.extraction?.data?.[key] ?? '-')])
+    .filter(([, value]) => value !== '-') : []
   return (
     <div className="invoice-detail-overlay">
       <button className="invoice-detail-scrim" aria-label="Close invoice status" onClick={close} />
       <aside className="invoice-status-panel">
-        <header><div><span>INVOICE STATUS</span><h2>{data?.document.original_filename ?? 'Loading invoice...'}</h2></div><button className="icon-button" aria-label="Close" onClick={close}><X size={18} /></button></header>
+        <header><div><span>INVOICE</span><h2>{data?.document.original_filename ?? 'Loading invoice...'}</h2></div><button className="icon-button" aria-label="Close" onClick={close}><X size={18} /></button></header>
         {workflow.isLoading ? <LoadingState /> : data ? <>
-          <div className="status-orientation"><div><small>Stage</small><strong>{invoiceStageCopy(data.current_stage)}</strong></div><div><small>Owner</small><strong>{data.current_owner}</strong></div><div><small>Next action</small><strong>{plainNextAction(data.next_action)}</strong></div><Status value={data.document.status} /></div>
+          <section className="invoice-status-summary"><Status value={data.document.status} /><div><strong>{invoiceDisplayStage({ status: data.document.status, current_stage: data.current_stage })}</strong><p>{invoiceStatusMessage(data.document.status)}</p></div></section>
           <PdfPreview url={pdfUrl} filename={data.document.original_filename} />
-          <section className="status-extraction"><h3>Invoice data</h3><div>{guidedFields.map(([key, label]) => <span key={key}><small>{label}</small><strong>{String(data.extraction?.data?.[key] ?? '-')}</strong></span>)}</div></section>
-          {data.extraction?.validation?.length ? <div className="validation-list">{data.extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.field_name ?? issue.field}: {issue.message}</span></p>)}</div> : null}
+          {foundFields.length ? <section className="status-extraction"><h3>Invoice details</h3><div>{foundFields.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div></section> : <section className="invoice-details-empty"><FileClock size={16} /><span>Invoice details will appear here after reading is complete.</span></section>}
+          {data.extraction?.validation?.length ? <section className="status-checks"><h3>Things to check</h3><div className="validation-list">{data.extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.message}</span></p>)}</div></section> : null}
           {data.attention_reason ? <div className="duplicate-warning"><AlertTriangle size={16} /><span><strong>Attention required</strong>{data.attention_reason}</span></div> : null}
-          <section className="status-activity"><h3>Recent history</h3>{data.activity.slice(-5).reverse().map((event) => <div key={event.id}><span /><p><strong>{activityLabel(event.event_type)}</strong><small>{event.actor} - {formatDate(event.created_at)}</small></p></div>)}</section>
-          {data.work_item ? <section className="escalation-control"><label>Correction note<textarea value={escalationReason} placeholder="Explain what needs attention on this invoice..." onChange={(event) => setEscalationReason(event.target.value)} /></label><button className="outline-button" disabled={!escalationReason.trim() || escalate.isPending} onClick={() => escalate.mutate()}><AlertTriangle size={15} /> Ask for help</button></section> : null}
-          {mutationError ? <p className="wizard-error">{(mutationError as Error).message}</p> : null}
+          {retry.error ? <p className="wizard-error">{(retry.error as Error).message}</p> : null}
           <footer>
             {pdfUrl ? <a className="outline-button" href={pdfUrl} download={data.document.original_filename}><FileText size={15} /> Download PDF</a> : null}
             {data.document.status === 'failed' ? <button className="outline-button" disabled={retry.isPending} onClick={() => retry.mutate()}><RefreshCw size={15} /> Read again</button> : null}
-            {['extracted','needs_review','cancelled'].includes(data.document.status) ? <button className="outline-button" disabled={reprocess.isPending} onClick={() => reprocess.mutate()}><RefreshCw size={15} /> Read again</button> : null}
-            {['queued','failed'].includes(data.document.status) ? <button className="danger-outline-button" disabled={cancel.isPending} onClick={() => cancel.mutate()}><X size={15} /> Cancel upload</button> : null}
             <button className="primary-button" onClick={close}><FileClock size={15} /> Back to My Invoices</button>
           </footer>
         </> : <ErrorState message={(workflow.error as Error)?.message ?? 'Invoice unavailable'} retry={() => workflow.refetch()} />}
@@ -1578,7 +1563,6 @@ function DocumentsPage({ workspace, loading, openItem }: { workspace?: Workspace
     ...document,
     original_filename: document.filename,
     updated_at: document.created_at,
-    current_owner: 'Reviewer',
     current_stage: document.status,
   })) as InvoiceListItem[]
   const documents = invoices.data?.items ?? fallback
@@ -1596,7 +1580,7 @@ function DocumentsPage({ workspace, loading, openItem }: { workspace?: Workspace
             <div>
               <strong>{doc.vendor_name || doc.original_filename}</strong>
               <span>{doc.original_filename} - {formatDate(doc.created_at)}</span>
-              <small>{invoiceDisplayStage(doc)} - {invoiceOwnerCopy(doc)}</small>
+              <small>{invoiceDisplayStage(doc)}</small>
             </div>
             <Status value={doc.status} />
             <ChevronRight size={16} />
@@ -1835,18 +1819,19 @@ function invoiceDisplayStage(document: Pick<InvoiceListItem, 'status' | 'current
   const businessStatuses = ['approved', 'rejected', 'exported', 'failed', 'cancelled', 'needs_review']
   return invoiceStageCopy(businessStatuses.includes(document.status) ? document.status : document.current_stage)
 }
-function invoiceOwnerCopy(document: Pick<InvoiceListItem, 'status' | 'current_owner'>) {
-  if (['approved', 'rejected', 'needs_review'].includes(document.status)) return 'Reviewer'
-  if (['exported', 'cancelled'].includes(document.status)) return 'System'
-  return document.current_owner
-}
-function plainNextAction(value: string) {
-  const normalized = value.toLowerCase()
-  if (normalized.includes('approve') || normalized.includes('approval')) return 'Reviewer decision'
-  if (normalized.includes('review')) return 'Review invoice'
-  if (normalized.includes('correct')) return 'Ask for correction'
-  if (normalized.includes('export')) return 'Prepare export'
-  return value
+function invoiceStatusMessage(status: string) {
+  const messages: Record<string, string> = {
+    uploaded: 'Your invoice is ready to be read.',
+    queued: 'Your invoice is waiting to be read.',
+    extracting: 'We are reading the invoice now.',
+    processing: 'We are reading the invoice now.',
+    needs_review: 'This invoice is ready for a reviewer to check.',
+    approved: 'This invoice has been approved.',
+    rejected: 'This invoice was rejected. Check with the reviewer for the reason.',
+    failed: 'We could not read this invoice. Try reading it again.',
+    cancelled: 'This invoice upload was cancelled.',
+  }
+  return messages[status] ?? 'This invoice is being prepared.'
 }
 function activityLabel(value: string) {
   const labels: Record<string, string> = {
