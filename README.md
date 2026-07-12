@@ -14,7 +14,7 @@ Project 4 starts from:
 ../3.5-agentops-reliability-dashboard-github-refactored
 ```
 
-Project 3.5 remains the source of truth for reliability measurement, scenario evaluation, prompt version comparison, regression comparison, and AgentOps dashboard behavior.
+Project 3.5 remains the source of truth for reliability measurement, scenario evaluation, planning version comparison, regression comparison, and AgentOps trace behavior.
 
 For real provider, email, Cloudflare R2, and PostgreSQL/Supabase setup, see
 [`INTEGRATION_SETUP_GUIDE.md`](INTEGRATION_SETUP_GUIDE.md).
@@ -34,9 +34,9 @@ execution, risky actions require approval, and uncertain work returns to a human
 - drafted outbound actions, such as messages or accounting notes
 - controlled execution policies for safe versus risky tools
 - human approval queue for low-confidence or high-risk work
-- React document queue for evidence review, exceptions, and pending confirmations
-- Technical evidence for local document-operation runs and deterministic evaluation cases
-- Project 4 evaluation scenarios for multi-step work
+- React operator UI with Work Queue, Review, Approval Decision, Record, Safety Rules, History, and Technical Evidence views
+- System Reliability, Reliability Checks, Test Scenarios, and Run Traces for local technical evidence
+- Project 4 repeatable test scenarios for multi-step document work
 - deployment readiness plan for Docker, CI, and future cloud delivery
 
 ## What Project 4 Must Preserve

@@ -12,12 +12,12 @@ Explain the portfolio arc:
 - Project 2.5: document ownership, architecture, and business value.
 - Project 3: add an agentic copilot over the workflow.
 - Project 3.5: evaluate whether the copilot is reliable.
-- Project 4: add bounded autonomous back-office workflows with approvals and AgentOps scenario checks.
+- Project 4: add bounded autonomous back-office workflows with approvals and repeatable reliability checks.
 
 Use the honest claim:
 
 ```text
-An autonomous back-office AI platform that plans document-driven work, drafts reviewable actions, requires human approval for risky execution, and measures reliability through AgentOps scenarios.
+An autonomous back-office AI platform that plans document-driven work, drafts reviewable actions, requires human approval for risky execution, and measures reliability through local traces and repeatable scenario checks.
 ```
 
 ## 2. Start The Local System
@@ -44,7 +44,7 @@ Start the app, sign in, then create a few copilot runs from `/ui`:
 
 The goal is to create trace evidence, not to demo another chatbot.
 
-## 4. Show Operator Inbox
+## 4. Show Operator Work Queue
 
 Open:
 
@@ -54,15 +54,15 @@ http://127.0.0.1:8000/ui/backoffice
 
 Show:
 
-- create work item
-- link a document
-- generate a deterministic plan
-- inspect why-this and why-not
-- inspect draft preview
-- approve a risky export
+- Work Summary and Work Queue
+- create a New Document Task
+- link a source document
+- review status, next step, decision needed, and source evidence
+- open Review, Next Steps, Approval Decision, Record, Safety Rules, History, and Technical Evidence
+- approve or reject a risky export only after reviewing evidence
 - execute only after approval
 
-## 5. Show AgentOps Dashboard
+## 5. Show Technical Evidence
 
 Open:
 
@@ -72,12 +72,12 @@ http://127.0.0.1:8000/ui/agentops
 
 Point out:
 
-- reliability KPI cards
-- recent run timeline
-- expected tool versus selected tool
+- System Reliability cards
+- Run Traces / Decision Trace
+- expected action versus actual action
 - correctness field
 - confidence
-- failure type
+- known weak spot
 - selected run detail
 - tool-call timeline
 - safe decision reason
@@ -102,7 +102,7 @@ curl.exe http://127.0.0.1:8000/agentops/backoffice/scenarios `
 
 Show that metrics come from traces, not from invented claims.
 
-## 7. Show Scenario Datasets
+## 7. Show Test Scenarios
 
 Open:
 
@@ -113,12 +113,12 @@ examples/agentops/project4_scenarios_v1.json
 
 Explain:
 
-- dataset id: `agentops_core`
-- dataset version: `v1`
+- test set id: `agentops_core`
+- test set version: `v1`
 - scenarios cover read-only, recommendation, controlled execution, blocked action, cross-workspace, and escalation cases
 - Project 4 dataset id: `project4_backoffice`
 - Project 4 scenarios cover read-only planning, draft workflow, confirm-execute, blocked export, and insufficient-evidence escalation
-- future prompt or routing changes can be compared against the same scenario version
+- future planning or routing changes can be compared against the same scenario version
 
 ## 8. Show Deployment Readiness
 

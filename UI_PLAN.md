@@ -1,6 +1,6 @@
 # UI Plan - Plain Operator Experience With Technical Evidence
 
-Status: active UX simplification plan.
+Status: complete UX simplification plan.
 
 ## Goal
 
