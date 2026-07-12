@@ -98,8 +98,9 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
 .search-box { display: flex; width: 205px; height: 34px; align-items: center; gap: 8px; padding: 0 9px; color: #64748b; background: #fff; border: 1px solid #dbe3ef; border-radius: 5px; }
 .search-box input { min-width: 0; flex: 1; border: 0; outline: 0; font-size: 10px; }
 .search-box kbd { padding: 2px 5px; background: #f1f5f9; border-radius: 3px; font-size: 8px; }
-.metric-row { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 14px; }
-.metric-card { display: flex; min-height: 98px; align-items: flex-start; gap: 12px; padding: 17px 14px; background: #fff; border: 1px solid #dbe3ef; border-radius: 7px; }
+.metric-row { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; }
+.metric-card { display: flex; min-height: 98px; align-items: flex-start; gap: 12px; padding: 17px 14px; color: inherit; background: #fff; border: 1px solid #dbe3ef; border-radius: 7px; text-align: left; cursor: pointer; }
+.metric-card:hover { border-color: #8b68ff; box-shadow: 0 8px 22px rgba(15,23,42,.04); }
 .metric-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 6px; }
 .metric-icon.blue { color: #2d64c8; background: #eef4ff; }.metric-icon.red { color: #e5484d; background: #fff0f1; }.metric-icon.amber { color: #a76406; background: #fff7e8; }.metric-icon.green { color: #12835a; background: #eaf9f2; }
 .metric-card p { margin: 1px 0 5px; color: #475569; font-size: 10px; }

@@ -1,6 +1,6 @@
 # UI Role Refactor Sprint Plan
 
-Status: UI-R1 and UI-R2 implemented; UI-R3 through UI-R6 pending.
+Status: UI-R1 through UI-R3 implemented; UI-R4 through UI-R6 pending.
 
 Source inputs:
 
@@ -120,6 +120,8 @@ Risk:
 - Backend status names may not map cleanly to business status. Add frontend display mapping without changing backend models.
 
 ## Sprint UI-R3 - Reviewer Approvals Workspace
+
+Implementation status: completed.
 
 Goal:
 Make reviewer screen look like the main work area, not a broken narrow side panel.

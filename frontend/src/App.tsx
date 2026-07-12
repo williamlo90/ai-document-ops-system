@@ -858,7 +858,7 @@ function OperationsOverview({ workspace, loading, openItem, goQueue }: { workspa
 function QueuePage({ workspace, loading, openItem, exceptionMode = false, initialFilter }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void; exceptionMode?: boolean; initialFilter?: QueueFilter }) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<QueueFilter>(initialFilter ?? 'all')
+  const [filter, setFilter] = useState<QueueFilter>(initialFilter ?? (exceptionMode ? 'all' : 'approval'))
   const [exceptionFilter, setExceptionFilter] = useState<ExceptionFilter>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
@@ -875,7 +875,7 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
   const emptyCopy = items.length
     ? {
       title: 'No invoices match this view',
-      body: 'Clear the search or switch to All.',
+      body: 'Clear the search or switch to Waiting decision.',
       next: 'Invoices still waiting for a decision will remain in Approvals.',
     }
     : {
@@ -890,40 +890,38 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
     onSuccess: () => { setSelected(new Set()); queryClient.invalidateQueries({ queryKey: ['workspace'] }) },
   })
 
-  const metrics = [
-    ['Invoices', items.length, Inbox, 'blue', 'All review items'],
-    ['Needs Review', counts.attention, AlertTriangle, 'red', 'Needs a person'],
-    ['In Progress', counts.progress, Play, 'blue', 'Being processed'],
-    ['Waiting Decision', counts.approval, UserRound, 'amber', 'Approve or reject'],
-    ['Completed Today', counts.completed, ShieldCheck, 'green', 'Finished reviews'],
+  const needsCorrection = counts.blocked
+  const metrics: Array<[string, number, typeof Inbox, string, string, QueueFilter]> = [
+    ['Waiting decision', counts.approval, UserRound, 'amber', 'Approve or reject', 'approval'],
+    ['Needs correction', needsCorrection, AlertTriangle, 'red', 'Missing info or failed checks', 'blocked'],
+    ['Completed', counts.completed, ShieldCheck, 'green', 'Finished reviews', 'completed'],
   ] as const
 
   return (
     <main className="queue-page">
       <section className="page-heading">
-        <div><h2>{exceptionMode ? 'Needs Review' : 'Approvals'}</h2><p>{exceptionMode ? 'Invoices that need review, correction, approval, or recovery.' : 'Invoices waiting for a reviewer decision.'}</p></div>
+        <div><h2>{exceptionMode ? 'Needs Review' : 'Approvals'}</h2><p>{exceptionMode ? 'Invoices that need review, correction, approval, or recovery.' : 'Review invoices that are waiting for approve, reject, or correction decisions.'}</p></div>
         <div className="queue-tools">
           <label className="search-box"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoices..." /></label>
         </div>
       </section>
       {selected.size ? <section className="bulk-bar"><strong>{selected.size} selected</strong><button className="outline-button" disabled={bulkPriority.isPending} onClick={() => bulkPriority.mutate()}><AlertTriangle size={14} /> Set High Priority</button><button className="outline-button" onClick={() => setSelected(new Set())}><X size={14} /> Clear</button></section> : null}
       <section className="metric-row">
-        {metrics.map(([label, value, Icon, tone, note]) => (
-          <article className="metric-card" key={label}>
+        {metrics.map(([label, value, Icon, tone, note, targetFilter]) => (
+          <button className="metric-card" key={label} onClick={() => setFilter(targetFilter)}>
             <span className={`metric-icon ${tone}`}><Icon size={20} /></span>
             <div><p>{label}</p><strong>{loading ? '-' : value}</strong><small>{note}</small></div>
-          </article>
+          </button>
         ))}
       </section>
       <section className="queue-surface">
         {exceptionMode ? <div className="exception-tabs">{([['all','All Exceptions'],['missing_information','Missing Information'],['validation_failure','Validation Failure'],['waiting_approval','Waiting Approval'],['blocked','Blocked'],['failed','Failed']] as [ExceptionFilter,string][]).map(([value,label]) => <button className={exceptionFilter === value ? 'active' : ''} key={value} onClick={() => setExceptionFilter(value)}>{label} <span>{items.filter((item) => matchesExceptionFilter(item, value, workspace?.documents ?? [])).length}</span></button>)}</div> : null}
         <div className="queue-tabs">
           {([
-            ['all', `All (${items.length})`],
-            ['attention', `Needs Review (${counts.attention})`],
-            ['progress', `In Progress (${counts.progress})`],
-            ['approval', `Waiting Decision (${counts.approval})`],
+            ['approval', `Waiting decision (${counts.approval})`],
+            ['blocked', `Needs correction (${counts.blocked})`],
             ['completed', `Completed (${counts.completed})`],
+            ['all', `All (${items.length})`],
           ] as [QueueFilter, string][]).map(([value, label]) => <button className={filter === value ? 'active' : ''} onClick={() => setFilter(value)} key={value}>{label}</button>)}
         </div>
         <WorkItemTable items={paged} documents={workspace?.documents ?? []} loading={loading} openItem={openItem} page={page} totalPages={totalPages} total={filtered.length} setPage={setPage} emptyCopy={emptyCopy} />
@@ -957,7 +955,7 @@ function WorkItemTable({ items, documents, loading, openItem, page, totalPages, 
               <span>Owner<strong>{item.assignee}</strong></span>
               <span>Updated<strong>{relativeTime(item.updated_at)}</strong></span>
             </div>
-            <span className="primary-button">{nextAction(item.status)}</span>
+            <span className="primary-button">Review invoice</span>
           </button>
         )
       })}
@@ -1940,13 +1938,6 @@ function matchesExceptionFilter(item: WorkItemSummary, filter: ExceptionFilter, 
 function businessId(item: WorkItemSummary) {
   const prefix = item.work_type?.includes('invoice') ? 'INV' : item.work_type?.includes('accounting') ? 'ACC' : item.work_type?.includes('vendor') ? 'VDR' : 'WRK'
   return `${prefix}-${item.created_at.slice(0, 4)}-${shortId(item.id).toUpperCase()}`
-}
-function nextAction(status: string) {
-  if (status === 'awaiting_human') return 'Make Decision'
-  if (status === 'ready_to_execute') return 'Continue'
-  if (status === 'blocked') return 'View Reason'
-  if (status === 'resolved') return 'View Result'
-  return 'Review Invoice'
 }
 function invoiceFields(extraction: Extraction | null): [string, string][] {
   const data = extraction?.data ?? {}

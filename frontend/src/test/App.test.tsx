@@ -257,6 +257,7 @@ describe('application shell', () => {
 
     render(<App />)
     await user.click(await screen.findByRole('button', { name: /approvals/i }))
+    await user.click(await screen.findByRole('button', { name: /review invoice/i }))
     await user.click(await screen.findByRole('button', { name: /make decision/i }))
     expect(await screen.findByText(/Needs review because/i)).toBeInTheDocument()
     expect(screen.getByText(/Waiting for reviewer decision/i)).toBeInTheDocument()
@@ -287,7 +288,7 @@ describe('application shell', () => {
 
     render(<App />)
     await user.click(await screen.findByRole('button', { name: /approvals/i }))
-    await user.click(await screen.findByRole('button', { name: /make decision/i }))
+    await user.click(await screen.findByRole('button', { name: /review invoice/i }))
     await user.click(await screen.findByRole('button', { name: /make decision/i }))
 
     expect((await screen.findAllByText(/Decision Needed/i)).length).toBeGreaterThan(0)
