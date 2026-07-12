@@ -209,6 +209,7 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
 .panel-actions .approve-action, .panel-actions .reject-action { display: inline-flex; min-height: 36px; align-items: center; gap: 7px; padding: 8px 12px; background: #fff; border-radius: 5px; font-size: 10px; font-weight: 700; }
 .panel-actions .approve-action:hover { background: #effaf5; }.panel-actions .reject-action:hover { background: #fff5f5; }
 .tab-content { display: grid; gap: 12px; padding: 14px; }.document-list { padding: 10px; }.document-list article { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid #e2e8f0; }.document-list article div { flex: 1; }.document-list article strong, .document-list article span { display: block; }.document-list article span { margin-top: 4px; color: #64748b; font-size: 9px; }
+.history-list { display: grid; gap: 0; padding: 10px; }.history-list article { display: grid; grid-template-columns: 28px minmax(0,1fr) auto auto; gap: 12px; align-items: center; min-height: 70px; padding: 12px; border-bottom: 1px solid #e2e8f0; }.history-list article:last-child { border-bottom: 0; }.history-list p { margin: 4px 0; color: #475569; font-size: 12px; }.history-list small { color: #64748b; font-size: 10px; }
 .record-tab-page { display: grid; gap: 14px; padding: 14px; }
 .record-tab-page > .work-item-subpage { padding: 0; }
 .record-tab-page > .tab-content { padding: 0; }

@@ -18,3 +18,6 @@ frontend/test-results/
 frontend/coverage/
 backups/
 _local_docs/
+outputs/*-rendered/
+outputs/*.inspect.ndjson
+outputs/~$*.pptx
