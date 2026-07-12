@@ -55,19 +55,6 @@ const plannedWorkItem = {
   ...workItem,
   current_plan_id: 'plan-1',
 }
-const plannedWorkItemDetail = {
-  ...workItemDetail,
-  current_plan_id: 'plan-1',
-  current_plan: {
-    id: 'plan-1',
-    planner_version: 'planner-v1',
-    overall_confidence: 'high',
-    escalation_reason: null,
-    requires_human: false,
-    created_at: now,
-    steps: [],
-  },
-}
 const workspaceWithPlannedWorkItem = {
   ...workspaceWithLinkedDocument,
   work_items: [plannedWorkItem],
@@ -170,7 +157,7 @@ describe('application shell', () => {
     expect(screen.queryByRole('button', { name: /new document task/i })).not.toBeInTheDocument()
   })
 
-  it('switches role and exposes administrator actions', async () => {
+  it('switches role and exposes the minimal administrator work area', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -181,9 +168,9 @@ describe('application shell', () => {
 
     expect((await screen.findAllByRole('heading', { name: /work queue/i })).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /work queue/i })).toBeInTheDocument()
-    await user.click(screen.getAllByRole('button', { name: /technical evidence/i })[0])
-    expect(screen.getByRole('button', { name: /system reliability/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /runtime diagnostics/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /documents/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /system reliability/i })).not.toBeInTheDocument()
     const createButtons = screen.getAllByRole('button', { name: /new document task/i })
     expect(createButtons.length).toBeGreaterThan(0)
     expect(screen.getByText(/No document tasks match this view/i)).toBeInTheDocument()
@@ -316,74 +303,23 @@ describe('application shell', () => {
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
   })
 
-  it('shows document operation metadata in evaluation cases', async () => {
-    const user = userEvent.setup()
+  it('keeps technical evidence out of primary administrator navigation', async () => {
     localStorage.setItem('docops-role', 'administrator')
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
       if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
       if (path === '/backoffice/workspace') return json(workspaceWithPlannedWorkItem)
-      if (path === '/backoffice/work-items/item-1') return json({ work_item: plannedWorkItemDetail })
       if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
       if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
       if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
-      if (path === '/agentops/runs?limit=50') return json({ runs: [] })
-      if (path === '/agentops/scenarios') return json({ dataset_id: 'agentops_core', dataset_version: 'v1', description: 'Agent cases', scenario_count: 0, scenarios: [], required_fields: [] })
-      if (path === '/agentops/backoffice/scenarios') {
-        return json({
-          dataset_id: 'project4_backoffice',
-          dataset_version: 'v1',
-          description: 'Backoffice cases',
-          scenario_count: 1,
-          required_fields: ['document_type', 'operation_type'],
-          scenarios: [{
-            id: 'invoice_review_read_only',
-            title: 'Review a linked invoice without mutating state',
-            document_type: 'invoice',
-            operation_type: 'document_review',
-            work_type: 'invoice_review',
-            expected_confidence: 'high',
-          }],
-        })
-      }
-      if (path === '/agentops/evaluations?limit=100') return json({ evaluations: [] })
-      if (path === '/agentops/backoffice/scenarios/evaluate' && init?.method === 'POST') {
-        return json({
-          result: {
-            passed: true,
-            checks: { document_type: true, operation_type: true },
-            expected_document_type: 'invoice',
-            actual_document_type: 'invoice',
-            expected_operation_type: 'document_review',
-            actual_operation_type: 'document_review',
-          },
-        })
-      }
       return json({ detail: `Unexpected test request: ${path}` }, 404)
     })
 
     render(<App />)
-    await user.click(screen.getAllByRole('button', { name: /technical evidence/i })[0])
-    await user.click(await screen.findByRole('button', { name: /reliability checks/i }))
-
-    expect(await screen.findByText(/Repeatable reliability checks/i)).toBeInTheDocument()
-    expect(screen.getByText(/Document workflow checks/i)).toBeInTheDocument()
-    expect(await screen.findByText('Document: Invoice')).toBeInTheDocument()
-    expect(screen.getByText('Operation: Document Review')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /evaluate/i }))
-    expect(await screen.findByText(/Actual document: Invoice/)).toBeInTheDocument()
-    expect(screen.getByText(/Actual operation: Document Review/)).toBeInTheDocument()
-    expect(screen.getByText('Expected document')).toBeInTheDocument()
-    expect(screen.getByText('Actual document')).toBeInTheDocument()
-    expect(screen.getByText('Expected operation')).toBeInTheDocument()
-    expect(screen.getByText('Actual operation')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: /test scenarios/i }))
-    expect(await screen.findByText(/Versioned local test scenarios/i)).toBeInTheDocument()
-    expect(screen.getAllByText(/Repeatable reliability contract/i).length).toBeGreaterThan(0)
-    await user.click(await screen.findByRole('button', { name: /review a linked invoice without mutating state/i }))
-
-    expect(screen.getAllByText('Document: Invoice').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Operation: Document Review').length).toBeGreaterThan(0)
+    expect(await screen.findByRole('button', { name: /work queue/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /documents/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /reliability checks/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /test scenarios/i })).not.toBeInTheDocument()
   })
 })

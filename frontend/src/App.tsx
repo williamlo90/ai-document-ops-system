@@ -20,7 +20,6 @@ import {
   Filter,
   Inbox,
   Link2,
-  ListChecks,
   Loader2,
   Menu,
   MoreHorizontal,
@@ -304,16 +303,13 @@ function CommandCenter() {
   const [role, setRole] = useState<UserRole>(() => (localStorage.getItem('docops-role') as UserRole | null) ?? 'intake')
   const [screen, setScreen] = useState<Screen>(() => role === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'queue' })
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [globalCreateOpen, setGlobalCreateOpen] = useState(false)
   const workspace = useQuery({
     queryKey: ['workspace'],
     queryFn: () => api<Workspace>('/backoffice/workspace'),
     refetchInterval: 10000,
   })
   const goQueue = (filter?: QueueFilter) => setScreen({ kind: 'queue', filter })
-  const goAllWork = () => setScreen({ kind: 'workitems' })
   const openItem = (id: string) => setScreen({ kind: 'detail', id })
-  const goPage = (page: PageId) => setScreen({ kind: 'page', page })
   const changeRole = (nextRole: UserRole) => {
     localStorage.setItem('docops-role', nextRole)
     setRole(nextRole)
@@ -328,12 +324,11 @@ function CommandCenter() {
         screen={screen}
         close={() => setSidebarOpen(false)}
         goQueue={goQueue}
-        goAllWork={goAllWork}
-        goPage={goPage}
         inboxCount={attentionCount}
         role={role}
         goIntake={(view) => setScreen({ kind: 'intake', view })}
         goOverview={() => setScreen({ kind: 'overview' })}
+        openDocuments={() => setScreen({ kind: 'documents' })}
       />
       <div className="app-main">
         <TopBar
@@ -343,14 +338,13 @@ function CommandCenter() {
           healthy={!workspace.error}
           role={role}
           changeRole={changeRole}
-          newWorkItem={() => setGlobalCreateOpen(true)}
           openItem={openItem}
           openDocuments={() => setScreen({ kind: 'documents' })}
         />
         {workspace.error ? (
           <ErrorState message={(workspace.error as Error).message} retry={() => workspace.refetch()} />
         ) : screen.kind === 'intake' ? (
-          screen.view === 'new' ? <GuidedInvoiceWizard onSubmitted={openItem} /> : <IntakeLibrary view={screen.view} openItem={openItem} />
+          screen.view === 'new' ? <GuidedInvoiceWizard onSubmitted={() => setScreen({ kind: 'intake', view: 'invoices' })} /> : <IntakeLibrary view={screen.view} openItem={openItem} />
         ) : screen.kind === 'overview' ? (
           <OperationsOverview workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} goQueue={goQueue} />
         ) : screen.kind === 'detail' ? (
@@ -373,7 +367,6 @@ function CommandCenter() {
           <span><ShieldCheck size={14} /> All actions are logged and auditable.</span>
           <span>Local Mode <i /> Data stays on your machine</span>
         </footer>
-        {globalCreateOpen ? <CreateWorkItemModal documents={workspace.data?.documents ?? []} close={() => setGlobalCreateOpen(false)} openItem={openItem} /> : null}
       </div>
     </div>
   )
@@ -384,35 +377,30 @@ function Sidebar({
   screen,
   close,
   goQueue,
-  goAllWork,
-  goPage,
   inboxCount,
   role,
   goIntake,
   goOverview,
+  openDocuments,
 }: {
   open: boolean
   screen: Screen
   close: () => void
   goQueue: () => void
-  goAllWork: () => void
-  goPage: (page: PageId) => void
   inboxCount: number
   role: UserRole
   goIntake: (view: IntakeView) => void
   goOverview: () => void
+  openDocuments: () => void
 }) {
   const activeGroup =
     screen.kind === 'page'
       ? pageGroup(screen.page)
-      : screen.kind === 'queue' || screen.kind === 'workitems' || screen.kind === 'detail' || screen.kind === 'overview'
+      : screen.kind === 'queue' || screen.kind === 'workitems' || screen.kind === 'detail' || screen.kind === 'overview' || screen.kind === 'documents'
         ? 'Daily Work'
-        : 'System Setup'
+        : 'Daily Work'
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     'Daily Work': activeGroup === 'Daily Work',
-    'Safety Rules': activeGroup === 'Safety Rules',
-    'System Setup': activeGroup === 'System Setup',
-    'Technical Evidence': activeGroup === 'Technical Evidence',
   })
   useEffect(() => {
     setExpandedGroups((current) => ({ ...current, [activeGroup]: true }))
@@ -424,30 +412,7 @@ function Sidebar({
       items: [
         [CircleGauge, 'Work Summary', goOverview, screen.kind === 'overview'],
         [Inbox, 'Work Queue', goQueue, screen.kind === 'queue'],
-        [ListChecks, 'Exceptions', goAllWork, screen.kind === 'workitems' || screen.kind === 'detail'],
-        [FileClock, 'Drafts', () => goPage('drafts'), screen.kind === 'page' && screen.page === 'drafts'],
-        [ClipboardCheck, 'Approvals', () => goPage('approvals'), screen.kind === 'page' && screen.page === 'approvals'],
-      ],
-    },
-    {
-      label: 'Safety Rules',
-      icon: ShieldCheck,
-      items: [[FileCheck2, 'Policy Rules', () => goPage('policies'), screen.kind === 'page' && screen.page === 'policies'], [ShieldCheck, 'Safety Boundaries', () => goPage('guardrails'), screen.kind === 'page' && screen.page === 'guardrails']],
-    },
-    {
-      label: 'System Setup',
-      icon: Network,
-      items: [[Network, 'Integrations', () => goPage('integrations'), screen.kind === 'page' && screen.page === 'integrations'], [Settings, 'Settings', () => goPage('settings'), screen.kind === 'page' && screen.page === 'settings']],
-    },
-    {
-      label: 'Technical Evidence',
-      icon: CircleGauge,
-      items: [
-        [CircleGauge, 'System Reliability', () => goPage('reliability'), screen.kind === 'page' && screen.page === 'reliability'],
-        [Workflow, 'Reliability Checks', () => goPage('evaluation'), screen.kind === 'page' && screen.page === 'evaluation'],
-        [Database, 'Test Scenarios', () => goPage('datasets'), screen.kind === 'page' && screen.page === 'datasets'],
-        [Activity, 'Run Traces', () => goPage('runs'), screen.kind === 'page' && screen.page === 'runs'],
-        [CircleGauge, 'Runtime Diagnostics', () => goPage('operations'), screen.kind === 'page' && screen.page === 'operations'],
+        [FileText, 'Documents', openDocuments, screen.kind === 'documents'],
       ],
     },
   ] as const
@@ -456,7 +421,6 @@ function Sidebar({
     const intakeItems = [
       [Upload, 'New Document', () => goIntake('new'), screen.kind === 'intake' && screen.view === 'new'],
       [FileText, 'Documents', () => goIntake('invoices'), screen.kind === 'intake' && screen.view === 'invoices'],
-      [ListChecks, 'Processing Guide', () => goIntake('guide'), screen.kind === 'intake' && screen.view === 'guide'],
     ] as const
     return (
       <>
@@ -511,7 +475,6 @@ function Sidebar({
           <strong>Balanced</strong>
           <small>Approval gated</small>
           <p>Confirmation required for risky execution</p>
-          <button onClick={() => { goPage('policies'); close() }}>View policy</button>
         </div>
       </aside>
     </>
@@ -525,7 +488,6 @@ function TopBar({
   healthy,
   role,
   changeRole,
-  newWorkItem,
   openItem,
   openDocuments,
 }: {
@@ -535,7 +497,6 @@ function TopBar({
   healthy: boolean
   role: UserRole
   changeRole: (role: UserRole) => void
-  newWorkItem: () => void
   openItem: (id: string) => void
   openDocuments: () => void
 }) {
@@ -565,13 +526,11 @@ function TopBar({
       <div className="topbar-title">
         <button className="mobile-menu" onClick={openMenu} aria-label="Open navigation"><Menu size={20} /></button>
         {screen.kind === 'detail' ? (
-          <><h1>Document Workspace</h1><button className="back-link" onClick={goQueue}><ArrowLeft size={14} /> Back to queue</button></>
-        ) : <h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Work Summary' : screen.kind === 'workitems' ? 'Exception Queue' : screen.kind === 'documents' ? 'Document Library' : screen.kind === 'page' ? pageTitle(screen.page) : 'Work Queue'}</h1>}
+          <><h1>Task Details</h1><button className="back-link" onClick={goQueue}><ArrowLeft size={14} /> Back to queue</button></>
+        ) : <h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Work Summary' : screen.kind === 'workitems' ? 'Exception Queue' : screen.kind === 'documents' ? 'Documents' : screen.kind === 'page' ? pageTitle(screen.page) : 'Work Queue'}</h1>}
       </div>
       <div className="topbar-actions">
         <span className={`health ${healthy ? '' : 'unhealthy'}`}><ShieldCheck size={15} /> {healthy ? 'System healthy' : 'API unavailable'}</span>
-        {role === 'administrator' ? <button className="outline-button" onClick={() => window.open('/ui/agentops', '_blank')}><Boxes size={15} /> Technical Evidence</button> : null}
-        {role === 'administrator' ? <button className="primary-button topbar-create" onClick={newWorkItem}><Plus size={15} /> New Document Task</button> : null}
         {role === 'administrator' ? <div className="notification"><button className="icon-button" aria-label="Notifications" onClick={() => setNotificationsOpen((value) => !value)}><Bell size={18} />{notifications.data?.unread_count ? <b>{notifications.data.unread_count}</b> : null}</button>{notificationsOpen ? <section className="notification-popover"><header><strong>Notifications</strong><button className="outline-button" disabled={!notifications.data?.unread_count || markAll.isPending} onClick={() => markAll.mutate()}>Mark all read</button></header>{notifications.isLoading ? <LoadingState /> : notifications.error ? <p>{notifications.error.message}</p> : notifications.data?.notifications.length ? notifications.data.notifications.map((item) => <button className={item.read_at ? '' : 'unread'} key={item.id} onClick={() => follow(item)}><span className={`activity-dot ${item.severity}`}><Bell size={12} /></span><div><strong>{item.title}</strong><p>{item.message}</p><small>{relativeTime(item.created_at)}</small></div></button>) : <EmptyState title="No notifications" body="Operational events will appear here." />}</section> : null}</div> : null}
         <span className="avatar">W</span>
         <div className="operator"><strong>William Lo</strong><span>{role === 'intake' ? 'Intake Operator' : 'Administrator / Reviewer'}</span></div>
@@ -584,7 +543,7 @@ function TopBar({
   )
 }
 
-function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: (workItemId: string) => void }) {
+function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
   const queryClient = useQueryClient()
   const [step, setStep] = useState(0)
   const [file, setFile] = useState<File | null>(null)
@@ -749,7 +708,7 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: (workItemId: string
         {step === 1 ? <div className="extract-step"><StageActivity events={detail.data?.audit_events ?? []} active={processMutation.isPending} /><div className="wizard-actions"><button className="danger-outline-button" disabled={cancelMutation.isPending || !['queued','failed'].includes(document?.status ?? '')} onClick={() => cancelMutation.mutate()}><X size={16} /> Cancel Intake</button><button className="primary-button" disabled={processMutation.isPending || document?.status === 'failed'} onClick={() => { setProcessMessage(''); processMutation.mutate() }}>{processMutation.isPending ? <Loader2 className="spin" size={17} /> : <Sparkles size={17} />} Extract Invoice Data</button></div>{processMessage ? <p className="wizard-error">{processMessage}</p> : null}{processMutation.error ? <p className="wizard-error">{(processMutation.error as Error).message}</p> : null}{cancelMutation.error ? <p className="wizard-error">{(cancelMutation.error as Error).message}</p> : null}</div> : null}
         {step === 2 ? <div className="verification-layout"><PdfPreview url={pdfUrl} filename={document?.original_filename ?? ''} /><div className="verify-step"><div className="verify-header"><div><Status value={document?.status ?? 'processing'} /><h3>Verify extracted data</h3><p>Compare every value with the source PDF before continuing.</p></div><span className="confidence">{detail.data?.extraction?.confidence?.length ?? 0} evidence fields</span></div><div className="verify-grid">{guidedFields.map(([key, label, type]) => { const evidence = detail.data?.extraction?.confidence?.find((item) => item.field_name === key); return <label key={key}><span>{label}{evidence?.score != null ? <b>{Math.round(evidence.score * 100)}%</b> : null}</span><input type={type} value={fields[key] ?? ''} onChange={(event) => setFields((current) => ({ ...current, [key]: event.target.value }))} />{evidence?.source_text ? <small title={evidence.source_text}>Page {evidence.source_page ?? 1}: {evidence.source_text}</small> : null}</label> })}</div><LineItemEditor items={lineItems} onChange={setLineItems} />{[...validation.map((issue) => `${issue.field_name ?? issue.field ?? 'Invoice data'}: ${issue.message}`), ...arithmeticIssues].length ? <div className="validation-list">{[...validation.map((issue) => `${issue.field_name ?? issue.field ?? 'Invoice data'}: ${issue.message}`), ...arithmeticIssues].map((message, index) => <p key={index}><AlertTriangle size={14} /><span>{message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={16} /> Arithmetic checks passed.</div>}<div className="wizard-actions">{['extracted','needs_review'].includes(document?.status ?? '') ? <button className="outline-button" disabled={reprocessMutation.isPending} onClick={() => reprocessMutation.mutate()}><RefreshCw size={15} /> Reprocess</button> : null}<button className="outline-button" disabled={saveDraftMutation.isPending} onClick={() => saveDraftMutation.mutate()}>{saveDraftMutation.isPending ? <Loader2 className="spin" size={15} /> : <FileCheck2 size={15} />} Save Draft</button><button className="primary-button" disabled={arithmeticIssues.length > 0} onClick={() => setStep(3)}><Check size={17} /> Confirm Invoice Data</button></div></div></div> : null}
         {step === 3 ? <div className="submit-step"><div className="submit-summary"><WorkIcon type="invoice_review" /><div><span>READY TO SUBMIT</span><h3>{fields.vendor_name || document?.original_filename || 'Invoice'}</h3><p>{fields.invoice_number || shortId(documentId)} · {fields.currency || '-'} {fields.total || '-'}</p></div></div><div className="notice"><FileCheck2 size={17} /><div><strong>Create review task</strong><p>The system will create one document task for reviewing extracted fields and validation evidence. Drafts, exports, and vendor follow-ups can be created later from the administrator workspace.</p></div></div><div className="wizard-actions"><button className="outline-button" onClick={() => setStep(2)}>Back</button><button className="primary-button" disabled={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{submitMutation.isPending ? <Loader2 className="spin" size={17} /> : <Play size={17} />} Create Review Task</button></div>{submitMutation.error ? <p className="wizard-error">{(submitMutation.error as Error).message}</p> : null}</div> : null}
-        {step === 4 ? <div className="submission-success"><CheckCircle2 size={42} /><span>TASK CREATED</span><h3>Invoice review task created</h3><p>Your durable reference is <strong>{shortId(documentId)}</strong>. The workflow can now be followed from the document workspace.</p><div className="success-status"><Status value={submittedItem?.status ?? 'planning'} /><span>Current owner<strong>AI Workflow</strong></span><span>Next action<strong>Open and review the safe plan</strong></span></div><div className="wizard-actions"><button className="outline-button" onClick={() => { setStep(0); setFile(null); setDocumentId(''); setSubmittedItem(null); setFields({}); setLineItems([]) }}><Plus size={16} /> Upload Another Invoice</button><button className="primary-button" onClick={() => submittedItem && onSubmitted(submittedItem.id)}><FileClock size={16} /> View Document Status</button></div></div> : null}
+        {step === 4 ? <div className="submission-success"><CheckCircle2 size={42} /><span>TASK CREATED</span><h3>Invoice review task created</h3><p>Your durable reference is <strong>{shortId(documentId)}</strong>. Track this invoice from Documents. Review planning and approvals continue in the administrator Work Queue.</p><div className="success-status"><Status value={submittedItem?.status ?? 'planning'} /><span>Current owner<strong>AI Workflow</strong></span><span>Next action<strong>Reviewer opens Work Queue</strong></span></div><div className="wizard-actions"><button className="outline-button" onClick={() => { setStep(0); setFile(null); setDocumentId(''); setSubmittedItem(null); setFields({}); setLineItems([]) }}><Plus size={16} /> Upload Another Invoice</button><button className="primary-button" onClick={onSubmitted}><FileClock size={16} /> View Documents</button></div></div> : null}
       </section>
     </main>
   )
@@ -1082,7 +1041,7 @@ function WorkItemPage({
   if (detail.error) return <ErrorState message={(detail.error as Error).message} retry={() => detail.refetch()} />
   if (!item || loadingWorkspace) return <LoadingState />
 
-  const tabs = ['Review', 'Next Steps', 'Approval Decision', 'Record', 'Safety Rules', 'History', 'Technical Evidence']
+  const tabs = ['Review', 'Next Steps', 'Approval Decision', 'Record', 'History']
 
   return (
     <main className="detail-page">
