@@ -5,6 +5,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
+from app.api.document_commands import (
+    WorkflowCommandPayload,
+    cancel_document_command,
+    escalate_document_command,
+    reprocess_document_command,
+    request_document_correction_command,
+    retry_document_command,
+)
 from app.api.dependencies import AppContainer, get_container, require_admin_context
 from app.api.document_workflow import document_workflow_response
 from app.api.serializers import audit_response, document_response, extraction_response, job_response
@@ -104,6 +112,53 @@ def document_workflow(
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return document_workflow_response(container, context, document_id)
+
+
+@router.post("/{document_id}/retry")
+def retry_document(
+    document_id: UUID,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    return retry_document_command(document_id, context, container)
+
+
+@router.post("/{document_id}/reprocess")
+def reprocess_document(
+    document_id: UUID,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    return reprocess_document_command(document_id, context, container)
+
+
+@router.post("/{document_id}/cancel")
+def cancel_document(
+    document_id: UUID,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    return cancel_document_command(document_id, context, container)
+
+
+@router.post("/{document_id}/request-correction")
+def request_document_correction(
+    document_id: UUID,
+    payload: WorkflowCommandPayload,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    return request_document_correction_command(document_id, payload, context, container)
+
+
+@router.post("/{document_id}/escalate")
+def escalate_document(
+    document_id: UUID,
+    payload: WorkflowCommandPayload,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    return escalate_document_command(document_id, payload, context, container)
 
 
 @router.get("/{document_id}/content")

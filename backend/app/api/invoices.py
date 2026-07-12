@@ -7,31 +7,32 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.api.backoffice import _work_item_detail
+from app.api.document_commands import (
+    WorkflowCommandPayload,
+    cancel_document_command,
+    escalate_document_command,
+    reprocess_document_command,
+    request_document_correction_command,
+    retry_document_command,
+)
 from app.api.dependencies import AppContainer, get_container, require_admin_context
 from app.api.document_workflow import (
     current_work_item,
     document_for_context,
     document_workflow_response,
     extraction_or_none,
-    required_work_item,
 )
 from app.api.serializers import document_response, extraction_response
 from app.backoffice.workflow_projection import project_workflow
-from app.core.security import SecurityContext, UnauthorizedError, require_any_role
+from app.core.security import SecurityContext
 from app.documents.models import AuditEvent
-from app.documents.repositories import NotFoundError
-from app.documents.status import DocumentStatus, InvalidStatusTransition
+from app.documents.status import DocumentStatus
 from app.extraction.schemas import InvoiceData, InvoiceExtraction, InvoiceLineItem
 from app.providers.contracts import ExtractionResult
 from app.validation.invoice import validate_invoice
 
 
 router = APIRouter(prefix="/invoices", tags=["invoice-workflow"])
-
-
-class WorkflowCommandPayload(BaseModel):
-    reason: str = Field(min_length=1, max_length=500)
 
 
 class IntakeLineItemPayload(BaseModel):
@@ -191,13 +192,7 @@ def retry_invoice(
     context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    try:
-        document = container.processing_service.retry_failed_document(document_id, context)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
-    except InvalidStatusTransition as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return {"document": document_response(document)}
+    return retry_document_command(document_id, context, container)
 
 
 @router.post("/{document_id}/reprocess")
@@ -206,13 +201,7 @@ def reprocess_invoice(
     context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    try:
-        document = container.processing_service.reprocess_document(document_id, context)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
-    except InvalidStatusTransition as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return {"document": document_response(document)}
+    return reprocess_document_command(document_id, context, container)
 
 
 @router.post("/{document_id}/cancel")
@@ -221,13 +210,7 @@ def cancel_invoice(
     context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    try:
-        document = container.processing_service.cancel_document(document_id, context)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
-    except InvalidStatusTransition as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return {"document": document_response(document)}
+    return cancel_document_command(document_id, context, container)
 
 
 @router.post("/{document_id}/request-correction")
@@ -237,14 +220,7 @@ def request_invoice_correction(
     context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    _require_role(context, {"admin", "reviewer"})
-    work_item = required_work_item(container, context, document_id)
-    updated = container.backoffice_service.request_correction(
-        work_item_id=work_item.id,
-        context=context,
-        notes=payload.reason,
-    )
-    return {"work_item": _work_item_detail(container, context, updated)}
+    return request_document_correction_command(document_id, payload, context, container)
 
 
 @router.post("/{document_id}/escalate")
@@ -254,18 +230,4 @@ def escalate_invoice(
     context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    _require_role(context, {"admin", "operator", "reviewer"})
-    work_item = required_work_item(container, context, document_id)
-    updated = container.backoffice_service.escalate_work_item(
-        work_item_id=work_item.id,
-        context=context,
-        reason=payload.reason,
-    )
-    return {"work_item": _work_item_detail(container, context, updated)}
-
-
-def _require_role(context: SecurityContext, roles: set[str]) -> None:
-    try:
-        require_any_role(context, roles)
-    except UnauthorizedError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden") from exc
+    return escalate_document_command(document_id, payload, context, container)

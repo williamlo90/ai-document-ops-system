@@ -82,6 +82,28 @@ class InvoiceWorkflowApiTests(unittest.TestCase):
         self.assertIn("correction_requested", event_types)
         self.assertIn("workflow_escalated", event_types)
 
+    def test_document_correction_and_escalation_are_generic_workflow_actions(self) -> None:
+        document_id, _work_item_id = self._approved_invoice_with_plan()
+
+        correction = self.client.post(
+            f"/documents/{document_id}/request-correction",
+            headers=HEADERS,
+            json={"reason": "Confirm the receiving evidence."},
+        )
+        escalation = self.client.post(
+            f"/documents/{document_id}/escalate",
+            headers=HEADERS,
+            json={"reason": "Route this exception to a senior reviewer."},
+        )
+        workflow = self.client.get(f"/documents/{document_id}/workflow", headers=HEADERS).json()
+
+        self.assertEqual(correction.status_code, 200)
+        self.assertEqual(escalation.status_code, 200)
+        self.assertEqual(workflow["current_stage"], "needs_attention")
+        event_types = [event["event_type"] for event in workflow["activity"]]
+        self.assertIn("correction_requested", event_types)
+        self.assertIn("workflow_escalated", event_types)
+
     def test_failed_document_can_be_queued_for_one_manual_retry(self) -> None:
         upload = self.client.post(
             "/documents/upload",
@@ -104,6 +126,54 @@ class InvoiceWorkflowApiTests(unittest.TestCase):
         self.assertEqual(workflow["current_stage"], "extracting")
         self.assertIn(
             "manual retry requested",
+            [event["summary"] for event in workflow["activity"]],
+        )
+
+    def test_failed_document_can_be_queued_by_generic_retry(self) -> None:
+        upload = self.client.post(
+            "/documents/upload",
+            headers=HEADERS,
+            files={"file": ("invoice.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+        )
+        document_id = upload.json()["document"]["id"]
+        document = self.app.state.container.documents.get(UUID(document_id))
+        document.status = DocumentStatus.FAILED
+        document.error_message = "provider_error:test"
+        self.app.state.container.documents.add(document)
+
+        retry = self.client.post(f"/documents/{document_id}/retry", headers=HEADERS)
+        duplicate = self.client.post(f"/documents/{document_id}/retry", headers=HEADERS)
+        workflow = self.client.get(f"/documents/{document_id}/workflow", headers=HEADERS).json()
+
+        self.assertEqual(retry.status_code, 200)
+        self.assertEqual(retry.json()["document"]["status"], "queued")
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertEqual(workflow["current_stage"], "extracting")
+        self.assertIn(
+            "manual retry requested",
+            [event["summary"] for event in workflow["activity"]],
+        )
+
+    def test_document_cancel_and_reprocess_are_generic_workflow_actions(self) -> None:
+        upload = self.client.post(
+            "/documents/upload",
+            headers=HEADERS,
+            files={"file": ("cancel-me.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+        )
+        document_id = upload.json()["document"]["id"]
+
+        cancelled = self.client.post(f"/documents/{document_id}/cancel", headers=HEADERS)
+        repeated_cancel = self.client.post(f"/documents/{document_id}/cancel", headers=HEADERS)
+        reprocessed = self.client.post(f"/documents/{document_id}/reprocess", headers=HEADERS)
+        workflow = self.client.get(f"/documents/{document_id}/workflow", headers=HEADERS).json()
+
+        self.assertEqual(cancelled.status_code, 200)
+        self.assertEqual(cancelled.json()["document"]["status"], "cancelled")
+        self.assertEqual(repeated_cancel.status_code, 409)
+        self.assertEqual(reprocessed.status_code, 200)
+        self.assertEqual(reprocessed.json()["document"]["status"], "queued")
+        self.assertIn(
+            "intake cancelled by operator",
             [event["summary"] for event in workflow["activity"]],
         )
 
