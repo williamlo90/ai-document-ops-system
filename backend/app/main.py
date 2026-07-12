@@ -35,7 +35,7 @@ from app.core.http_security import (
     SecurityHeadersMiddleware,
 )
 from app.core.settings import Settings, is_production_like, load_settings
-from app.ui import router as ui_router
+from app.api.legacy_redirects import router as legacy_redirect_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -95,7 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(agentops_router)
     app.include_router(backoffice_router)
     app.include_router(invoices_router)
-    app.include_router(ui_router)
+    app.include_router(legacy_redirect_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

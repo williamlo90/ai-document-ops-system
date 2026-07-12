@@ -36,14 +36,14 @@ class SessionSecurityTests(unittest.TestCase):
         store.revoke(session_id)
         self.assertIsNone(store.get(session_id))
 
-    def test_ui_cookie_does_not_contain_admin_credential(self) -> None:
+    def test_session_cookie_does_not_contain_admin_credential(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             client = TestClient(
                 create_app(settings(upload_root=Path(temp_dir), admin_token="top-secret-token"))
             )
             response = client.post(
-                "/ui/login",
-                data={"admin_token": "top-secret-token"},
+                "/auth/session",
+                json={"admin_token": "top-secret-token"},
                 follow_redirects=False,
             )
             cookie = response.headers["set-cookie"]
@@ -76,7 +76,7 @@ class HttpMiddlewareTests(unittest.TestCase):
 
     def test_document_content_can_be_embedded_by_same_origin_preview(self) -> None:
         client = TestClient(create_app(settings()))
-        for path in ("/documents/example/content", "/ui/documents/example/preview"):
+        for path in ("/documents/example/content",):
             with self.subTest(path=path):
                 response = client.get(path)
                 self.assertEqual(response.headers["x-frame-options"], "SAMEORIGIN")
@@ -102,21 +102,18 @@ class HttpMiddlewareTests(unittest.TestCase):
                     )
                 )
             )
-            login = client.post(
-                "/ui/login", data={"admin_token": strong_token}, follow_redirects=False
-            )
-            self.assertEqual(login.status_code, 303)
+            login = client.post("/auth/session", json={"admin_token": strong_token})
+            self.assertEqual(login.status_code, 200)
             cookie_header = {
                 "Cookie": f"doc_intel_admin_token={client.cookies['doc_intel_admin_token']}"
             }
-            rejected = client.post("/ui/logout", headers=cookie_header, follow_redirects=False)
+            rejected = client.delete("/auth/session", headers=cookie_header)
             self.assertEqual(rejected.status_code, 403)
-            accepted = client.post(
-                "/ui/logout",
+            accepted = client.delete(
+                "/auth/session",
                 headers={**cookie_header, "Origin": "http://testserver"},
-                follow_redirects=False,
             )
-            self.assertEqual(accepted.status_code, 303)
+            self.assertEqual(accepted.status_code, 200)
 
 
 class UploadScannerTests(unittest.TestCase):

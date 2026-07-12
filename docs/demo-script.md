@@ -36,15 +36,8 @@ http://127.0.0.1:8000
 ## 3. Create Copilot Traces
 
 Start the app, sign in with the local demo token, then use the React operator
-console for document intake and review. If you need legacy copilot trace seed
-actions, open `/ui` briefly:
-
-- Summarize workflow
-- Explain selected document
-- Recommend next action
-- Execute with confirmation
-
-The goal is to create trace evidence, not to demo another chatbot.
+console for document intake and review. The business flow itself creates trace
+evidence; do not switch to a separate technical console during this part of the demo.
 
 ## 4. Show The Business Flow
 
@@ -61,7 +54,7 @@ Show:
 - switch to reviewer and open the review queue
 - inspect the extracted fields, validation issues, and source document
 - approve or reject from the decision screen
-- show invoice history so the audit trail is obvious
+- show the final invoice status; the backend retains the audit trail without exposing a technical log
 - show export readiness only after approval
 
 ## 5. Show Technical Evidence
@@ -69,7 +62,7 @@ Show:
 Open:
 
 ```text
-http://127.0.0.1:8000/ui/agentops
+http://127.0.0.1:8000/?technical=runs
 ```
 
 Point out:

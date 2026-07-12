@@ -43,7 +43,7 @@ Evidence comes from:
 
 - evaluation engine: `app.agentops.service.AgentOpsEvaluationService`
 - API: `/agentops/runs`, `/agentops/summary`, `/agentops/prompt-versions`, `/agentops/regression`, `/agentops/scenarios`
-- UI: `/ui/agentops`
+- UI: `/?technical=runs`
 - scenario evaluator: `app.agentops.scenarios`
 - dataset: `agentops_core` version `v1`
 
@@ -117,4 +117,3 @@ The next question for Project 4 should be:
 ```text
 Can the system handle a broader back-office workflow while keeping AgentOps visibility and safety gates intact?
 ```
-

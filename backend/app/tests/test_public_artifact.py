@@ -130,7 +130,6 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertTrue(
             (output / "docs" / "assets" / "screenshots" / "benchmark-decision-view.png").exists()
         )
-        self.assertTrue((output / "scripts" / "take_benchmark_demo_screenshot.py").exists())
 
     def test_includes_agentops_scenario_dataset(self) -> None:
         result = self._run_script(self.output)

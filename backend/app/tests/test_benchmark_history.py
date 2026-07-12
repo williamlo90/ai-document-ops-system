@@ -3,7 +3,6 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 from app.api.dependencies import build_container
 from app.benchmark.history import (
@@ -13,7 +12,6 @@ from app.benchmark.history import (
 from app.core.settings import Settings
 from app.documents.repositories import NotFoundError
 from app.documents.sqlite_repositories import SqliteStore
-from app.ui import _comparison_report_from_history, _provider_cards
 
 
 def _report(provider: str = "mock_parser+mock_extractor") -> dict:
@@ -99,69 +97,6 @@ class BenchmarkHistoryTests(unittest.TestCase):
             sqlite_container.benchmark_history.save("simple_two", "mock", _report())
             self.assertEqual(sqlite_container.benchmark_history.count(), 1)
             sqlite_container.documents.store.connection.close()
-
-    def test_comparison_report_from_history_uses_latest_provider_per_dataset(self) -> None:
-        current_report = _comparison_report(
-            "simple_two", _provider_summary("mock_parser+mock_extractor", 0.5)
-        )
-        real_report = _comparison_report(
-            "simple_two", _provider_summary("mistral_ocr+llm_json", 1.0)
-        )
-        other_dataset_report = _comparison_report(
-            "pdf_sample", _provider_summary("other_provider", 1.0)
-        )
-        container = SimpleNamespace(
-            benchmark_history=SimpleNamespace(
-                list_recent=lambda limit: [
-                    SimpleNamespace(dataset_name="simple_two", report=real_report),
-                    SimpleNamespace(dataset_name="pdf_sample", report=other_dataset_report),
-                ]
-            )
-        )
-
-        report = _comparison_report_from_history(container, "simple_two", current_report)
-
-        self.assertEqual(report["providers_count"], 2)
-        self.assertEqual(report["ranking"][0]["provider"], "mistral_ocr+llm_json")
-        self.assertNotIn("other_provider", {item["provider"] for item in report["providers"]})
-
-    def test_provider_card_does_not_hide_stale_mismatch_details(self) -> None:
-        html = _provider_cards([_provider_summary("mock_parser+mock_extractor", 0.125)])
-
-        self.assertIn("Field accuracy", html)
-        self.assertIn("12.50%", html)
-        self.assertIn("Failure details unavailable", html)
-        self.assertNotIn("No field mismatches in this run.", html)
-
-
-def _comparison_report(dataset: str, provider: dict) -> dict:
-    return {
-        "report_version": "1.0",
-        "dataset": dataset,
-        "providers_count": 1,
-        "ranking": [{**provider, "rank": 1}],
-        "providers": [provider],
-        "limitations": [],
-    }
-
-
-def _provider_summary(provider: str, accuracy: float) -> dict:
-    return {
-        "provider": provider,
-        "provider_mode": "mock" if "mock" in provider else "real",
-        "documents_count": 1,
-        "field_accuracy": accuracy,
-        "document_success_rate": accuracy,
-        "missing_field_rate": 1 - accuracy,
-        "provider_error_rate": 0.0,
-        "invalid_schema_rate": 0.0,
-        "average_latency_ms": 10.0,
-        "estimated_cost_total": 0.0 if "mock" in provider else 0.01,
-        "estimated_cost_per_document": 0.0 if "mock" in provider else 0.01,
-        "failure_examples": [],
-        "provider_errors": [],
-    }
-
 
 if __name__ == "__main__":
     unittest.main()

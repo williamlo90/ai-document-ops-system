@@ -85,9 +85,7 @@ Development mode can use:
 
 - `http://127.0.0.1:5173` for the React development UI.
 - `http://127.0.0.1:8000` for the production-shaped same-origin UI after `npm run build`.
-- `/ui` for server-rendered fallback document upload, processing, review, export, and trace-seeding access.
-- `/ui/backoffice` for server-rendered backoffice workflow diagnostics.
-- `/ui/agentops` for reliability metrics and scenario evidence.
+- `/?technical=runs` for React technical trace evidence when needed during a demo.
 
 ## Agent Safety Checks
 

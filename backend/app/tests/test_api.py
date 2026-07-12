@@ -82,247 +82,18 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()["detail"], "Unauthorized")
 
-    def test_ui_requires_login_and_sets_cookie(self) -> None:
-        login_page = self.client.get("/ui")
-
-        self.assertEqual(login_page.status_code, 200)
-        self.assertIn("Sign in to the console", login_page.text)
-
-        response = self.client.post(
-            "/ui/login",
-            data={"admin_token": TOKEN},
-            follow_redirects=False,
-        )
-
-        self.assertEqual(response.status_code, 303)
-        self.assertIn("doc_intel_admin_token", response.headers["set-cookie"])
-
-    def test_ui_upload_process_and_export_flow(self) -> None:
-        self._ui_login()
-        upload_response = self.client.post(
-            "/ui/documents/upload",
-            files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
-            follow_redirects=False,
-        )
-        self.assertEqual(upload_response.status_code, 303)
-        document_id = upload_response.headers["location"].split("document_id=")[1].split("&")[0]
-
-        process_response = self.client.post(
-            f"/ui/documents/{document_id}/process",
-            follow_redirects=False,
-        )
-        self.assertEqual(process_response.status_code, 303)
-
-        dashboard_response = self.client.get(f"/ui?document_id={document_id}")
-        self.assertEqual(dashboard_response.status_code, 200)
-        self.assertIn("Acme Logistics", dashboard_response.text)
-        self.assertIn("needs_review", dashboard_response.text)
-        self.assertIn("Approve", dashboard_response.text)
-        self.assertIn(f"/ui/documents/{document_id}/preview", dashboard_response.text)
-        self.assertIn("Ask Copilot", dashboard_response.text)
-        self.assertIn("Summarize workflow", dashboard_response.text)
-
-        approve_response = self.client.post(
-            f"/ui/review/{document_id}/approve",
-            follow_redirects=False,
-        )
-        self.assertEqual(approve_response.status_code, 303)
-
-        export_response = self.client.get("/ui/export")
-        self.assertEqual(export_response.status_code, 200)
-        self.assertIn("text/csv", export_response.headers["content-type"])
-        self.assertIn(document_id, export_response.text)
-
-    def test_ui_export_uses_no_store_headers(self) -> None:
-        self._ui_login()
-        document_id = self._upload_document()
-        self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
-        self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
-
-        response = self.client.get("/ui/export")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["cache-control"], "no-store")
-        self.assertEqual(response.headers["pragma"], "no-cache")
-        self.assertEqual(response.headers["expires"], "0")
-
-    def test_ui_pdf_preview_requires_login_and_streams_inline_pdf(self) -> None:
-        self._ui_login()
-        upload_response = self.client.post(
-            "/ui/documents/upload",
-            files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
-            follow_redirects=False,
-        )
-        document_id = upload_response.headers["location"].split("document_id=")[1].split("&")[0]
-
-        anonymous_client = TestClient(create_app(self.client.app.state.container.settings))
-        unauthorized_response = anonymous_client.get(f"/ui/documents/{document_id}/preview")
-        preview_response = self.client.get(f"/ui/documents/{document_id}/preview")
-
-        self.assertEqual(unauthorized_response.status_code, 401)
-        self.assertEqual(preview_response.status_code, 200)
-        self.assertIn("application/pdf", preview_response.headers["content-type"])
-        self.assertIn("inline", preview_response.headers["content-disposition"])
-        self.assertEqual(preview_response.headers["cache-control"], "no-store")
-        self.assertEqual(preview_response.headers["pragma"], "no-cache")
-        self.assertEqual(preview_response.headers["expires"], "0")
-        self.assertTrue(preview_response.content.startswith(b"%PDF-"))
-
-    def test_ui_copilot_panel_summarizes_workflow(self) -> None:
-        self._ui_login()
-
-        response = self.client.post(
-            "/ui/copilot",
-            data={"action": "summarize"},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("Ask Copilot", response.text)
-        self.assertIn("get_metrics_summary", response.text)
-        self.assertIn("Confidence:", response.text)
-        self.assertIn("Recommendation", response.text)
-
-    def test_ui_copilot_executes_selected_document_with_confirmation(self) -> None:
-        self._ui_login()
-        document_id = self._upload_document()
-
-        response = self.client.post(
-            "/ui/copilot",
-            data={
-                "action": "execute",
-                "document_id": document_id,
-                "execute_tool": "process_document",
-            },
-        )
-        detail_response = self.client.get(f"/documents/{document_id}", headers=HEADERS)
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("process_document", response.text)
-        self.assertIn("status is now needs_review", response.text)
-        self.assertEqual(detail_response.json()["document"]["status"], "needs_review")
-
-    def test_ui_agentops_dashboard_empty_state_requires_login(self) -> None:
-        login_response = self.client.get("/ui/agentops")
-
-        self.assertEqual(login_response.status_code, 200)
-        self.assertIn("Sign in to the console", login_response.text)
-
-        self._ui_login()
-        response = self.client.get("/ui/agentops")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("Copilot evaluation dashboard", response.text)
-        self.assertIn("No copilot runs yet", response.text)
-        self.assertIn("Tool accuracy", response.text)
-        self.assertIn("Prompt comparison", response.text)
-
-    def test_ui_agentops_dashboard_updates_from_copilot_runs(self) -> None:
-        self._ui_login()
-        self.client.post(
-            "/agent/copilot",
-            headers=HEADERS,
-            json={
-                "message": "Summarize workflow metrics and cost",
-                "expected_tool": "get_metrics_summary",
-            },
-        )
-
-        response = self.client.get("/ui/agentops")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("Run timeline", response.text)
-        self.assertIn("summarize_workflow", response.text)
-        self.assertIn("get_metrics_summary", response.text)
-        self.assertIn("deterministic-v1", response.text)
-        self.assertIn("Failure trend", response.text)
-        self.assertIn("Regression window", response.text)
-
-    def test_ui_backoffice_dashboard_empty_state_requires_login(self) -> None:
-        login_response = self.client.get("/ui/backoffice")
-
-        self.assertEqual(login_response.status_code, 200)
-        self.assertIn("Sign in to the console", login_response.text)
-
-        self._ui_login()
-        response = self.client.get("/ui/backoffice")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("Operator inbox", response.text)
-        self.assertIn("Create work item", response.text)
-        self.assertIn("No work item selected", response.text)
-
-    def test_ui_backoffice_create_plan_approve_and_execute_export(self) -> None:
-        self._ui_login()
-        document_id = self._upload_document()
-        self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
-        self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
-
-        create_response = self.client.post(
-            "/ui/backoffice/work-items",
-            data={
-                "title": "Export approved invoice",
-                "work_type": "invoice_export",
-                "document_id": document_id,
-                "requested_outcome": "export invoice",
-            },
-            follow_redirects=False,
-        )
-        self.assertEqual(create_response.status_code, 303)
-        work_item_id = create_response.headers["location"].split("work_item_id=")[1].split("&")[0]
-
-        plan_response = self.client.post(
-            f"/ui/backoffice/work-items/{work_item_id}/plan",
-            data={
-                "requested_outcome": "export invoice",
-                "evidence_sufficient": "true",
-                "approved_for_export": "true",
-                "missing_fields": "",
-            },
-            follow_redirects=False,
-        )
-        self.assertEqual(plan_response.status_code, 303)
-
-        container = self.client.app.state.container
-        work_item = container.backoffice_work_items.get(UUID(work_item_id))
-        plan = container.backoffice_plans.get(work_item.current_plan_id)
-        approval = container.backoffice_approvals.list_pending("default")[0]
-        export_step = next(
-            step for step in plan.steps if step.action_type.value == "export_approved_invoice"
-        )
-        page_before_approval = self.client.get(f"/ui/backoffice?work_item_id={work_item_id}")
-
-        self.assertIn("Export preview", page_before_approval.text)
-        self.assertIn("Approve", page_before_approval.text)
-        self.assertNotIn(">Execute<", page_before_approval.text)
-
-        approve_response = self.client.post(
-            f"/ui/backoffice/approvals/{approval.id}/approve",
-            data={
-                "work_item_id": work_item_id,
-                "notes": "Approved for export.",
-            },
-            follow_redirects=False,
-        )
-        self.assertEqual(approve_response.status_code, 303)
-        page_after_approval = self.client.get(f"/ui/backoffice?work_item_id={work_item_id}")
-        self.assertIn(">Execute<", page_after_approval.text)
-
-        execute_response = self.client.post(
-            f"/ui/backoffice/work-items/{work_item_id}/steps/{export_step.id}/execute",
-            follow_redirects=False,
-        )
-        document_response = self.client.get(f"/documents/{document_id}", headers=HEADERS)
-
-        self.assertEqual(execute_response.status_code, 303)
-        self.assertEqual(document_response.json()["document"]["status"], "exported")
-
-    def test_ui_pdf_preview_unknown_document_is_not_found(self) -> None:
-        self._ui_login()
-
-        response = self.client.get(f"/ui/documents/{uuid4()}/preview")
-
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json()["detail"], "Not found")
+    def test_legacy_ui_urls_redirect_to_react(self) -> None:
+        destinations = {
+            "/ui": "/",
+            "/ui/agentops": "/?technical=runs",
+            "/ui/benchmarks": "/?technical=evaluation",
+            "/ui/backoffice": "/?technical=approvals",
+        }
+        for path, destination in destinations.items():
+            with self.subTest(path=path):
+                response = self.client.get(path, follow_redirects=False)
+                self.assertEqual(response.status_code, 307)
+                self.assertEqual(response.headers["location"], destination)
 
     def test_protected_routes_reject_missing_or_wrong_token(self) -> None:
         document_id = uuid4()
@@ -768,25 +539,6 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(production_client.get("/docs").status_code, 404)
         self.assertEqual(production_client.get("/openapi.json").status_code, 404)
 
-    def test_production_ui_cookie_is_secure(self) -> None:
-        settings = Settings(
-            app_env="production",
-            admin_token="x" * 24,
-            upload_root=Path(self.temp_dir.name),
-            max_upload_bytes=1000,
-        )
-        client = TestClient(create_app(settings))
-
-        response = client.post(
-            "/ui/login",
-            data={"admin_token": "x" * 24},
-            follow_redirects=False,
-        )
-
-        self.assertEqual(response.status_code, 303)
-        self.assertIn("secure", response.headers["set-cookie"].lower())
-        self.assertIn("httponly", response.headers["set-cookie"].lower())
-
     def test_public_demo_rejects_real_providers(self) -> None:
         settings = Settings(
             app_env="public-demo",
@@ -808,10 +560,6 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         return response.json()["document"]["id"]
-
-    def _ui_login(self) -> None:
-        response = self.client.post("/ui/login", data={"admin_token": TOKEN})
-        self.assertEqual(response.status_code, 200)
 
 
 if __name__ == "__main__":

@@ -27,7 +27,6 @@ export default defineConfig({
       '/operations': 'http://127.0.0.1:8000',
       '/exports': 'http://127.0.0.1:8000',
       '/metrics': 'http://127.0.0.1:8000',
-      '/ui': 'http://127.0.0.1:8000',
     },
   },
 })
