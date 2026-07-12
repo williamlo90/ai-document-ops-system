@@ -1,6 +1,6 @@
 # UI Role Refactor Sprint Plan
 
-Status: planning draft, pending implementation.
+Status: UI-R1 implemented; UI-R2 through UI-R6 pending.
 
 Source inputs:
 
@@ -68,6 +68,8 @@ Reviewer must not see:
 Reviewer may still access invoice documents for context, but their job starts from approval decisions.
 
 ## Sprint UI-R1 - Role Navigation And Landing
+
+Implementation status: completed.
 
 Goal:
 Make uploader and reviewer feel like different business users, not the same app with different labels.
@@ -270,4 +272,3 @@ The refactor is done only when all of these are true:
 - Technical terms are hidden from the primary path.
 - Screenshots prove the UI matches the intended role model.
 - Tests/build pass.
-

@@ -157,7 +157,7 @@ describe('application shell', () => {
     expect(screen.queryByRole('button', { name: /new document task/i })).not.toBeInTheDocument()
   })
 
-  it('switches role and exposes the simple reviewer work area', async () => {
+  it('switches role and exposes the reviewer approval workspace', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -166,17 +166,15 @@ describe('application shell', () => {
       'administrator',
     )
 
-    expect((await screen.findAllByRole('heading', { name: /invoices/i })).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: /^upload$/i })).toBeInTheDocument()
+    expect((await screen.findAllByRole('heading', { name: /approvals/i })).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /^upload$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /upload invoice/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /invoices/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /approvals/i })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /history/i }).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /system reliability/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /new document task/i })).not.toBeInTheDocument()
-    expect(screen.getByText(/No invoices yet/i)).toBeInTheDocument()
-    expect(screen.getByText(/Upload an invoice first/i)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /approvals/i }))
     expect(await screen.findByText(/No invoices waiting for approval/i)).toBeInTheDocument()
     expect(screen.getByText(/Uploaded PDFs appear under Invoices first/i)).toBeInTheDocument()
     expect(localStorage.getItem('docops-role')).toBe('administrator')

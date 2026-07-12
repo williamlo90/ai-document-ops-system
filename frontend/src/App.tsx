@@ -300,7 +300,7 @@ function SessionGate() {
 
 function CommandCenter() {
   const [role, setRole] = useState<UserRole>(() => (localStorage.getItem('docops-role') as UserRole | null) ?? 'intake')
-  const [screen, setScreen] = useState<Screen>(() => role === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'documents' })
+  const [screen, setScreen] = useState<Screen>(() => role === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'queue' })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const workspace = useQuery({
     queryKey: ['workspace'],
@@ -312,7 +312,7 @@ function CommandCenter() {
   const changeRole = (nextRole: UserRole) => {
     localStorage.setItem('docops-role', nextRole)
     setRole(nextRole)
-    setScreen(nextRole === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'documents' })
+    setScreen(nextRole === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'queue' })
   }
   const attentionCount = workspace.data?.work_items.filter((item) => ['awaiting_human', 'blocked', 'failed'].includes(item.status)).length ?? 0
 
@@ -397,7 +397,7 @@ function Sidebar({
   if (role === 'intake') {
     const intakeItems = [
       [Upload, 'Upload Invoice', () => goIntake('new'), screen.kind === 'intake' && screen.view === 'new'],
-      [FileText, 'Invoices', () => goIntake('invoices'), screen.kind === 'intake' && screen.view === 'invoices'],
+      [FileText, 'My Invoices', () => goIntake('invoices'), screen.kind === 'intake' && screen.view === 'invoices'],
       [FileClock, 'History', openHistory, screen.kind === 'history'],
     ] as const
     return (
@@ -416,9 +416,8 @@ function Sidebar({
   }
 
   const reviewerItems = [
-    [Upload, 'Upload', () => goIntake('new'), screen.kind === 'intake' && screen.view === 'new', null],
-    [FileText, 'Invoices', openDocuments, screen.kind === 'documents', null],
     [ClipboardCheck, 'Approvals', () => goQueue(), screen.kind === 'queue' || screen.kind === 'detail', inboxCount],
+    [FileText, 'Invoices', openDocuments, screen.kind === 'documents', null],
     [FileClock, 'History', openHistory, screen.kind === 'history', null],
   ] as const
 
@@ -1997,7 +1996,7 @@ function pageTitle(page: PageId) {
   return titles[page]
 }
 function intakeTitle(view: IntakeView) {
-  return { new: 'Upload Invoice', submissions: 'My Invoices', invoices: 'Invoices', guide: 'Guide' }[view]
+  return { new: 'Upload Invoice', submissions: 'My Invoices', invoices: 'My Invoices', guide: 'Guide' }[view]
 }
 function outcomeCopy(workType: string) {
   const copy: Record<string, string> = {
