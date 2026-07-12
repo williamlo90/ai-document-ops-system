@@ -1,0 +1,55 @@
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 35s
+    ports:
+      - "8000:8000"
+    volumes:
+      - docintel-data:/data
+    env_file:
+      - ${DOC_INTEL_ENV_FILE:-.env.example}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=5)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    build: .
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 35s
+    command: ["python", "-m", "app.worker_loop"]
+    volumes:
+      - docintel-data:/data
+    env_file:
+      - ${DOC_INTEL_ENV_FILE:-.env.example}
+    environment:
+      WORKER_POLL_SECONDS: "5"
+    depends_on:
+      api:
+        condition: service_started
+
+  postgres-target:
+    image: postgres:16-alpine
+    profiles: ["postgres-target"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: docintel
+      POSTGRES_USER: docintel
+      POSTGRES_PASSWORD: docintel
+    volumes:
+      - docintel-postgres:/var/lib/postgresql/data
+
+volumes:
+  docintel-data:
+  docintel-postgres:

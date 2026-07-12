@@ -1,0 +1,37 @@
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+exclude = '''
+/(
+  \.git
+  | \.venv
+  | dist
+  | backend/data
+  | delegation
+  | logs
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+  ".git",
+  ".venv",
+  "dist",
+  "backend/data",
+  "delegation",
+  "logs",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "B"]
+ignore = [
+  "E501",
+  "B008",
+  "B017",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402"]
+"backend/scripts/*.py" = ["E402"]
