@@ -4,7 +4,7 @@ Status: Main Sprint 0 migration contract, 2026-07-08.
 
 | Existing contract | Future generic contract | Migration rule |
 |---|---|---|
-| `GET /invoices/{id}/workflow` | `GET /documents/{id}/workflow` | Existing route remains until semantic parity tests pass |
+| `GET /invoices/{id}/workflow` | `GET /documents/{id}/workflow` | Existing route remains as a compatibility alias; semantic parity tests pass |
 | `GET /invoices` | Generic document-operation list/projection | Keep invoice route for current clients |
 | `/invoices/{id}/retry` | Generic retry command | Both routes call one service command |
 | `/invoices/{id}/reprocess` | Generic reprocess command | Preserve idempotency and audit semantics |
@@ -26,4 +26,3 @@ An alias may only be deprecated after:
 3. Runbook and API documentation identify the replacement.
 4. Persisted legacy values have a reversible mapper.
 5. One release cycle retains the compatibility route.
-

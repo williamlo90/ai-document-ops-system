@@ -16,7 +16,7 @@ Single source of truth: this ROADMAP plus `docs/pivot/*`; local-only completion 
 
 ## Active Completion Backlog
 
-- Keep generic `/documents/*` contracts additive while preserving invoice compatibility aliases.
+- Keep generic `/documents/*` contracts additive while preserving invoice compatibility aliases; generic workflow projection is already covered by parity tests.
 - Preserve persisted `document_type`, supported schema metadata, and AgentOps document/operation evidence.
 - Add a second executable document workflow only when extraction, validation, planning, execution, and evaluation contracts are all covered.
 - Keep public artifact hygiene green: no `.env`, `.venv`, upload folders, SQLite files, cache folders, or local-only planning files.

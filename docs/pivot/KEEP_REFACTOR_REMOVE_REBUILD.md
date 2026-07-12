@@ -14,7 +14,7 @@ Status: Main Sprint 0 decision record, 2026-07-08.
 
 ## Refactor Additively
 
-- Add a generic document workflow projection beside `/invoices/{id}/workflow`.
+- Preserve the generic document workflow projection beside `/invoices/{id}/workflow`.
 - Keep extending `document_type`, operation taxonomy, and operation templates beyond the current invoice defaults.
 - Wrap invoice extraction in a generic evidence contract.
 - Generalize work-type and recovery-command vocabulary through adapters/mappers.

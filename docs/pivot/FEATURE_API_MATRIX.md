@@ -11,7 +11,7 @@ Status: Main Sprint 0 inventory, 2026-07-08.
 | Extraction evidence | Workspace evidence panels | `GET /documents/{id}`; `extraction/schemas.py` | Refactor | Generic evidence serializer plus invoice adapter |
 | Validation | Validation findings and line-item checks | `validation/invoice.py`, review APIs | Refactor | Validator selected by document type |
 | Document queue | Operations queue and exceptions | `/backoffice/workspace`, `/backoffice/work-items/*` | Refactor | Generic operation vocabulary with compatibility mapping |
-| Workflow projection | Workspace Activity | `GET /invoices/{id}/workflow`; `backoffice/workflow_projection.py` | Refactor | Add `GET /documents/{id}/workflow` |
+| Workflow projection | Workspace Activity | `GET /documents/{id}/workflow`, `GET /invoices/{id}/workflow`; `backoffice/workflow_projection.py` | Keep extending | Generic route is primary; invoice route remains compatibility alias |
 | Planning and policy | Plan and Governance tabs | `/backoffice/work-items/{id}/plan`; planner/policy modules | Refactor | Operation template drives plan; policy remains backend authority |
 | Human approval | Approval inbox/detail | `/backoffice/approvals/{id}/approve|reject` | Keep | Do not add unsupported approval states |
 | Correction/escalation | Activity recovery commands | `/invoices/{id}/request-correction|escalate` | Refactor | Generic document-operation commands with invoice aliases |
@@ -25,6 +25,6 @@ Status: Main Sprint 0 inventory, 2026-07-08.
 
 - Invoice is the only complete extraction, validation, planning, and execution schema.
 - Document upload/storage and much of the work-item/audit spine are already reusable.
-- The remaining generic seam is a second executable workflow/evidence adapter, not a replacement application.
+- The generic workflow projection route exists; the remaining generic seam is a second executable workflow/evidence adapter, not a replacement application.
 - The frontend may use document-first language, but backend aliases remain invoice-specific until covered by generic contract tests.
 - AgentOps can now evaluate and persist expected-versus-actual document type and operation type evidence for implemented scenarios.
