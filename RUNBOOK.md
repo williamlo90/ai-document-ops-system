@@ -49,7 +49,7 @@ Open:
 http://127.0.0.1:5173
 ```
 
-Use `change-me-for-local-demo` as the local demo admin token unless you override it.
+Use `123` as the local demo admin token unless you override it.
 
 ## Local Docker Run
 
@@ -110,7 +110,7 @@ When implementing autonomous behavior, verify:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/agentops/backoffice/scenarios `
-  -Headers @{ "X-Admin-Token"="change-me-for-local-demo" }
+  -Headers @{ "X-Admin-Token"="123" }
 ```
 
 The dataset is also stored at:

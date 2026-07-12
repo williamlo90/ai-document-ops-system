@@ -19,7 +19,7 @@ PDF = b"%PDF-1.4\nload-smoke\n%%EOF"
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
-    parser.add_argument("--token", default="change-me-for-local-demo")
+    parser.add_argument("--token", default="123")
     parser.add_argument("--documents", type=int, default=8)
     parser.add_argument("--concurrency", type=int, default=4)
     args = parser.parse_args()

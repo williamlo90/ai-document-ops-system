@@ -134,7 +134,7 @@ def _admin_token() -> str:
                 value = value.strip().strip('"').strip("'")
                 if value:
                     return value
-    return "change-me-for-local-demo"
+    return "123"
 
 
 if __name__ == "__main__":

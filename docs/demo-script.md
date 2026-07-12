@@ -90,16 +90,16 @@ Use API endpoints if the reviewer wants the raw contract:
 
 ```powershell
 curl.exe http://127.0.0.1:8000/agentops/summary `
-  -H "X-Admin-Token: change-me-for-local-demo"
+  -H "X-Admin-Token: 123"
 
 curl.exe http://127.0.0.1:8000/agentops/runs `
-  -H "X-Admin-Token: change-me-for-local-demo"
+  -H "X-Admin-Token: 123"
 
 curl.exe http://127.0.0.1:8000/agentops/scenarios `
-  -H "X-Admin-Token: change-me-for-local-demo"
+  -H "X-Admin-Token: 123"
 
 curl.exe http://127.0.0.1:8000/agentops/backoffice/scenarios `
-  -H "X-Admin-Token: change-me-for-local-demo"
+  -H "X-Admin-Token: 123"
 ```
 
 Show that metrics come from traces, not from invented claims.

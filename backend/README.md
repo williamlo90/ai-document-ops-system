@@ -18,12 +18,12 @@ Run the API from this directory:
 
 ```powershell
 $env:PYTHONPATH = "."
-$env:APP_ADMIN_TOKEN = "dev-token"
+$env:APP_ADMIN_TOKEN = "123"
 uvicorn app.main:app --reload
 ```
 
 Then call protected endpoints with:
 
 ```text
-X-Admin-Token: dev-token
+X-Admin-Token: 123
 ```

@@ -44,7 +44,7 @@ def _admin_token() -> str:
         os.environ.get("DOC_INTEL_ADMIN_TOKEN")
         or os.environ.get("APP_ADMIN_TOKEN")
         or _env_file_value("APP_ADMIN_TOKEN")
-        or "change-me-for-local-demo"
+        or "123"
     )
 
 

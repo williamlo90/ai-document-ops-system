@@ -32,7 +32,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--path", default="/backoffice/workspace")
-    parser.add_argument("--token", default="local-admin-token")
+    parser.add_argument("--token", default="123")
     parser.add_argument("--requests", type=int, default=50)
     parser.add_argument("--concurrency", type=int, default=8)
     args = parser.parse_args()

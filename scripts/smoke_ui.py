@@ -63,7 +63,7 @@ def _admin_token() -> str:
                 value = value.strip().strip('"').strip("'")
                 if value:
                     return value
-    return "test-token"
+    return "123"
 
 
 def _multipart_pdf() -> bytes:
