@@ -23,7 +23,9 @@ from app.backoffice.repositories import (
 )
 from app.backoffice.services import BackofficeWorkflowService
 from app.core.security import SecurityContext
-from app.documents.repositories import NotFoundError
+from app.documents.models import DocumentRecord
+from app.documents.repositories import InMemoryDocumentRepository, NotFoundError
+from app.documents.status import DocumentStatus
 
 
 class FakeToolExecutor:
@@ -54,6 +56,7 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
         self.drafts = InMemoryActionDraftRepository()
         self.approvals = InMemoryApprovalRepository()
         self.decisions = InMemoryPolicyDecisionRepository()
+        self.documents = InMemoryDocumentRepository()
         self.service = BackofficeWorkflowService(
             work_items=self.work_items,
             plans=self.plans,
@@ -61,6 +64,7 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
             approvals=self.approvals,
             policy_decisions=self.decisions,
             tool_executor=self.executor,
+            documents=self.documents,
         )
         self.admin = SecurityContext(
             actor="admin",
@@ -170,7 +174,9 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
         self.assertEqual(self.executor.requests, [])
 
     def test_approved_high_risk_action_executes_through_controlled_executor(self) -> None:
-        work_item, export_step_id, approval_id = self._planned_export()
+        work_item, export_step_id, approval_id = self._planned_export(
+            document_id=self._document(status=DocumentStatus.APPROVED).id
+        )
         self.service.approve_request(
             approval_id=approval_id,
             context=self.admin,
@@ -197,6 +203,26 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
         )
         self.assertEqual(replay.status, "success")
         self.assertEqual(len(self.executor.requests), 1)
+
+    def test_export_execution_rechecks_linked_invoice_approval(self) -> None:
+        document = self._document(status=DocumentStatus.NEEDS_REVIEW)
+        work_item, export_step_id, approval_id = self._planned_export(document_id=document.id)
+        self.service.approve_request(
+            approval_id=approval_id,
+            context=self.admin,
+            notes="Approved stale plan.",
+        )
+
+        response = self.service.execute_approved_step(
+            work_item_id=work_item.id,
+            action_step_id=export_step_id,
+            context=self.admin,
+        )
+
+        self.assertEqual(response.status, "blocked")
+        self.assertIn("approved first", response.summary)
+        self.assertEqual(self.executor.requests, [])
+        self.assertNotEqual(self.work_items.get(work_item.id).status, WorkItemStatus.RESOLVED)
 
     def test_approval_replay_is_safe_but_opposite_decision_is_rejected(self) -> None:
         _work_item, _step_id, approval_id = self._planned_export()
@@ -250,12 +276,12 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
         self.assertEqual(response.status, "blocked")
         self.assertEqual(self.executor.requests, [])
 
-    def _planned_export(self):
+    def _planned_export(self, document_id=None):
         work_item = self.service.create_work_item(
             title="Export approved invoice",
             context=self.admin,
             work_type=WorkType.INVOICE_EXPORT,
-            linked_document_ids=(uuid4(),),
+            linked_document_ids=(document_id or uuid4(),),
         )
         result = self.service.plan_work_item(
             work_item_id=work_item.id,
@@ -270,6 +296,17 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
             step for step in plan.steps if step.action_type == ActionType.EXPORT_APPROVED_INVOICE
         )
         return work_item, export_step.id, result.pending_approval_ids[0]
+
+    def _document(self, status: DocumentStatus) -> DocumentRecord:
+        return self.documents.add(
+            DocumentRecord(
+                original_filename="invoice.pdf",
+                storage_key=f"uploads/{uuid4()}.pdf",
+                content_type="application/pdf",
+                workspace_id=self.admin.workspace_id,
+                status=status,
+            )
+        )
 
 
 if __name__ == "__main__":

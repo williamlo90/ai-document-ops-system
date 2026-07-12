@@ -230,6 +230,7 @@ def build_container(settings: Settings) -> AppContainer:
         workflow_events=workflow_events,
         tool_executor=tool_executor,
         agent_runs=agent_runs,
+        documents=documents,
     )
     return AppContainer(
         settings=settings,

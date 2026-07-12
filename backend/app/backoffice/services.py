@@ -42,7 +42,8 @@ from app.backoffice.repositories import (
     WorkflowEventRepository,
 )
 from app.core.security import SecurityContext
-from app.documents.repositories import NotFoundError
+from app.documents.repositories import DocumentRepository, NotFoundError
+from app.documents.status import DocumentStatus
 
 
 class BackofficeWorkflowError(ValueError):
@@ -92,6 +93,7 @@ class BackofficeWorkflowService:
         policy: AutonomyPolicyEngine | None = None,
         tool_executor: BackofficeToolExecutor | None = None,
         agent_runs: AgentRunRepository | None = None,
+        documents: DocumentRepository | None = None,
     ) -> None:
         self.work_items = work_items
         self.plans = plans
@@ -103,6 +105,7 @@ class BackofficeWorkflowService:
         self.planner = planner or BackofficePlanner(policy=self.policy)
         self.tool_executor = tool_executor
         self.agent_runs = agent_runs
+        self.documents = documents
 
     def create_work_item(
         self,
@@ -522,6 +525,9 @@ class BackofficeWorkflowService:
                 "Controlled tool executor is not configured.",
                 failure_type=AgentFailureType.MISSING_TOOL,
             )
+        export_guard = self._export_execution_guard(work_item, step)
+        if export_guard is not None:
+            return export_guard
 
         started = perf_counter()
         response = self.tool_executor.execute(
@@ -596,6 +602,29 @@ class BackofficeWorkflowService:
 
     def _selected_document_id(self, work_item: WorkItem) -> UUID | None:
         return work_item.linked_document_ids[0] if work_item.linked_document_ids else None
+
+    def _export_execution_guard(
+        self,
+        work_item: WorkItem,
+        step: ActionStep,
+    ) -> AgentToolResponse | None:
+        if step.action_type != ActionType.EXPORT_APPROVED_INVOICE or self.documents is None:
+            return None
+        document_id = self._selected_document_id(work_item)
+        if document_id is None:
+            return self._blocked_response(
+                step,
+                "Export requires a linked approved invoice.",
+            )
+        document = self.documents.get(document_id)
+        if document.workspace_id != work_item.workspace_id:
+            raise NotFoundError(f"Document not found: {document_id}")
+        if document.status != DocumentStatus.APPROVED:
+            return self._blocked_response(
+                step,
+                "Export requires the linked invoice to be approved first.",
+            )
+        return None
 
     def _draft_preview(
         self,
