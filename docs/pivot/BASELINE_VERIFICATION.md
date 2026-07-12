@@ -53,8 +53,15 @@ Results:
 - FastAPI title is still `Doc Intel MVP`.
 - `GET /documents/{id}/workflow` does not exist.
 - `GET /invoices/{id}/workflow` is the current workflow projection endpoint.
-- No persisted `document_type` or operation-template contract was found.
+- At Sprint 0, no persisted `document_type` or operation-template contract was found.
 - Invoice remains the only complete evidence/validation schema.
+
+Current update:
+
+- Documents now expose `document_type` and supported schema metadata in the document APIs and workspace UI.
+- Back-office AgentOps scenario datasets now include `document_type` and `operation_type` dimensions.
+- Scenario evaluation results now persist expected and actual document/operation evidence for replay after refresh or app recreation.
+- Operation templates remain invoice-backed; a second executable document workflow is still deferred.
 
 ## Baseline Decision
 

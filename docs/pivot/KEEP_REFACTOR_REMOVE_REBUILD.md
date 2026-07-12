@@ -15,10 +15,10 @@ Status: Main Sprint 0 decision record, 2026-07-08.
 ## Refactor Additively
 
 - Add a generic document workflow projection beside `/invoices/{id}/workflow`.
-- Add `document_type`, operation taxonomy, and operation templates with invoice defaults.
+- Keep extending `document_type`, operation taxonomy, and operation templates beyond the current invoice defaults.
 - Wrap invoice extraction in a generic evidence contract.
 - Generalize work-type and recovery-command vocabulary through adapters/mappers.
-- Extend AgentOps datasets with document type and operation type dimensions.
+- Keep extending AgentOps datasets with document type and operation type dimensions beyond the current Project 4 scenarios.
 - Rename backend product metadata from `Doc Intel MVP` after a metadata test is updated.
 
 ## Hide Or Remove Later
@@ -39,4 +39,3 @@ Nothing. The existing architecture has a reusable operational spine. New generic
 - Production ML classification.
 - Required cloud/Supabase/OCR/LLM credentials.
 - Destructive database or route migration.
-
