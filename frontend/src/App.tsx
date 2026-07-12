@@ -824,15 +824,15 @@ function InvoiceStatusPanel({ documentId, close, openItem, refresh }: { document
           <section className="status-extraction"><h3>Extracted invoice</h3><div>{guidedFields.map(([key, label]) => <span key={key}><small>{label}</small><strong>{String(data.extraction?.data?.[key] ?? '-')}</strong></span>)}</div></section>
           {data.extraction?.validation?.length ? <div className="validation-list">{data.extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.field_name ?? issue.field}: {issue.message}</span></p>)}</div> : null}
           {data.attention_reason ? <div className="duplicate-warning"><AlertTriangle size={16} /><span><strong>Attention required</strong>{data.attention_reason}</span></div> : null}
-          <section className="status-activity"><h3>Recent activity</h3>{data.activity.slice(-5).reverse().map((event) => <div key={event.id}><span /><p><strong>{event.summary}</strong><small>{event.actor} Â· {formatDate(event.created_at)}</small></p></div>)}</section>
-          {data.work_item ? <section className="escalation-control"><label>Escalation reason<textarea value={escalationReason} placeholder="Explain why a senior operator is needed..." onChange={(event) => setEscalationReason(event.target.value)} /></label><button className="outline-button" disabled={!escalationReason.trim() || escalate.isPending} onClick={() => escalate.mutate()}><AlertTriangle size={15} /> Escalate</button></section> : null}
+          <section className="status-activity"><h3>Recent history</h3>{data.activity.slice(-5).reverse().map((event) => <div key={event.id}><span /><p><strong>{activityLabel(event.event_type)}</strong><small>{event.actor} - {formatDate(event.created_at)}</small></p></div>)}</section>
+          {data.work_item ? <section className="escalation-control"><label>Reviewer note<textarea value={escalationReason} placeholder="Explain why another reviewer is needed..." onChange={(event) => setEscalationReason(event.target.value)} /></label><button className="outline-button" disabled={!escalationReason.trim() || escalate.isPending} onClick={() => escalate.mutate()}><AlertTriangle size={15} /> Send to reviewer</button></section> : null}
           {mutationError ? <p className="wizard-error">{(mutationError as Error).message}</p> : null}
           <footer>
             {pdfUrl ? <a className="outline-button" href={pdfUrl} download={data.document.original_filename}><FileText size={15} /> Download PDF</a> : null}
-            {data.document.status === 'failed' ? <button className="outline-button" disabled={retry.isPending} onClick={() => retry.mutate()}><RefreshCw size={15} /> Retry Processing</button> : null}
-            {['extracted','needs_review','cancelled'].includes(data.document.status) ? <button className="outline-button" disabled={reprocess.isPending} onClick={() => reprocess.mutate()}><RefreshCw size={15} /> Reprocess</button> : null}
-            {['queued','failed'].includes(data.document.status) ? <button className="danger-outline-button" disabled={cancel.isPending} onClick={() => cancel.mutate()}><X size={15} /> Cancel Intake</button> : null}
-            {data.work_item ? <button className="primary-button" onClick={() => openItem(data.work_item!.id)}><FileClock size={15} /> Open Review</button> : null}
+            {data.document.status === 'failed' ? <button className="outline-button" disabled={retry.isPending} onClick={() => retry.mutate()}><RefreshCw size={15} /> Read again</button> : null}
+            {['extracted','needs_review','cancelled'].includes(data.document.status) ? <button className="outline-button" disabled={reprocess.isPending} onClick={() => reprocess.mutate()}><RefreshCw size={15} /> Read again</button> : null}
+            {['queued','failed'].includes(data.document.status) ? <button className="danger-outline-button" disabled={cancel.isPending} onClick={() => cancel.mutate()}><X size={15} /> Cancel upload</button> : null}
+            {data.work_item ? <button className="primary-button" onClick={() => openItem(data.work_item!.id)}><FileClock size={15} /> Review invoice</button> : null}
           </footer>
         </> : <ErrorState message={(workflow.error as Error)?.message ?? 'Invoice unavailable'} retry={() => workflow.refetch()} />}
       </aside>
@@ -1097,7 +1097,7 @@ function WorkspaceTab({ item, document, extraction, loading }: { item: WorkItemD
     <div className="document-workspace">
       <section className={`workspace-alert ${issues.length ? 'has-issues' : evidence.length ? 'clear' : 'missing'}`}>
         {issues.length ? <AlertTriangle size={18} /> : evidence.length ? <CheckCircle2 size={18} /> : <FileClock size={18} />}
-        <div><strong>{issues.length ? `${issues.length} issue${issues.length === 1 ? ' needs' : 's need'} review` : evidence.length ? 'Invoice data is ready to check' : 'Invoice data needs manual checking'}</strong><p>{issues.length ? 'Fix or reject the invoice before approving it.' : evidence.length ? `${evidence.length} fields were detected from the invoice.` : 'The app could not show field-level proof for this invoice.'}</p></div>
+        <div><strong>{issues.length ? `${issues.length} issue${issues.length === 1 ? ' needs' : 's need'} review` : evidence.length ? 'Invoice data is ready to check' : 'Invoice data needs manual checking'}</strong><p>{issues.length ? 'Fix or reject the invoice before approving it.' : evidence.length ? `${evidence.length} fields were found in the PDF.` : 'The app could not show PDF snippets for this invoice.'}</p></div>
         <Priority value={item.priority} />
       </section>
 
@@ -1126,7 +1126,7 @@ function WorkspaceTab({ item, document, extraction, loading }: { item: WorkItemD
 
           <section className="panel workspace-evidence">
             <PanelTitle title="PDF Snippets" action={<span className="version">{evidence.length} fields</span>} />
-            {evidence.length ? <div className="evidence-list">{evidence.map((entry) => <article className={!entry.source_text ? 'evidence-missing' : ''} key={entry.field_name}><strong>{humanize(entry.field_name)}</strong><EvidenceConfidence score={entry.score} /><p>{entry.source_text || 'No source excerpt stored for this field. Compare this value with the source PDF before deciding.'}</p><small>{entry.source_page ? `Source page ${entry.source_page}` : 'Source page not recorded'}</small></article>)}</div> : <div className="missing-evidence"><AlertTriangle size={17} /><div><strong>No field-level evidence</strong><p>No confidence records or source excerpts were returned. Compare the extracted values with the source PDF before approving, rejecting, or exporting.</p></div></div>}
+            {evidence.length ? <div className="evidence-list">{evidence.map((entry) => <article className={!entry.source_text ? 'evidence-missing' : ''} key={entry.field_name}><strong>{humanize(entry.field_name)}</strong><EvidenceConfidence score={entry.score} /><p>{entry.source_text || 'No PDF snippet stored for this field. Compare this value with the PDF before deciding.'}</p><small>{entry.source_page ? `PDF page ${entry.source_page}` : 'PDF page not recorded'}</small></article>)}</div> : <div className="missing-evidence"><AlertTriangle size={17} /><div><strong>No PDF snippets available</strong><p>The app did not store snippets for these fields. Compare the values with the PDF before approving, rejecting, or exporting.</p></div></div>}
           </section>
         </div>
       </div>
@@ -1717,7 +1717,7 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
 
       <section className="panel decision-result-panel">
         <PanelTitle title="Result" />
-        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{humanize(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} Â· {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Not finished yet</strong><p>The result will appear here after the decision is completed.</p></div></div>}
+        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{activityLabel(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} - {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Not finished yet</strong><p>The result will appear here after the decision is completed.</p></div></div>}
       </section>
     </div>
   )
@@ -1726,7 +1726,7 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
 
 function EvidenceExcerpts({ evidence = [] }: { evidence?: Extraction['confidence'] }) {
   const excerpts = evidence.filter((entry) => entry.source_text).slice(0, 3)
-  if (!excerpts.length) return <div className="missing-evidence"><AlertTriangle size={16} /><div><strong>Field-level evidence unavailable</strong><p>Compare the proposal with the linked source before deciding.</p></div></div>
+  if (!excerpts.length) return <div className="missing-evidence"><AlertTriangle size={16} /><div><strong>No PDF snippets available</strong><p>Compare the invoice details with the PDF before deciding.</p></div></div>
   return (
     <div className="approval-evidence-excerpts">
       {excerpts.map((entry) => <article key={entry.field_name}><strong>{humanize(entry.field_name)}</strong><EvidenceConfidence score={entry.score} /><p>{entry.source_text}</p></article>)}
@@ -1756,28 +1756,28 @@ function ActivityTab({ workflow, documentId, loading, error }: { workflow?: Docu
   })
   if (loading) return <LoadingState label="Loading history" />
   if (error) return <ErrorState message={error.message} retry={() => queryClient.invalidateQueries({ queryKey: ['document-workflow', documentId] })} />
-  if (!workflow) return <EmptyState title="No history yet" body="History appears after the invoice is processed or reviewed." />
+  if (!workflow) return <EmptyState title="No history yet" body="History appears after the invoice is uploaded, checked, or reviewed." />
   return <div className="activity-tab">
     <section className="workflow-orientation">
-      <DetailField label="Status" value={humanize(workflow.current_stage)} />
+      <DetailField label="Status" value={invoiceStageCopy(workflow.current_stage)} />
       <DetailField label="Owner" value={workflow.current_owner} />
-      <DetailField label="Waiting for" value={workflow.waiting_for ? humanize(workflow.waiting_for) : 'Nothing'} />
-      <DetailField label="Next" value={workflow.next_action} />
+      <DetailField label="Waiting for" value={workflow.waiting_for ? plainNextAction(workflow.waiting_for) : 'Nothing right now'} />
+      <DetailField label="Next" value={plainNextAction(workflow.next_action)} />
       {workflow.attention_reason ? <div className="notice warning"><AlertTriangle size={16} /><div><strong>Attention required</strong><p>{workflow.attention_reason}</p></div></div> : null}
     </section>
     <section className="panel workflow-activity">
-      <PanelTitle title="Activity" action={<span className="version">{workflow.activity.length} events</span>} />
-      <div className="activity-list">{workflow.activity.map((event) => <article key={event.id}><span className={`activity-dot source-${event.source}`}><Check size={13} /></span><div><strong>{humanize(event.event_type)}</strong><p>{event.summary}</p><small>{event.actor} Â· {humanize(event.source)} Â· {formatDate(event.created_at)}</small></div></article>)}</div>
-      {!workflow.activity.length ? <EmptyState title="No events recorded" body="No processing, approval, correction, or recovery events have been recorded yet." next="Run extraction, request correction, or record a decision to create auditable history." /> : null}
+      <PanelTitle title="History" action={<span className="version">{workflow.activity.length} updates</span>} />
+      <div className="activity-list">{workflow.activity.map((event) => <article key={event.id}><span className={`activity-dot source-${event.source}`}><Check size={13} /></span><div><strong>{activityLabel(event.event_type)}</strong><p>{event.summary}</p><small>{event.actor} - {formatDate(event.created_at)}</small></div></article>)}</div>
+      {!workflow.activity.length ? <EmptyState title="No history yet" body="No upload, check, approval, or correction updates have been saved yet." next="Upload, check, or decide on an invoice to create history." /> : null}
     </section>
     <section className="panel recovery-panel">
-      <PanelTitle title="Recovery Actions" />
-      <p>Use these only when the invoice needs correction or escalation. Every action is saved in history.</p>
-      {workflow.work_item ? <textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason or correction instruction" /> : null}
+      <PanelTitle title="Fix invoice" />
+      <p>Use these only when the invoice needs another read, a correction request, or reviewer help. Every action is saved in history.</p>
+      {workflow.work_item ? <textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason or correction note" /> : null}
       <div className="panel-actions">
-        {workflow.current_stage === 'failed' ? <button className="outline-button" disabled={command.isPending} onClick={() => command.mutate('retry')}><RefreshCw size={14} /> Retry Processing</button> : null}
-        {workflow.work_item && workflow.current_stage !== 'completed' ? <button className="outline-button" disabled={command.isPending} onClick={() => command.mutate('request-correction')}><Pencil size={14} /> Request Correction</button> : null}
-        {workflow.work_item && workflow.current_stage !== 'completed' ? <button className="outline-button" disabled={command.isPending} onClick={() => command.mutate('escalate')}><UserRound size={14} /> Escalate</button> : null}
+        {workflow.current_stage === 'failed' ? <button className="outline-button" disabled={command.isPending} onClick={() => command.mutate('retry')}><RefreshCw size={14} /> Read again</button> : null}
+        {workflow.work_item && workflow.current_stage !== 'completed' ? <button className="outline-button" disabled={command.isPending} onClick={() => command.mutate('request-correction')}><Pencil size={14} /> Ask for correction</button> : null}
+        {workflow.work_item && workflow.current_stage !== 'completed' ? <button className="outline-button" disabled={command.isPending} onClick={() => command.mutate('escalate')}><UserRound size={14} /> Send to reviewer</button> : null}
       </div>
       {command.error ? <p className="form-error">{(command.error as Error).message}</p> : null}
     </section>
@@ -1807,7 +1807,8 @@ function TypeBadge({ value }: { value: string | null }) {
 }
 function EvidenceConfidence({ score }: { score: number | null }) {
   const level = score == null ? 'unknown' : score >= .85 ? 'high' : score >= .65 ? 'medium' : 'low'
-  return <span className={`confidence confidence-${level}`}>{score == null ? 'Not scored' : `${Math.round(score * 100)}% confidence`}</span>
+  const label = score == null ? 'Not checked' : score >= .85 ? 'Strong match' : score >= .65 ? 'Needs check' : 'Review carefully'
+  return <span className={`confidence confidence-${level}`}>{label}</span>
 }
 function WorkIcon({ type }: { type: string | null }) {
   const Icon = type?.includes('invoice') ? FileText : type?.includes('vendor') ? Database : type?.includes('accounting') ? FileCheck2 : Zap
@@ -1876,6 +1877,25 @@ function plainNextAction(value: string) {
   if (normalized.includes('correct')) return 'Ask for correction'
   if (normalized.includes('export')) return 'Prepare export'
   return value
+}
+function activityLabel(value: string) {
+  const labels: Record<string, string> = {
+    uploaded: 'Invoice uploaded',
+    document_uploaded: 'Invoice uploaded',
+    processing_started: 'Reading started',
+    processing_succeeded: 'Invoice read',
+    processing_failed: 'Reading failed',
+    work_created: 'Review created',
+    plan_created: 'Next step prepared',
+    approval_requested: 'Approval requested',
+    approval_approved: 'Approved',
+    approval_rejected: 'Rejected',
+    correction_requested: 'Correction requested',
+    action_executed: 'Completed',
+    action_failed: 'Could not complete',
+    escalated: 'Sent to reviewer',
+  }
+  return labels[value] ?? humanize(value)
 }
 function businessActionLabel(value: string) {
   const labels: Record<string, string> = {
@@ -2000,8 +2020,8 @@ function exceptionSignals(item: WorkItemSummary, extraction?: Extraction | null)
   if (/vendor.*(mismatch|unknown|missing)|supplier.*(mismatch|unknown|missing)/.test(`${context} ${messages}`)) signals.push({ label: 'Vendor mismatch', detail: 'Vendor identity needs confirmation against source evidence.', tone: 'warning' })
   if (validation.some((issue) => /missing|required|empty|not found/i.test(`${issue.message ?? ''} ${issue.field_name ?? issue.field ?? ''}`))) signals.push({ label: 'Missing field', detail: 'At least one required value was not validated.', tone: 'danger' })
   const lowConfidence = extraction?.confidence?.filter((entry) => entry.score != null && entry.score < .65) ?? []
-  if (lowConfidence.length) signals.push({ label: 'Low confidence', detail: `${lowConfidence.length} extracted field${lowConfidence.length === 1 ? '' : 's'} scored below 65%.`, tone: 'warning' })
-  if (!extraction?.confidence?.length && item.linked_document_ids.length) signals.push({ label: 'Evidence unavailable', detail: 'No field-level confidence or source excerpts are currently stored.', tone: 'warning' })
+  if (lowConfidence.length) signals.push({ label: 'Needs careful check', detail: `${lowConfidence.length} invoice field${lowConfidence.length === 1 ? '' : 's'} may not match the PDF.`, tone: 'warning' })
+  if (!extraction?.confidence?.length && item.linked_document_ids.length) signals.push({ label: 'PDF snippets unavailable', detail: 'The app did not store snippets for this invoice. Compare the values with the PDF before deciding.', tone: 'warning' })
   if (item.status === 'awaiting_human') signals.push({ label: 'Decision needed', detail: 'A reviewer must approve or reject this invoice before it continues.', tone: 'neutral' })
   if (!signals.length) signals.push({ label: humanize(item.status), detail: attentionReason(item), tone: item.status === 'failed' || item.status === 'blocked' ? 'danger' : 'neutral' })
   return signals
