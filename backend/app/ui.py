@@ -1674,7 +1674,10 @@ def _document_detail(container: AppContainer, document) -> str:
     <div class="document-workbench">
       <section class="preview-pane">
         <h3>Source document</h3>
-        <iframe title="PDF preview" src="/ui/documents/{document.id}/preview"></iframe>
+        <div class="pdf-open-card">
+          <p>Open the original invoice in a full page before reviewing the extracted data.</p>
+          <a class="button primary" href="/ui/documents/{document.id}/preview" target="_blank" rel="noopener">Open PDF</a>
+        </div>
       </section>
       <section class="result-pane">
         <h3>Extraction</h3>
@@ -1918,7 +1921,8 @@ def _css() -> str:
     .status.failed, .status.rejected { color: var(--red); background: #fee4e2; }
     .grid.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .65fr); gap: 24px; }
     .document-workbench { display: grid; grid-template-columns: minmax(320px, .95fr) minmax(320px, 1fr) minmax(240px, .55fr); gap: 18px; align-items: start; }
-    .preview-pane iframe { width: 100%; height: 620px; border: 1px solid var(--line); border-radius: 6px; background: #f8fafc; }
+    .pdf-open-card { min-height: 260px; display: grid; place-items: center; align-content: center; gap: 16px; padding: 24px; border: 1px solid var(--line); border-radius: 6px; background: #f8fafc; text-align: center; }
+    .pdf-open-card p { max-width: 320px; margin: 0; color: var(--muted); line-height: 1.5; }
     .issues, .audit { padding-left: 20px; }
     .audit li { margin-bottom: 8px; }
     .audit span { display: block; font-weight: 600; }
@@ -1990,7 +1994,7 @@ def _css() -> str:
     .compact-table th, .compact-table td { padding: 8px 10px; overflow-wrap: anywhere; }
     .compact-table th { width: auto; }
     .empty-state { display: grid; place-items: center; min-height: 420px; text-align: center; color: var(--muted); }
-    @media (max-width: 1180px) { .document-workbench { grid-template-columns: 1fr; } .preview-pane iframe { height: 520px; } }
+    @media (max-width: 1180px) { .document-workbench { grid-template-columns: 1fr; } }
     @media (max-width: 1180px) { .benchmark-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 1180px) { .decision-panel { grid-template-columns: 1fr; } }
     @media (max-width: 1180px) { .agentops-grid, .backoffice-grid { grid-template-columns: 1fr; } .agentops-shell, .backoffice-shell { grid-template-columns: 1fr; } }

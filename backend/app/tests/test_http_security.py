@@ -71,7 +71,17 @@ class HttpMiddlewareTests(unittest.TestCase):
         response = client.get("/health")
         self.assertEqual(response.headers["x-content-type-options"], "nosniff")
         self.assertEqual(response.headers["x-frame-options"], "DENY")
+        self.assertIn("frame-src 'self' blob:", response.headers["content-security-policy"])
         self.assertIn("frame-ancestors 'none'", response.headers["content-security-policy"])
+
+    def test_document_content_can_be_embedded_by_same_origin_preview(self) -> None:
+        client = TestClient(create_app(settings()))
+        for path in ("/documents/example/content", "/ui/documents/example/preview"):
+            with self.subTest(path=path):
+                response = client.get(path)
+                self.assertEqual(response.headers["x-frame-options"], "SAMEORIGIN")
+                self.assertIn("frame-ancestors 'self'", response.headers["content-security-policy"])
+                self.assertNotIn("frame-ancestors 'none'", response.headers["content-security-policy"])
 
     def test_rate_limit_returns_429(self) -> None:
         client = TestClient(create_app(settings(rate_limit_requests=1)))

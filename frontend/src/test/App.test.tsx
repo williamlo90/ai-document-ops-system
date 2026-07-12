@@ -3,6 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 
+vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({
+  GlobalWorkerOptions: {},
+  getDocument: vi.fn(() => ({ promise: new Promise(() => {}), destroy: vi.fn() })),
+}))
+
+vi.mock('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url', () => ({ default: 'pdf-worker.js' }))
+
 const workspace = {
   workspace_id: 'workspace-test',
   work_items: [],
@@ -135,6 +142,7 @@ const pendingApprovalWorkItemDetail = {
 const workspaceWithPendingApproval = {
   ...workspaceWithLinkedDocument,
   work_items: [{ ...workItem, current_plan_id: 'plan-1' }],
+  documents: [needsReviewDocument],
   pending_approvals: [pendingApproval],
   metrics: { work_items: 1, pending_approvals: 1, drafts: 0, policy_decisions: 1 },
 }
@@ -254,7 +262,7 @@ describe('application shell', () => {
 
     render(<App />)
     await user.click(await screen.findByRole('button', { name: /history/i }))
-    expect(await screen.findByText(/A receipt of invoices you uploaded/i)).toBeInTheDocument()
+    expect(await screen.findByText(/A simple record of your invoice submissions/i)).toBeInTheDocument()
     expect(screen.getAllByText(/Approved/i).length).toBeGreaterThan(0)
     expect(screen.queryByText(/In progress/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /open review/i })).not.toBeInTheDocument()
@@ -264,7 +272,7 @@ describe('application shell', () => {
       'administrator',
     )
     await user.click(await screen.findByRole('button', { name: /history/i }))
-    expect(await screen.findByText(/A receipt of invoice checks and reviewer decisions/i)).toBeInTheDocument()
+    expect(await screen.findByText(/A simple record of invoices waiting for your decision/i)).toBeInTheDocument()
     expect(screen.getAllByText(/Approved/i).length).toBeGreaterThan(0)
     expect(screen.queryByText(/Waiting for decision/i)).not.toBeInTheDocument()
   })
@@ -310,10 +318,10 @@ describe('application shell', () => {
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
       if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
-      if (path === '/backoffice/workspace') return json(workspaceWithLinkedDocument)
+      if (path === '/backoffice/workspace') return json(workspaceWithNeedsReviewDocument)
       if (path === '/backoffice/work-items/item-1') return json({ work_item: workItemDetail })
-      if (path === '/documents/doc-1') return json({ document: linkedDocument, extraction: null, audit_events: [] })
-      if (path === '/documents/doc-1/workflow') return json({ document: linkedDocument, extraction: null, work_item: workItemDetail, current_stage: 'needs_attention', current_owner: 'Finance reviewer', waiting_for: null, next_action: 'Review', attention_reason: null, activity: [] })
+      if (path === '/documents/doc-1') return json({ document: needsReviewDocument, extraction: null, audit_events: [] })
+      if (path === '/documents/doc-1/workflow') return json({ document: needsReviewDocument, extraction: null, work_item: workItemDetail, current_stage: 'needs_attention', current_owner: 'Finance reviewer', waiting_for: null, next_action: 'Review', attention_reason: null, activity: [] })
       if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
       if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
       if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
@@ -326,13 +334,19 @@ describe('application shell', () => {
     await user.click(await screen.findByRole('button', { name: /review invoice/i }))
     expect(await screen.findByText(/INVOICE DATA/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /ask correction/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /request correction/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
     expect(screen.queryByText(/Needs review because/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /make decision/i })).not.toBeInTheDocument()
 
     expect(screen.queryByText('invoice_v1')).not.toBeInTheDocument()
     expect(screen.getAllByText(/invoice/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: /open pdf/i })).toHaveAttribute('href', '/documents/doc-1/content')
+    expect(document.querySelector('canvas.pdf-canvas')).not.toBeNull()
+    expect(document.querySelector('iframe')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /back to approvals/i }))
+    expect(await screen.findByRole('button', { name: /review invoice/i })).toBeInTheDocument()
   })
 
   it('explains approval evidence and decision outcomes', async () => {
@@ -343,8 +357,8 @@ describe('application shell', () => {
       if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
       if (path === '/backoffice/workspace') return json(workspaceWithPendingApproval)
       if (path === '/backoffice/work-items/item-1') return json({ work_item: pendingApprovalWorkItemDetail })
-      if (path === '/documents/doc-1') return json({ document: linkedDocument, extraction: extractionWithEvidence, audit_events: [] })
-      if (path === '/documents/doc-1/workflow') return json({ document: linkedDocument, extraction: extractionWithEvidence, work_item: pendingApprovalWorkItemDetail, current_stage: 'needs_attention', current_owner: 'Finance reviewer', waiting_for: 'approval', next_action: 'Review approval', attention_reason: null, activity: [] })
+      if (path === '/documents/doc-1') return json({ document: needsReviewDocument, extraction: extractionWithEvidence, audit_events: [] })
+      if (path === '/documents/doc-1/workflow') return json({ document: needsReviewDocument, extraction: extractionWithEvidence, work_item: pendingApprovalWorkItemDetail, current_stage: 'needs_attention', current_owner: 'Finance reviewer', waiting_for: 'approval', next_action: 'Review approval', attention_reason: null, activity: [] })
       if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
       if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
       if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
@@ -362,7 +376,7 @@ describe('application shell', () => {
     expect(screen.getByPlaceholderText('Example: Total and vendor match the PDF.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /ask correction/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /request correction/i })).toBeInTheDocument()
   })
 
   it('keeps technical evidence out of primary administrator navigation', async () => {

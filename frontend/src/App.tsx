@@ -14,6 +14,7 @@ import {
   ClipboardCheck,
   Columns3,
   Database,
+  ExternalLink,
   FileCheck2,
   FileClock,
   FileText,
@@ -36,8 +37,11 @@ import {
   Workflow,
   X,
   Zap,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
+import { useEffect, useRef, useState } from 'react'
 
 type Metrics = { work_items: number; pending_approvals: number; drafts: number; policy_decisions: number }
 type DocumentSummary = { id: string; filename: string; status: string; created_at: string; document_type?: string; supported_extraction_schema?: string; vendor_name?: string | null; total?: string | null; currency?: string | null }
@@ -387,7 +391,7 @@ function Sidebar({
   open: boolean
   screen: Screen
   close: () => void
-  goQueue: () => void
+  goQueue: (filter?: QueueFilter) => void
   inboxCount: number
   role: UserRole
   goIntake: (view: IntakeView) => void
@@ -454,7 +458,7 @@ function TopBar({
 }: {
   screen: Screen
   openMenu: () => void
-  goQueue: () => void
+  goQueue: (filter?: QueueFilter) => void
   healthy: boolean
   role: UserRole
   changeRole: (role: UserRole) => void
@@ -487,7 +491,7 @@ function TopBar({
       <div className="topbar-title">
         <button className="mobile-menu" onClick={openMenu} aria-label="Open navigation"><Menu size={20} /></button>
         {screen.kind === 'detail' ? (
-          <><h1>Invoice Review</h1><button className="back-link" onClick={goQueue}><ArrowLeft size={14} /> Back to approvals</button></>
+          <><h1>Invoice Review</h1><button className="back-link" onClick={() => goQueue('all')}><ArrowLeft size={14} /> Back to approvals</button></>
         ) : <h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Dashboard' : screen.kind === 'workitems' ? 'Needs Review' : screen.kind === 'documents' ? 'Invoices' : screen.kind === 'history' ? 'History' : screen.kind === 'page' ? pageTitle(screen.page) : 'Approvals'}</h1>}
       </div>
       <div className="topbar-actions">
@@ -530,25 +534,17 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
   }, [detail.data])
 
   useEffect(() => {
-    if (file) {
-      const url = URL.createObjectURL(file)
-      setPdfUrl(url)
-      return () => URL.revokeObjectURL(url)
+    if (documentId) {
+      setPdfUrl(`/documents/${documentId}/content`)
+      return
     }
-    if (!documentId) return
-    let active = true
-    fetch(`/documents/${documentId}/content`, { credentials: 'same-origin' })
-      .then((response) => {
-        if (!response.ok) throw new Error('Preview unavailable')
-        return response.blob()
-      })
-      .then((blob) => {
-        if (!active) return
-        const url = URL.createObjectURL(blob)
-        setPdfUrl(url)
-      })
-      .catch(() => setPdfUrl(''))
-    return () => { active = false }
+    if (!file) {
+      setPdfUrl('')
+      return
+    }
+    const url = URL.createObjectURL(file)
+    setPdfUrl(url)
+    return () => URL.revokeObjectURL(url)
   }, [file, documentId])
 
   const uploadPolicy = useQuery({
@@ -677,19 +673,65 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
 }
 
 function PdfPreview({ url, filename }: { url: string; filename: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [pageNumber, setPageNumber] = useState(1)
+  const [pageCount, setPageCount] = useState(0)
+  const [zoom, setZoom] = useState(1)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+
+  useEffect(() => {
+    setPageNumber(1)
+    setPageCount(0)
+  }, [url])
+
+  useEffect(() => {
+    if (!url) return
+    let cancelled = false
+    let loadingTask: { destroy: () => Promise<void> | void } | undefined
+
+    const renderPage = async () => {
+      setStatus('loading')
+      try {
+        const response = await fetch(url, url.startsWith('blob:') ? undefined : { credentials: 'include' })
+        if (!response.ok) throw new Error('Invoice PDF is unavailable')
+        const data = new Uint8Array(await response.arrayBuffer())
+        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+        if (cancelled) return
+        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+        const task = pdfjs.getDocument({ data })
+        loadingTask = task
+        const pdf = await task.promise
+        const safePageNumber = Math.min(Math.max(pageNumber, 1), pdf.numPages)
+        if (cancelled) return
+        setPageCount(pdf.numPages)
+        const page = await pdf.getPage(safePageNumber)
+        const canvas = canvasRef.current
+        const context = canvas?.getContext('2d')
+        if (!canvas || !context || cancelled) return
+        const viewport = page.getViewport({ scale: 1.25 * zoom })
+        canvas.width = Math.ceil(viewport.width)
+        canvas.height = Math.ceil(viewport.height)
+        await page.render({ canvas, canvasContext: context, viewport }).promise
+        if (!cancelled) setStatus('ready')
+      } catch {
+        if (!cancelled) setStatus('error')
+      }
+    }
+
+    void renderPage()
+    return () => {
+      cancelled = true
+      void loadingTask?.destroy()
+    }
+  }, [url, pageNumber, zoom])
+
   return (
     <aside className="pdf-preview">
-      <div>
+      <div className="pdf-preview-title">
         <FileText size={17} />
-        <strong>{filename || 'Invoice preview'}</strong>
-        {url ? <a className="pdf-open-link" href={url} target="_blank" rel="noreferrer">Open PDF</a> : null}
+        <strong>{filename || 'Invoice'}</strong>
       </div>
-      {url ? (
-        <div className="pdf-frame-wrap">
-          <iframe title={`Preview ${filename}`} src={url} />
-          <div className="pdf-fallback-note"><FileText size={15} /><span>Preview blank?</span><a href={url} target="_blank" rel="noreferrer">Open PDF</a></div>
-        </div>
-      ) : <div className="preview-empty"><FileText size={34} /><span>Select a PDF to preview it here.</span></div>}
+      {url ? <><div className="pdf-toolbar"><div className="pdf-page-controls"><button className="icon-button" aria-label="Previous page" title="Previous page" disabled={pageNumber <= 1} onClick={() => setPageNumber((current) => current - 1)}><ChevronLeft size={15} /></button><span>{pageCount ? `Page ${pageNumber} of ${pageCount}` : 'Loading PDF'}</span><button className="icon-button" aria-label="Next page" title="Next page" disabled={!pageCount || pageNumber >= pageCount} onClick={() => setPageNumber((current) => current + 1)}><ChevronRight size={15} /></button></div><div className="pdf-zoom-controls"><button className="icon-button" aria-label="Zoom out" title="Zoom out" disabled={zoom <= .75} onClick={() => setZoom((current) => Number((current - .25).toFixed(2)))}><ZoomOut size={15} /></button><span>{Math.round(zoom * 100)}%</span><button className="icon-button" aria-label="Zoom in" title="Zoom in" disabled={zoom >= 1.75} onClick={() => setZoom((current) => Number((current + .25).toFixed(2)))}><ZoomIn size={15} /></button><a className="outline-button pdf-open-link" href={url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open PDF</a></div></div><div className="pdf-canvas-stage" aria-live="polite"><canvas ref={canvasRef} className="pdf-canvas" aria-label={`Page ${pageNumber} of ${filename || 'invoice'}`} />{status === 'loading' ? <div className="pdf-loading"><Loader2 className="spin" size={20} /><span>Loading invoice...</span></div> : null}{status === 'error' ? <div className="pdf-error"><FileText size={30} /><strong>We could not display this PDF here.</strong><a className="outline-button" href={url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open PDF</a></div> : null}</div></> : <div className="preview-empty"><FileText size={34} /><span>Choose a PDF to view it here.</span></div>}
     </aside>
   )
 }
@@ -800,22 +842,8 @@ function IntakeLibrary({ view }: { view: IntakeView }) {
 
 function InvoiceStatusPanel({ documentId, close, refresh }: { documentId: string; close: () => void; refresh: () => void }) {
   const workflow = useQuery({ queryKey: ['document-workflow', documentId], queryFn: () => api<DocumentWorkflow>(`/documents/${documentId}/workflow`), refetchInterval: 5000 })
-  const [pdfUrl, setPdfUrl] = useState('')
   const [escalationReason, setEscalationReason] = useState('')
-  useEffect(() => {
-    let objectUrl = ''
-    fetch(`/documents/${documentId}/content`, { credentials: 'same-origin' })
-      .then((response) => {
-        if (!response.ok) throw new Error('Preview unavailable')
-        return response.blob()
-      })
-      .then((blob) => {
-        objectUrl = URL.createObjectURL(blob)
-        setPdfUrl(objectUrl)
-      })
-      .catch(() => setPdfUrl(''))
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
-  }, [documentId])
+  const pdfUrl = `/documents/${documentId}/content`
   const refreshAll = () => { workflow.refetch(); refresh() }
   const retry = useMutation({ mutationFn: () => api(`/documents/${documentId}/retry`, { method: 'POST' }), onSuccess: refreshAll })
   const reprocess = useMutation({ mutationFn: () => api(`/documents/${documentId}/reprocess`, { method: 'POST' }), onSuccess: refreshAll })
@@ -1157,6 +1185,7 @@ function ReviewerReviewPage({
         </section>
 
         <section className="review-card reviewer-actions">
+          <div className="decision-card-heading"><span>REVIEW DECISION</span><strong>Choose the outcome for this invoice</strong></div>
           <label>
             <span>Note, optional</span>
             <textarea value={notes} placeholder="Example: Total and vendor match the PDF." onChange={(event) => setNotes(event.target.value)} />
@@ -1164,7 +1193,7 @@ function ReviewerReviewPage({
           {canDecide ? (
             <div className="decision-choice-grid">
               <button className="approve-action" disabled={busy || !document} onClick={() => approve.mutate()}><CheckCircle2 size={16} /> Approve</button>
-              <button className="outline-button" disabled={busy || !document} onClick={() => correction.mutate()}><Pencil size={16} /> Ask correction</button>
+              <button className="request-action" disabled={busy || !document} onClick={() => correction.mutate()}><Pencil size={16} /> Request correction</button>
               <button className="reject-action" disabled={busy || !document} onClick={() => reject.mutate()}><X size={16} /> Reject</button>
             </div>
           ) : (
@@ -1754,7 +1783,7 @@ function HistoryPage({ workspace, loading, openItem, role }: { workspace?: Works
   const documentEvents = (workspace?.documents ?? []).map((document) => ({
     id: `document-${document.id}`,
     title: invoiceHistoryTitle(document.status, uploaderView),
-    body: invoiceHistoryBody(document, uploaderView),
+    body: invoiceHistoryBody({ ...document, filename: historyDocumentName(document.filename) }, uploaderView),
     at: document.created_at,
     status: document.status,
     action: !uploaderView && document.status === 'needs_review'
@@ -1776,15 +1805,14 @@ function HistoryPage({ workspace, loading, openItem, role }: { workspace?: Works
   return (
     <main className="queue-page">
       <section className="page-heading">
-        <div><h2>History</h2><p>{uploaderView ? 'A receipt of invoices you uploaded and their latest status.' : 'A receipt of invoice checks and reviewer decisions.'}</p></div>
+        <div><span className="section-eyebrow">ACTIVITY</span><h2>History</h2><p>{uploaderView ? 'A simple record of your invoice submissions and their latest status.' : 'A simple record of invoices waiting for your decision or already reviewed.'}</p></div><span className="history-count">{events.length} updates</span>
       </section>
       <section className="queue-surface history-list">
         {loading ? <LoadingState label="Loading history" /> : events.length ? events.map((event) => (
           <article key={event.id}>
             <span className="activity-dot source-system"><Check size={13} /></span>
-            <div><strong>{event.title}</strong><p>{event.body}</p><small>{formatDate(event.at)}</small></div>
-            <Status value={event.status} />
-            {event.action ? <button className="outline-button" onClick={event.action}>Open review</button> : null}
+            <div className="history-copy"><strong>{event.title}</strong><p>{event.body}</p></div>
+            <div className="history-event-meta"><small>{formatDate(event.at)}</small><div><Status value={event.status} />{event.action ? <button className="outline-button" onClick={event.action}>Review invoice <ChevronRight size={14} /></button> : null}</div></div>
           </article>
         )) : <EmptyState title="No history yet" body={uploaderView ? 'Upload an invoice, then its status history will appear here.' : 'Reviewer decisions will appear here after invoices are checked.'} />}
       </section>
@@ -1804,13 +1832,7 @@ function SchemaMeta({ document, extraction, compact = false }: { document?: ApiD
 }
 
 function AuthenticatedPdfPreview({ document }: { document: DocumentSummary }) {
-  const [url, setUrl] = useState('')
-  useEffect(() => {
-    let objectUrl = ''
-    fetch(`/documents/${document.id}/content`, { credentials: 'same-origin' }).then((response) => response.blob()).then((blob) => { objectUrl = URL.createObjectURL(blob); setUrl(objectUrl) }).catch(() => setUrl(''))
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl) }
-  }, [document.id])
-  return <PdfPreview url={url} filename={document.filename} />
+  return <PdfPreview url={`/documents/${document.id}/content`} filename={document.filename} />
 }
 
 function DraftTab({ item }: { item: WorkItemDetail }) {
@@ -2140,6 +2162,9 @@ function invoiceHistoryBody(document: DocumentSummary, uploaderView: boolean) {
   if (document.status === 'needs_review') return uploaderView ? `${document.filename} is waiting for a reviewer.` : `${document.filename} needs approve, reject, or correction.`
   if (document.status === 'failed') return `${document.filename} needs correction before it can continue.`
   return uploaderView ? `${document.filename} was added to My Invoices.` : document.filename
+}
+function historyDocumentName(filename: string) {
+  return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\.pdf$/i.test(filename) ? 'An uploaded invoice' : filename
 }
 function businessActionLabel(value: string) {
   const labels: Record<string, string> = {

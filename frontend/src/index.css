@@ -195,7 +195,6 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
 .reviewer-simple-page { display: grid; grid-template-columns: minmax(420px,1.1fr) minmax(360px,.9fr); gap: 14px; padding: 16px; }
 .review-pdf-pane { min-width: 0; overflow: hidden; background: #fff; border: 1px solid #dbe3ef; border-radius: 8px; }
 .review-pdf-pane .pdf-preview { min-height: 610px; border: 0; border-radius: 0; }
-.review-pdf-pane .pdf-preview iframe { min-height: 560px; }
 .review-decision-pane { display: flex; min-width: 0; flex-direction: column; gap: 12px; }
 .review-card { padding: 12px; background: #fff; border: 1px solid #dbe3ef; border-radius: 8px; }
 .review-summary-card { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -213,9 +212,13 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
 .review-issues p { margin: 0; color: #6f625d; font-size: 10px; line-height: 1.45; }
 .reviewer-actions label span { display: block; margin-bottom: 6px; color: #475569; font-size: 10px; font-weight: 700; }
 .reviewer-actions { position: sticky; top: 10px; z-index: 2; box-shadow: 0 10px 24px rgba(15,23,42,.06); }
-.reviewer-actions textarea { width: 100%; min-height: 56px; padding: 9px; resize: vertical; border: 1px solid #ccd7e5; border-radius: 6px; font: inherit; }
-.reviewer-actions .decision-choice-grid { grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 10px; }
-.reviewer-actions .decision-choice-grid button { min-height: 42px; }
+.decision-card-heading { display: grid; gap: 4px; margin-bottom: 13px; }.decision-card-heading span { color: #7048ef; font-size: 9px; font-weight: 800; }.decision-card-heading strong { color: #172033; font-size: 14px; }
+.reviewer-actions textarea { width: 100%; min-height: 64px; padding: 10px; resize: vertical; border: 1px solid #ccd7e5; border-radius: 6px; font: inherit; }
+.reviewer-actions .decision-choice-grid { grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+.reviewer-actions .decision-choice-grid button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 7px; padding: 9px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; }
+.reviewer-actions .approve-action { color: #fff; background: #087a55; border: 1px solid #087a55; }.reviewer-actions .approve-action:hover { background: #056b4a; border-color: #056b4a; }
+.reviewer-actions .request-action { color: #8a5200; background: #fff9ed; border: 1px solid #f1d9a9; }.reviewer-actions .request-action:hover { background: #fff2d8; }
+.reviewer-actions .reject-action { color: #b42318; background: #fff5f5; border: 1px solid #efb7b2; }.reviewer-actions .reject-action:hover { background: #fee4e2; }
 .review-history { background: #fff; border: 1px solid #dbe3ef; border-radius: 8px; }
 .review-history summary { padding: 13px 14px; color: #334155; cursor: pointer; font-size: 11px; font-weight: 800; }
 .review-history .activity-tab { padding: 0 12px 12px; }
@@ -244,7 +247,7 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
 .panel-actions .approve-action, .panel-actions .reject-action { display: inline-flex; min-height: 36px; align-items: center; gap: 7px; padding: 8px 12px; background: #fff; border-radius: 5px; font-size: 10px; font-weight: 700; }
 .panel-actions .approve-action:hover { background: #effaf5; }.panel-actions .reject-action:hover { background: #fff5f5; }
 .tab-content { display: grid; gap: 12px; padding: 14px; }.document-list { padding: 10px; }.document-list article { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid #e2e8f0; }.document-list article div { flex: 1; }.document-list article strong, .document-list article span { display: block; }.document-list article span { margin-top: 4px; color: #64748b; font-size: 9px; }
-.history-list { display: grid; gap: 0; padding: 10px; }.history-list article { display: grid; grid-template-columns: 28px minmax(0,1fr) auto auto; gap: 12px; align-items: center; min-height: 70px; padding: 12px; border-bottom: 1px solid #e2e8f0; }.history-list article:last-child { border-bottom: 0; }.history-list p { margin: 4px 0; color: #475569; font-size: 12px; }.history-list small { color: #64748b; font-size: 10px; }
+.history-count { padding: 7px 10px; color: #526174; background: #f1f5f9; border: 1px solid #dbe3ef; border-radius: 6px; font-size: 10px; font-weight: 700; }.history-list { display: grid; gap: 0; padding: 8px; }.history-list article { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; gap: 12px; align-items: center; min-height: 82px; padding: 14px; border-bottom: 1px solid #e2e8f0; }.history-list article:last-child { border-bottom: 0; }.history-copy strong { color: #172033; font-size: 13px; }.history-copy p { margin: 5px 0 0; color: #526174; font-size: 11px; line-height: 1.45; }.history-event-meta { display: grid; justify-items: end; gap: 8px; }.history-event-meta > small { color: #64748b; font-size: 9px; }.history-event-meta > div { display: flex; align-items: center; gap: 8px; }.history-event-meta .outline-button { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 7px 9px; font-size: 10px; }
 .record-tab-page { display: grid; gap: 14px; padding: 14px; }
 .record-tab-page > .work-item-subpage { padding: 0; }
 .record-tab-page > .tab-content { padding: 0; }
@@ -610,3 +613,28 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
   .decision-log { grid-column: auto; }
   .topbar-actions .health { display: none; }
 }
+
+.pdf-open-state {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: #526174;
+  font-size: 10px;
+  text-align: center;
+}
+.pdf-open-state strong { color: #17233a; font-size: 14px; }
+.pdf-open-state > span { max-width: 260px; line-height: 1.5; }
+.pdf-open-button { margin-top: 6px; text-decoration: none; }
+.pdf-preview { grid-template-rows: auto auto minmax(320px,1fr); }
+.pdf-toolbar { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; color: #526174; background: #fff; border-bottom: 1px solid #dbe3ef; font-size: 9px; }
+.pdf-page-controls, .pdf-zoom-controls { display: flex; min-width: 0; align-items: center; gap: 5px; }
+.pdf-toolbar .icon-button { width: 28px; height: 28px; min-height: 28px; padding: 0; }
+.pdf-toolbar .icon-button:disabled { cursor: not-allowed; opacity: .4; }
+.pdf-toolbar .outline-button { min-height: 28px; padding: 5px 8px; font-size: 9px; }
+.pdf-canvas-stage { position: relative; display: grid; min-height: 320px; place-items: start center; overflow: auto; padding: 16px; background: #dce1e8; }
+.pdf-canvas { display: block; max-width: none; background: #fff; box-shadow: 0 5px 18px rgba(15,23,42,.18); }
+.pdf-loading, .pdf-error { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 10px; padding: 24px; color: #526174; background: rgba(220,225,232,.9); font-size: 10px; text-align: center; }
+.pdf-error strong { color: #172033; font-size: 12px; }

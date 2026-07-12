@@ -15,13 +15,21 @@ from app.core.settings import Settings, is_production_like
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
-        response.headers.setdefault(
-            "Content-Security-Policy",
-            "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
-            "script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
-        )
+        if _is_document_content_path(request.url.path):
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; base-uri 'self'; frame-ancestors 'self'",
+            )
+            response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        else:
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+                "script-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; "
+                "frame-ancestors 'none'",
+            )
+            response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault(
             "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
@@ -77,3 +85,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 def _same_origin(source: str, target: str) -> bool:
     left, right = urlsplit(source), urlsplit(target)
     return (left.scheme, left.hostname, left.port) == (right.scheme, right.hostname, right.port)
+
+
+def _is_document_content_path(path: str) -> bool:
+    parts = [part for part in path.split("/") if part]
+    return (
+        len(parts) == 3
+        and parts[0] == "documents"
+        and parts[2] == "content"
+        or len(parts) == 4
+        and parts[0] == "ui"
+        and parts[1] == "documents"
+        and parts[3] == "preview"
+    )
