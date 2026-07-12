@@ -158,6 +158,8 @@ Acceptance criteria:
 
 ### UX Sprint 5 - Empty, Loading, And Error States
 
+Status: complete.
+
 Goal:
 Make the app self-guiding when there is no data or an action fails.
 

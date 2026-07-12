@@ -212,9 +212,9 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
 .record-tab-page { display: grid; gap: 14px; padding: 14px; }
 .record-tab-page > .work-item-subpage { padding: 0; }
 .record-tab-page > .tab-content { padding: 0; }
-.empty-state { display: grid; min-height: 140px; place-items: center; align-content: center; gap: 8px; padding: 24px; color: #64748b; text-align: center; }.empty-state strong { color: #334155; font-size: 11px; }.empty-state span { font-size: 9px; }
-.loading-state { display: flex; min-height: 220px; align-items: center; justify-content: center; gap: 8px; color: #64748b; font-size: 11px; }.spin { animation: spin 1s linear infinite; }@keyframes spin { to { transform: rotate(360deg); } }
-.error-state { display: grid; flex: 1; place-items: center; align-content: center; gap: 10px; padding: 40px; color: #b42318; text-align: center; }.error-state h2, .error-state p { margin: 0; }.error-state p { font-size: 11px; }
+.empty-state { display: grid; min-height: 140px; place-items: center; align-content: center; gap: 8px; padding: 24px; color: #64748b; text-align: center; }.empty-state strong { color: #334155; font-size: 11px; }.empty-state span { font-size: 9px; }.empty-state small { max-width: 420px; color: #475569; font-size: 9px; line-height: 1.45; }
+.loading-state { display: flex; min-height: 220px; align-items: center; justify-content: center; gap: 8px; color: #64748b; font-size: 11px; }.loading-state span { color: #475569; }.spin { animation: spin 1s linear infinite; }@keyframes spin { to { transform: rotate(360deg); } }
+.error-state { display: grid; flex: 1; place-items: center; align-content: center; gap: 10px; padding: 40px; color: #b42318; text-align: center; }.error-state h2, .error-state p { margin: 0; }.error-state p { max-width: 520px; color: #7f1d1d; font-size: 11px; line-height: 1.55; }.error-state small { color: #64748b; font-size: 9px; }
 
 .modal-backdrop, .sidebar-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(3,12,31,.52); border: 0; }
 .modal { position: absolute; top: 50%; left: 50%; width: min(480px, calc(100vw - 28px)); padding: 20px; transform: translate(-50%,-50%); background: #fff; border-radius: 8px; box-shadow: 0 24px 70px rgba(15,23,42,.28); }

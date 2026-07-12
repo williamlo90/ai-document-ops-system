@@ -186,7 +186,23 @@ describe('application shell', () => {
     expect(screen.getByRole('button', { name: /runtime diagnostics/i })).toBeInTheDocument()
     const createButtons = screen.getAllByRole('button', { name: /new document task/i })
     expect(createButtons.length).toBeGreaterThan(0)
+    expect(screen.getByText(/No document tasks match this view/i)).toBeInTheDocument()
+    expect(screen.getByText(/create a document task or upload an invoice/i)).toBeInTheDocument()
     expect(localStorage.getItem('docops-role')).toBe('administrator')
+  })
+
+  it('shows actionable secure session errors without raw implementation detail', async () => {
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ detail: 'database adapter stack trace' }, 403)
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: /unable to verify secure session/i })).toBeInTheDocument()
+    expect(screen.getByText(/sign in again before continuing document work/i)).toBeInTheDocument()
+    expect(screen.queryByText(/database adapter stack trace/i)).not.toBeInTheDocument()
   })
 
   it('opens and dismisses the global create-work-item dialog by keyboard', async () => {
