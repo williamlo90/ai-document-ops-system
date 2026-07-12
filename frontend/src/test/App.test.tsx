@@ -215,12 +215,12 @@ describe('application shell', () => {
     await user.click(await screen.findByRole('button', { name: /make decision/i }))
     expect(await screen.findByText(/Needs review because/i)).toBeInTheDocument()
     expect(screen.getByText(/Waiting for reviewer decision/i)).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /review/i }).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: /decision/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /check invoice/i }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /make decision/i })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /history/i }).length).toBeGreaterThan(0)
 
     expect(screen.queryByText('invoice_v1')).not.toBeInTheDocument()
-    expect(screen.getAllByText('Invoice').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/invoice/i).length).toBeGreaterThan(0)
   })
 
   it('explains approval evidence and decision outcomes', async () => {
@@ -243,15 +243,16 @@ describe('application shell', () => {
     render(<App />)
     await user.click(await screen.findByRole('button', { name: /approvals/i }))
     await user.click(await screen.findByRole('button', { name: /make decision/i }))
-    await user.click(await screen.findByRole('button', { name: /decision/i }))
+    await user.click(await screen.findByRole('button', { name: /make decision/i }))
 
-    expect(await screen.findByText(/Why This Needs a Decision/i)).toBeInTheDocument()
+    expect((await screen.findAllByText(/Decision Needed/i)).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/changes downstream accounting records/i).length).toBeGreaterThan(0)
     expect(screen.getByText('Invoice total $100.00')).toBeInTheDocument()
     expect(screen.getByText(/Approve only when the invoice details match the PDF/i)).toBeInTheDocument()
     expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'What did you check?')
-    expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /approve invoice/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /ask for correction/i })).toBeInTheDocument()
   })
 
   it('keeps technical evidence out of primary administrator navigation', async () => {

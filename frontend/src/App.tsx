@@ -994,7 +994,7 @@ function WorkItemPage({
   if (detail.error) return <ErrorState message={(detail.error as Error).message} retry={() => detail.refetch()} />
   if (!item || loadingWorkspace) return <LoadingState />
 
-  const tabs = ['Review', 'Decision', 'History']
+  const tabs = ['Check invoice', 'Make decision', 'History']
 
   return (
     <main className="detail-page">
@@ -1026,16 +1026,16 @@ function WorkItemPage({
             <Meta label="Priority" value={<Priority value={item.priority} />} />
             <Meta label="Status" value={<Status value={item.status} />} />
           </div>
-          <DetailDecisionSummary item={item} document={linkedDocument} />
+          <DetailDecisionSummary item={item} document={linkedDocument} openDecision={() => setActiveTab('Make decision')} />
         </header>
         <div className="detail-tabs">
           {tabs.map((tab) => (
             <button className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)} key={tab}>{tab}</button>
           ))}
         </div>
-        {activeTab === 'Review' ? (
+        {activeTab === 'Check invoice' ? (
           <WorkspaceTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
-        ) : activeTab === 'Decision' ? <ApprovalTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} /> :
+        ) : activeTab === 'Make decision' ? <ApprovalTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} /> :
             activeTab === 'History' ? <ActivityTab workflow={documentWorkflow.data} documentId={linkedDocument?.id} loading={documentWorkflow.isLoading} error={documentWorkflow.error as Error | null} /> :
                 <EmptyState title={`${activeTab} timeline`} body="This view is not available for the current workflow." />}
       </section>
@@ -1045,7 +1045,7 @@ function WorkItemPage({
   )
 }
 
-function DetailDecisionSummary({ item, document }: { item: WorkItemDetail; document?: DocumentSummary }) {
+function DetailDecisionSummary({ item, document, openDecision }: { item: WorkItemDetail; document?: DocumentSummary; openDecision: () => void }) {
   const nextStep = item.current_plan?.steps.find((step) => !['completed', 'executed'].includes(step.status)) ?? item.current_plan?.steps[0]
   const pendingApproval = item.approvals.find((approval) => approval.status === 'pending')
   return (
@@ -1056,14 +1056,15 @@ function DetailDecisionSummary({ item, document }: { item: WorkItemDetail; docum
         <p>{decisionRequired(item)}</p>
       </article>
       <article>
-        <span>Suggested action</span>
-        <strong>{nextStep ? humanize(nextStep.action_type) : item.current_plan ? 'No open action' : 'Review invoice first'}</strong>
+        <span>Recommended next step</span>
+        <strong>{nextStep ? businessActionLabel(nextStep.action_type) : item.current_plan ? 'No open action' : 'Check invoice first'}</strong>
         <p>{nextStep?.why_this ?? item.requested_outcome ?? 'Check the invoice before taking action.'}</p>
       </article>
       <article>
         <span>Reviewer decision</span>
         <strong>{pendingApproval ? 'Decision pending' : item.current_plan?.requires_human ? 'Reviewer check required' : 'No decision needed'}</strong>
-        <p>{pendingApproval ? 'Open Decision to approve or reject.' : item.current_plan?.requires_human ? 'Check the invoice before continuing.' : 'Continue from the next available action.'}</p>
+        <p>{pendingApproval ? 'Approve, reject, or ask for correction.' : item.current_plan?.requires_human ? 'Check the invoice before continuing.' : 'Continue from the next available action.'}</p>
+        <button className="inline-decision-button" onClick={openDecision}>Go to decision</button>
       </article>
       <article>
         <span>Source document</span>
@@ -1091,8 +1092,6 @@ function WorkspaceTab({ item, document, extraction, loading }: { item: WorkItemD
   const issues = extraction?.validation ?? []
   const evidence = extraction?.confidence ?? []
   const lineItems = invoiceLineItems(extraction)
-  const nextStep = item.current_plan?.steps.find((step) => !['completed', 'executed'].includes(step.status)) ?? item.current_plan?.steps[0]
-  const recentActivity = item.activity.slice(-4).reverse()
 
   return (
     <div className="document-workspace">
@@ -1126,21 +1125,10 @@ function WorkspaceTab({ item, document, extraction, loading }: { item: WorkItemD
           </section>
 
           <section className="panel workspace-evidence">
-            <PanelTitle title="Source Text" action={<span className="version">{evidence.length} fields</span>} />
+            <PanelTitle title="PDF Snippets" action={<span className="version">{evidence.length} fields</span>} />
             {evidence.length ? <div className="evidence-list">{evidence.map((entry) => <article className={!entry.source_text ? 'evidence-missing' : ''} key={entry.field_name}><strong>{humanize(entry.field_name)}</strong><EvidenceConfidence score={entry.score} /><p>{entry.source_text || 'No source excerpt stored for this field. Compare this value with the source PDF before deciding.'}</p><small>{entry.source_page ? `Source page ${entry.source_page}` : 'Source page not recorded'}</small></article>)}</div> : <div className="missing-evidence"><AlertTriangle size={17} /><div><strong>No field-level evidence</strong><p>No confidence records or source excerpts were returned. Compare the extracted values with the source PDF before approving, rejecting, or exporting.</p></div></div>}
           </section>
         </div>
-      </div>
-
-      <div className="workspace-secondary">
-        <section className="panel proposed-action">
-          <PanelTitle title="Suggested Action" action={item.current_plan ? <Confidence value={item.current_plan.overall_confidence} /> : undefined} />
-          {nextStep ? <div className="proposed-action-body"><span className="work-icon purple"><Workflow size={17} /></span><div><strong>{humanize(nextStep.action_type)}</strong><p>{nextStep.why_this || 'This bounded workflow action is the next available plan step.'}</p><div><Priority value={nextStep.risk_level} /><Status value={nextStep.status} />{nextStep.requires_approval ? <span className="severity-badge severity-warning">Approval required</span> : null}</div></div></div> : <EmptyState title="No proposed action" body="Generate a plan after the document evidence has been reviewed." />}
-        </section>
-        <section className="panel workspace-activity">
-          <PanelTitle title="Recent Activity" action={<span className="version">{item.activity.length} events</span>} />
-          {recentActivity.length ? <div className="activity-list">{recentActivity.map((event) => <article key={event.id}><span className={`activity-dot source-${event.source}`}><Check size={13} /></span><div><strong>{humanize(event.event_type)}</strong><p>{event.summary}</p><small>{event.actor} Â· {formatDate(event.created_at)}</small></div></article>)}</div> : <EmptyState title="No activity recorded" body="Workflow events will appear after processing begins." />}
-        </section>
       </div>
     </div>
   )
@@ -1676,6 +1664,14 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
     mutationFn: (action: 'approve' | 'reject') => api(`/backoffice/approvals/${pending?.id}/${action}`, { method: 'POST', body: JSON.stringify({ notes: notes.trim() || `${humanize(action)} after guided review.` }) }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['workspace'] }); queryClient.invalidateQueries({ queryKey: ['work-item', item.id] }) },
   })
+  const correction = useMutation({
+    mutationFn: () => api(`/documents/${document?.id}/request-correction`, { method: 'POST', body: JSON.stringify({ reason: notes.trim() || 'Please correct the invoice information before approval.' }) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workspace'] })
+      queryClient.invalidateQueries({ queryKey: ['work-item', item.id] })
+      queryClient.invalidateQueries({ queryKey: ['document-workflow', document?.id] })
+    },
+  })
   const latestDecision = [...item.approvals].reverse().find((approval) => approval.status !== 'pending')
   const executed = [...item.activity].reverse().find((event) => ['action_executed','action_failed'].includes(event.event_type))
   const signals = exceptionSignals(item, extraction)
@@ -1688,18 +1684,18 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
   return (
     <div className="decision-page">
       <section className="panel decision-hero">
-        <PanelTitle title="Why This Needs a Decision" action={<Status value={item.status} />} />
+        <PanelTitle title="Decision Needed" action={<Status value={item.status} />} />
         <p>{approvalReason}</p>
         <div className="exception-signal-grid">{signals.map((signal) => <article className={`exception-signal exception-${signal.tone}`} key={signal.label}><AlertTriangle size={15} /><div><strong>{signal.label}</strong><p>{signal.detail}</p></div></article>)}</div>
       </section>
 
       <section className="panel decision-checklist">
-        <PanelTitle title="Check Before Deciding" action={<span className="version">{evidence.length} fields</span>} />
+        <PanelTitle title="Check Before You Decide" action={<span className="version">{evidence.length} fields</span>} />
         <div className="evidence-snapshot">
           <DetailField label="Invoice" value={document?.filename ?? 'No linked PDF'} />
           <DetailField label="Issues found" value={validation.length} />
           <DetailField label="Fields checked" value={evidence.length} />
-          <DetailField label="Suggested action" value={pendingStep ? humanize(pendingStep.action_type) : 'Review invoice'} />
+          <DetailField label="Recommended next step" value={pendingStep ? businessActionLabel(pendingStep.action_type) : 'Review invoice'} />
         </div>
         {validation.length ? <div className="validation-issues compact">{validation.slice(0, 3).map((issue, index) => <article key={index}><AlertTriangle size={14} /><div><strong>{humanize(issue.field_name ?? issue.field ?? 'Invoice data')}</strong><p>{issue.message ?? 'This needs review.'}</p></div></article>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No blockers found.</div>}
         <EvidenceExcerpts evidence={evidence} />
@@ -1709,9 +1705,13 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
         <PanelTitle title="Make Decision" />
         {pending ? <>
           <label className="decision-notes"><span>Decision note</span><textarea value={notes} placeholder="What did you check?" onChange={(event) => setNotes(event.target.value)} /></label>
-          <p className="decision-guidance"><FileClock size={14} /> Approve only when the invoice details match the PDF.</p>
-          <div className="panel-actions"><button className="reject-action" disabled={decision.isPending} onClick={() => decision.mutate('reject')}><X size={15} /> Reject</button><button className="approve-action" disabled={decision.isPending} onClick={() => decision.mutate('approve')}><CheckCircle2 size={15} /> Approve</button></div>
-          {decision.error ? <p className="form-error">{(decision.error as Error).message}</p> : null}
+          <p className="decision-guidance"><FileClock size={14} /> Approve only when the invoice details match the PDF. Ask for correction when vendor, amount, tax, or invoice number is missing or wrong.</p>
+          <div className="decision-choice-grid">
+            <button className="approve-action" disabled={decision.isPending || correction.isPending} onClick={() => decision.mutate('approve')}><CheckCircle2 size={15} /> Approve invoice</button>
+            <button className="reject-action" disabled={decision.isPending || correction.isPending} onClick={() => decision.mutate('reject')}><X size={15} /> Reject</button>
+            <button className="outline-button" disabled={!document || decision.isPending || correction.isPending} onClick={() => correction.mutate()}><Pencil size={15} /> Ask for correction</button>
+          </div>
+          {decision.error || correction.error ? <p className="form-error">{((decision.error || correction.error) as Error).message}</p> : null}
         </> : latestDecision ? <div className="decision-result"><Status value={latestDecision.status} /><p>{latestDecision.reviewer_notes || 'Decision recorded without notes.'}</p><small>{latestDecision.reviewed_by} Â· {latestDecision.reviewed_at ? formatDate(latestDecision.reviewed_at) : ''}</small></div> : <p>No decision is required right now.</p>}
       </section>
 
@@ -1805,9 +1805,6 @@ function Priority({ value }: { value: string }) {
 function TypeBadge({ value }: { value: string | null }) {
   return <span className={`type-badge type-${value ?? 'unknown'}`}>{humanize(value ?? 'unclassified')}</span>
 }
-function Confidence({ value }: { value: string }) {
-  return <span className="confidence">{humanize(value)} confidence <CheckCircle2 size={12} /></span>
-}
 function EvidenceConfidence({ score }: { score: number | null }) {
   const level = score == null ? 'unknown' : score >= .85 ? 'high' : score >= .65 ? 'medium' : 'low'
   return <span className={`confidence confidence-${level}`}>{score == null ? 'Not scored' : `${Math.round(score * 100)}% confidence`}</span>
@@ -1879,6 +1876,17 @@ function plainNextAction(value: string) {
   if (normalized.includes('correct')) return 'Ask for correction'
   if (normalized.includes('export')) return 'Prepare export'
   return value
+}
+function businessActionLabel(value: string) {
+  const labels: Record<string, string> = {
+    invoice_review: 'Check invoice',
+    invoice_export: 'Prepare approved invoice export',
+    accounting_note: 'Prepare accounting note',
+    vendor_follow_up: 'Ask vendor for information',
+    exception_handling: 'Resolve invoice issue',
+    insufficient_evidence: 'Ask for correction',
+  }
+  return labels[value] ?? humanize(value)
 }
 function matchesFilter(item: WorkItemSummary, filter: QueueFilter) {
   if (filter === 'all') return true
