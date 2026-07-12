@@ -1077,12 +1077,14 @@ function WorkItemPage({
     enabled: Boolean(linkedDocument),
     refetchInterval: 5000,
   })
-  const [activeTab, setActiveTab] = useState('Workspace')
+  const [activeTab, setActiveTab] = useState('Review')
   const [editOpen, setEditOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
 
   if (detail.error) return <ErrorState message={(detail.error as Error).message} retry={() => detail.refetch()} />
   if (!item || loadingWorkspace) return <LoadingState />
+
+  const tabs = ['Review', 'Next Steps', 'Approval Decision', 'Record', 'Safety Rules', 'History', 'Technical Evidence']
 
   return (
     <main className="detail-page">
@@ -1114,31 +1116,58 @@ function WorkItemPage({
             <Meta label="Priority" value={<Priority value={item.priority} />} />
             <Meta label="Status" value={<Status value={item.status} />} />
           </div>
+          <DetailDecisionSummary item={item} document={linkedDocument} />
         </header>
         <div className="detail-tabs">
-          {['Workspace', 'Plan', 'Details', 'Governance', `Documents (${item.linked_document_ids.length})`, `Drafts (${item.drafts.length})`, 'Approvals', 'Activity', 'Technical Evidence'].map((tab) => (
+          {tabs.map((tab) => (
             <button className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)} key={tab}>{tab}</button>
           ))}
         </div>
-        {activeTab === 'Workspace' ? (
+        {activeTab === 'Review' ? (
           <WorkspaceTab item={item} document={linkedDocument} documentDetail={documentDetail.data?.document} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
-        ) : activeTab === 'Plan' ? (
+        ) : activeTab === 'Next Steps' ? (
           <PlanTab item={item} />
-        ) : activeTab === 'Details' ? (
-          <DetailsTab item={item} documents={workspace?.documents.filter((document) => item.linked_document_ids.includes(document.id)) ?? []} />
-        ) : activeTab === 'Governance' ? (
+        ) : activeTab === 'Record' ? (
+          <RecordTab item={item} documents={workspace?.documents.filter((document) => item.linked_document_ids.includes(document.id)) ?? []} document={linkedDocument} documentDetail={documentDetail.data?.document} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
+        ) : activeTab === 'Safety Rules' ? (
           <GovernanceTab item={item} />
-        ) : activeTab.startsWith('Documents') ? (
-          <DocumentTab document={linkedDocument} documentDetail={documentDetail.data?.document} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
-        ) : activeTab.startsWith('Drafts') ? <DraftTab item={item} /> :
-          activeTab === 'Approvals' ? <ApprovalTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} /> :
-            activeTab === 'Activity' ? <ActivityTab workflow={documentWorkflow.data} documentId={linkedDocument?.id} loading={documentWorkflow.isLoading} error={documentWorkflow.error as Error | null} /> :
+        ) : activeTab === 'Approval Decision' ? <ApprovalTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} /> :
+            activeTab === 'History' ? <ActivityTab workflow={documentWorkflow.data} documentId={linkedDocument?.id} loading={documentWorkflow.isLoading} error={documentWorkflow.error as Error | null} /> :
               activeTab === 'Technical Evidence' ? <AgentOpsTab item={item} /> :
                 <EmptyState title={`${activeTab} timeline`} body="This view is not available for the current workflow." />}
       </section>
       {editOpen ? <EditWorkItemModal item={item} close={() => setEditOpen(false)} /> : null}
       {createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}
     </main>
+  )
+}
+
+function DetailDecisionSummary({ item, document }: { item: WorkItemDetail; document?: DocumentSummary }) {
+  const nextStep = item.current_plan?.steps.find((step) => !['completed', 'executed'].includes(step.status)) ?? item.current_plan?.steps[0]
+  const pendingApproval = item.approvals.find((approval) => approval.status === 'pending')
+  return (
+    <section className="decision-summary" aria-label="Work item decision summary">
+      <article>
+        <span>Current state</span>
+        <strong>{attentionReason(item)}</strong>
+        <p>{decisionRequired(item)}</p>
+      </article>
+      <article>
+        <span>Next step</span>
+        <strong>{nextStep ? humanize(nextStep.action_type) : item.current_plan ? 'Plan has no open step' : 'Generate or review a plan'}</strong>
+        <p>{nextStep?.why_this ?? item.requested_outcome ?? 'Confirm the available evidence before taking action.'}</p>
+      </article>
+      <article>
+        <span>Decision needed</span>
+        <strong>{pendingApproval ? 'Approval decision pending' : item.current_plan?.requires_human ? 'Human review required' : 'No approval gate open'}</strong>
+        <p>{pendingApproval ? 'Open Approval Decision to approve or reject the controlled action.' : item.current_plan?.requires_human ? 'Review the plan and evidence before execution.' : 'Continue from the next available workflow step.'}</p>
+      </article>
+      <article>
+        <span>Source evidence</span>
+        <strong>{document?.filename ?? 'No linked source'}</strong>
+        <p>{document ? `Document status: ${humanize(document.status)}.` : 'Link a source document before making a final decision.'}</p>
+      </article>
+    </section>
   )
 }
 
@@ -1252,6 +1281,16 @@ function DetailsTab({ item, documents }: { item: WorkItemDetail; documents: Docu
         <PanelTitle title="Linked Documents" action={<span className="version">{documents.length} records</span>} />
         {documents.length ? documents.map((document) => <div key={document.id}><WorkIcon type="invoice_review" /><span><strong>{document.filename}</strong><small>{shortId(document.id)} · {formatDate(document.created_at)}</small><SchemaMeta document={document} extraction={null} compact /></span><Status value={document.status} /></div>) : <EmptyState title="No linked documents" body="This work item was created without source evidence." />}
       </section>
+    </div>
+  )
+}
+
+function RecordTab({ item, documents, document, documentDetail, extraction, loading }: { item: WorkItemDetail; documents: DocumentSummary[]; document?: DocumentSummary; documentDetail?: ApiDocument; extraction: Extraction | null; loading: boolean }) {
+  return (
+    <div className="record-tab-page">
+      <DetailsTab item={item} documents={documents} />
+      <DocumentTab document={document} documentDetail={documentDetail} extraction={extraction} loading={loading} />
+      <DraftTab item={item} />
     </div>
   )
 }

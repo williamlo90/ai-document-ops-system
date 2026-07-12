@@ -97,6 +97,8 @@ Acceptance criteria:
 
 ### UX Sprint 2 - Work Item Detail Simplification
 
+Status: complete.
+
 Goal:
 Make the detail page answer "what happened, what is next, and what should I decide?"
 

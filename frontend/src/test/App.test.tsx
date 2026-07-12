@@ -197,10 +197,14 @@ describe('application shell', () => {
 
     render(<App />)
     await user.click(await screen.findByText('Review ACME invoice'))
-    await user.click(await screen.findByRole('button', { name: /details/i }))
+    expect(await screen.findByText(/Current state/i)).toBeInTheDocument()
+    expect(screen.getByText(/Waiting for a human approval decision/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /next steps/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /approval decision/i })).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: /record/i }))
 
-    expect(await screen.findByText('invoice_v1')).toBeInTheDocument()
-    expect(screen.getByText('Invoice')).toBeInTheDocument()
+    expect((await screen.findAllByText('invoice_v1')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Invoice').length).toBeGreaterThan(0)
   })
 
   it('shows document operation metadata in evaluation cases', async () => {
