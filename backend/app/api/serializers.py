@@ -5,6 +5,10 @@ from decimal import Decimal
 from app.documents.jobs import ProcessingJob
 from app.documents.models import AuditEvent, DocumentRecord, ReviewTask
 from app.documents.repositories import StoredExtraction
+from app.extraction.schemas import SCHEMA_VERSION
+
+
+SUPPORTED_DOCUMENT_TYPE = "invoice"
 
 
 def document_response(document: DocumentRecord) -> dict[str, object]:
@@ -15,6 +19,8 @@ def document_response(document: DocumentRecord) -> dict[str, object]:
         "content_type": document.content_type,
         "submitted_by": document.submitted_by,
         "size_bytes": document.size_bytes,
+        "document_type": SUPPORTED_DOCUMENT_TYPE,
+        "supported_extraction_schema": SCHEMA_VERSION,
         "status": document.status.value,
         "error_message": document.error_message,
         "created_at": document.created_at.isoformat(),
@@ -64,6 +70,7 @@ def extraction_response(stored: StoredExtraction | None) -> dict[str, object] | 
     data = stored.extraction_result.extraction.data
     return {
         "provider_name": stored.extraction_result.provider_name,
+        "document_type": SUPPORTED_DOCUMENT_TYPE,
         "schema_version": stored.extraction_result.extraction.schema_version,
         "data": {
             "vendor_name": data.vendor_name,

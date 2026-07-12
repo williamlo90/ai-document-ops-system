@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from fastapi.testclient import TestClient
 
 from app.core.settings import Settings
+from app.extraction.schemas import SCHEMA_VERSION
 from app.main import create_app
 from app.providers.mock import MockParserProvider
 
@@ -375,6 +376,11 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(upload_response.status_code, 200)
         document_id = upload_response.json()["document"]["id"]
+        self.assertEqual(upload_response.json()["document"]["document_type"], "invoice")
+        self.assertEqual(
+            upload_response.json()["document"]["supported_extraction_schema"],
+            SCHEMA_VERSION,
+        )
 
         process_response = self.client.post(
             f"/documents/{document_id}/process",
@@ -389,6 +395,9 @@ class ApiTests(unittest.TestCase):
 
         detail_response = self.client.get(f"/documents/{document_id}", headers=HEADERS)
         self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(detail_response.json()["document"]["document_type"], "invoice")
+        self.assertEqual(detail_response.json()["extraction"]["document_type"], "invoice")
+        self.assertEqual(detail_response.json()["extraction"]["schema_version"], SCHEMA_VERSION)
         self.assertEqual(detail_response.json()["extraction"]["data"]["invoice_number"], "INV-001")
 
         metrics_response = self.client.get("/metrics/summary", headers=HEADERS)

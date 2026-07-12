@@ -75,7 +75,7 @@ def required_work_item(
     if work_item is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Invoice does not have a linked work item.",
+            detail="Document does not have a linked work item.",
         )
     return work_item
 
@@ -117,17 +117,17 @@ def _workflow_event_response(event: WorkflowEvent) -> dict[str, object]:
 
 def _document_event_summary(event_type: str) -> str:
     return {
-        "document_uploaded": "Invoice PDF received.",
-        "processing_queued": "Invoice queued for extraction.",
-        "processing_started": "Invoice extraction started.",
-        "processing_finished": "Invoice extraction completed.",
+        "document_uploaded": "Document PDF received.",
+        "processing_queued": "Document queued for extraction.",
+        "processing_started": "Document extraction started.",
+        "processing_finished": "Document extraction completed.",
         "review_required": "Validation requires human review.",
-        "document_approved": "Invoice document approved.",
-        "document_rejected": "Invoice document rejected.",
-        "processing_failed": "Invoice processing failed.",
-        "document_exported": "Invoice exported.",
+        "document_approved": "Document approved.",
+        "document_rejected": "Document rejected.",
+        "processing_failed": "Document processing failed.",
+        "document_exported": "Document exported.",
         "extraction_updated": "Corrected extraction saved.",
         "review_saved": "Review changes saved.",
-        "intake_cancelled": "Invoice intake cancelled.",
+        "intake_cancelled": "Document intake cancelled.",
         "intake_draft_saved": "Operator corrections saved.",
     }.get(event_type, event_type.replace("_", " ").capitalize())

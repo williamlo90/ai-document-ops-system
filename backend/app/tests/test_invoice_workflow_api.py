@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.core.settings import Settings
 from app.documents.status import DocumentStatus
+from app.extraction.schemas import SCHEMA_VERSION
 from app.main import create_app
 
 
@@ -39,6 +40,10 @@ class InvoiceWorkflowApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         workflow = response.json()
         self.assertEqual(workflow["document"]["status"], "approved")
+        self.assertEqual(workflow["document"]["document_type"], "invoice")
+        self.assertEqual(workflow["document"]["supported_extraction_schema"], SCHEMA_VERSION)
+        self.assertEqual(workflow["extraction"]["document_type"], "invoice")
+        self.assertEqual(workflow["extraction"]["schema_version"], SCHEMA_VERSION)
         self.assertEqual(workflow["work_item"]["id"], work_item_id)
         self.assertEqual(workflow["current_stage"], "planning")
         self.assertEqual(workflow["current_owner"], "AI Workflow")
