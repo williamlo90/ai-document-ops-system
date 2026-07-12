@@ -40,7 +40,7 @@ import {
 import { useEffect, useState } from 'react'
 
 type Metrics = { work_items: number; pending_approvals: number; drafts: number; policy_decisions: number }
-type DocumentSummary = { id: string; filename: string; status: string; created_at: string; document_type?: string; supported_extraction_schema?: string }
+type DocumentSummary = { id: string; filename: string; status: string; created_at: string; document_type?: string; supported_extraction_schema?: string; vendor_name?: string | null; total?: string | null; currency?: string | null }
 type WorkItemSummary = {
   id: string
   title: string
@@ -677,7 +677,21 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
 }
 
 function PdfPreview({ url, filename }: { url: string; filename: string }) {
-  return <aside className="pdf-preview"><div><FileText size={17} /><strong>{filename || 'Invoice preview'}</strong></div>{url ? <iframe title={`Preview ${filename}`} src={url} /> : <div className="preview-empty"><FileText size={34} /><span>Select a PDF to preview it here.</span></div>}</aside>
+  return (
+    <aside className="pdf-preview">
+      <div>
+        <FileText size={17} />
+        <strong>{filename || 'Invoice preview'}</strong>
+        {url ? <a className="pdf-open-link" href={url} target="_blank" rel="noreferrer">Open PDF</a> : null}
+      </div>
+      {url ? (
+        <div className="pdf-frame-wrap">
+          <iframe title={`Preview ${filename}`} src={url} />
+          <div className="pdf-fallback-note"><FileText size={15} /><span>Preview blank?</span><a href={url} target="_blank" rel="noreferrer">Open PDF</a></div>
+        </div>
+      ) : <div className="preview-empty"><FileText size={34} /><span>Select a PDF to preview it here.</span></div>}
+    </aside>
+  )
 }
 
 function LineItemEditor({ items, onChange }: { items: LineItem[]; onChange: (items: LineItem[]) => void }) {
@@ -868,6 +882,12 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
   useEffect(() => { if (initialFilter) setFilter(initialFilter) }, [initialFilter])
   const allItems = workspace?.work_items ?? []
   const documents = workspace?.documents ?? []
+  const invoices = useQuery({
+    queryKey: ['reviewer-invoices'],
+    queryFn: () => api<InvoiceList>('/invoices?page=1&page_size=100'),
+    retry: false,
+  })
+  const displayDocuments = enrichDocumentsWithInvoices(documents, invoices.data?.items ?? [])
   const exceptionItems = allItems.filter((item) => isReviewerActionable(item, documents) || ['vendor_follow_up', 'insufficient_evidence'].includes(item.work_type ?? ''))
   const items = exceptionMode ? exceptionItems : allItems
   const counts = queueCounts(items, documents)
@@ -926,7 +946,7 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
             ['all', `All (${items.length})`],
           ] as [QueueFilter, string][]).map(([value, label]) => <button className={filter === value ? 'active' : ''} onClick={() => setFilter(value)} key={value}>{label}</button>)}
         </div>
-        <WorkItemTable items={paged} documents={workspace?.documents ?? []} loading={loading} openItem={openItem} page={page} totalPages={totalPages} total={filtered.length} setPage={setPage} emptyCopy={emptyCopy} />
+        <WorkItemTable items={paged} documents={displayDocuments} loading={loading} openItem={openItem} page={page} totalPages={totalPages} total={filtered.length} setPage={setPage} emptyCopy={emptyCopy} />
       </section>
       {createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}
     </main>
@@ -947,7 +967,7 @@ function WorkItemTable({ items, documents, loading, openItem, page, totalPages, 
               <div>
                 <span>{businessId(item)}</span>
                 <h3>{document?.filename ?? item.title}</h3>
-                <p>{queueVendor(item, document)} - {queueAmount(item)}</p>
+                <p>{queueVendor(item, document)} - {queueAmount(item, document)}</p>
               </div>
             </div>
             <div className="invoice-review-status">
@@ -999,14 +1019,9 @@ function WorkItemPage({
     enabled: Boolean(linkedDocument),
     refetchInterval: 5000,
   })
-  const [activeTab, setActiveTab] = useState('Review')
-  const [editOpen, setEditOpen] = useState(false)
-  const [createOpen, setCreateOpen] = useState(false)
 
   if (detail.error) return <ErrorState message={(detail.error as Error).message} retry={() => detail.refetch()} />
   if (!item || loadingWorkspace) return <LoadingState />
-
-  const tabs = ['Check invoice', 'Make decision', 'History']
 
   return (
     <main className="detail-page">
@@ -1019,40 +1034,30 @@ function WorkItemPage({
         <div className="rail-footer">Showing {items.length} of {items.length}<RefreshCw size={14} /></div>
       </aside>
       <section className="work-detail">
-        <header className="detail-header">
-          <div className="detail-heading">
-            <TypeBadge value={item.work_type} />
-            <h2>{item.title} <button className="inline-edit" aria-label="Edit work item" onClick={() => setEditOpen(true)}><Pencil size={14} /></button></h2>
+        <header className="review-header">
+          <div>
+            <span>REVIEW INVOICE</span>
+            <h2>{invoiceReviewTitle(documentDetail.data?.extraction ?? null, linkedDocument)}</h2>
+            <p>{linkedDocument?.filename ?? 'No PDF linked'} {linkedDocument ? <i /> : null} {linkedDocument ? formatDate(linkedDocument.created_at) : ''}</p>
           </div>
-          <div className="detail-header-actions">
-            <button className="outline-button" onClick={() => setEditOpen(true)}><Pencil size={16} /> Edit</button>
+          <div className="review-header-actions">
+            <Status value={detailStatus} />
             <div className="pager">
               <button disabled={currentIndex <= 0} onClick={() => openItem(items[currentIndex - 1]?.id)}><ChevronLeft size={17} /></button>
               <button disabled={currentIndex < 0 || currentIndex >= items.length - 1} onClick={() => openItem(items[currentIndex + 1]?.id)}><ChevronRight size={17} /></button>
             </div>
           </div>
-          <div className="detail-meta">
-            <Meta label="ID" value={businessId(item)} />
-            <Meta label="Received" value={formatDate(item.created_at)} />
-            <Meta label="Source" value={linkedDocument?.filename ?? 'Manual intake'} icon={<FileText size={14} />} />
-            <Meta label="Priority" value={<Priority value={item.priority} />} />
-            <Meta label="Status" value={<Status value={detailStatus} />} />
-          </div>
-          <DetailDecisionSummary item={item} document={linkedDocument} openDecision={() => setActiveTab('Make decision')} />
         </header>
-        <div className="detail-tabs">
-          {tabs.map((tab) => (
-            <button className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)} key={tab}>{tab}</button>
-          ))}
-        </div>
-        {activeTab === 'Check invoice' ? (
-          <WorkspaceTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
-        ) : activeTab === 'Make decision' ? <ApprovalTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} /> :
-            activeTab === 'History' ? <ActivityTab workflow={documentWorkflow.data} documentId={linkedDocument?.id} loading={documentWorkflow.isLoading} error={documentWorkflow.error as Error | null} /> :
-                <EmptyState title={`${activeTab} timeline`} body="This view is not available for the current workflow." />}
+        <ReviewerReviewPage
+          item={item}
+          document={linkedDocument}
+          extraction={documentDetail.data?.extraction ?? null}
+          loading={documentDetail.isLoading}
+          workflow={documentWorkflow.data}
+          workflowLoading={documentWorkflow.isLoading}
+          workflowError={documentWorkflow.error as Error | null}
+        />
       </section>
-      {editOpen ? <EditWorkItemModal item={item} close={() => setEditOpen(false)} /> : null}
-      {createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}
     </main>
   )
 }
@@ -1097,6 +1102,121 @@ function InboxCard({ item, documents, active, open }: { item: WorkItemSummary; d
       <span className="mini-avatar">W</span>
     </button>
   )
+}
+
+function ReviewerReviewPage({
+  item,
+  document,
+  extraction,
+  loading,
+  workflow,
+  workflowLoading,
+  workflowError,
+}: {
+  item: WorkItemDetail
+  document?: DocumentSummary
+  extraction: Extraction | null
+  loading: boolean
+  workflow?: DocumentWorkflow
+  workflowLoading: boolean
+  workflowError: Error | null
+}) {
+  const queryClient = useQueryClient()
+  const [notes, setNotes] = useState('')
+  const fields = invoiceFields(extraction)
+  const importantFields = fields.filter(([label]) => ['Vendor', 'Invoice Number', 'Invoice Date', 'Total Amount', 'Currency'].includes(label))
+  const issues = extraction?.validation ?? []
+  const canDecide = document?.status === 'needs_review'
+  const approve = useMutation({
+    mutationFn: () => api(`/review/${document?.id}/approve`, { method: 'POST' }),
+    onSuccess: () => refreshReviewQueries(queryClient, item.id, document?.id),
+  })
+  const reject = useMutation({
+    mutationFn: () => api(`/review/${document?.id}/reject`, { method: 'POST', body: JSON.stringify({ notes: notes.trim() || 'Invoice rejected after review.' }) }),
+    onSuccess: () => refreshReviewQueries(queryClient, item.id, document?.id),
+  })
+  const correction = useMutation({
+    mutationFn: () => api(`/documents/${document?.id}/request-correction`, { method: 'POST', body: JSON.stringify({ reason: notes.trim() || 'Please correct the invoice information before approval.' }) }),
+    onSuccess: () => refreshReviewQueries(queryClient, item.id, document?.id),
+  })
+  const busy = approve.isPending || reject.isPending || correction.isPending
+  const error = approve.error || reject.error || correction.error
+
+  return (
+    <div className="reviewer-simple-page">
+      <section className="review-pdf-pane">
+        {loading ? <LoadingState label="Loading invoice PDF" /> : document ? <AuthenticatedPdfPreview document={document} /> : <EmptyState title="No invoice PDF" body="This review item has no linked PDF." />}
+      </section>
+      <aside className="review-decision-pane">
+        <section className="review-card review-summary-card">
+          <div>
+            <span>INVOICE DATA</span>
+            <h3>{invoiceReviewTitle(extraction, document)}</h3>
+            <p>{issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'} found. Check before approving.` : 'No validation blockers found.'}</p>
+          </div>
+        </section>
+
+        <section className="review-card reviewer-actions">
+          <label>
+            <span>Note, optional</span>
+            <textarea value={notes} placeholder="Example: Total and vendor match the PDF." onChange={(event) => setNotes(event.target.value)} />
+          </label>
+          {canDecide ? (
+            <div className="decision-choice-grid">
+              <button className="approve-action" disabled={busy || !document} onClick={() => approve.mutate()}><CheckCircle2 size={16} /> Approve</button>
+              <button className="outline-button" disabled={busy || !document} onClick={() => correction.mutate()}><Pencil size={16} /> Ask correction</button>
+              <button className="reject-action" disabled={busy || !document} onClick={() => reject.mutate()}><X size={16} /> Reject</button>
+            </div>
+          ) : (
+            <div className="decision-result">
+              <Status value={document?.status ?? item.status} />
+              <p>{document?.status === 'approved' ? 'This invoice has been approved.' : document?.status === 'rejected' ? 'This invoice was rejected.' : 'No reviewer decision is available right now.'}</p>
+            </div>
+          )}
+          {error ? <p className="form-error">{(error as Error).message}</p> : null}
+        </section>
+
+        <section className="review-card compact-invoice-fields">
+          {importantFields.map(([label, value]) => (
+            <div className={value === '-' ? 'field-missing' : ''} key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </section>
+
+        {issues.length ? (
+          <section className="review-card review-issues">
+            <strong><AlertTriangle size={15} /> Check these first</strong>
+            {issues.slice(0, 3).map((issue, index) => <p key={index}>{issue.message ?? humanize(issue.field_name ?? issue.field ?? 'Invoice data')}</p>)}
+          </section>
+        ) : null}
+
+        <details className="review-history">
+          <summary>History</summary>
+          <ActivityTab workflow={workflow} documentId={document?.id} loading={workflowLoading} error={workflowError} />
+        </details>
+      </aside>
+    </div>
+  )
+}
+
+function refreshReviewQueries(queryClient: ReturnType<typeof useQueryClient>, itemId: string, documentId?: string) {
+  queryClient.invalidateQueries({ queryKey: ['workspace'] })
+  queryClient.invalidateQueries({ queryKey: ['work-item', itemId] })
+  queryClient.invalidateQueries({ queryKey: ['reviewer-invoices'] })
+  if (documentId) {
+    queryClient.invalidateQueries({ queryKey: ['document-detail', documentId] })
+    queryClient.invalidateQueries({ queryKey: ['document-workflow', documentId] })
+  }
+}
+
+function invoiceReviewTitle(extraction: Extraction | null, document?: DocumentSummary) {
+  const data = extraction?.data ?? {}
+  const vendor = typeof data.vendor_name === 'string' ? data.vendor_name : ''
+  const invoiceNumber = typeof data.invoice_number === 'string' ? data.invoice_number : ''
+  if (vendor && invoiceNumber) return `${vendor} - ${invoiceNumber}`
+  return vendor || document?.filename || 'Invoice review'
 }
 
 function WorkspaceTab({ item, document, extraction, loading }: { item: WorkItemDetail; document?: DocumentSummary; extraction: Extraction | null; loading: boolean }) {
@@ -1850,6 +1970,12 @@ function Priority({ value }: { value: string }) {
 function TypeBadge({ value }: { value: string | null }) {
   return <span className={`type-badge type-${value ?? 'unknown'}`}>{humanize(value ?? 'unclassified')}</span>
 }
+
+void DetailDecisionSummary
+void WorkspaceTab
+void EditWorkItemModal
+void ApprovalTab
+void Meta
 function EvidenceConfidence({ score }: { score: number | null }) {
   const level = score == null ? 'unknown' : score >= .85 ? 'high' : score >= .65 ? 'medium' : 'low'
   const label = matchCopy(score)
@@ -1899,16 +2025,23 @@ function isReviewerActionable(item: WorkItemSummary, documents: DocumentSummary[
 }
 function queueVendor(item: WorkItemSummary, document?: DocumentSummary) {
   const context = item.business_context
-  return context.vendor_name ?? context.vendor ?? context.supplier ?? document?.filename?.replace(/\.[^.]+$/, '') ?? 'Unknown vendor'
+  return context.vendor_name ?? context.vendor ?? context.supplier ?? document?.vendor_name ?? document?.filename?.replace(/\.[^.]+$/, '') ?? 'Unknown vendor'
 }
-function queueAmount(item: WorkItemSummary) {
+function queueAmount(item: WorkItemSummary, document?: DocumentSummary) {
   const context = item.business_context
-  const amount = context.total ?? context.total_amount ?? context.amount
-  const currencyCode = context.currency ?? ''
-  return amount ? `${currencyCode} ${amount}`.trim() : 'Amount unavailable'
+  const amount = context.total ?? context.total_amount ?? context.amount ?? document?.total
+  const currencyCode = context.currency ?? document?.currency ?? ''
+  return amount ? `${currencyCode} ${amount}`.trim() : 'Amount pending'
 }
 function invoiceAmount(document: InvoiceListItem) {
   return document.total ? `${document.currency || ''} ${document.total}`.trim() : 'Amount unavailable'
+}
+function enrichDocumentsWithInvoices(documents: DocumentSummary[], invoices: InvoiceListItem[]) {
+  const byId = new Map(invoices.map((invoice) => [invoice.id, invoice]))
+  return documents.map((document) => {
+    const invoice = byId.get(document.id)
+    return invoice ? { ...document, vendor_name: invoice.vendor_name, total: invoice.total, currency: invoice.currency } : document
+  })
 }
 function invoiceStageCopy(value: string) {
   const labels: Record<string, string> = {

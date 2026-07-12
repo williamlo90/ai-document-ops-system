@@ -141,8 +141,15 @@ const workspaceWithPendingApproval = {
 const extractionWithEvidence = {
   document_type: 'invoice',
   schema_version: 'invoice_v1',
-  fields: {},
-  line_items: [],
+  data: {
+    vendor_name: 'Acme Logistics',
+    invoice_number: 'INV-001',
+    invoice_date: '2026-06-18',
+    due_date: '2026-07-18',
+    total: '100.00',
+    currency: 'USD',
+    line_items: [],
+  },
   validation: [],
   confidence: [{
     field_name: 'invoice_total',
@@ -297,7 +304,7 @@ describe('application shell', () => {
     expect(screen.queryByText(/database adapter stack trace/i)).not.toBeInTheDocument()
   })
 
-  it('shows plain invoice review tabs without exposing schema metadata', async () => {
+  it('shows a simple invoice review screen without technical tabs', async () => {
     const user = userEvent.setup()
     localStorage.setItem('docops-role', 'administrator')
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
@@ -317,12 +324,12 @@ describe('application shell', () => {
     render(<App />)
     await user.click(await screen.findByRole('button', { name: /approvals/i }))
     await user.click(await screen.findByRole('button', { name: /review invoice/i }))
-    await user.click(await screen.findByRole('button', { name: /make decision/i }))
-    expect(await screen.findByText(/Needs review because/i)).toBeInTheDocument()
-    expect(screen.getByText(/Waiting for reviewer decision/i)).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /check invoice/i }).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: /make decision/i })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /history/i }).length).toBeGreaterThan(0)
+    expect(await screen.findByText(/INVOICE DATA/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /ask correction/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
+    expect(screen.queryByText(/Needs review because/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /make decision/i })).not.toBeInTheDocument()
 
     expect(screen.queryByText('invoice_v1')).not.toBeInTheDocument()
     expect(screen.getAllByText(/invoice/i).length).toBeGreaterThan(0)
@@ -348,18 +355,14 @@ describe('application shell', () => {
     render(<App />)
     await user.click(await screen.findByRole('button', { name: /approvals/i }))
     await user.click(await screen.findByRole('button', { name: /review invoice/i }))
-    await user.click(await screen.findByRole('button', { name: /make decision/i }))
 
-    expect((await screen.findAllByText(/Make a decision/i)).length).toBeGreaterThan(0)
-    expect(screen.getByText(/Check the invoice details against the PDF/i)).toBeInTheDocument()
+    expect(await screen.findByText(/INVOICE DATA/i)).toBeInTheDocument()
     expect(screen.queryByText(/changes downstream accounting records/i)).not.toBeInTheDocument()
-    expect(screen.getByText('Invoice total $100.00')).toBeInTheDocument()
-    expect(screen.getByText(/Why the app thinks this matches/i)).toBeInTheDocument()
-    expect(screen.getByText(/Approve only when the invoice details match the PDF/i)).toBeInTheDocument()
-    expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'What did you check?')
-    expect(screen.getByRole('button', { name: /approve invoice/i })).toBeInTheDocument()
+    expect(screen.getByText('100.00')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Example: Total and vendor match the PDF.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /ask for correction/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /ask correction/i })).toBeInTheDocument()
   })
 
   it('keeps technical evidence out of primary administrator navigation', async () => {
