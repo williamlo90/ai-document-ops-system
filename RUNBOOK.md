@@ -16,6 +16,16 @@ npm run build
 
 ## Local React UI Run
 
+Install dependencies once if this is a fresh checkout:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-dev.txt
+cd frontend
+npm install
+cd ..
+```
+
 Terminal 1:
 
 ```powershell
@@ -23,7 +33,7 @@ $env:ENV_FILE='.env.example'
 $env:PYTHONPATH='backend'
 $env:UPLOAD_ROOT='backend/data/uploads'
 $env:SQLITE_PATH='backend/data/doc_intel.sqlite3'
-..\3-agentic-docops-copilot\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Terminal 2:
@@ -71,13 +81,13 @@ and storage and returns HTTP 503 when the API is draining or a dependency fails.
 `docker compose stop` sends SIGTERM. Uvicorn gets a 30-second graceful deadline,
 and the worker finishes its current job attempt before exiting.
 
-Development mode can still use:
+Development mode can use:
 
-- `http://127.0.0.1:5173` for the React DocOps Command Center during local development
-- `http://127.0.0.1:8000` for the production-shaped React operator console after `npm run build`
-- `/ui` for legacy document upload, processing, review, export, and copilot trace-seeding access
-- `/ui/backoffice` for the legacy server-rendered Project 4 workflow
-- `/ui/agentops` for legacy reliability metrics and scenario evidence
+- `http://127.0.0.1:5173` for the React development UI.
+- `http://127.0.0.1:8000` for the production-shaped same-origin UI after `npm run build`.
+- `/ui` for server-rendered fallback document upload, processing, review, export, and trace-seeding access.
+- `/ui/backoffice` for server-rendered backoffice workflow diagnostics.
+- `/ui/agentops` for reliability metrics and scenario evidence.
 
 ## Agent Safety Checks
 

@@ -10,19 +10,21 @@ Completed:
 - AgentOps APIs support reliability summaries, run traces, planning-version evidence, regression comparison, and scenario evaluation.
 - Project 4 back-office scenarios are versioned and evaluated with document type and operation type dimensions.
 - Scenario evaluation results persist expected and actual document/operation evidence for refresh and SQLite restart cases.
-- React operator UI exposes Work Queue, Review, Approval Decision, Record, Safety Rules, History, Technical Evidence, System Reliability, Reliability Checks, Test Scenarios, and Run Traces.
+- React UI exposes a simplified uploader and reviewer flow for invoice upload, system reading, human review, approval or rejection, history, and controlled export readiness.
+- Technical reliability evidence remains available outside the main non-technical user path through AgentOps summaries, scenario checks, and run traces.
 - Docker, CI, public artifact packaging, integration setup guidance, and portfolio demo docs are included.
 
 Verification:
 
-- Full backend suite passed: 356 tests OK, 2 skipped.
+- Full backend suite passed: 367 tests OK, 2 skipped.
 - Frontend tests passed: 8 tests OK.
 - Frontend lint passed.
 - Frontend production build passed.
 - Docker compose config check passed.
+- Public artifact tests passed: 16 tests OK.
 - Public artifact packaging script passed to a temporary output folder.
 - Backend AgentOps API and SQLite persistence coverage remains green inside the full backend suite.
-- Black and Ruff were not rerun in the final audit because the current local `.venv` does not include those modules; earlier backend/product sprints had run them successfully.
+- Focused Ruff lint and format checks passed for the latest backend hardening changes.
 
 Known limitations:
 

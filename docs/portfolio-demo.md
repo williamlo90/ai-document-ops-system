@@ -5,13 +5,13 @@ Project 4 demonstrates bounded autonomous back-office workflow orchestration on 
 ## Demo Narrative
 
 1. Show the inherited document workflow.
-2. Show the copilot briefly to establish controlled tool execution.
-3. Open the operator UI and show Work Summary / Work Queue.
-4. Create a New Document Task and generate a safe plan.
-5. Show Review, Next Steps, Approval Decision, Record, Safety Rules, and History.
-6. Show draft preview, evidence guidance, and approval controls.
-7. Execute only after approval.
-8. Open Technical Evidence: System Reliability, Reliability Checks, Test Scenarios, and Run Traces.
+2. Open the uploader flow and upload a sample invoice.
+3. Show that processing sends the invoice to human review instead of auto-approval.
+4. Switch to reviewer flow and inspect the extracted invoice data, issues, and source document.
+5. Approve or reject from the reviewer decision screen.
+6. Show invoice history so the business audit trail is clear.
+7. Show controlled export readiness only after approval.
+8. Briefly open technical evidence: reliability summary, scenario checks, and run traces.
 9. Show `docs/docker_profile.md` and `docs/aws_deployment.md`.
 10. Close with honest production gaps.
 

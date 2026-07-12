@@ -8,23 +8,25 @@ AI Document Operations System is an invoice-first document operations app with:
 
 - secure local operator session
 - invoice intake, extraction, validation, and source evidence review
-- Work Queue and exception handling
+- role-focused uploader and reviewer flows
+- review queue and exception handling
 - bounded planning for document work
 - human Approval Decision flow for risky execution
 - controlled execution after approval
 - durable workflow History and audit evidence
-- Technical Evidence pages for System Reliability, Reliability Checks, Test Scenarios, and Run Traces
+- technical evidence APIs and pages for System Reliability, Reliability Checks, Test Scenarios, and Run Traces
 
 ## Verification
 
-- Backend full suite: 356 tests OK, 2 skipped
+- Backend full suite: 367 tests OK, 2 skipped
 - Frontend tests: 8 tests OK
 - Frontend lint: passed
 - Frontend production build: passed
 - Docker compose config: passed
+- Public artifact tests: 16 tests OK
 - Public artifact packaging script: passed to a temporary output folder
 
-Black and Ruff were not rerun during the final release audit because the current local `.venv` does not include those modules. Earlier backend/product sprints had run them successfully.
+Focused Ruff lint and format checks passed for the latest backend hardening changes.
 
 ## Honest Boundaries
 

@@ -7,10 +7,10 @@ Project 4 continues from Project 3.5. It should preserve the document workflow, 
 ## Current Status
 
 ```text
-Current phase: Step 0 through Step 9 complete; document-operation refactor and UX simplification are complete for the invoice-first workflow; backend role-contract alignment is complete for uploader-owned invoice intake; backend approval source-of-truth alignment is complete; backoffice export execution guardrails are complete; reviewer API role hardening is complete; workspace ownership boundary hardening is complete; backoffice API error-boundary hardening is complete; a second executable document workflow remains intentionally deferred
+Current phase: Step 0 through Step 9 complete; document-operation refactor and UX simplification are complete for the invoice-first workflow; backend role-contract alignment is complete for uploader-owned invoice intake; backend approval source-of-truth alignment is complete; backoffice export execution guardrails are complete; reviewer API role hardening is complete; workspace ownership boundary hardening is complete; backoffice API error-boundary hardening is complete; release-readiness documentation and artifact hygiene are complete; a second executable document workflow remains intentionally deferred
 Source baseline: ../3.5-agentops-reliability-dashboard-github-refactored
 Active agents: Codex only
-Latest verification: full backend suite passed with 367 tests OK and 2 skipped; focused backend lint and format checks passed for the backoffice API error-boundary hardening changes; frontend tests, lint, and production build passed; Docker compose config passed; public artifact packaging script passed in a temp output folder
+Latest verification: full backend suite passed with 367 tests OK and 2 skipped; frontend tests passed with 8 tests OK; frontend lint and production build passed; Docker compose config passed; public artifact tests passed with 16 tests OK; public artifact packaging script passed in a temp output folder
 Single source of truth: this ROADMAP plus `docs/pivot/*`; local-only completion TODO files are intentionally excluded from the public artifact
 ```
 

@@ -46,7 +46,7 @@ actions, open `/ui` briefly:
 
 The goal is to create trace evidence, not to demo another chatbot.
 
-## 4. Show Operator Work Queue
+## 4. Show The Business Flow
 
 Open:
 
@@ -56,14 +56,13 @@ http://127.0.0.1:8000
 
 Show:
 
-- switch to Administrator / Reviewer
-- Work Summary and Work Queue
-- create a New Document Task
-- link a source document
-- review status, next step, decision needed, and source evidence
-- open Review, Next Steps, Approval Decision, Record, Safety Rules, History, and Technical Evidence
-- approve or reject a risky export only after reviewing evidence
-- execute only after approval
+- start as uploader and upload a sample invoice
+- show that system reading sends the invoice to reviewer approval instead of auto-approval
+- switch to reviewer and open the review queue
+- inspect the extracted fields, validation issues, and source document
+- approve or reject from the decision screen
+- show invoice history so the audit trail is obvious
+- show export readiness only after approval
 
 ## 5. Show Technical Evidence
 
@@ -91,16 +90,16 @@ Use API endpoints if the reviewer wants the raw contract:
 
 ```powershell
 curl.exe http://127.0.0.1:8000/agentops/summary `
-  -H "X-Admin-Token: dev-admin-token-change-me"
+  -H "X-Admin-Token: change-me-for-local-demo"
 
 curl.exe http://127.0.0.1:8000/agentops/runs `
-  -H "X-Admin-Token: dev-admin-token-change-me"
+  -H "X-Admin-Token: change-me-for-local-demo"
 
 curl.exe http://127.0.0.1:8000/agentops/scenarios `
-  -H "X-Admin-Token: dev-admin-token-change-me"
+  -H "X-Admin-Token: change-me-for-local-demo"
 
 curl.exe http://127.0.0.1:8000/agentops/backoffice/scenarios `
-  -H "X-Admin-Token: dev-admin-token-change-me"
+  -H "X-Admin-Token: change-me-for-local-demo"
 ```
 
 Show that metrics come from traces, not from invented claims.

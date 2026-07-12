@@ -19,5 +19,6 @@ frontend/coverage/
 backups/
 _local_docs/
 outputs/*-rendered/
+outputs/*-screenshots/
 outputs/*.inspect.ndjson
 outputs/~$*.pptx

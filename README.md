@@ -16,8 +16,9 @@ Project 4 starts from:
 
 Project 3.5 remains the source of truth for reliability measurement, scenario evaluation, planning version comparison, regression comparison, and AgentOps trace behavior.
 
-For real provider, email, Cloudflare R2, and PostgreSQL/Supabase setup, see
-[`INTEGRATION_SETUP_GUIDE.md`](INTEGRATION_SETUP_GUIDE.md).
+For real provider, email, object storage, and PostgreSQL/Supabase setup, see
+[`docs/integrations.md`](docs/integrations.md), [`docs/object_storage.md`](docs/object_storage.md),
+and [`docs/aws_deployment.md`](docs/aws_deployment.md).
 
 ## Product Thesis
 
@@ -28,13 +29,11 @@ execution, risky actions require approval, and uncertain work returns to a human
 
 ## What The System Provides
 
-- back-office work item model beyond documents alone
-- intake classification for document-driven tasks
-- task planning across review, export, follow-up, and exception handling
-- drafted outbound actions, such as messages or accounting notes
-- controlled execution policies for safe versus risky tools
-- human approval queue for low-confidence or high-risk work
-- React operator UI with Work Queue, Review, Approval Decision, Record, Safety Rules, History, and Technical Evidence views
+- business-facing invoice intake for upload, system reading, review, approval or rejection, and history
+- reviewer queue with explicit human approval before export-ready work
+- controlled execution policies for safe versus risky actions
+- back-office planning and draft/execution APIs kept behind approval boundaries
+- simplified React UI for uploader and reviewer roles, with technical evidence kept out of the main user path
 - System Reliability, Reliability Checks, Test Scenarios, and Run Traces for local technical evidence
 - Project 4 repeatable test scenarios for multi-step document work
 - deployment readiness plan for Docker, CI, and future cloud delivery
@@ -62,6 +61,20 @@ execution, risky actions require approval, and uncertain work returns to a human
 The default profile uses SQLite, local storage, deterministic/mock providers, and no paid
 credentials. See `RUNBOOK.md` for startup commands and `docs/assets/screenshots/` for current UI
 captures.
+
+Fast local start after dependencies are installed:
+
+```powershell
+$env:ENV_FILE='.env.example'
+$env:PYTHONPATH='backend'
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000
+```
 
 ## Read First
 
