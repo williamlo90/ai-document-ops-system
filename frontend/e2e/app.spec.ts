@@ -44,34 +44,37 @@ async function mockApi(page: Page, options: { workspaceFailure?: boolean } = {})
   })
 }
 
-test('happy path: administrator opens the approval area and create dialog', async ({ page }) => {
+test('reviewer opens the simplified approval area', async ({ page }) => {
   await mockApi(page)
   await page.addInitScript(() => localStorage.setItem('docops-role', 'administrator'))
   await page.goto('/')
 
-  await expect(page.getByRole('heading', { name: 'Document Queue' }).first()).toBeVisible()
-  await page.getByRole('button', { name: 'New Document Task' }).first().click()
-  await expect(page.getByRole('dialog', { name: 'New Document Task' })).toBeVisible()
-  await page.getByRole('button', { name: 'Close dialog' }).click()
+  await expect(page.getByRole('heading', { name: 'Approvals' }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Upload$/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Approvals' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Invoices' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'History' })).toBeVisible()
 
   const openNavigation = page.getByRole('button', { name: 'Open navigation' })
   if (await openNavigation.isVisible()) await openNavigation.click()
   await page.getByRole('button', { name: 'Approvals' }).click()
-  await expect(page.getByText('Approval inbox is clear')).toBeVisible()
+  await expect(page.getByText('No invoices waiting for approval')).toBeVisible()
 })
 
 test('failure path presents a recoverable workspace error', async ({ page }) => {
   await mockApi(page, { workspaceFailure: true })
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Unable to load workspace' })).toBeVisible()
-  await expect(page.getByText('Provider unavailable')).toBeVisible()
+  await expect(page.getByText(/could not reach the invoice workspace/i)).toBeVisible()
+  await expect(page.getByText(/technical detail is available/i)).toBeVisible()
+  await expect(page.getByText('Provider unavailable')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Retry' })).toBeEnabled()
 })
 
 test('intake screen has no serious automated accessibility violations', async ({ page }) => {
   await mockApi(page)
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: /process a new invoice document/i })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /upload and check an invoice/i })).toBeVisible()
   const results = await new AxeBuilder({ page }).exclude('iframe').analyze()
   expect(results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([])
 })
@@ -96,7 +99,7 @@ test('laptop layout remains usable at 125, 150, and 200 percent zoom', async ({ 
   for (const zoom of [1.25, 1.5, 2]) {
     await page.setViewportSize({ width: Math.floor(1366 / zoom), height: Math.floor(768 / zoom) })
     await page.goto('/')
-    await expect(page.getByRole('heading', { name: /process a new invoice document/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /upload and check an invoice/i })).toBeVisible()
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     expect(overflow, `page overflow at ${zoom * 100}% zoom`).toBeLessThanOrEqual(1)
   }

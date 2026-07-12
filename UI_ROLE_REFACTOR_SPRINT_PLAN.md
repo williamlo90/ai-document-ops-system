@@ -1,6 +1,6 @@
 # UI Role Refactor Sprint Plan
 
-Status: UI-R1 through UI-R5 implemented; UI-R6 pending.
+Status: UI-R1 through UI-R6 implemented; backend audit pending.
 
 Source inputs:
 
@@ -209,6 +209,8 @@ Risk:
 - Existing events may be backend-native. Use a display mapping layer first.
 
 ## Sprint UI-R6 - Screenshot QA And Demo Readiness
+
+Implementation status: completed.
 
 Goal:
 Prove the refactor visually, not just through code.
