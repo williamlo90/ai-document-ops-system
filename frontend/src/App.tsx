@@ -365,8 +365,8 @@ function CommandCenter() {
           <QueuePage workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} initialFilter={screen.filter} />
         )}
         <footer className="app-footer">
-          <span><ShieldCheck size={14} /> All actions are logged and auditable.</span>
-          <span>Local Mode <i /> Data stays on your machine</span>
+          <span><ShieldCheck size={14} /> Every upload and decision is saved.</span>
+          <span>Local Demo <i /> Data stays on your machine</span>
         </footer>
       </div>
     </div>
@@ -1115,7 +1115,7 @@ function WorkspaceTab({ item, document, extraction, loading }: { item: WorkItemD
       <div className="workspace-primary">
         <section className="workspace-preview">
           <div className="workspace-section-heading"><div><span>Invoice PDF</span><h3>{document?.filename ?? 'No linked document'}</h3></div>{document ? <Status value={document.status} /> : null}</div>
-          {loading ? <LoadingState label="Loading source document" /> : document ? <AuthenticatedPdfPreview document={document} /> : <EmptyState title="No source preview" body="Link a source document before reviewing extracted fields or approving work." next="Without a source document, compare any proposed action manually before deciding." />}
+          {loading ? <LoadingState label="Loading invoice PDF" /> : document ? <AuthenticatedPdfPreview document={document} /> : <EmptyState title="No invoice preview" body="Link an invoice PDF before reviewing or approving this item." next="Without a PDF, compare the invoice information manually before deciding." />}
         </section>
 
         <div className="workspace-review">
@@ -1132,7 +1132,7 @@ function WorkspaceTab({ item, document, extraction, loading }: { item: WorkItemD
 
           <section className="panel workspace-line-items">
             <PanelTitle title="Line Items" action={<span className="version">{lineItems.length} items</span>} />
-            {lineItems.length ? <div className="line-items-table"><div><strong>Description</strong><strong>Qty</strong><strong>Unit price</strong><strong>Amount</strong></div>{lineItems.map((line, index) => <div key={index}><span>{line.description || '-'}</span><span>{line.quantity || '-'}</span><span>{line.unit_price || '-'}</span><strong>{line.amount || '-'}</strong></div>)}</div> : <EmptyState title="No line items stored" body="The current extraction did not return invoice line-item data." next="Open the source PDF and verify whether line items exist before approving or exporting." />}
+            {lineItems.length ? <div className="line-items-table"><div><strong>Description</strong><strong>Qty</strong><strong>Unit price</strong><strong>Amount</strong></div>{lineItems.map((line, index) => <div key={index}><span>{line.description || '-'}</span><span>{line.quantity || '-'}</span><span>{line.unit_price || '-'}</span><strong>{line.amount || '-'}</strong></div>)}</div> : <EmptyState title="No line items found" body="The app did not find invoice line-item data." next="Open the PDF and check whether line items exist before approving." />}
           </section>
 
           <section className="panel workspace-evidence">
@@ -1839,7 +1839,7 @@ function LoadingState({ label = 'Loading workspace' }: { label?: string } = {}) 
 }
 function ErrorState({ message, retry }: { message: string; retry: () => void }) {
   const secureSession = /session|auth|verify|credential|401|403/i.test(message)
-  return <main className="error-state"><AlertTriangle size={26} /><h2>{secureSession ? 'Unable to verify secure session' : 'Unable to load workspace'}</h2><p>{secureSession ? 'Refresh the session, then try again. If it keeps failing, sign in again before continuing document work.' : 'The app could not reach the workspace service. Retry once, then check that the backend is running.'}</p><small>Diagnostic detail is available in the browser console or server logs.</small><button className="primary-button" onClick={retry}><RefreshCw size={15} /> Retry</button></main>
+  return <main className="error-state"><AlertTriangle size={26} /><h2>{secureSession ? 'Unable to verify secure session' : 'Unable to load workspace'}</h2><p>{secureSession ? 'Refresh the session, then try again. If it keeps failing, sign in again before continuing invoice work.' : 'The app could not reach the invoice workspace. Retry once, then check that the backend is running.'}</p><small>Technical detail is available in the browser console or server logs.</small><button className="primary-button" onClick={retry}><RefreshCw size={15} /> Retry</button></main>
 }
 
 function queueCounts(items: WorkItemSummary[]) {

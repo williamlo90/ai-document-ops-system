@@ -192,7 +192,7 @@ describe('application shell', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: /unable to verify secure session/i })).toBeInTheDocument()
-    expect(screen.getByText(/sign in again before continuing document work/i)).toBeInTheDocument()
+    expect(screen.getByText(/sign in again before continuing invoice work/i)).toBeInTheDocument()
     expect(screen.queryByText(/database adapter stack trace/i)).not.toBeInTheDocument()
   })
 
