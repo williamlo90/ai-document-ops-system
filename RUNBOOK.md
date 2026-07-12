@@ -74,9 +74,10 @@ and the worker finishes its current job attempt before exiting.
 Development mode can still use:
 
 - `http://127.0.0.1:5173` for the React DocOps Command Center during local development
-- `/ui` for document upload, processing, review, export, and copilot access
-- `/ui/backoffice` for Project 4 work items, plans, drafts, approvals, and execution controls
-- `/ui/agentops` for reliability metrics and scenario evidence
+- `http://127.0.0.1:8000` for the production-shaped React operator console after `npm run build`
+- `/ui` for legacy document upload, processing, review, export, and copilot trace-seeding access
+- `/ui/backoffice` for the legacy server-rendered Project 4 workflow
+- `/ui/agentops` for legacy reliability metrics and scenario evidence
 
 ## Agent Safety Checks
 

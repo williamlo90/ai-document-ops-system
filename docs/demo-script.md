@@ -30,12 +30,14 @@ docker compose up --build
 Open:
 
 ```text
-http://127.0.0.1:8000/ui
+http://127.0.0.1:8000
 ```
 
 ## 3. Create Copilot Traces
 
-Start the app, sign in, then create a few copilot runs from `/ui`:
+Start the app, sign in with the local demo token, then use the React operator
+console for document intake and review. If you need legacy copilot trace seed
+actions, open `/ui` briefly:
 
 - Summarize workflow
 - Explain selected document
@@ -49,11 +51,12 @@ The goal is to create trace evidence, not to demo another chatbot.
 Open:
 
 ```text
-http://127.0.0.1:8000/ui/backoffice
+http://127.0.0.1:8000
 ```
 
 Show:
 
+- switch to Administrator / Reviewer
 - Work Summary and Work Queue
 - create a New Document Task
 - link a source document
