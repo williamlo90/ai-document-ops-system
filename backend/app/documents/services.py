@@ -4,7 +4,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
 
-from app.core.security import INTAKE_ROLES, SecurityContext, is_intake_role, require_admin, require_any_role
+from app.core.security import (
+    INTAKE_ROLES,
+    SecurityContext,
+    is_intake_role,
+    require_admin,
+    require_any_role,
+)
 from app.core.upload_scanning import SignatureUploadScanner, UploadScanner
 from app.core.observability import OperationEvent, log_operation
 from app.documents.jobs import ProcessingJob, ProcessingJobStatus
@@ -238,10 +244,18 @@ class DocumentProcessingService:
                 self.workflow.transition(document, DocumentStatus.EXTRACTED, actor=context.actor)
             )
             self.documents.add(document)
-            final_status = (
-                DocumentStatus.NEEDS_REVIEW if report.has_errors else DocumentStatus.APPROVED
+            self.audits.add(
+                self.workflow.transition(
+                    document,
+                    DocumentStatus.NEEDS_REVIEW,
+                    actor=context.actor,
+                    payload_summary=(
+                        "Validation requires reviewer correction."
+                        if report.has_errors
+                        else "Invoice is ready for reviewer approval."
+                    ),
+                )
             )
-            self.audits.add(self.workflow.transition(document, final_status, actor=context.actor))
             self.documents.add(document)
             job.provider_name = result.provider_name
             job.provider_trace_id = result.provider_trace_id

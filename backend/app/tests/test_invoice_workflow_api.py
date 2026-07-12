@@ -210,7 +210,9 @@ class InvoiceWorkflowApiTests(unittest.TestCase):
         )
         document_id = upload.json()["document"]["id"]
         process = self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
-        self.assertEqual(process.json()["document"]["status"], "approved")
+        self.assertEqual(process.json()["document"]["status"], "needs_review")
+        approved = self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
+        self.assertEqual(approved.status_code, 200)
         created = self.client.post(
             "/backoffice/work-items",
             headers={**HEADERS, "Idempotency-Key": f"create:{document_id}"},

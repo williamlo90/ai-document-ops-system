@@ -40,6 +40,7 @@ class SqlitePersistenceTests(unittest.TestCase):
             )
             document_id = upload_response.json()["document"]["id"]
             client.post(f"/documents/{document_id}/process", headers=HEADERS)
+            client.post(f"/review/{document_id}/approve", headers=HEADERS)
             create_response = client.post(
                 "/backoffice/work-items",
                 headers=HEADERS,
@@ -148,7 +149,7 @@ class SqlitePersistenceTests(unittest.TestCase):
             )
             document_id = upload_response.json()["document"]["id"]
             process_response = client.post(f"/documents/{document_id}/process", headers=HEADERS)
-            self.assertEqual(process_response.json()["document"]["status"], "approved")
+            self.assertEqual(process_response.json()["document"]["status"], "needs_review")
             app.state.container.documents.store.connection.close()
 
             recreated_app = create_app(settings)
@@ -158,7 +159,7 @@ class SqlitePersistenceTests(unittest.TestCase):
             recreated_app.state.container.documents.store.connection.close()
 
         self.assertEqual(detail_response.status_code, 200)
-        self.assertEqual(detail_response.json()["document"]["status"], "approved")
+        self.assertEqual(detail_response.json()["document"]["status"], "needs_review")
         self.assertEqual(detail_response.json()["document"]["submitted_by"], "William Lo")
         self.assertGreater(detail_response.json()["document"]["size_bytes"], 0)
         self.assertEqual(detail_response.json()["extraction"]["data"]["invoice_number"], "INV-001")

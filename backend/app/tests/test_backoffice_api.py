@@ -235,6 +235,8 @@ class BackofficeApiTests(unittest.TestCase):
         document_id = upload.json()["document"]["id"]
         process = self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
         self.assertEqual(process.status_code, 200)
+        approval = self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
+        self.assertEqual(approval.status_code, 200)
         detail = self.client.get(f"/documents/{document_id}", headers=HEADERS)
         self.assertEqual(detail.json()["document"]["status"], "approved")
         return str(UUID(document_id))

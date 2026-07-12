@@ -102,7 +102,19 @@ class ReviewAndExportTests(unittest.TestCase):
         )
 
     def test_cannot_approve_non_reviewable_document(self) -> None:
-        document = self._process_invoice()
+        upload = DocumentUploadService(
+            self.storage,
+            self.documents,
+            self.jobs,
+            self.audits,
+            self.workflow,
+        )
+        document = upload.upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        ).document
 
         with self.assertRaises(InvalidStatusTransition):
             self._review_service().approve(document.id, context=self.context)
@@ -221,16 +233,18 @@ class ReviewAndExportTests(unittest.TestCase):
         self.assertEqual([document.id for document in queue], [acme_document.id])
 
     def test_export_approved_only_and_escape_dangerous_strings(self) -> None:
-        approved = self._process_invoice(
-            InvoiceData(
-                vendor_name="=Acme, Inc.\nNorth",
-                invoice_number='\t=INV-"001"',
-                invoice_date=date(2026, 6, 18),
-                due_date=date(2026, 7, 18),
-                subtotal=Decimal("100.00"),
-                tax=Decimal("10.00"),
-                total=Decimal("110.00"),
-                currency="USD",
+        approved = self._approve_invoice(
+            self._process_invoice(
+                InvoiceData(
+                    vendor_name="=Acme, Inc.\nNorth",
+                    invoice_number='\t=INV-"001"',
+                    invoice_date=date(2026, 6, 18),
+                    due_date=date(2026, 7, 18),
+                    subtotal=Decimal("100.00"),
+                    tax=Decimal("10.00"),
+                    total=Decimal("110.00"),
+                    currency="USD",
+                )
             )
         )
         needs_review = self._process_invoice(
@@ -258,6 +272,28 @@ class ReviewAndExportTests(unittest.TestCase):
         self.assertEqual(approved.status, DocumentStatus.EXPORTED)
         self.assertEqual(needs_review.status, DocumentStatus.NEEDS_REVIEW)
 
+    def test_export_ignores_unapproved_valid_invoice(self) -> None:
+        needs_review = self._process_invoice(
+            InvoiceData(
+                vendor_name="Valid but unchecked",
+                invoice_number="INV-WAITING",
+                invoice_date=date(2026, 6, 18),
+                total=Decimal("25.00"),
+            )
+        )
+
+        csv_text = InvoiceExportService(
+            self.documents,
+            self.extractions,
+            self.audits,
+            self.workflow,
+        ).export_approved_csv(context=self.context)
+
+        self.assertNotIn(str(needs_review.id), csv_text)
+        rows = list(csv.DictReader(StringIO(csv_text)))
+        self.assertEqual(len(rows), 0)
+        self.assertEqual(needs_review.status, DocumentStatus.NEEDS_REVIEW)
+
     def test_export_is_scoped_by_workspace(self) -> None:
         acme_context = SecurityContext(
             actor="acme-admin",
@@ -273,21 +309,27 @@ class ReviewAndExportTests(unittest.TestCase):
             user_id="other-admin",
             role="admin",
         )
-        acme_document = self._process_invoice(
-            InvoiceData(
-                vendor_name="Acme",
-                invoice_number="INV-ACME",
-                invoice_date=date(2026, 6, 18),
-                total=Decimal("25.00"),
+        acme_document = self._approve_invoice(
+            self._process_invoice(
+                InvoiceData(
+                    vendor_name="Acme",
+                    invoice_number="INV-ACME",
+                    invoice_date=date(2026, 6, 18),
+                    total=Decimal("25.00"),
+                ),
+                context=acme_context,
             ),
             context=acme_context,
         )
-        other_document = self._process_invoice(
-            InvoiceData(
-                vendor_name="Other",
-                invoice_number="INV-OTHER",
-                invoice_date=date(2026, 6, 18),
-                total=Decimal("25.00"),
+        other_document = self._approve_invoice(
+            self._process_invoice(
+                InvoiceData(
+                    vendor_name="Other",
+                    invoice_number="INV-OTHER",
+                    invoice_date=date(2026, 6, 18),
+                    total=Decimal("25.00"),
+                ),
+                context=other_context,
             ),
             context=other_context,
         )
@@ -305,7 +347,7 @@ class ReviewAndExportTests(unittest.TestCase):
         self.assertEqual(other_document.status, DocumentStatus.APPROVED)
 
     def test_export_second_run_excludes_already_exported_documents(self) -> None:
-        approved = self._process_invoice()
+        approved = self._approve_invoice(self._process_invoice())
         export_service = InvoiceExportService(
             self.documents,
             self.extractions,
@@ -337,7 +379,7 @@ class ReviewAndExportTests(unittest.TestCase):
         )
 
     def test_prediction_json_includes_extracted_documents_without_changing_status(self) -> None:
-        approved = self._process_invoice()
+        needs_review = self._process_invoice()
         queued = DocumentRecord(
             original_filename="queued.pdf",
             storage_key="queued.pdf",
@@ -353,14 +395,14 @@ class ReviewAndExportTests(unittest.TestCase):
             self.workflow,
         ).export_predictions_json(context=self.context)
 
-        self.assertIn(str(approved.id), json_text)
+        self.assertIn(str(needs_review.id), json_text)
         self.assertIn("INV-001", json_text)
         self.assertNotIn(str(queued.id), json_text)
-        self.assertEqual(approved.status, DocumentStatus.APPROVED)
+        self.assertEqual(needs_review.status, DocumentStatus.NEEDS_REVIEW)
 
     def test_export_does_not_mark_any_document_if_row_collection_fails(self) -> None:
-        first = self._process_invoice()
-        second = self._process_invoice()
+        first = self._approve_invoice(self._process_invoice())
+        second = self._approve_invoice(self._process_invoice())
         self.extractions.records.pop(second.id)
 
         with self.assertRaises(Exception):
@@ -373,6 +415,14 @@ class ReviewAndExportTests(unittest.TestCase):
 
         self.assertEqual(first.status, DocumentStatus.APPROVED)
         self.assertEqual(second.status, DocumentStatus.APPROVED)
+
+    def _approve_invoice(
+        self,
+        document,
+        context: SecurityContext | None = None,
+    ):
+        self._review_service().approve(document.id, context=context or self.context)
+        return document
 
     def _process_invoice(
         self,

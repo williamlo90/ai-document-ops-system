@@ -12,6 +12,7 @@ from app.documents.repositories import (
     InMemoryDocumentRepository,
     InMemoryExtractionRepository,
     InMemoryJobRepository,
+    InMemoryReviewTaskRepository,
     NotFoundError,
 )
 from app.documents.services import DocumentProcessingService, DocumentUploadService
@@ -23,6 +24,7 @@ from app.integrations.models import IntegrationDeliveryError
 from app.integrations.services import InvoiceIntegrationService
 from app.providers.mock import MockInvoiceExtractor, MockParserProvider
 from app.providers.storage import LocalStorageService
+from app.review.services import ReviewService
 
 
 class InvoiceIntegrationTests(unittest.TestCase):
@@ -33,6 +35,7 @@ class InvoiceIntegrationTests(unittest.TestCase):
         self.jobs = InMemoryJobRepository()
         self.audits = InMemoryAuditRepository()
         self.extractions = InMemoryExtractionRepository()
+        self.reviews = InMemoryReviewTaskRepository()
         self.workflow = DocumentWorkflowService()
         self.context = SecurityContext(actor="tester", is_admin=True)
 
@@ -162,6 +165,15 @@ class InvoiceIntegrationTests(unittest.TestCase):
             adapter or MockAccountingAdapter(),
         )
 
+    def _review_service(self) -> ReviewService:
+        return ReviewService(
+            self.documents,
+            self.reviews,
+            self.extractions,
+            self.audits,
+            self.workflow,
+        )
+
     def _process_invoice(
         self,
         invoice_data: InvoiceData | None = None,
@@ -191,7 +203,9 @@ class InvoiceIntegrationTests(unittest.TestCase):
             MockParserProvider(),
             MockInvoiceExtractor(invoice_data),
         )
-        return processor.process_job(result.job.id, context=context)
+        document = processor.process_job(result.job.id, context=context)
+        self._review_service().approve(document.id, context=context)
+        return document
 
 
 if __name__ == "__main__":

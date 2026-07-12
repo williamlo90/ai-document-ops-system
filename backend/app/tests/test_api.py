@@ -116,10 +116,17 @@ class ApiTests(unittest.TestCase):
         dashboard_response = self.client.get(f"/ui?document_id={document_id}")
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertIn("Acme Logistics", dashboard_response.text)
-        self.assertIn("approved", dashboard_response.text)
+        self.assertIn("needs_review", dashboard_response.text)
+        self.assertIn("Approve", dashboard_response.text)
         self.assertIn(f"/ui/documents/{document_id}/preview", dashboard_response.text)
         self.assertIn("Ask Copilot", dashboard_response.text)
         self.assertIn("Summarize workflow", dashboard_response.text)
+
+        approve_response = self.client.post(
+            f"/ui/review/{document_id}/approve",
+            follow_redirects=False,
+        )
+        self.assertEqual(approve_response.status_code, 303)
 
         export_response = self.client.get("/ui/export")
         self.assertEqual(export_response.status_code, 200)
@@ -130,6 +137,7 @@ class ApiTests(unittest.TestCase):
         self._ui_login()
         document_id = self._upload_document()
         self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
 
         response = self.client.get("/ui/export")
 
@@ -190,8 +198,8 @@ class ApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("process_document", response.text)
-        self.assertIn("status is now approved", response.text)
-        self.assertEqual(detail_response.json()["document"]["status"], "approved")
+        self.assertIn("status is now needs_review", response.text)
+        self.assertEqual(detail_response.json()["document"]["status"], "needs_review")
 
     def test_ui_agentops_dashboard_empty_state_requires_login(self) -> None:
         login_response = self.client.get("/ui/agentops")
@@ -247,6 +255,7 @@ class ApiTests(unittest.TestCase):
         self._ui_login()
         document_id = self._upload_document()
         self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
 
         create_response = self.client.post(
             "/ui/backoffice/work-items",
@@ -387,7 +396,7 @@ class ApiTests(unittest.TestCase):
             headers=HEADERS,
         )
         self.assertEqual(process_response.status_code, 200)
-        self.assertEqual(process_response.json()["document"]["status"], "approved")
+        self.assertEqual(process_response.json()["document"]["status"], "needs_review")
 
         list_response = self.client.get("/documents", headers=HEADERS)
         self.assertEqual(list_response.status_code, 200)
@@ -406,10 +415,17 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(metrics["documents_total"], 1)
         self.assertEqual(metrics["queue"]["succeeded"], 1)
         self.assertEqual(metrics["provider"]["by_provider"]["mock_extractor"], 1)
-        self.assertEqual(metrics["review"]["approved_count"], 1)
+        self.assertEqual(metrics["review"]["queue_count"], 1)
+        self.assertEqual(metrics["review"]["approved_count"], 0)
         self.assertEqual(metrics["cost"]["processed_documents"], 1)
         self.assertIn("average_processing_time_ms", metrics)
         self.assertIsInstance(metrics["average_processing_time_ms"], (int, float))
+
+        export_response = self.client.get("/exports/invoices.csv", headers=HEADERS)
+        self.assertNotIn(document_id, export_response.text)
+
+        approve_response = self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
+        self.assertEqual(approve_response.status_code, 200)
 
         export_response = self.client.get("/exports/invoices.csv", headers=HEADERS)
         self.assertEqual(export_response.status_code, 200)
@@ -428,6 +444,7 @@ class ApiTests(unittest.TestCase):
     def test_accounting_integration_endpoint_exports_approved_document(self) -> None:
         document_id = self._upload_document()
         self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
 
         response = self.client.post(
             f"/integrations/accounting/documents/{document_id}/export",
@@ -510,7 +527,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(data[0]["document_id"], document_id)
         self.assertEqual(data[0]["invoice_number"], "INV-001")
         self.assertEqual(data[0]["total"], "110.00")
-        self.assertEqual(detail_response.json()["document"]["status"], "approved")
+        self.assertEqual(detail_response.json()["document"]["status"], "needs_review")
 
     def test_prediction_json_export_skips_documents_without_extraction(self) -> None:
         queued_document_id = self._upload_document()
@@ -608,7 +625,7 @@ class ApiTests(unittest.TestCase):
             sqlite_client.app.state.container.documents.store.connection.close()
 
         self.assertEqual(process_response.status_code, 200)
-        self.assertEqual(process_response.json()["document"]["status"], "approved")
+        self.assertEqual(process_response.json()["document"]["status"], "needs_review")
         self.assertEqual(process_response.json()["job"]["status"], "succeeded")
         self.assertEqual(process_response.json()["job"]["provider_name"], "mock_extractor")
 
@@ -636,12 +653,14 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 404)
             self.assertEqual(response.json()["detail"], "Not found")
 
-    def test_review_approved_document_is_conflict(self) -> None:
+    def test_reapproving_approved_document_is_conflict(self) -> None:
         document_id = self._upload_document()
         self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        first_response = self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
 
         response = self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
 
+        self.assertEqual(first_response.status_code, 200)
         self.assertEqual(response.status_code, 409)
 
     def test_response_does_not_expose_internal_identifiers(self) -> None:

@@ -62,7 +62,7 @@ class DocumentServiceTests(unittest.TestCase):
         self.assertEqual(payload["document_id"], str(result.document.id))
         self.assertNotIn("%PDF-", logs.output[0])
 
-    def test_process_valid_invoice_auto_approves(self) -> None:
+    def test_process_valid_invoice_waits_for_reviewer_approval(self) -> None:
         upload_result = self._upload_service().upload_pdf(
             "invoice.pdf",
             "application/pdf",
@@ -74,13 +74,17 @@ class DocumentServiceTests(unittest.TestCase):
         with self.assertLogs("docintel.operations", level="INFO") as logs:
             document = processor.process_job(upload_result.job.id, context=self.context)
 
-        self.assertEqual(document.status, DocumentStatus.APPROVED)
+        self.assertEqual(document.status, DocumentStatus.NEEDS_REVIEW)
         self.assertEqual(upload_result.job.status, ProcessingJobStatus.SUCCEEDED)
         self.assertFalse(
             self.extractions.get_for_document(document.id).validation_report.has_errors
         )
         self.assertIn("processing_started", logs.output[0])
         self.assertIn("processing_succeeded", logs.output[-1])
+        self.assertIn(
+            "Invoice is ready for reviewer approval.",
+            [event.payload_summary for event in self.audits.list_for_document(document.id)],
+        )
 
     def test_process_invalid_invoice_routes_to_review(self) -> None:
         invalid_invoice = InvoiceData(
@@ -150,7 +154,7 @@ class DocumentServiceTests(unittest.TestCase):
 
         second_document = processor.process_job(upload_result.job.id, context=self.context)
 
-        self.assertEqual(second_document.status, DocumentStatus.APPROVED)
+        self.assertEqual(second_document.status, DocumentStatus.NEEDS_REVIEW)
         self.assertEqual(upload_result.job.status, ProcessingJobStatus.SUCCEEDED)
         self.assertEqual(upload_result.job.attempt_count, 2)
 
@@ -213,7 +217,7 @@ class DocumentServiceTests(unittest.TestCase):
 
         self.assertIsNotNone(document)
         self.assertEqual(document.id, upload_result.document.id)
-        self.assertEqual(document.status, DocumentStatus.APPROVED)
+        self.assertEqual(document.status, DocumentStatus.NEEDS_REVIEW)
 
     def test_worker_claims_job_before_processing(self) -> None:
         upload_result = self._upload_service().upload_pdf(

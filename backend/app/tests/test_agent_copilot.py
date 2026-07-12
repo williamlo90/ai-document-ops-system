@@ -62,15 +62,15 @@ class AgentCopilotApiTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["response"]["tool_name"], "get_document_detail")
         self.assertEqual(payload["response"]["data"]["document"]["id"], document_id)
-        self.assertEqual(payload["response"]["data"]["document"]["status"], "approved")
+        self.assertEqual(payload["response"]["data"]["document"]["status"], "needs_review")
         self.assertEqual(
             payload["response"]["data"]["extraction"]["data"]["invoice_number"], "INV-001"
         )
         recommendation = payload["response"]["data"]["recommendation"]
-        self.assertEqual(recommendation["recommended_tool"], "export_approved_csv")
-        self.assertEqual(recommendation["risk"], "admin_action")
-        self.assertTrue(recommendation["requires_confirmation"])
-        self.assertEqual(detail_response.json()["document"]["status"], "approved")
+        self.assertEqual(recommendation["recommended_tool"], "save_review_notes")
+        self.assertEqual(recommendation["risk"], "review_action")
+        self.assertTrue(recommendation["requires_human"])
+        self.assertEqual(detail_response.json()["document"]["status"], "needs_review")
 
     def test_copilot_recommends_processing_for_unprocessed_document(self) -> None:
         document_id = self._upload_document()
@@ -161,9 +161,9 @@ class AgentCopilotApiTests(unittest.TestCase):
         self.assertEqual(payload["run"]["tool_calls"][0]["risk"], "read_only")
         self.assertEqual(
             payload["response"]["data"]["recommendation"]["recommended_tool"],
-            "export_approved_csv",
+            "save_review_notes",
         )
-        self.assertEqual(detail_response.json()["document"]["status"], "approved")
+        self.assertEqual(detail_response.json()["document"]["status"], "needs_review")
 
     def test_operator_gets_human_escalation_for_admin_only_recommendation(self) -> None:
         document_id = self._upload_document()
@@ -181,7 +181,7 @@ class AgentCopilotApiTests(unittest.TestCase):
         self.assertEqual(recommendation["recommended_tool"], None)
         self.assertEqual(recommendation["risk"], "blocked")
         self.assertTrue(recommendation["requires_human"])
-        self.assertIn("current role cannot use export_approved_csv", recommendation["why"])
+        self.assertIn("current role cannot use save_review_notes", recommendation["why"])
 
     def test_controlled_process_requires_confirmation_without_mutation(self) -> None:
         document_id = self._upload_document()
@@ -223,7 +223,7 @@ class AgentCopilotApiTests(unittest.TestCase):
         self.assertEqual(payload["response"]["tool_name"], "process_document")
         self.assertEqual(payload["response"]["status"], "success")
         self.assertEqual(payload["response"]["risk"], "operator_action")
-        self.assertEqual(payload["response"]["data"]["document"]["status"], "approved")
+        self.assertEqual(payload["response"]["data"]["document"]["status"], "needs_review")
         self.assertEqual(payload["response"]["data"]["job"]["status"], "succeeded")
         self.assertEqual(payload["run"]["intent"], "execute_controlled_tool")
         self.assertEqual(payload["run"]["tool_calls"][0]["status"], "success")
@@ -261,6 +261,7 @@ class AgentCopilotApiTests(unittest.TestCase):
     def test_confirmed_export_executes_and_marks_approved_documents_exported(self) -> None:
         document_id = self._upload_document()
         self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
 
         response = self.client.post(
             "/agent/copilot",
