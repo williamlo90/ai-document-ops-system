@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
@@ -152,7 +152,7 @@ describe('application shell', () => {
   it('starts in the intake workflow with an accessible role selector', async () => {
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: /process a new invoice document/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /upload and check an invoice/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /view application as role/i })).toHaveValue('intake')
     expect(screen.queryByRole('button', { name: /new document task/i })).not.toBeInTheDocument()
   })
@@ -166,15 +166,14 @@ describe('application shell', () => {
       'administrator',
     )
 
-    expect((await screen.findAllByRole('heading', { name: /work queue/i })).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: /work queue/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /documents/i })).toBeInTheDocument()
+    expect((await screen.findAllByRole('heading', { name: /review queue/i })).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /review queue/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /invoices/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /system reliability/i })).not.toBeInTheDocument()
-    const createButtons = screen.getAllByRole('button', { name: /new document task/i })
-    expect(createButtons.length).toBeGreaterThan(0)
-    expect(screen.getByText(/No document tasks match this view/i)).toBeInTheDocument()
-    expect(screen.getByText(/create a document task or upload an invoice/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /new document task/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/No invoices match this view/i)).toBeInTheDocument()
+    expect(screen.getByText(/upload an invoice first/i)).toBeInTheDocument()
     expect(localStorage.getItem('docops-role')).toBe('administrator')
   })
 
@@ -192,58 +191,7 @@ describe('application shell', () => {
     expect(screen.queryByText(/database adapter stack trace/i)).not.toBeInTheDocument()
   })
 
-  it('opens and dismisses the global create-work-item dialog by keyboard', async () => {
-    const user = userEvent.setup()
-    localStorage.setItem('docops-role', 'administrator')
-    render(<App />)
-
-    const create = (await screen.findAllByRole('button', { name: /new document task/i }))[0]
-    create.focus()
-    await user.keyboard('{Enter}')
-
-    const dialog = await screen.findByRole('dialog', { name: /new document task/i })
-    expect(dialog).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /close dialog/i }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-  })
-
-  it('submits the create-work-item mutation with edited state', async () => {
-    const user = userEvent.setup()
-    localStorage.setItem('docops-role', 'administrator')
-    const fetchMock = vi.mocked(fetch)
-    fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
-      const path = String(input)
-      if (path === '/backoffice/work-items' && init?.method === 'POST') {
-        return json({ work_item: { id: 'created-1', title: 'Investigate duplicate invoice' } })
-      }
-      if (path === '/backoffice/work-items/created-1') {
-        return json({
-          work_item: {
-            id: 'created-1', title: 'Investigate duplicate invoice', work_type: 'invoice_review', priority: 'normal', status: 'new', linked_document_ids: [], business_context: {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), assignee: 'Unassigned', requested_outcome: 'Review safely', tags: [], plans: [], current_plan: null, drafts: [], approvals: [], policy_decisions: [], activity: [],
-          },
-        })
-      }
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
-      if (path === '/backoffice/workspace') return json(workspace)
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
-      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    await user.click((await screen.findAllByRole('button', { name: /new document task/i }))[0])
-    await user.clear(screen.getByLabelText('Title'))
-    await user.type(screen.getByLabelText('Title'), 'Investigate duplicate invoice')
-    await user.click(screen.getByRole('button', { name: 'Create Document Task' }))
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      '/backoffice/work-items',
-      expect.objectContaining({ method: 'POST' }),
-    ))
-  })
-
-  it('shows workspace document schema metadata on linked document records', async () => {
+  it('shows plain invoice review tabs without exposing schema metadata', async () => {
     const user = userEvent.setup()
     localStorage.setItem('docops-role', 'administrator')
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
@@ -261,14 +209,14 @@ describe('application shell', () => {
     })
 
     render(<App />)
-    await user.click(await screen.findByText('Review ACME invoice'))
-    expect(await screen.findByText(/Current state/i)).toBeInTheDocument()
-    expect(screen.getByText(/Waiting for a human approval decision/i)).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: /make decision/i }))
+    expect(await screen.findByText(/Needs review because/i)).toBeInTheDocument()
+    expect(screen.getByText(/Waiting for reviewer decision/i)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /review/i }).length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /decision/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /history/i })).toBeInTheDocument()
 
-    expect((await screen.findAllByText('invoice_v1')).length).toBeGreaterThan(0)
+    expect(screen.queryByText('invoice_v1')).not.toBeInTheDocument()
     expect(screen.getAllByText('Invoice').length).toBeGreaterThan(0)
   })
 
@@ -290,15 +238,14 @@ describe('application shell', () => {
     })
 
     render(<App />)
-    await user.click(await screen.findByText('Review ACME invoice'))
+    await user.click(await screen.findByRole('button', { name: /make decision/i }))
     await user.click(await screen.findByRole('button', { name: /decision/i }))
 
-    expect(await screen.findByText(/Why Approval Is Required/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Why This Needs a Decision/i)).toBeInTheDocument()
     expect(screen.getAllByText(/changes downstream accounting records/i).length).toBeGreaterThan(0)
     expect(screen.getByText('Invoice total $100.00')).toBeInTheDocument()
-    expect(screen.getByText(/Allows the proposed action to continue/i)).toBeInTheDocument()
-    expect(screen.getByText(/Stops this approval request/i)).toBeInTheDocument()
-    expect(screen.getByText(/not a third approval status/i)).toBeInTheDocument()
+    expect(screen.getByText(/Approve only when the invoice details match the PDF/i)).toBeInTheDocument()
+    expect(screen.getByRole('textbox')).toHaveAttribute('placeholder', 'What did you check?')
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
   })
@@ -316,8 +263,8 @@ describe('application shell', () => {
     })
 
     render(<App />)
-    expect(await screen.findByRole('button', { name: /work queue/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /documents/i })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /review queue/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /invoices/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /reliability checks/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /test scenarios/i })).not.toBeInTheDocument()

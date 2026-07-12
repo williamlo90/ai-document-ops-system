@@ -228,7 +228,7 @@ type Regression = { deltas: Array<{ metric: string; previous: number | null; cur
 type PromptVersionMetric = { prompt_version: string; total_runs: number; evaluated_runs: number; tool_selection_accuracy: number | null; escalation_rate: number; average_confidence: number | null; estimated_cost_per_run: number | null }
 
 const queryClient = new QueryClient()
-const PRODUCT_NAME = 'AI Document Ops System'
+const PRODUCT_NAME = 'Invoice Review'
 const workTypes = ['invoice_review', 'invoice_export', 'accounting_note', 'vendor_follow_up', 'exception_handling', 'insufficient_evidence']
 
 function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -410,28 +410,28 @@ function Sidebar({
       label: 'Daily Work',
       icon: Inbox,
       items: [
-        [CircleGauge, 'Work Summary', goOverview, screen.kind === 'overview'],
-        [Inbox, 'Work Queue', goQueue, screen.kind === 'queue'],
-        [FileText, 'Documents', openDocuments, screen.kind === 'documents'],
+        [CircleGauge, 'Dashboard', goOverview, screen.kind === 'overview'],
+        [Inbox, 'Review Queue', goQueue, screen.kind === 'queue'],
+        [FileText, 'Invoices', openDocuments, screen.kind === 'documents'],
       ],
     },
   ] as const
 
   if (role === 'intake') {
     const intakeItems = [
-      [Upload, 'New Document', () => goIntake('new'), screen.kind === 'intake' && screen.view === 'new'],
-      [FileText, 'Documents', () => goIntake('invoices'), screen.kind === 'intake' && screen.view === 'invoices'],
+      [Upload, 'Upload Invoice', () => goIntake('new'), screen.kind === 'intake' && screen.view === 'new'],
+      [FileText, 'Invoices', () => goIntake('invoices'), screen.kind === 'intake' && screen.view === 'invoices'],
     ] as const
     return (
       <>
         {open ? <button className="sidebar-scrim" aria-label="Close menu" onClick={close} /> : null}
         <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
-          <div className="brand"><div className="brand-mark"><Sparkles size={23} /></div><div><strong>{PRODUCT_NAME}</strong><span>Document Intake</span></div></div>
+          <div className="brand"><div className="brand-mark"><Sparkles size={23} /></div><div><strong>{PRODUCT_NAME}</strong><span>Intake</span></div></div>
           <nav className="sidebar-nav intake-nav">
             <p className="role-nav-label">DOCUMENT WORK</p>
             {intakeItems.map(([Icon, label, action, active]) => <button key={label} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={() => { action(); close() }}><Icon size={19} /><span>{label}</span></button>)}
           </nav>
-          <div className="intake-role-card"><UserRound size={18} /><div><span>Current role</span><strong>Intake Operator</strong></div></div>
+          <div className="intake-role-card"><UserRound size={18} /><div><span>View</span><strong>Upload invoices</strong></div></div>
         </aside>
       </>
     )
@@ -443,7 +443,7 @@ function Sidebar({
       <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
         <div className="brand">
           <div className="brand-mark"><Sparkles size={23} /></div>
-          <div><strong>{PRODUCT_NAME}</strong><span>Operations Console</span></div>
+          <div><strong>{PRODUCT_NAME}</strong><span>Review</span></div>
         </div>
         <nav className="sidebar-nav">
           {groups.map((group) => (
@@ -462,7 +462,7 @@ function Sidebar({
                   {group.items.map(([Icon, label, action, active]) => (
                     <button key={label} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={() => { action(); close() }}>
                       <Icon size={18} /><span>{label}</span>
-                      {label === 'Work Queue' ? <b>{inboxCount}</b> : null}
+                      {label === 'Review Queue' ? <b>{inboxCount}</b> : null}
                     </button>
                   ))}
                 </div>
@@ -470,12 +470,6 @@ function Sidebar({
             </div>
           ))}
         </nav>
-        <div className="autonomy-card">
-          <span>Execution Policy</span>
-          <strong>Balanced</strong>
-          <small>Approval gated</small>
-          <p>Confirmation required for risky execution</p>
-        </div>
       </aside>
     </>
   )
@@ -526,17 +520,17 @@ function TopBar({
       <div className="topbar-title">
         <button className="mobile-menu" onClick={openMenu} aria-label="Open navigation"><Menu size={20} /></button>
         {screen.kind === 'detail' ? (
-          <><h1>Task Details</h1><button className="back-link" onClick={goQueue}><ArrowLeft size={14} /> Back to queue</button></>
-        ) : <h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Work Summary' : screen.kind === 'workitems' ? 'Exception Queue' : screen.kind === 'documents' ? 'Documents' : screen.kind === 'page' ? pageTitle(screen.page) : 'Work Queue'}</h1>}
+          <><h1>Invoice Review</h1><button className="back-link" onClick={goQueue}><ArrowLeft size={14} /> Back to queue</button></>
+        ) : <h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Dashboard' : screen.kind === 'workitems' ? 'Needs Review' : screen.kind === 'documents' ? 'Invoices' : screen.kind === 'page' ? pageTitle(screen.page) : 'Review Queue'}</h1>}
       </div>
       <div className="topbar-actions">
-        <span className={`health ${healthy ? '' : 'unhealthy'}`}><ShieldCheck size={15} /> {healthy ? 'System healthy' : 'API unavailable'}</span>
+        <span className={`health ${healthy ? '' : 'unhealthy'}`}><ShieldCheck size={15} /> {healthy ? 'Online' : 'Offline'}</span>
         {role === 'administrator' ? <div className="notification"><button className="icon-button" aria-label="Notifications" onClick={() => setNotificationsOpen((value) => !value)}><Bell size={18} />{notifications.data?.unread_count ? <b>{notifications.data.unread_count}</b> : null}</button>{notificationsOpen ? <section className="notification-popover"><header><strong>Notifications</strong><button className="outline-button" disabled={!notifications.data?.unread_count || markAll.isPending} onClick={() => markAll.mutate()}>Mark all read</button></header>{notifications.isLoading ? <LoadingState /> : notifications.error ? <p>{notifications.error.message}</p> : notifications.data?.notifications.length ? notifications.data.notifications.map((item) => <button className={item.read_at ? '' : 'unread'} key={item.id} onClick={() => follow(item)}><span className={`activity-dot ${item.severity}`}><Bell size={12} /></span><div><strong>{item.title}</strong><p>{item.message}</p><small>{relativeTime(item.created_at)}</small></div></button>) : <EmptyState title="No notifications" body="Operational events will appear here." />}</section> : null}</div> : null}
         <span className="avatar">W</span>
-        <div className="operator"><strong>William Lo</strong><span>{role === 'intake' ? 'Intake Operator' : 'Administrator / Reviewer'}</span></div>
+        <div className="operator"><strong>William Lo</strong><span>{role === 'intake' ? 'Uploader' : 'Reviewer'}</span></div>
         <select className="role-select" value={role} onChange={(event) => changeRole(event.target.value as UserRole)} aria-label="View application as role" title="Demo view only; backend role enforcement is not enabled">
-          <option value="intake">Intake Operator</option>
-          <option value="administrator">Administrator / Reviewer</option>
+          <option value="intake">Uploader</option>
+          <option value="administrator">Reviewer</option>
         </select>
       </div>
     </header>
@@ -671,10 +665,6 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
       amount: item.amount || null,
     })),
   })
-  const saveDraftMutation = useMutation({
-    mutationFn: () => api(`/invoices/${documentId}/draft`, { method: 'POST', body: JSON.stringify(draftPayload()) }),
-    onSuccess: () => detail.refetch(),
-  })
   const submitMutation = useMutation({
     mutationFn: async () => {
       await api(`/invoices/${documentId}/draft`, { method: 'POST', body: JSON.stringify(draftPayload()) })
@@ -701,14 +691,14 @@ function GuidedInvoiceWizard({ onSubmitted }: { onSubmitted: () => void }) {
   const maxBytes = uploadPolicy.data?.max_upload_bytes ?? 15 * 1024 * 1024
   return (
     <main className="guided-page">
-      <section className="guided-heading"><div><span>DOCUMENT INTAKE</span><h2>Process a new invoice document</h2><p>Follow four guided steps. This workflow currently supports invoice PDFs and creates a bounded document task for review.</p></div><WorkflowOrientation step={steps[Math.min(step, 3)]} owner={step < 3 ? 'Intake Operator' : 'AI Workflow'} waiting={step === 0 ? 'Invoice PDF' : undefined} next={step === 0 ? 'Upload invoice' : step === 1 ? 'Run extraction' : step === 2 ? 'Verify extracted data' : 'Submit for processing'} /></section>
+      <section className="guided-heading"><div><span>UPLOAD INVOICE</span><h2>Upload and check an invoice</h2><p>Upload a PDF invoice, check the detected fields, then send it to the review queue.</p></div><WorkflowOrientation step={steps[Math.min(step, 3)]} owner={step < 3 ? 'You' : 'System'} waiting={step === 0 ? 'Invoice PDF' : undefined} next={step === 0 ? 'Upload invoice' : step === 1 ? 'Read invoice data' : step === 2 ? 'Check detected fields' : 'Send for review'} /></section>
       <div className="wizard-stepper">{steps.map((label, index) => <div className={index < step ? 'complete' : index === step ? 'active' : ''} key={label}><span>{index < step ? <Check size={15} /> : index + 1}</span><strong>{label}</strong></div>)}</div>
       <section className="wizard-card">
         {step === 0 ? <div className="upload-layout"><div className="upload-step"><label className="upload-zone"><Upload size={32} /><strong>{file?.name ?? 'Choose an invoice PDF'}</strong><span>PDF only, up to {formatBytes(maxBytes)}.</span>{file ? <small>{formatBytes(file.size)} · ready to upload</small> : null}<input type="file" accept="application/pdf,.pdf" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setUploadProgress(0) }} /></label>{duplicate ? <div className="duplicate-warning"><AlertTriangle size={16} /><span><strong>Possible duplicate</strong>A file with the same name and size was submitted {formatDate(duplicate.created_at)}.</span></div> : null}{uploadMutation.isPending ? <div className="upload-progress"><span style={{ width: `${uploadProgress}%` }} /><strong>{uploadProgress}% uploaded</strong></div> : null}<button className="primary-button wizard-primary" disabled={!file || file.size > maxBytes || uploadMutation.isPending} onClick={() => uploadMutation.mutate()}>{uploadMutation.isPending ? <Loader2 className="spin" size={17} /> : <Upload size={17} />} Upload & Continue</button>{uploadMutation.error ? <p className="wizard-error">{(uploadMutation.error as Error).message}</p> : null}</div><PdfPreview url={pdfUrl} filename={file?.name ?? ''} /></div> : null}
         {step === 1 ? <div className="extract-step"><StageActivity events={detail.data?.audit_events ?? []} active={processMutation.isPending} /><div className="wizard-actions"><button className="danger-outline-button" disabled={cancelMutation.isPending || !['queued','failed'].includes(document?.status ?? '')} onClick={() => cancelMutation.mutate()}><X size={16} /> Cancel Intake</button><button className="primary-button" disabled={processMutation.isPending || document?.status === 'failed'} onClick={() => { setProcessMessage(''); processMutation.mutate() }}>{processMutation.isPending ? <Loader2 className="spin" size={17} /> : <Sparkles size={17} />} Extract Invoice Data</button></div>{processMessage ? <p className="wizard-error">{processMessage}</p> : null}{processMutation.error ? <p className="wizard-error">{(processMutation.error as Error).message}</p> : null}{cancelMutation.error ? <p className="wizard-error">{(cancelMutation.error as Error).message}</p> : null}</div> : null}
-        {step === 2 ? <div className="verification-layout"><PdfPreview url={pdfUrl} filename={document?.original_filename ?? ''} /><div className="verify-step"><div className="verify-header"><div><Status value={document?.status ?? 'processing'} /><h3>Verify extracted data</h3><p>Compare every value with the source PDF before continuing.</p></div><span className="confidence">{detail.data?.extraction?.confidence?.length ?? 0} evidence fields</span></div><div className="verify-grid">{guidedFields.map(([key, label, type]) => { const evidence = detail.data?.extraction?.confidence?.find((item) => item.field_name === key); return <label key={key}><span>{label}{evidence?.score != null ? <b>{Math.round(evidence.score * 100)}%</b> : null}</span><input type={type} value={fields[key] ?? ''} onChange={(event) => setFields((current) => ({ ...current, [key]: event.target.value }))} />{evidence?.source_text ? <small title={evidence.source_text}>Page {evidence.source_page ?? 1}: {evidence.source_text}</small> : null}</label> })}</div><LineItemEditor items={lineItems} onChange={setLineItems} />{[...validation.map((issue) => `${issue.field_name ?? issue.field ?? 'Invoice data'}: ${issue.message}`), ...arithmeticIssues].length ? <div className="validation-list">{[...validation.map((issue) => `${issue.field_name ?? issue.field ?? 'Invoice data'}: ${issue.message}`), ...arithmeticIssues].map((message, index) => <p key={index}><AlertTriangle size={14} /><span>{message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={16} /> Arithmetic checks passed.</div>}<div className="wizard-actions">{['extracted','needs_review'].includes(document?.status ?? '') ? <button className="outline-button" disabled={reprocessMutation.isPending} onClick={() => reprocessMutation.mutate()}><RefreshCw size={15} /> Reprocess</button> : null}<button className="outline-button" disabled={saveDraftMutation.isPending} onClick={() => saveDraftMutation.mutate()}>{saveDraftMutation.isPending ? <Loader2 className="spin" size={15} /> : <FileCheck2 size={15} />} Save Draft</button><button className="primary-button" disabled={arithmeticIssues.length > 0} onClick={() => setStep(3)}><Check size={17} /> Confirm Invoice Data</button></div></div></div> : null}
-        {step === 3 ? <div className="submit-step"><div className="submit-summary"><WorkIcon type="invoice_review" /><div><span>READY TO SUBMIT</span><h3>{fields.vendor_name || document?.original_filename || 'Invoice'}</h3><p>{fields.invoice_number || shortId(documentId)} · {fields.currency || '-'} {fields.total || '-'}</p></div></div><div className="notice"><FileCheck2 size={17} /><div><strong>Create review task</strong><p>The system will create one document task for reviewing extracted fields and validation evidence. Drafts, exports, and vendor follow-ups can be created later from the administrator workspace.</p></div></div><div className="wizard-actions"><button className="outline-button" onClick={() => setStep(2)}>Back</button><button className="primary-button" disabled={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{submitMutation.isPending ? <Loader2 className="spin" size={17} /> : <Play size={17} />} Create Review Task</button></div>{submitMutation.error ? <p className="wizard-error">{(submitMutation.error as Error).message}</p> : null}</div> : null}
-        {step === 4 ? <div className="submission-success"><CheckCircle2 size={42} /><span>TASK CREATED</span><h3>Invoice review task created</h3><p>Your durable reference is <strong>{shortId(documentId)}</strong>. Track this invoice from Documents. Review planning and approvals continue in the administrator Work Queue.</p><div className="success-status"><Status value={submittedItem?.status ?? 'planning'} /><span>Current owner<strong>AI Workflow</strong></span><span>Next action<strong>Reviewer opens Work Queue</strong></span></div><div className="wizard-actions"><button className="outline-button" onClick={() => { setStep(0); setFile(null); setDocumentId(''); setSubmittedItem(null); setFields({}); setLineItems([]) }}><Plus size={16} /> Upload Another Invoice</button><button className="primary-button" onClick={onSubmitted}><FileClock size={16} /> View Documents</button></div></div> : null}
+        {step === 2 ? <div className="verification-layout"><PdfPreview url={pdfUrl} filename={document?.original_filename ?? ''} /><div className="verify-step"><div className="verify-header"><div><Status value={document?.status ?? 'processing'} /><h3>Check invoice data</h3><p>Compare the detected values with the PDF before sending it for review.</p></div><span className="confidence">{detail.data?.extraction?.confidence?.length ?? 0} checked fields</span></div><div className="verify-grid">{guidedFields.map(([key, label, type]) => { const evidence = detail.data?.extraction?.confidence?.find((item) => item.field_name === key); return <label key={key}><span>{label}{evidence?.score != null ? <b>{Math.round(evidence.score * 100)}%</b> : null}</span><input type={type} value={fields[key] ?? ''} onChange={(event) => setFields((current) => ({ ...current, [key]: event.target.value }))} />{evidence?.source_text ? <small title={evidence.source_text}>Page {evidence.source_page ?? 1}: {evidence.source_text}</small> : null}</label> })}</div><LineItemEditor items={lineItems} onChange={setLineItems} />{[...validation.map((issue) => `${issue.field_name ?? issue.field ?? 'Invoice data'}: ${issue.message}`), ...arithmeticIssues].length ? <div className="validation-list">{[...validation.map((issue) => `${issue.field_name ?? issue.field ?? 'Invoice data'}: ${issue.message}`), ...arithmeticIssues].map((message, index) => <p key={index}><AlertTriangle size={14} /><span>{message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={16} /> Totals look consistent.</div>}<div className="wizard-actions">{['extracted','needs_review'].includes(document?.status ?? '') ? <button className="outline-button" disabled={reprocessMutation.isPending} onClick={() => reprocessMutation.mutate()}><RefreshCw size={15} /> Read Again</button> : null}<button className="primary-button" disabled={arithmeticIssues.length > 0} onClick={() => setStep(3)}><Check size={17} /> Continue</button></div></div></div> : null}
+        {step === 3 ? <div className="submit-step"><div className="submit-summary"><WorkIcon type="invoice_review" /><div><span>READY FOR REVIEW</span><h3>{fields.vendor_name || document?.original_filename || 'Invoice'}</h3><p>{fields.invoice_number || shortId(documentId)} · {fields.currency || '-'} {fields.total || '-'}</p></div></div><div className="notice"><FileCheck2 size={17} /><div><strong>Send to reviewer</strong><p>This creates one review item so a reviewer can approve, reject, or ask for correction.</p></div></div><div className="wizard-actions"><button className="outline-button" onClick={() => setStep(2)}>Back</button><button className="primary-button" disabled={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{submitMutation.isPending ? <Loader2 className="spin" size={17} /> : <Play size={17} />} Send for Review</button></div>{submitMutation.error ? <p className="wizard-error">{(submitMutation.error as Error).message}</p> : null}</div> : null}
+        {step === 4 ? <div className="submission-success"><CheckCircle2 size={42} /><span>SENT FOR REVIEW</span><h3>Invoice is in the review queue</h3><p>Reference: <strong>{shortId(documentId)}</strong>. You can track this invoice from Invoices.</p><div className="success-status"><Status value={submittedItem?.status ?? 'planning'} /><span>Owner<strong>Reviewer</strong></span><span>Next<strong>Open Review Queue</strong></span></div><div className="wizard-actions"><button className="outline-button" onClick={() => { setStep(0); setFile(null); setDocumentId(''); setSubmittedItem(null); setFields({}); setLineItems([]) }}><Plus size={16} /> Upload Another Invoice</button><button className="primary-button" onClick={onSubmitted}><FileClock size={16} /> View Invoices</button></div></div> : null}
       </section>
     </main>
   )
@@ -741,12 +731,12 @@ function invoiceArithmeticIssues(fields: Record<string, string>, items: LineItem
 const guidedFields: Array<[string, string, string]> = [['vendor_name','Vendor','text'],['invoice_number','Invoice number','text'],['invoice_date','Invoice date','date'],['due_date','Due date','date'],['subtotal','Subtotal','number'],['tax','Tax','number'],['total','Total','number'],['currency','Currency','text']]
 
 function WorkflowOrientation({ step, owner, waiting, next }: { step: string; owner: string; waiting?: string; next: string }) {
-  return <aside className="orientation-panel"><div><span>Current owner</span><strong>{owner}</strong></div><div><span>Current step</span><strong>{step}</strong></div>{waiting ? <div><span>Waiting for</span><strong>{waiting}</strong></div> : null}<div className="next"><span>Next action</span><strong>{next}</strong></div></aside>
+  return <aside className="orientation-panel"><div><span>Owner</span><strong>{owner}</strong></div><div><span>Step</span><strong>{step}</strong></div>{waiting ? <div><span>Needs</span><strong>{waiting}</strong></div> : null}<div className="next"><span>Next</span><strong>{next}</strong></div></aside>
 }
 
 function StageActivity({ events, active }: { events: DocumentDetail['audit_events']; active: boolean }) {
   const stages = [{ label: 'PDF received', done: true }, { label: 'Extraction and OCR', done: !active && events.some((event) => event.event_type === 'processing_succeeded'), active }, { label: 'Validation rules', done: !active && events.some((event) => event.event_type === 'processing_succeeded') }]
-  return <div className="stage-activity"><h3>{active ? 'AI workflow is processing the invoice' : 'Ready to extract invoice data'}</h3><p>Progress is shown only when supported by durable document events.</p>{stages.map((stage) => <div key={stage.label} className={stage.done ? 'done' : stage.active ? 'active' : ''}><span>{stage.done ? <Check size={15} /> : stage.active ? <Loader2 className="spin" size={15} /> : null}</span><strong>{stage.label}</strong></div>)}</div>
+  return <div className="stage-activity"><h3>{active ? 'Reading invoice data' : 'Ready to read invoice data'}</h3><p>The app will detect key invoice fields and show them for checking.</p>{stages.map((stage) => <div key={stage.label} className={stage.done ? 'done' : stage.active ? 'active' : ''}><span>{stage.done ? <Check size={15} /> : stage.active ? <Loader2 className="spin" size={15} /> : null}</span><strong>{stage.label}</strong></div>)}</div>
 }
 
 function IntakeLibrary({ view, openItem }: { view: IntakeView; openItem: (id: string) => void }) {
@@ -778,8 +768,8 @@ function IntakeLibrary({ view, openItem }: { view: IntakeView; openItem: (id: st
       <section className="section-heading">
         <div>
           <span className="section-eyebrow">DOCUMENT WORK</span>
-          <h2>{view === 'submissions' ? 'My Documents' : 'Document Library'}</h2>
-          <p>{view === 'submissions' ? 'Invoice documents submitted by William Lo, with their current owner and workflow stage.' : 'Every invoice document in this workspace, including unfinished and failed processing.'}</p>
+          <h2>{view === 'submissions' ? 'My Invoices' : 'Invoices'}</h2>
+          <p>{view === 'submissions' ? 'Invoices submitted by William Lo.' : 'All uploaded invoices and their current status.'}</p>
         </div>
       </section>
       <div className="invoice-toolbar">
@@ -800,7 +790,7 @@ function IntakeLibrary({ view, openItem }: { view: IntakeView; openItem: (id: st
             <span><small>Amount</small><strong>{doc.currency || '-'} {doc.total || '-'}</strong></span>
             <span><small>Submitted</small><strong>{formatDate(doc.created_at)}</strong></span>
             <span><small>Owner</small><strong>{doc.current_owner}</strong></span>
-            <span><small>Stage</small><strong>{doc.current_stage}</strong></span>
+            <span><small>Status detail</small><strong>{humanize(doc.current_stage)}</strong></span>
             <Status value={doc.status} /><ChevronRight size={17} />
           </button>
         ))}
@@ -859,7 +849,7 @@ function InvoiceStatusPanel({ documentId, close, openItem, refresh }: { document
             {data.document.status === 'failed' ? <button className="outline-button" disabled={retry.isPending} onClick={() => retry.mutate()}><RefreshCw size={15} /> Retry Processing</button> : null}
             {['extracted','needs_review','cancelled'].includes(data.document.status) ? <button className="outline-button" disabled={reprocess.isPending} onClick={() => reprocess.mutate()}><RefreshCw size={15} /> Reprocess</button> : null}
             {['queued','failed'].includes(data.document.status) ? <button className="danger-outline-button" disabled={cancel.isPending} onClick={() => cancel.mutate()}><X size={15} /> Cancel Intake</button> : null}
-            {data.work_item ? <button className="primary-button" onClick={() => openItem(data.work_item!.id)}><FileClock size={15} /> Open Workflow Status</button> : null}
+            {data.work_item ? <button className="primary-button" onClick={() => openItem(data.work_item!.id)}><FileClock size={15} /> Open Review</button> : null}
           </footer>
         </> : <ErrorState message={(workflow.error as Error)?.message ?? 'Invoice unavailable'} retry={() => workflow.refetch()} />}
       </aside>
@@ -869,35 +859,26 @@ function InvoiceStatusPanel({ documentId, close, openItem, refresh }: { document
 
 function OperationsOverview({ workspace, loading, openItem, goQueue }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void; goQueue: (filter?: QueueFilter) => void }) {
   const [createOpen, setCreateOpen] = useState(false)
-  const providerHealth = useQuery({ queryKey: ['provider-health'], queryFn: () => api<ProviderHealth>('/providers/health'), refetchInterval: 15000 })
-  const workerHealth = useQuery({ queryKey: ['operations-jobs'], queryFn: () => api<OperationsJobs>('/operations/jobs'), refetchInterval: 15000 })
   const items = workspace?.work_items ?? []
   const attention = items.filter((item) => ['awaiting_human','blocked','failed'].includes(item.status))
   const counts = queueCounts(items)
-  const failedDocuments = workspace?.documents.filter((document) => document.status === 'failed').length ?? 0
   const executing = items.filter((item) => item.status === 'executing').length
   const completedToday = items.filter((item) => item.status === 'resolved' && isToday(item.updated_at)).length
   const metrics: Array<[string, number | string, React.ReactNode, QueueFilter | undefined]> = [
-    ['Needs attention', attention.length, <AlertTriangle key="attention" size={18} />, 'attention'],
-    ['Waiting approval', counts.approval, <UserRound key="approval" size={18} />, 'approval'],
-    ['Executing', executing, <Play key="executing" size={18} />, 'progress'],
-    ['Completed today', completedToday, <CheckCircle2 key="completed" size={18} />, 'completed'],
-    ['Failed processing', failedDocuments, <FileClock key="failed" size={18} />, 'blocked'],
-    ['Provider health', humanize(providerHealth.data?.overall_status ?? 'checking'), <ShieldCheck key="health" size={18} />, undefined],
-    ['Worker health', humanize(workerHealth.data?.worker.status ?? 'checking'), <CircleGauge key="worker" size={18} />, undefined],
+    ['Needs review', attention.length, <AlertTriangle key="attention" size={18} />, 'attention'],
+    ['Waiting decision', counts.approval, <UserRound key="approval" size={18} />, 'approval'],
+    ['In progress', executing, <Play key="executing" size={18} />, 'progress'],
+    ['Done today', completedToday, <CheckCircle2 key="completed" size={18} />, 'completed'],
   ]
-  return <main className="section-page"><section className="section-heading"><div><span className="section-eyebrow">ADMINISTRATOR / REVIEWER</span><h2>Work Summary</h2><p>Document attention, approvals, failures, and completed work in one place.</p></div><div className="section-actions"><button className="outline-button" onClick={() => setCreateOpen(true)}><Plus size={15} /> New Document Task</button><button className="primary-button" onClick={() => goQueue()}>Open Work Queue</button></div></section><div className="overview-metrics">{metrics.map(([label,value,icon,filter]) => <button key={label} disabled={!filter} onClick={() => filter && goQueue(filter)}><span>{icon}</span><small>{label}</small><strong>{loading ? '-' : value}</strong><ChevronRight size={15} /></button>)}</div><section className="provider-health-strip"><header><ShieldCheck size={17} /><strong>Provider Health</strong><Status value={providerHealth.data?.overall_status ?? 'checking'} /></header>{providerHealth.data?.providers.map((provider) => <article key={provider.role}><div><small>{humanize(provider.role)}</small><strong>{provider.provider_name}</strong></div><Status value={provider.status} /><span>{provider.observed_runs} runs · {provider.observed_failures} failures</span><p>{provider.evidence}</p></article>)}</section><section className="data-panel"><DataPanelHeader icon={<Inbox size={17} />} title="Needs Human Attention" count={attention.length} />{loading ? <LoadingState /> : attention.length ? <div className="overview-attention">{attention.map((item) => <button key={item.id} onClick={() => openItem(item.id)}><WorkIcon type={item.work_type} /><span><strong>{item.title}</strong><small>{attentionReason(item)} Decision: {decisionRequired(item)}</small></span><Status value={item.status} /><ChevronRight size={16} /></button>)}</div> : <div className="healthy-empty"><CheckCircle2 size={28} /><div><strong>No documents require attention</strong><p>Active processing is continuing normally.</p></div></div>}</section>{createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}</main>
+  return <main className="section-page"><section className="section-heading"><div><span className="section-eyebrow">REVIEWER</span><h2>Dashboard</h2><p>Invoices that need review, a decision, or a correction.</p></div><div className="section-actions"><button className="primary-button" onClick={() => goQueue()}>Open Review Queue</button></div></section><div className="overview-metrics">{metrics.map(([label,value,icon,filter]) => <button key={label} disabled={!filter} onClick={() => filter && goQueue(filter)}><span>{icon}</span><small>{label}</small><strong>{loading ? '-' : value}</strong><ChevronRight size={15} /></button>)}</div><section className="data-panel"><DataPanelHeader icon={<Inbox size={17} />} title="Needs Review" count={attention.length} />{loading ? <LoadingState /> : attention.length ? <div className="overview-attention">{attention.map((item) => <button key={item.id} onClick={() => openItem(item.id)}><WorkIcon type={item.work_type} /><span><strong>{item.title}</strong><small>{attentionReason(item)}</small></span><Status value={item.status} /><ChevronRight size={16} /></button>)}</div> : <div className="healthy-empty"><CheckCircle2 size={28} /><div><strong>No invoices need review</strong><p>New invoices will appear here when someone needs to check them.</p></div></div>}</section>{createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}</main>
 }
 
 function QueuePage({ workspace, loading, openItem, exceptionMode = false, initialFilter }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void; exceptionMode?: boolean; initialFilter?: QueueFilter }) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<QueueFilter>(initialFilter ?? 'all')
-  const [priorityFilter, setPriorityFilter] = useState('')
   const [exceptionFilter, setExceptionFilter] = useState<ExceptionFilter>('all')
-  const [showFilters, setShowFilters] = useState(false)
-  const [showColumns, setShowColumns] = useState(false)
-  const [visibleColumns, setVisibleColumns] = useState({ assignee: true, updated: true })
+  const visibleColumns = { assignee: true, updated: true }
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(1)
   const pageSize = 8
@@ -907,10 +888,10 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
   const exceptionItems = allItems.filter((item) => ['awaiting_human', 'blocked', 'failed'].includes(item.status) || ['vendor_follow_up', 'insufficient_evidence'].includes(item.work_type ?? '') || item.linked_document_ids.some((id) => workspace?.documents.find((document) => document.id === id)?.status === 'needs_review'))
   const items = exceptionMode ? exceptionItems : allItems
   const counts = queueCounts(items)
-  const filtered = items.filter((item) => matchesFilter(item, filter) && (!exceptionMode || matchesExceptionFilter(item, exceptionFilter, workspace?.documents ?? [])) && (!priorityFilter || item.priority === priorityFilter) && `${item.title} ${item.id} ${item.assignee}`.toLowerCase().includes(search.toLowerCase()))
+  const filtered = items.filter((item) => matchesFilter(item, filter) && (!exceptionMode || matchesExceptionFilter(item, exceptionFilter, workspace?.documents ?? [])) && `${item.title} ${item.id} ${item.assignee}`.toLowerCase().includes(search.toLowerCase()))
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
-  useEffect(() => { setPage(1) }, [search, filter, priorityFilter, exceptionFilter])
+  useEffect(() => { setPage(1) }, [search, filter, exceptionFilter])
   useEffect(() => { if (page > totalPages) setPage(totalPages) }, [page, totalPages])
   const bulkPriority = useMutation({
     mutationFn: () => Promise.all([...selected].map((id) => api(`/backoffice/work-items/${id}`, { method: 'PATCH', body: JSON.stringify({ priority: 'high' }) }))),
@@ -918,26 +899,21 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
   })
 
   const metrics = [
-    ['Document Tasks', items.length, Inbox, 'blue', 'All active records'],
-    ['Needs Attention', counts.attention, AlertTriangle, 'red', 'High priority or blocked'],
-    ['In Progress', counts.progress, Play, 'blue', 'Currently planned'],
-    ['Waiting Approval', counts.approval, UserRound, 'amber', 'Pending human review'],
-    ['Completed Today', counts.completed, ShieldCheck, 'green', 'Resolved work items'],
+    ['Invoices', items.length, Inbox, 'blue', 'All review items'],
+    ['Needs Review', counts.attention, AlertTriangle, 'red', 'Needs a person'],
+    ['In Progress', counts.progress, Play, 'blue', 'Being processed'],
+    ['Waiting Decision', counts.approval, UserRound, 'amber', 'Approve or reject'],
+    ['Completed Today', counts.completed, ShieldCheck, 'green', 'Finished reviews'],
   ] as const
 
   return (
     <main className="queue-page">
       <section className="page-heading">
-        <div><h2>{exceptionMode ? 'Exception Queue' : 'Work Queue'}</h2><p>{exceptionMode ? 'Only documents that require human review, correction, approval, or recovery.' : 'All incoming and in-progress document operations, organized by risk and next action.'}</p></div>
+        <div><h2>{exceptionMode ? 'Needs Review' : 'Review Queue'}</h2><p>{exceptionMode ? 'Invoices that need review, correction, approval, or recovery.' : 'Invoices waiting for review or already being processed.'}</p></div>
         <div className="queue-tools">
-          <label className="search-box"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search document tasks..." /><kbd>⌘ K</kbd></label>
-          <button className={`outline-button ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters((value) => !value)}><Filter size={15} /> Filters</button>
-          <button className={`outline-button ${showColumns ? 'active' : ''}`} onClick={() => setShowColumns((value) => !value)}><Columns3 size={15} /> Columns</button>
-          <button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={16} /> New Document Task</button>
+          <label className="search-box"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoices..." /></label>
         </div>
       </section>
-      {showFilters ? <section className="queue-control-panel"><label>Priority<select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option value="">All priorities</option>{['low','normal','high','urgent'].map((value) => <option key={value} value={value}>{humanize(value)}</option>)}</select></label><button className="outline-button" onClick={() => { setPriorityFilter(''); setSearch(''); setFilter('all') }}><X size={14} /> Reset filters</button></section> : null}
-      {showColumns ? <section className="queue-control-panel"><label><input type="checkbox" checked={visibleColumns.assignee} onChange={(event) => setVisibleColumns((current) => ({ ...current, assignee: event.target.checked }))} /> Assignee</label><label><input type="checkbox" checked={visibleColumns.updated} onChange={(event) => setVisibleColumns((current) => ({ ...current, updated: event.target.checked }))} /> Updated</label></section> : null}
       {selected.size ? <section className="bulk-bar"><strong>{selected.size} selected</strong><button className="outline-button" disabled={bulkPriority.isPending} onClick={() => bulkPriority.mutate()}><AlertTriangle size={14} /> Set High Priority</button><button className="outline-button" onClick={() => setSelected(new Set())}><X size={14} /> Clear</button></section> : null}
       <section className="metric-row">
         {metrics.map(([label, value, Icon, tone, note]) => (
@@ -952,11 +928,10 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
         <div className="queue-tabs">
           {([
             ['all', `All (${items.length})`],
-            ['attention', `Needs Attention (${counts.attention})`],
+            ['attention', `Needs Review (${counts.attention})`],
             ['progress', `In Progress (${counts.progress})`],
-            ['approval', `Waiting Approval (${counts.approval})`],
+            ['approval', `Waiting Decision (${counts.approval})`],
             ['completed', `Completed (${counts.completed})`],
-            ['blocked', `Blocked (${counts.blocked})`],
           ] as [QueueFilter, string][]).map(([value, label]) => <button className={filter === value ? 'active' : ''} onClick={() => setFilter(value)} key={value}>{label}</button>)}
         </div>
         <WorkItemTable items={paged} documents={workspace?.documents ?? []} loading={loading} openItem={openItem} selected={selected} setSelected={setSelected} visibleColumns={visibleColumns} page={page} totalPages={totalPages} total={filtered.length} setPage={setPage} />
@@ -967,7 +942,37 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
 }
 
 function WorkItemTable({ items, documents, loading, openItem, selected, setSelected, visibleColumns, page, totalPages, total, setPage }: { items: WorkItemSummary[]; documents: DocumentSummary[]; loading: boolean; openItem: (id: string) => void; selected: Set<string>; setSelected: (value: Set<string>) => void; visibleColumns: { assignee: boolean; updated: boolean }; page: number; totalPages: number; total: number; setPage: (page: number) => void }) {
-  if (loading) return <LoadingState label="Loading document tasks" />
+  if (loading) return <LoadingState label="Loading invoices" />
+  return (
+    <div className="invoice-card-list">
+      {items.map((item) => {
+        const document = linkedDocumentForItem(item, documents)
+        return (
+          <button className="invoice-review-card" key={item.id} onClick={() => openItem(item.id)}>
+            <div className="invoice-review-main">
+              <WorkIcon type={item.work_type} />
+              <div>
+                <span>{businessId(item)}</span>
+                <h3>{document?.filename ?? item.title}</h3>
+                <p>{queueVendor(item, document)} · {queueAmount(item)}</p>
+              </div>
+            </div>
+            <div className="invoice-review-status">
+              <Status value={item.status} />
+              <small>{attentionReason(item)}</small>
+            </div>
+            <div className="invoice-review-meta">
+              <span>Owner<strong>{item.assignee}</strong></span>
+              <span>Updated<strong>{relativeTime(item.updated_at)}</strong></span>
+            </div>
+            <span className="primary-button">{nextAction(item.status)}</span>
+          </button>
+        )
+      })}
+      {items.length === 0 ? <EmptyState title="No invoices match this view" body="Clear the search or switch to All. If this is a new workspace, upload an invoice first." /> : null}
+      <div className="pagination"><span>Showing {items.length} of {total} items</span><div><button aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={15} /></button><button className="active" aria-current="page" disabled>{page}</button><button aria-label="Next page" disabled={page >= totalPages} onClick={() => setPage(page + 1)}><ChevronRight size={15} /></button></div><button disabled>{page} / {totalPages} pages</button></div>
+    </div>
+  )
   const allSelected = items.length > 0 && items.every((item) => selected.has(item.id))
   const toggleAll = () => {
     const next = new Set(selected)
@@ -977,7 +982,7 @@ function WorkItemTable({ items, documents, loading, openItem, selected, setSelec
   return (
     <div className="table-wrap">
       <table className="work-table">
-        <thead><tr><th><input type="checkbox" aria-label="Select all on page" checked={allSelected} onChange={toggleAll} /></th><th>Document</th><th>Vendor / Amount</th><th>Type</th><th>Status</th><th>Risk / Attention</th>{visibleColumns.assignee ? <th>Owner</th> : null}{visibleColumns.updated ? <th>Updated</th> : null}<th>Next Action</th><th /></tr></thead>
+        <thead><tr><th><input type="checkbox" aria-label="Select all on page" checked={allSelected} onChange={toggleAll} /></th><th>Invoice</th><th>Vendor / Amount</th><th>Type</th><th>Status</th><th>Why it needs review</th>{visibleColumns.assignee ? <th>Owner</th> : null}{visibleColumns.updated ? <th>Updated</th> : null}<th>Action</th><th /></tr></thead>
         <tbody>
           {items.map((item) => {
             const document = linkedDocumentForItem(item, documents)
@@ -998,7 +1003,7 @@ function WorkItemTable({ items, documents, loading, openItem, selected, setSelec
           })}
         </tbody>
       </table>
-      {items.length === 0 ? <EmptyState title="No document tasks match this view" body="Clear the search or switch to All Tasks. If this is a new workspace, create a document task or upload an invoice first." next="Start with New Document Task when you already have a source file, or use New Document for invoice intake." /> : null}
+      {items.length === 0 ? <EmptyState title="No invoices match this view" body="Clear the search or switch to All. If this is a new workspace, upload an invoice first." /> : null}
       <div className="pagination"><span>Showing {items.length} of {total} items</span><div><button aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={15} /></button><button className="active" aria-current="page" disabled>{page}</button><button aria-label="Next page" disabled={page >= totalPages} onClick={() => setPage(page + 1)}><ChevronRight size={15} /></button></div><button disabled>{page} / {totalPages} pages</button></div>
     </div>
   )
@@ -1046,7 +1051,7 @@ function WorkItemPage({
   return (
     <main className="detail-page">
       <aside className="inbox-rail">
-        <div className="rail-title"><h2>Work Queue</h2><button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={15} /> New Document Task</button></div>
+        <div className="rail-title"><h2>Review Queue</h2></div>
         <div className="rail-filter"><span>All ({items.length})</span><ChevronDown size={14} /><button aria-label="Filter inbox" title="Inbox filters are not available yet" disabled><Filter size={15} /></button><button aria-label="Inbox view options" title="View options are not available yet" disabled><Columns3 size={15} /></button></div>
         <div className="rail-items">
           {items.map((entry) => <InboxCard key={entry.id} item={entry} active={entry.id === item.id} open={() => openItem(entry.id)} />)}
@@ -1060,7 +1065,7 @@ function WorkItemPage({
             <h2>{item.title} <button className="inline-edit" aria-label="Edit work item" onClick={() => setEditOpen(true)}><Pencil size={14} /></button></h2>
           </div>
           <div className="detail-header-actions">
-            <button className="outline-button" onClick={() => setEditOpen(true)}><Pencil size={16} /> Edit Document Task</button>
+            <button className="outline-button" onClick={() => setEditOpen(true)}><Pencil size={16} /> Edit</button>
             <div className="pager">
               <button disabled={currentIndex <= 0} onClick={() => openItem(items[currentIndex - 1]?.id)}><ChevronLeft size={17} /></button>
               <button disabled={currentIndex < 0 || currentIndex >= items.length - 1} onClick={() => openItem(items[currentIndex + 1]?.id)}><ChevronRight size={17} /></button>
@@ -1081,7 +1086,7 @@ function WorkItemPage({
           ))}
         </div>
         {activeTab === 'Review' ? (
-          <WorkspaceTab item={item} document={linkedDocument} documentDetail={documentDetail.data?.document} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
+          <WorkspaceTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} loading={documentDetail.isLoading} />
         ) : activeTab === 'Decision' ? <ApprovalTab item={item} document={linkedDocument} extraction={documentDetail.data?.extraction ?? null} /> :
             activeTab === 'History' ? <ActivityTab workflow={documentWorkflow.data} documentId={linkedDocument?.id} loading={documentWorkflow.isLoading} error={documentWorkflow.error as Error | null} /> :
                 <EmptyState title={`${activeTab} timeline`} body="This view is not available for the current workflow." />}
@@ -1098,22 +1103,22 @@ function DetailDecisionSummary({ item, document }: { item: WorkItemDetail; docum
   return (
     <section className="decision-summary" aria-label="Work item decision summary">
       <article>
-        <span>Current state</span>
+        <span>Needs review because</span>
         <strong>{attentionReason(item)}</strong>
         <p>{decisionRequired(item)}</p>
       </article>
       <article>
-        <span>Next step</span>
-        <strong>{nextStep ? humanize(nextStep.action_type) : item.current_plan ? 'Plan has no open step' : 'Generate or review a plan'}</strong>
-        <p>{nextStep?.why_this ?? item.requested_outcome ?? 'Confirm the available evidence before taking action.'}</p>
+        <span>Suggested action</span>
+        <strong>{nextStep ? humanize(nextStep.action_type) : item.current_plan ? 'No open action' : 'Review invoice first'}</strong>
+        <p>{nextStep?.why_this ?? item.requested_outcome ?? 'Check the invoice before taking action.'}</p>
       </article>
       <article>
-        <span>Decision needed</span>
-        <strong>{pendingApproval ? 'Approval decision pending' : item.current_plan?.requires_human ? 'Human review required' : 'No approval gate open'}</strong>
-        <p>{pendingApproval ? 'Open Decision to approve or reject the controlled action.' : item.current_plan?.requires_human ? 'Review the plan and evidence before execution.' : 'Continue from the next available workflow step.'}</p>
+        <span>Reviewer decision</span>
+        <strong>{pendingApproval ? 'Decision pending' : item.current_plan?.requires_human ? 'Reviewer check required' : 'No decision needed'}</strong>
+        <p>{pendingApproval ? 'Open Decision to approve or reject.' : item.current_plan?.requires_human ? 'Check the invoice before continuing.' : 'Continue from the next available action.'}</p>
       </article>
       <article>
-        <span>Source evidence</span>
+        <span>Source document</span>
         <strong>{document?.filename ?? 'No linked source'}</strong>
         <p>{document ? `Document status: ${humanize(document.status)}.` : 'Link a source document before making a final decision.'}</p>
       </article>
@@ -1133,7 +1138,7 @@ function InboxCard({ item, active, open }: { item: WorkItemSummary; active: bool
   )
 }
 
-function WorkspaceTab({ item, document, documentDetail, extraction, loading }: { item: WorkItemDetail; document?: DocumentSummary; documentDetail?: ApiDocument; extraction: Extraction | null; loading: boolean }) {
+function WorkspaceTab({ item, document, extraction, loading }: { item: WorkItemDetail; document?: DocumentSummary; extraction: Extraction | null; loading: boolean }) {
   const fields = invoiceFields(extraction)
   const issues = extraction?.validation ?? []
   const evidence = extraction?.confidence ?? []
@@ -1145,36 +1150,35 @@ function WorkspaceTab({ item, document, documentDetail, extraction, loading }: {
     <div className="document-workspace">
       <section className={`workspace-alert ${issues.length ? 'has-issues' : evidence.length ? 'clear' : 'missing'}`}>
         {issues.length ? <AlertTriangle size={18} /> : evidence.length ? <CheckCircle2 size={18} /> : <FileClock size={18} />}
-        <div><strong>{issues.length ? `${issues.length} validation issue${issues.length === 1 ? ' requires' : 's require'} review` : evidence.length ? 'Extraction evidence is available' : 'Extraction evidence is not available'}</strong><p>{issues.length ? 'Resolve deterministic validation findings before relying on the proposed action.' : evidence.length ? `${evidence.length} extracted fields include stored confidence or source evidence.` : 'No stored field-level confidence or source excerpts were returned for this document.'}</p></div>
+        <div><strong>{issues.length ? `${issues.length} issue${issues.length === 1 ? ' needs' : 's need'} review` : evidence.length ? 'Invoice data is ready to check' : 'Invoice data needs manual checking'}</strong><p>{issues.length ? 'Fix or reject the invoice before approving it.' : evidence.length ? `${evidence.length} fields were detected from the invoice.` : 'The app could not show field-level proof for this invoice.'}</p></div>
         <Priority value={item.priority} />
       </section>
 
       <div className="workspace-primary">
         <section className="workspace-preview">
-          <div className="workspace-section-heading"><div><span>Source document</span><h3>{document?.filename ?? 'No linked document'}</h3></div>{document ? <Status value={document.status} /> : null}</div>
+          <div className="workspace-section-heading"><div><span>Invoice PDF</span><h3>{document?.filename ?? 'No linked document'}</h3></div>{document ? <Status value={document.status} /> : null}</div>
           {loading ? <LoadingState label="Loading source document" /> : document ? <AuthenticatedPdfPreview document={document} /> : <EmptyState title="No source preview" body="Link a source document before reviewing extracted fields or approving work." next="Without a source document, compare any proposed action manually before deciding." />}
         </section>
 
         <div className="workspace-review">
           <section className="panel workspace-fields">
-            <PanelTitle title="Extracted Invoice Fields" action={<TypeBadge value="invoice" />} />
-            <p className="workspace-context">Current extraction schema is invoice-specific. Unavailable values remain visibly unverified.</p>
-            <SchemaMeta document={documentDetail} extraction={extraction} />
-            <div className="invoice-fields">{fields.map(([label, value]) => <div className={value === '-' ? 'field-missing' : ''} key={label}><span>{label}</span><strong>{value}</strong><small><i /> {value === '-' ? 'Missing evidence' : 'Stored extraction'}</small></div>)}</div>
+            <PanelTitle title="Invoice Fields" action={<TypeBadge value="invoice" />} />
+            <p className="workspace-context">Check these values against the PDF before deciding.</p>
+            <div className="invoice-fields">{fields.map(([label, value]) => <div className={value === '-' ? 'field-missing' : ''} key={label}><span>{label}</span><strong>{value}</strong><small><i /> {value === '-' ? 'Missing' : 'Detected'}</small></div>)}</div>
           </section>
 
           <section className="panel workspace-validation">
-            <PanelTitle title="Validation" action={<span className={`severity-badge severity-${issues.length ? validationSeverity(issues) : 'clear'}`}>{issues.length ? humanize(validationSeverity(issues)) : 'Passed'}</span>} />
-            {issues.length ? <div className="validation-issues">{issues.map((issue, index) => <article key={`${issue.field_name ?? issue.field}-${index}`}><AlertTriangle size={15} /><div><strong>{humanize(issue.field_name ?? issue.field ?? 'Document data')}</strong><p>{issue.message ?? 'Validation issue requires review.'}</p></div><span className={`severity-badge severity-${issue.severity ?? 'warning'}`}>{humanize(issue.severity ?? 'warning')}</span></article>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation blockers were returned.</div>}
+            <PanelTitle title="Checks" action={<span className={`severity-badge severity-${issues.length ? validationSeverity(issues) : 'clear'}`}>{issues.length ? humanize(validationSeverity(issues)) : 'Passed'}</span>} />
+            {issues.length ? <div className="validation-issues">{issues.map((issue, index) => <article key={`${issue.field_name ?? issue.field}-${index}`}><AlertTriangle size={15} /><div><strong>{humanize(issue.field_name ?? issue.field ?? 'Invoice data')}</strong><p>{issue.message ?? 'This needs review.'}</p></div><span className={`severity-badge severity-${issue.severity ?? 'warning'}`}>{humanize(issue.severity ?? 'warning')}</span></article>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No blockers found.</div>}
           </section>
 
           <section className="panel workspace-line-items">
-            <PanelTitle title="Invoice Line Items" action={<span className="version">{lineItems.length} items</span>} />
+            <PanelTitle title="Line Items" action={<span className="version">{lineItems.length} items</span>} />
             {lineItems.length ? <div className="line-items-table"><div><strong>Description</strong><strong>Qty</strong><strong>Unit price</strong><strong>Amount</strong></div>{lineItems.map((line, index) => <div key={index}><span>{line.description || '-'}</span><span>{line.quantity || '-'}</span><span>{line.unit_price || '-'}</span><strong>{line.amount || '-'}</strong></div>)}</div> : <EmptyState title="No line items stored" body="The current extraction did not return invoice line-item data." next="Open the source PDF and verify whether line items exist before approving or exporting." />}
           </section>
 
           <section className="panel workspace-evidence">
-            <PanelTitle title="Evidence & Source Excerpts" action={<span className="version">{evidence.length} fields</span>} />
+            <PanelTitle title="Source Text" action={<span className="version">{evidence.length} fields</span>} />
             {evidence.length ? <div className="evidence-list">{evidence.map((entry) => <article className={!entry.source_text ? 'evidence-missing' : ''} key={entry.field_name}><strong>{humanize(entry.field_name)}</strong><EvidenceConfidence score={entry.score} /><p>{entry.source_text || 'No source excerpt stored for this field. Compare this value with the source PDF before deciding.'}</p><small>{entry.source_page ? `Source page ${entry.source_page}` : 'Source page not recorded'}</small></article>)}</div> : <div className="missing-evidence"><AlertTriangle size={17} /><div><strong>No field-level evidence</strong><p>No confidence records or source excerpts were returned. Compare the extracted values with the source PDF before approving, rejecting, or exporting.</p></div></div>}
           </section>
         </div>
@@ -1182,11 +1186,11 @@ function WorkspaceTab({ item, document, documentDetail, extraction, loading }: {
 
       <div className="workspace-secondary">
         <section className="panel proposed-action">
-          <PanelTitle title="Proposed Action" action={item.current_plan ? <Confidence value={item.current_plan.overall_confidence} /> : undefined} />
+          <PanelTitle title="Suggested Action" action={item.current_plan ? <Confidence value={item.current_plan.overall_confidence} /> : undefined} />
           {nextStep ? <div className="proposed-action-body"><span className="work-icon purple"><Workflow size={17} /></span><div><strong>{humanize(nextStep.action_type)}</strong><p>{nextStep.why_this || 'This bounded workflow action is the next available plan step.'}</p><div><Priority value={nextStep.risk_level} /><Status value={nextStep.status} />{nextStep.requires_approval ? <span className="severity-badge severity-warning">Approval required</span> : null}</div></div></div> : <EmptyState title="No proposed action" body="Generate a plan after the document evidence has been reviewed." />}
         </section>
         <section className="panel workspace-activity">
-          <PanelTitle title="Recent Workflow Activity" action={<span className="version">{item.activity.length} events</span>} />
+          <PanelTitle title="Recent Activity" action={<span className="version">{item.activity.length} events</span>} />
           {recentActivity.length ? <div className="activity-list">{recentActivity.map((event) => <article key={event.id}><span className={`activity-dot source-${event.source}`}><Check size={13} /></span><div><strong>{humanize(event.event_type)}</strong><p>{event.summary}</p><small>{event.actor} · {formatDate(event.created_at)}</small></div></article>)}</div> : <EmptyState title="No activity recorded" body="Workflow events will appear after processing begins." />}
         </section>
       </div>
@@ -1343,7 +1347,7 @@ function EditWorkItemModal({ item, close }: { item: WorkItemDetail; close: () =>
     mutationFn: () => api(`/backoffice/work-items/${item.id}`, { method: 'PATCH', body: JSON.stringify({ title, priority, assignee, requested_outcome: outcome, tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean) }) }),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['workspace'] }); queryClient.invalidateQueries({ queryKey: ['work-item', item.id] }); close() },
   })
-  return <div className="modal-backdrop" role="presentation" onMouseDown={close}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-work-item-title" onMouseDown={(event) => event.stopPropagation()}><header><div><h2 id="edit-work-item-title">Edit Document Task</h2><p>Update ownership and operational metadata.</p></div><button className="icon-button" aria-label="Close dialog" onClick={close}><X size={18} /></button></header><label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>Priority<select value={priority} onChange={(event) => setPriority(event.target.value)}>{['low','normal','high','urgent'].map((value) => <option key={value} value={value}>{humanize(value)}</option>)}</select></label><label>Assignee<input value={assignee} placeholder="Reviewer name or team" onChange={(event) => setAssignee(event.target.value)} /></label><label>Requested outcome<textarea value={outcome} onChange={(event) => setOutcome(event.target.value)} /></label><label>Tags<input value={tags} placeholder="invoice, high-value, vendor" onChange={(event) => setTags(event.target.value)} /></label>{mutation.error ? <p className="form-error">{(mutation.error as Error).message}</p> : null}<footer><button className="outline-button" onClick={close}>Cancel</button><button className="primary-button" disabled={!title.trim() || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="spin" size={15} /> : <Check size={15} />} Save Changes</button></footer></section></div>
+  return <div className="modal-backdrop" role="presentation" onMouseDown={close}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-work-item-title" onMouseDown={(event) => event.stopPropagation()}><header><div><h2 id="edit-work-item-title">Edit Review</h2><p>Update owner and review notes.</p></div><button className="icon-button" aria-label="Close dialog" onClick={close}><X size={18} /></button></header><label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>Priority<select value={priority} onChange={(event) => setPriority(event.target.value)}>{['low','normal','high','urgent'].map((value) => <option key={value} value={value}>{humanize(value)}</option>)}</select></label><label>Assignee<input value={assignee} placeholder="Reviewer name or team" onChange={(event) => setAssignee(event.target.value)} /></label><label>Goal<textarea value={outcome} onChange={(event) => setOutcome(event.target.value)} /></label><label>Tags<input value={tags} placeholder="invoice, high-value, vendor" onChange={(event) => setTags(event.target.value)} /></label>{mutation.error ? <p className="form-error">{(mutation.error as Error).message}</p> : null}<footer><button className="outline-button" onClick={close}>Cancel</button><button className="primary-button" disabled={!title.trim() || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="spin" size={15} /> : <Check size={15} />} Save Changes</button></footer></section></div>
 }
 
 function SectionPage({
@@ -1645,7 +1649,7 @@ function BotIcon() {
 
 function DocumentsPage({ workspace, loading }: { workspace?: Workspace; loading: boolean }) {
   const documents = workspace?.documents ?? []
-  return <main className="queue-page"><section className="page-heading"><div><h2>Document Library</h2><p>Source records available to document operations workflows.</p></div></section><section className="queue-surface document-list">{loading ? <LoadingState label="Loading document library" /> : documents.length ? documents.map((doc) => <article key={doc.id}><WorkIcon type="invoice_review" /><div><strong>{doc.filename}</strong><span>{shortId(doc.id)} · {formatDate(doc.created_at)}</span><SchemaMeta document={doc} extraction={null} compact /></div><Status value={doc.status} /></article>) : <EmptyState title="No source documents yet" body="Upload an invoice from New Document before creating review, approval, or export work." next="After upload, extraction evidence and workflow history will appear here." />}</section></main>
+  return <main className="queue-page"><section className="page-heading"><div><h2>Invoices</h2><p>Uploaded invoice PDFs and their current status.</p></div></section><section className="queue-surface document-list">{loading ? <LoadingState label="Loading invoices" /> : documents.length ? documents.map((doc) => <article key={doc.id}><WorkIcon type="invoice_review" /><div><strong>{doc.filename}</strong><span>{shortId(doc.id)} · {formatDate(doc.created_at)}</span><SchemaMeta document={doc} extraction={null} compact /></div><Status value={doc.status} /></article>) : <EmptyState title="No invoices yet" body="Upload an invoice first." />}</section></main>
 }
 
 function DocumentTab({ document, documentDetail, extraction, loading }: { document?: DocumentSummary; documentDetail?: ApiDocument; extraction: Extraction | null; loading: boolean }) {
@@ -1656,8 +1660,7 @@ function DocumentTab({ document, documentDetail, extraction, loading }: { docume
 
 function SchemaMeta({ document, extraction, compact = false }: { document?: ApiDocument | DocumentSummary; extraction: Extraction | null; compact?: boolean }) {
   const documentType = extraction?.document_type ?? document?.document_type ?? 'invoice'
-  const schema = extraction?.schema_version ?? document?.supported_extraction_schema ?? 'invoice_v1'
-  return <div className={`schema-meta ${compact ? 'compact' : ''}`}><span><FileText size={12} /> {humanize(documentType)}</span><span><Database size={12} /> {schema}</span></div>
+  return <div className={`schema-meta ${compact ? 'compact' : ''}`}><span><FileText size={12} /> {humanize(documentType)}</span></div>
 }
 
 function AuthenticatedPdfPreview({ document }: { document: DocumentSummary }) {
@@ -1690,7 +1693,6 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
   })
   const latestDecision = [...item.approvals].reverse().find((approval) => approval.status !== 'pending')
   const executed = [...item.activity].reverse().find((event) => ['action_executed','action_failed'].includes(event.event_type))
-  const stage = executed ? 4 : latestDecision ? 3 : pending ? 2 : 1
   const signals = exceptionSignals(item, extraction)
   const evidence = extraction?.confidence ?? []
   const validation = extraction?.validation ?? []
@@ -1699,66 +1701,42 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
   const approvalReason = latestPolicy?.reason ?? item.current_plan?.escalation_reason ?? pendingStep?.why_this ?? 'This action can affect document records and needs a reviewer decision before execution.'
 
   return (
-    <div className="reviewer-flow">
-      <div className="reviewer-stepper">
-        {['Understand','Review Evidence','Decide','Confirm Result'].map((label,index) => <div className={index < stage ? 'complete' : index === stage ? 'active' : ''} key={label}><span>{index < stage ? <Check size={14} /> : index + 1}</span><strong>{label}</strong></div>)}
-      </div>
-
-      <section className="panel review-understand">
-        <PanelTitle title="1. Why Approval Is Required" action={<Status value={item.status} />} />
+    <div className="decision-page">
+      <section className="panel decision-hero">
+        <PanelTitle title="Why This Needs a Decision" action={<Status value={item.status} />} />
         <p>{approvalReason}</p>
         <div className="exception-signal-grid">{signals.map((signal) => <article className={`exception-signal exception-${signal.tone}`} key={signal.label}><AlertTriangle size={15} /><div><strong>{signal.label}</strong><p>{signal.detail}</p></div></article>)}</div>
-        <div className="detail-definition-grid">
-          <DetailField label="Priority" value={<Priority value={item.priority} />} />
-          <DetailField label="Assignee" value={item.assignee} />
-          <DetailField label="Requested outcome" value={item.requested_outcome || 'Not provided'} />
-          <DetailField label="Source document" value={document?.filename ?? 'No linked document'} />
-        </div>
       </section>
 
-      <section className="panel review-evidence">
-        <PanelTitle title="Evidence To Check Before Deciding" action={<span className="version">{evidence.length} fields</span>} />
+      <section className="panel decision-checklist">
+        <PanelTitle title="Check Before Deciding" action={<span className="version">{evidence.length} fields</span>} />
         <div className="evidence-snapshot">
-          <DetailField label="Document state" value={<Status value={document?.status ?? 'missing'} />} />
-          <DetailField label="Validation findings" value={validation.length} />
-          <DetailField label="Field evidence" value={evidence.length} />
-          <DetailField label="Plan version" value={item.current_plan ? `${item.current_plan.planner_version} · ${shortId(item.current_plan.id)}` : 'No plan'} />
+          <DetailField label="Invoice" value={document?.filename ?? 'No linked PDF'} />
+          <DetailField label="Issues found" value={validation.length} />
+          <DetailField label="Fields checked" value={evidence.length} />
+          <DetailField label="Suggested action" value={pendingStep ? humanize(pendingStep.action_type) : 'Review invoice'} />
         </div>
-        {validation.length ? <div className="validation-issues compact">{validation.slice(0, 3).map((issue, index) => <article key={index}><AlertTriangle size={14} /><div><strong>{humanize(issue.field_name ?? issue.field ?? 'Document data')}</strong><p>{issue.message ?? 'Validation review required.'}</p></div></article>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation findings were returned.</div>}
+        {validation.length ? <div className="validation-issues compact">{validation.slice(0, 3).map((issue, index) => <article key={index}><AlertTriangle size={14} /><div><strong>{humanize(issue.field_name ?? issue.field ?? 'Invoice data')}</strong><p>{issue.message ?? 'This needs review.'}</p></div></article>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No blockers found.</div>}
         <EvidenceExcerpts evidence={evidence} />
       </section>
 
-      <section className="panel review-plan">
-        <PanelTitle title="2. Proposed Action" action={item.current_plan ? <Confidence value={item.current_plan.overall_confidence} /> : undefined} />
-        {pendingStep ? <article><span>1</span><div><strong>{humanize(pendingStep.action_type)}</strong><p>{pendingStep.why_this || 'This bounded workflow action is waiting for a reviewer decision.'}</p>{pendingStep.why_not ? <small>Not recommended: {pendingStep.why_not}</small> : null}</div><Priority value={pendingStep.risk_level} /></article> : <EmptyState title="No proposed action" body="Generate a plan before making a decision." />}
-        <div className="action-meaning-grid">
-          <article><CheckCircle2 size={15} /><strong>Approve</strong><p>Allows the proposed action to continue. Use it only after the evidence and risk reason are acceptable.</p></article>
-          <article><X size={15} /><strong>Reject</strong><p>Stops this approval request and records why the proposed action should not continue.</p></article>
-          <article><Pencil size={15} /><strong>Request Correction</strong><p>Ask for more information from the History tab. It is not a third approval status.</p></article>
-        </div>
+      <section className="panel decision-action-panel">
+        <PanelTitle title="Make Decision" />
+        {pending ? <>
+          <label className="decision-notes"><span>Decision note</span><textarea value={notes} placeholder="What did you check?" onChange={(event) => setNotes(event.target.value)} /></label>
+          <p className="decision-guidance"><FileClock size={14} /> Approve only when the invoice details match the PDF.</p>
+          <div className="panel-actions"><button className="reject-action" disabled={decision.isPending} onClick={() => decision.mutate('reject')}><X size={15} /> Reject</button><button className="approve-action" disabled={decision.isPending} onClick={() => decision.mutate('approve')}><CheckCircle2 size={15} /> Approve</button></div>
+          {decision.error ? <p className="form-error">{(decision.error as Error).message}</p> : null}
+        </> : latestDecision ? <div className="decision-result"><Status value={latestDecision.status} /><p>{latestDecision.reviewer_notes || 'Decision recorded without notes.'}</p><small>{latestDecision.reviewed_by} · {latestDecision.reviewed_at ? formatDate(latestDecision.reviewed_at) : ''}</small></div> : <p>No decision is required right now.</p>}
       </section>
 
-      <section className="panel review-risks">
-        <PanelTitle title="Risk Reason" />
-        <div className="risk-trigger-list">
-          <DetailRow label="Policy risk" value={<Priority value={latestPolicy?.risk_level ?? pendingStep?.risk_level ?? item.priority} />} />
-          <DetailRow label="Approval gate" value={item.current_plan?.requires_human || pending ? 'Required' : 'Not required'} />
-          <DetailRow label="Business reason" value={approvalReason} />
-          <DetailRow label="Escalation reason" value={item.current_plan?.escalation_reason ?? 'No escalation reason recorded'} />
-        </div>
-      </section>
-
-      <section className="panel review-decision">
-        <PanelTitle title="3. Record The Human Decision" />
-        {pending ? <><label className="decision-notes"><span>Decision reason</span><textarea value={notes} placeholder="What evidence did you check, and why is this safe or unsafe?" onChange={(event) => setNotes(event.target.value)} /></label><p className="decision-guidance"><FileClock size={14} /> Need more information? Open History and use Request Correction. The approval itself only supports approve or reject.</p><div className="panel-actions"><button className="reject-action" disabled={decision.isPending} onClick={() => decision.mutate('reject')}><X size={15} /> Reject</button><button className="approve-action" disabled={decision.isPending} onClick={() => decision.mutate('approve')}><CheckCircle2 size={15} /> Approve</button></div>{decision.error ? <p className="form-error">{(decision.error as Error).message}</p> : null}</> : latestDecision ? <div className="decision-result"><Status value={latestDecision.status} /><p>{latestDecision.reviewer_notes || 'Decision recorded without notes.'}</p><small>{latestDecision.reviewed_by} · {latestDecision.reviewed_at ? formatDate(latestDecision.reviewed_at) : ''}</small></div> : <p>No approval is required for the current plan.</p>}
-      </section>
-
-      <section className="panel review-result">
-        <PanelTitle title="4. Confirm Result" />
-        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{humanize(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} · {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Execution has not completed</strong><p>After approval, execute the approved step from the Review tab. The final audit evidence will appear here.</p></div></div>}
+      <section className="panel decision-result-panel">
+        <PanelTitle title="Result" />
+        {executed ? <div className={`notice ${executed.event_type === 'action_executed' ? 'success' : 'danger'}`}><Activity size={17} /><div><strong>{humanize(executed.event_type)}</strong><p>{executed.summary}</p><small>{executed.actor} · {formatDate(executed.created_at)}</small></div></div> : <div className="notice"><FileClock size={17} /><div><strong>Not finished yet</strong><p>The result will appear here after the decision is completed.</p></div></div>}
       </section>
     </div>
   )
+
 }
 
 function EvidenceExcerpts({ evidence = [] }: { evidence?: Extraction['confidence'] }) {
@@ -1791,25 +1769,25 @@ function ActivityTab({ workflow, documentId, loading, error }: { workflow?: Docu
       if (workflow?.work_item?.id) queryClient.invalidateQueries({ queryKey: ['work-item', workflow.work_item.id] })
     },
   })
-  if (loading) return <LoadingState label="Loading workflow history" />
+  if (loading) return <LoadingState label="Loading history" />
   if (error) return <ErrorState message={error.message} retry={() => queryClient.invalidateQueries({ queryKey: ['document-workflow', documentId] })} />
-  if (!workflow) return <EmptyState title="No workflow activity" body="Link a source document to load durable workflow history." next="If this task was created manually, add notes in the decision record before approving." />
+  if (!workflow) return <EmptyState title="No history yet" body="History appears after the invoice is processed or reviewed." />
   return <div className="activity-tab">
     <section className="workflow-orientation">
-      <DetailField label="Current stage" value={humanize(workflow.current_stage)} />
-      <DetailField label="Current owner" value={workflow.current_owner} />
-      <DetailField label="Waiting for" value={workflow.waiting_for ?? 'Nothing'} />
-      <DetailField label="Next action" value={workflow.next_action} />
+      <DetailField label="Status" value={humanize(workflow.current_stage)} />
+      <DetailField label="Owner" value={workflow.current_owner} />
+      <DetailField label="Waiting for" value={workflow.waiting_for ? humanize(workflow.waiting_for) : 'Nothing'} />
+      <DetailField label="Next" value={workflow.next_action} />
       {workflow.attention_reason ? <div className="notice warning"><AlertTriangle size={16} /><div><strong>Attention required</strong><p>{workflow.attention_reason}</p></div></div> : null}
     </section>
     <section className="panel workflow-activity">
-      <PanelTitle title="Workflow Activity" action={<span className="version">{workflow.activity.length} events</span>} />
+      <PanelTitle title="Activity" action={<span className="version">{workflow.activity.length} events</span>} />
       <div className="activity-list">{workflow.activity.map((event) => <article key={event.id}><span className={`activity-dot source-${event.source}`}><Check size={13} /></span><div><strong>{humanize(event.event_type)}</strong><p>{event.summary}</p><small>{event.actor} · {humanize(event.source)} · {formatDate(event.created_at)}</small></div></article>)}</div>
       {!workflow.activity.length ? <EmptyState title="No events recorded" body="No processing, approval, correction, or recovery events have been recorded yet." next="Run extraction, request correction, or record a decision to create auditable history." /> : null}
     </section>
     <section className="panel recovery-panel">
       <PanelTitle title="Recovery Actions" />
-      <p>Use these commands only when the workflow needs intervention. Every action is added to the audit trail.</p>
+      <p>Use these only when the invoice needs correction or escalation. Every action is saved in history.</p>
       {workflow.work_item ? <textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason or correction instruction" /> : null}
       <div className="panel-actions">
         {workflow.current_stage === 'failed' ? <button className="outline-button" disabled={command.isPending} onClick={() => command.mutate('retry')}><RefreshCw size={14} /> Retry Processing</button> : null}
@@ -1908,11 +1886,11 @@ function businessId(item: WorkItemSummary) {
   return `${prefix}-${item.created_at.slice(0, 4)}-${shortId(item.id).toUpperCase()}`
 }
 function nextAction(status: string) {
-  if (status === 'awaiting_human') return 'Review Approval'
-  if (status === 'ready_to_execute') return 'Continue Execution'
-  if (status === 'blocked') return 'View Blocked Reason'
+  if (status === 'awaiting_human') return 'Make Decision'
+  if (status === 'ready_to_execute') return 'Continue'
+  if (status === 'blocked') return 'View Reason'
   if (status === 'resolved') return 'View Result'
-  return 'Review Document Task'
+  return 'Review Invoice'
 }
 function invoiceFields(extraction: Extraction | null): [string, string][] {
   const data = extraction?.data ?? {}
@@ -1962,7 +1940,7 @@ function pageTitle(page: PageId) {
   return titles[page]
 }
 function intakeTitle(view: IntakeView) {
-  return { new: 'New Document', submissions: 'My Documents', invoices: 'Document Library', guide: 'Processing Guide' }[view]
+  return { new: 'Upload Invoice', submissions: 'My Invoices', invoices: 'Invoices', guide: 'Guide' }[view]
 }
 function outcomeCopy(workType: string) {
   const copy: Record<string, string> = {
@@ -1981,16 +1959,16 @@ function invoiceTitle(workType: string, fields: Record<string, string>) {
   return `Invoice Review - ${vendor}`
 }
 function attentionReason(item: WorkItemSummary) {
-  if (item.status === 'awaiting_human') return 'Waiting for a human approval decision'
-  if (item.status === 'blocked') return 'Policy or workflow boundary blocked progress'
-  if (item.status === 'failed') return 'Processing or execution failed'
-  return 'Human review is required'
+  if (item.status === 'awaiting_human') return 'Waiting for reviewer decision'
+  if (item.status === 'blocked') return 'Blocked until a reviewer checks it'
+  if (item.status === 'failed') return 'Processing failed'
+  return 'Needs reviewer check'
 }
 function decisionRequired(item: WorkItemSummary) {
-  if (item.status === 'awaiting_human') return 'Approve, reject, request correction, or escalate.'
-  if (item.status === 'blocked') return 'Review the policy reason and choose a safe recovery path.'
-  if (item.status === 'failed') return 'Inspect the failure, retry, or transfer ownership.'
-  return 'Confirm the evidence and next action.'
+  if (item.status === 'awaiting_human') return 'Approve, reject, ask for correction, or escalate.'
+  if (item.status === 'blocked') return 'Check the reason and choose the next safe step.'
+  if (item.status === 'failed') return 'Check the failure and retry if needed.'
+  return 'Check the invoice and choose the next action.'
 }
 function exceptionSignals(item: WorkItemSummary, extraction?: Extraction | null) {
   const context = `${item.work_type ?? ''} ${item.tags.join(' ')} ${Object.values(item.business_context).join(' ')}`.toLowerCase()
@@ -2004,7 +1982,7 @@ function exceptionSignals(item: WorkItemSummary, extraction?: Extraction | null)
   const lowConfidence = extraction?.confidence?.filter((entry) => entry.score != null && entry.score < .65) ?? []
   if (lowConfidence.length) signals.push({ label: 'Low confidence', detail: `${lowConfidence.length} extracted field${lowConfidence.length === 1 ? '' : 's'} scored below 65%.`, tone: 'warning' })
   if (!extraction?.confidence?.length && item.linked_document_ids.length) signals.push({ label: 'Evidence unavailable', detail: 'No field-level confidence or source excerpts are currently stored.', tone: 'warning' })
-  if (item.status === 'awaiting_human') signals.push({ label: 'Approval gated', detail: 'Policy requires a human decision before controlled execution.', tone: 'neutral' })
+  if (item.status === 'awaiting_human') signals.push({ label: 'Decision needed', detail: 'A reviewer must approve or reject this invoice before it continues.', tone: 'neutral' })
   if (!signals.length) signals.push({ label: humanize(item.status), detail: attentionReason(item), tone: item.status === 'failed' || item.status === 'blocked' ? 'danger' : 'neutral' })
   return signals
 }
