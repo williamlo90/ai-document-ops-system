@@ -246,6 +246,19 @@ class AgentOpsApiTests(unittest.TestCase):
             result["actual_plan_steps"],
             ["inspect_queue", "export_approved_invoice"],
         )
+        evaluations_response = self.client.get("/agentops/evaluations", headers=HEADERS)
+        evaluation = evaluations_response.json()["evaluations"][0]
+        evidence = evaluation["evidence"]
+
+        self.assertEqual(evaluations_response.status_code, 200)
+        self.assertEqual(evaluation["evaluation_type"], "backoffice")
+        self.assertEqual(evaluation["scenario_id"], "approved_invoice_export_confirmation")
+        self.assertEqual(evidence["expected_document_type"], "invoice")
+        self.assertEqual(evidence["actual_document_type"], "invoice")
+        self.assertEqual(evidence["expected_operation_type"], "document_export")
+        self.assertEqual(evidence["actual_operation_type"], "document_export")
+        self.assertTrue(evidence["checks"]["document_type"])
+        self.assertTrue(evidence["checks"]["operation_type"])
 
     def test_backoffice_plan_creates_resolvable_agentops_trace(self) -> None:
         container = self.client.app.state.container
