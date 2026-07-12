@@ -20,6 +20,10 @@ const linkedDocument = {
   document_type: 'invoice',
   supported_extraction_schema: 'invoice_v1',
 }
+const needsReviewDocument = {
+  ...linkedDocument,
+  status: 'needs_review',
+}
 const workItem = {
   id: 'item-1',
   title: 'Review ACME invoice',
@@ -50,6 +54,11 @@ const workspaceWithLinkedDocument = {
   pending_approvals: [],
   documents: [linkedDocument],
   metrics: { work_items: 1, pending_approvals: 0, drafts: 0, policy_decisions: 0 },
+}
+const workspaceWithNeedsReviewDocument = {
+  ...workspaceWithLinkedDocument,
+  work_items: [{ ...workItem, status: 'planning' }],
+  documents: [needsReviewDocument],
 }
 const invoiceListWithReviewItem = {
   items: [{
@@ -239,8 +248,8 @@ describe('application shell', () => {
     render(<App />)
     await user.click(await screen.findByRole('button', { name: /history/i }))
     expect(await screen.findByText(/A receipt of invoices you uploaded/i)).toBeInTheDocument()
-    expect(screen.getByText(/^Uploaded$/i)).toBeInTheDocument()
-    expect(screen.getByText(/Sent for review/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Approved/i).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/In progress/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /open review/i })).not.toBeInTheDocument()
 
     await user.selectOptions(
@@ -249,8 +258,29 @@ describe('application shell', () => {
     )
     await user.click(await screen.findByRole('button', { name: /history/i }))
     expect(await screen.findByText(/A receipt of invoice checks and reviewer decisions/i)).toBeInTheDocument()
-    expect(screen.getByText(/Waiting for decision/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /open review/i })).toBeInTheDocument()
+    expect(screen.getAllByText(/Approved/i).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Waiting for decision/i)).not.toBeInTheDocument()
+  })
+
+  it('shows submitted invoices in reviewer approvals when the document needs review', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem('docops-role', 'administrator')
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/backoffice/workspace') return json(workspaceWithNeedsReviewDocument)
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
+      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: /approvals/i }))
+
+    expect(await screen.findByText(/Waiting decision \(1\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/Needs review/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /review invoice/i })).toBeInTheDocument()
   })
 
   it('shows actionable secure session errors without raw implementation detail', async () => {

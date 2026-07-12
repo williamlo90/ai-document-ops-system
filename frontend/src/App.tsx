@@ -767,11 +767,11 @@ function IntakeLibrary({ view }: { view: IntakeView }) {
             <div className="invoice-review-meta">
               <span>Amount<strong>{invoiceAmount(doc)}</strong></span>
               <span>Submitted<strong>{formatDate(doc.created_at)}</strong></span>
-              <span>Owner<strong>{doc.current_owner}</strong></span>
+              <span>Owner<strong>{invoiceOwnerCopy(doc)}</strong></span>
             </div>
             <div className="invoice-review-status">
               <Status value={doc.status} />
-              <small>{invoiceStageCopy(doc.current_stage)}</small>
+              <small>{invoiceDisplayStage(doc)}</small>
             </div>
             <span className="primary-button">View status</span>
           </button>
@@ -842,17 +842,18 @@ function InvoiceStatusPanel({ documentId, close, refresh }: { documentId: string
 function OperationsOverview({ workspace, loading, openItem, goQueue }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void; goQueue: (filter?: QueueFilter) => void }) {
   const [createOpen, setCreateOpen] = useState(false)
   const items = workspace?.work_items ?? []
-  const attention = items.filter((item) => ['awaiting_human','blocked','failed'].includes(item.status))
-  const counts = queueCounts(items)
-  const executing = items.filter((item) => item.status === 'executing').length
-  const completedToday = items.filter((item) => item.status === 'resolved' && isToday(item.updated_at)).length
+  const documents = workspace?.documents ?? []
+  const attention = items.filter((item) => isReviewerActionable(item, documents))
+  const counts = queueCounts(items, documents)
+  const executing = items.filter((item) => ['executing', 'planning', 'classified'].includes(itemBusinessStatus(item, documents))).length
+  const completedToday = items.filter((item) => ['approved', 'rejected', 'resolved', 'completed', 'exported'].includes(itemBusinessStatus(item, documents)) && isToday(item.updated_at)).length
   const metrics: Array<[string, number | string, React.ReactNode, QueueFilter | undefined]> = [
     ['Needs review', attention.length, <AlertTriangle key="attention" size={18} />, 'attention'],
     ['Waiting decision', counts.approval, <UserRound key="approval" size={18} />, 'approval'],
     ['In progress', executing, <Play key="executing" size={18} />, 'progress'],
     ['Done today', completedToday, <CheckCircle2 key="completed" size={18} />, 'completed'],
   ]
-  return <main className="section-page"><section className="section-heading"><div><span className="section-eyebrow">REVIEWER</span><h2>Dashboard</h2><p>Invoices that need review, a decision, or a correction.</p></div><div className="section-actions"><button className="primary-button" onClick={() => goQueue()}>Open Approvals</button></div></section><div className="overview-metrics">{metrics.map(([label,value,icon,filter]) => <button key={label} disabled={!filter} onClick={() => filter && goQueue(filter)}><span>{icon}</span><small>{label}</small><strong>{loading ? '-' : value}</strong><ChevronRight size={15} /></button>)}</div>{!loading && !items.length ? <section className="reviewer-start"><CheckCircle2 size={24} /><div><strong>No approval work yet</strong><p>This is normal in a new demo. Uploaded PDFs appear under Invoices first; this dashboard fills when an invoice needs a reviewer decision.</p></div><button className="outline-button" onClick={() => goQueue()}>Open Approvals</button></section> : null}<section className="data-panel"><DataPanelHeader icon={<Inbox size={17} />} title="Needs Review" count={attention.length} />{loading ? <LoadingState /> : attention.length ? <div className="overview-attention">{attention.map((item) => <button key={item.id} onClick={() => openItem(item.id)}><WorkIcon type={item.work_type} /><span><strong>{item.title}</strong><small>{attentionReason(item)}</small></span><Status value={item.status} /><ChevronRight size={16} /></button>)}</div> : <div className="healthy-empty"><CheckCircle2 size={28} /><div><strong>No invoices need review</strong><p>{items.length ? 'New invoices will appear here when someone needs to check them.' : 'Upload an invoice and send it for review to create a reviewer decision.'}</p></div></div>}</section>{createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}</main>
+  return <main className="section-page"><section className="section-heading"><div><span className="section-eyebrow">REVIEWER</span><h2>Dashboard</h2><p>Invoices that need review, a decision, or a correction.</p></div><div className="section-actions"><button className="primary-button" onClick={() => goQueue()}>Open Approvals</button></div></section><div className="overview-metrics">{metrics.map(([label,value,icon,filter]) => <button key={label} disabled={!filter} onClick={() => filter && goQueue(filter)}><span>{icon}</span><small>{label}</small><strong>{loading ? '-' : value}</strong><ChevronRight size={15} /></button>)}</div>{!loading && !items.length ? <section className="reviewer-start"><CheckCircle2 size={24} /><div><strong>No approval work yet</strong><p>This is normal in a new demo. Uploaded PDFs appear under Invoices first; this dashboard fills when an invoice needs a reviewer decision.</p></div><button className="outline-button" onClick={() => goQueue()}>Open Approvals</button></section> : null}<section className="data-panel"><DataPanelHeader icon={<Inbox size={17} />} title="Needs Review" count={attention.length} />{loading ? <LoadingState /> : attention.length ? <div className="overview-attention">{attention.map((item) => <button key={item.id} onClick={() => openItem(item.id)}><WorkIcon type={item.work_type} /><span><strong>{item.title}</strong><small>{attentionReason(item, documents)}</small></span><Status value={itemBusinessStatus(item, documents)} /><ChevronRight size={16} /></button>)}</div> : <div className="healthy-empty"><CheckCircle2 size={28} /><div><strong>No invoices need review</strong><p>{items.length ? 'New invoices will appear here when someone needs to check them.' : 'Upload an invoice and send it for review to create a reviewer decision.'}</p></div></div>}</section>{createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}</main>
 }
 
 function QueuePage({ workspace, loading, openItem, exceptionMode = false, initialFilter }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void; exceptionMode?: boolean; initialFilter?: QueueFilter }) {
@@ -866,10 +867,11 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
   const [createOpen, setCreateOpen] = useState(false)
   useEffect(() => { if (initialFilter) setFilter(initialFilter) }, [initialFilter])
   const allItems = workspace?.work_items ?? []
-  const exceptionItems = allItems.filter((item) => ['awaiting_human', 'blocked', 'failed'].includes(item.status) || ['vendor_follow_up', 'insufficient_evidence'].includes(item.work_type ?? '') || item.linked_document_ids.some((id) => workspace?.documents.find((document) => document.id === id)?.status === 'needs_review'))
+  const documents = workspace?.documents ?? []
+  const exceptionItems = allItems.filter((item) => isReviewerActionable(item, documents) || ['vendor_follow_up', 'insufficient_evidence'].includes(item.work_type ?? ''))
   const items = exceptionMode ? exceptionItems : allItems
-  const counts = queueCounts(items)
-  const filtered = items.filter((item) => matchesFilter(item, filter) && (!exceptionMode || matchesExceptionFilter(item, exceptionFilter, workspace?.documents ?? [])) && `${item.title} ${item.id} ${item.assignee}`.toLowerCase().includes(search.toLowerCase()))
+  const counts = queueCounts(items, documents)
+  const filtered = items.filter((item) => matchesFilter(item, filter, documents) && (!exceptionMode || matchesExceptionFilter(item, exceptionFilter, documents)) && `${item.title} ${item.id} ${item.assignee}`.toLowerCase().includes(search.toLowerCase()))
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
   const emptyCopy = items.length
@@ -937,6 +939,7 @@ function WorkItemTable({ items, documents, loading, openItem, page, totalPages, 
     <div className="invoice-card-list">
       {items.map((item) => {
         const document = linkedDocumentForItem(item, documents)
+        const status = itemBusinessStatus(item, documents)
         return (
           <button className="invoice-review-card" key={item.id} onClick={() => openItem(item.id)}>
             <div className="invoice-review-main">
@@ -948,8 +951,8 @@ function WorkItemTable({ items, documents, loading, openItem, page, totalPages, 
               </div>
             </div>
             <div className="invoice-review-status">
-              <Status value={item.status} />
-              <small>{attentionReason(item)}</small>
+              <Status value={status} />
+              <small>{attentionReason(item, documents)}</small>
             </div>
             <div className="invoice-review-meta">
               <span>Owner<strong>{item.assignee}</strong></span>
@@ -984,6 +987,7 @@ function WorkItemPage({
   const items = workspace?.work_items ?? []
   const currentIndex = items.findIndex((entry) => entry.id === itemId)
   const linkedDocument = workspace?.documents.find((doc) => item?.linked_document_ids.includes(doc.id))
+  const detailStatus = item ? itemBusinessStatus(item, workspace?.documents ?? []) : ''
   const documentDetail = useQuery({
     queryKey: ['document-detail', linkedDocument?.id],
     queryFn: () => api<DocumentDetail>(`/documents/${linkedDocument?.id}`),
@@ -1010,7 +1014,7 @@ function WorkItemPage({
         <div className="rail-title"><h2>Approvals</h2></div>
         <div className="rail-filter"><span>All ({items.length})</span><ChevronDown size={14} /><button aria-label="Filter inbox" title="Inbox filters are not available yet" disabled><Filter size={15} /></button><button aria-label="Inbox view options" title="View options are not available yet" disabled><Columns3 size={15} /></button></div>
         <div className="rail-items">
-          {items.map((entry) => <InboxCard key={entry.id} item={entry} active={entry.id === item.id} open={() => openItem(entry.id)} />)}
+          {items.map((entry) => <InboxCard key={entry.id} item={entry} documents={workspace?.documents ?? []} active={entry.id === item.id} open={() => openItem(entry.id)} />)}
         </div>
         <div className="rail-footer">Showing {items.length} of {items.length}<RefreshCw size={14} /></div>
       </aside>
@@ -1032,7 +1036,7 @@ function WorkItemPage({
             <Meta label="Received" value={formatDate(item.created_at)} />
             <Meta label="Source" value={linkedDocument?.filename ?? 'Manual intake'} icon={<FileText size={14} />} />
             <Meta label="Priority" value={<Priority value={item.priority} />} />
-            <Meta label="Status" value={<Status value={item.status} />} />
+            <Meta label="Status" value={<Status value={detailStatus} />} />
           </div>
           <DetailDecisionSummary item={item} document={linkedDocument} openDecision={() => setActiveTab('Make decision')} />
         </header>
@@ -1060,8 +1064,8 @@ function DetailDecisionSummary({ item, document, openDecision }: { item: WorkIte
     <section className="decision-summary" aria-label="Work item decision summary">
       <article>
         <span>Needs review because</span>
-        <strong>{attentionReason(item)}</strong>
-        <p>{decisionRequired(item)}</p>
+        <strong>{attentionReason(item, document ? [document] : [])}</strong>
+        <p>{decisionRequired(item, document ? [document] : [])}</p>
       </article>
       <article>
         <span>Suggested action</span>
@@ -1083,13 +1087,13 @@ function DetailDecisionSummary({ item, document, openDecision }: { item: WorkIte
   )
 }
 
-function InboxCard({ item, active, open }: { item: WorkItemSummary; active: boolean; open: () => void }) {
+function InboxCard({ item, documents, active, open }: { item: WorkItemSummary; documents: DocumentSummary[]; active: boolean; open: () => void }) {
   return (
     <button className={`inbox-card ${active ? 'active' : ''}`} onClick={open}>
       <div><Priority value={item.priority} /><small>{humanize(item.work_type ?? 'unclassified')}</small></div>
       <strong>{item.title}</strong>
       <p>{businessId(item)} <i /> {relativeTime(item.updated_at)}</p>
-      <Status value={item.status} />
+      <Status value={itemBusinessStatus(item, documents)} />
       <span className="mini-avatar">W</span>
     </button>
   )
@@ -1592,21 +1596,55 @@ function BotIcon() {
 }
 
 function DocumentsPage({ workspace, loading }: { workspace?: Workspace; loading: boolean }) {
-  const documents = workspace?.documents ?? []
-  return <main className="queue-page"><section className="page-heading"><div><h2>Invoices</h2><p>Uploaded invoice PDFs and their current status.</p></div></section><section className="queue-surface document-list">{loading ? <LoadingState label="Loading invoices" /> : documents.length ? documents.map((doc) => <article key={doc.id}><WorkIcon type="invoice_review" /><div><strong>{doc.filename}</strong><span>{shortId(doc.id)} - {formatDate(doc.created_at)}</span></div><Status value={doc.status} /></article>) : <EmptyState title="No invoices yet" body="Upload an invoice first." />}</section></main>
+  const invoices = useQuery({
+    queryKey: ['reviewer-invoices'],
+    queryFn: () => api<InvoiceList>('/invoices?page=1&page_size=100'),
+  })
+  const fallback = (workspace?.documents ?? []).map((document) => ({
+    ...document,
+    original_filename: document.filename,
+    updated_at: document.created_at,
+    current_owner: 'Reviewer',
+    current_stage: document.status,
+  })) as InvoiceListItem[]
+  const documents = invoices.data?.items ?? fallback
+  return (
+    <main className="queue-page">
+      <section className="page-heading"><div><h2>Invoices</h2><p>Uploaded invoice PDFs and their current status.</p></div></section>
+      <section className="queue-surface document-list">
+        {loading || invoices.isLoading ? <LoadingState label="Loading invoices" /> : invoices.error ? <ErrorState message={(invoices.error as Error).message} retry={() => invoices.refetch()} /> : documents.length ? documents.map((doc) => (
+          <article key={doc.id}>
+            <WorkIcon type="invoice_review" />
+            <div>
+              <strong>{doc.vendor_name || doc.original_filename}</strong>
+              <span>{doc.original_filename} - {formatDate(doc.created_at)}</span>
+              <small>{invoiceDisplayStage(doc)} - {invoiceOwnerCopy(doc)}</small>
+            </div>
+            <Status value={doc.status} />
+          </article>
+        )) : <EmptyState title="No invoices yet" body="Upload an invoice first." />}
+      </section>
+    </main>
+  )
 }
 
 function HistoryPage({ workspace, loading, openItem, role }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void; role: UserRole }) {
   const uploaderView = role === 'intake'
+  const items = workspace?.work_items ?? []
   const documentEvents = (workspace?.documents ?? []).map((document) => ({
     id: `document-${document.id}`,
-    title: uploaderView ? 'Uploaded' : 'Invoice received',
-    body: uploaderView ? `${document.filename} was added to My Invoices.` : document.filename,
+    title: invoiceHistoryTitle(document.status, uploaderView),
+    body: invoiceHistoryBody(document, uploaderView),
     at: document.created_at,
     status: document.status,
-    action: null as null | (() => void),
+    action: !uploaderView && document.status === 'needs_review'
+      ? (() => {
+        const item = items.find((candidate) => candidate.linked_document_ids.includes(document.id))
+        if (item) openItem(item.id)
+      })
+      : null as null | (() => void),
   }))
-  const reviewEvents = (workspace?.work_items ?? []).map((item) => ({
+  const reviewEvents = items.filter((item) => !linkedDocumentForItem(item, workspace?.documents ?? [])).map((item) => ({
     id: `item-${item.id}`,
     title: historyTitle(item, uploaderView),
     body: historyBody(item, uploaderView),
@@ -1838,17 +1876,26 @@ function ErrorState({ message, retry }: { message: string; retry: () => void }) 
   return <main className="error-state"><AlertTriangle size={26} /><h2>{secureSession ? 'Unable to verify secure session' : 'Unable to load workspace'}</h2><p>{secureSession ? 'Refresh the session, then try again. If it keeps failing, sign in again before continuing invoice work.' : 'The app could not reach the invoice workspace. Retry once, then check that the backend is running.'}</p><small>Technical detail is available in the browser console or server logs.</small><button className="primary-button" onClick={retry}><RefreshCw size={15} /> Retry</button></main>
 }
 
-function queueCounts(items: WorkItemSummary[]) {
+function queueCounts(items: WorkItemSummary[], documents: DocumentSummary[] = []) {
   return {
-    attention: items.filter((i) => ['high', 'urgent'].includes(i.priority) || ['blocked', 'failed'].includes(i.status)).length,
-    progress: items.filter((i) => ['classified', 'planning', 'executing', 'ready_to_execute'].includes(i.status)).length,
-    approval: items.filter((i) => i.status === 'awaiting_human').length,
-    completed: items.filter((i) => i.status === 'resolved').length,
-    blocked: items.filter((i) => ['blocked', 'failed'].includes(i.status)).length,
+    attention: items.filter((item) => ['high', 'urgent'].includes(item.priority) || isReviewerActionable(item, documents)).length,
+    progress: items.filter((item) => ['classified', 'planning', 'executing', 'ready_to_execute'].includes(itemBusinessStatus(item, documents))).length,
+    approval: items.filter((item) => isReviewerActionable(item, documents)).length,
+    completed: items.filter((item) => ['approved', 'rejected', 'resolved', 'completed', 'exported'].includes(itemBusinessStatus(item, documents))).length,
+    blocked: items.filter((item) => ['blocked', 'failed'].includes(itemBusinessStatus(item, documents))).length,
   }
 }
 function linkedDocumentForItem(item: WorkItemSummary, documents: DocumentSummary[]) {
   return documents.find((document) => item.linked_document_ids.includes(document.id))
+}
+function itemBusinessStatus(item: WorkItemSummary, documents: DocumentSummary[]) {
+  const document = linkedDocumentForItem(item, documents)
+  if (document && ['approved', 'rejected', 'exported', 'failed', 'cancelled', 'needs_review'].includes(document.status)) return document.status
+  return item.status
+}
+function isReviewerActionable(item: WorkItemSummary, documents: DocumentSummary[]) {
+  const document = linkedDocumentForItem(item, documents)
+  return document?.status === 'needs_review' || ['awaiting_human', 'blocked', 'failed'].includes(item.status)
 }
 function queueVendor(item: WorkItemSummary, document?: DocumentSummary) {
   const context = item.business_context
@@ -1882,6 +1929,15 @@ function invoiceStageCopy(value: string) {
     blocked: 'Needs correction',
   }
   return labels[value] ?? statusLabel(value)
+}
+function invoiceDisplayStage(document: Pick<InvoiceListItem, 'status' | 'current_stage'>) {
+  const businessStatuses = ['approved', 'rejected', 'exported', 'failed', 'cancelled', 'needs_review']
+  return invoiceStageCopy(businessStatuses.includes(document.status) ? document.status : document.current_stage)
+}
+function invoiceOwnerCopy(document: Pick<InvoiceListItem, 'status' | 'current_owner'>) {
+  if (['approved', 'rejected', 'needs_review'].includes(document.status)) return 'Reviewer'
+  if (['exported', 'cancelled'].includes(document.status)) return 'System'
+  return document.current_owner
 }
 function plainNextAction(value: string) {
   const normalized = value.toLowerCase()
@@ -1936,6 +1992,22 @@ function historyBody(item: WorkItemSummary, uploaderView: boolean) {
   if (item.status === 'blocked' || item.status === 'failed') return `${item.title} needs reviewer follow-up.`
   return item.title
 }
+function invoiceHistoryTitle(status: string, uploaderView: boolean) {
+  if (status === 'approved') return 'Approved'
+  if (status === 'rejected') return 'Rejected'
+  if (status === 'exported') return 'Completed'
+  if (status === 'needs_review') return uploaderView ? 'Sent for review' : 'Waiting for decision'
+  if (status === 'failed') return 'Needs correction'
+  if (status === 'cancelled') return 'Cancelled'
+  return uploaderView ? 'Uploaded' : 'Invoice received'
+}
+function invoiceHistoryBody(document: DocumentSummary, uploaderView: boolean) {
+  if (document.status === 'approved') return `${document.filename} was approved.`
+  if (document.status === 'rejected') return `${document.filename} was rejected.`
+  if (document.status === 'needs_review') return uploaderView ? `${document.filename} is waiting for a reviewer.` : `${document.filename} needs approve, reject, or correction.`
+  if (document.status === 'failed') return `${document.filename} needs correction before it can continue.`
+  return uploaderView ? `${document.filename} was added to My Invoices.` : document.filename
+}
 function businessActionLabel(value: string) {
   const labels: Record<string, string> = {
     invoice_review: 'Check invoice',
@@ -1947,9 +2019,16 @@ function businessActionLabel(value: string) {
   }
   return labels[value] ?? humanize(value)
 }
-function matchesFilter(item: WorkItemSummary, filter: QueueFilter) {
+function matchesFilter(item: WorkItemSummary, filter: QueueFilter, documents: DocumentSummary[] = []) {
   if (filter === 'all') return true
-  const counts = { attention: ['high', 'urgent'].includes(item.priority) || ['blocked', 'failed'].includes(item.status), progress: ['classified', 'planning', 'executing', 'ready_to_execute'].includes(item.status), approval: item.status === 'awaiting_human', completed: item.status === 'resolved', blocked: ['blocked', 'failed'].includes(item.status) }
+  const status = itemBusinessStatus(item, documents)
+  const counts = {
+    attention: ['high', 'urgent'].includes(item.priority) || isReviewerActionable(item, documents),
+    progress: ['classified', 'planning', 'executing', 'ready_to_execute'].includes(status),
+    approval: isReviewerActionable(item, documents),
+    completed: ['approved', 'rejected', 'resolved', 'completed', 'exported'].includes(status),
+    blocked: ['blocked', 'failed'].includes(status),
+  }
   return counts[filter]
 }
 function matchesExceptionFilter(item: WorkItemSummary, filter: ExceptionFilter, documents: DocumentSummary[]) {
@@ -2030,16 +2109,24 @@ function invoiceTitle(workType: string, fields: Record<string, string>) {
   if (workType === 'vendor_follow_up') return `Vendor Follow-up - ${vendor}`
   return `Invoice Review - ${vendor}`
 }
-function attentionReason(item: WorkItemSummary) {
-  if (item.status === 'awaiting_human') return 'Waiting for reviewer decision'
-  if (item.status === 'blocked') return 'Blocked until a reviewer checks it'
-  if (item.status === 'failed') return 'Processing failed'
+function attentionReason(item: WorkItemSummary, documents: DocumentSummary[] = []) {
+  const status = itemBusinessStatus(item, documents)
+  if (status === 'needs_review') return 'Waiting for reviewer decision'
+  if (status === 'approved') return 'Approved by reviewer'
+  if (status === 'rejected') return 'Rejected by reviewer'
+  if (status === 'awaiting_human') return 'Waiting for reviewer decision'
+  if (status === 'blocked') return 'Blocked until a reviewer checks it'
+  if (status === 'failed') return 'Processing failed'
   return 'Needs reviewer check'
 }
-function decisionRequired(item: WorkItemSummary) {
-  if (item.status === 'awaiting_human') return 'Approve, reject, ask for correction, or escalate.'
-  if (item.status === 'blocked') return 'Check the reason and choose the next safe step.'
-  if (item.status === 'failed') return 'Check the failure and retry if needed.'
+function decisionRequired(item: WorkItemSummary, documents: DocumentSummary[] = []) {
+  const status = itemBusinessStatus(item, documents)
+  if (status === 'needs_review') return 'Approve, reject, or ask for correction.'
+  if (status === 'approved') return 'No decision needed; the invoice is already approved.'
+  if (status === 'rejected') return 'No decision needed; the invoice was rejected.'
+  if (status === 'awaiting_human') return 'Approve, reject, ask for correction, or escalate.'
+  if (status === 'blocked') return 'Check the reason and choose the next safe step.'
+  if (status === 'failed') return 'Check the failure and retry if needed.'
   return 'Check the invoice and choose the next action.'
 }
 function exceptionSignals(item: WorkItemSummary, extraction?: Extraction | null) {
