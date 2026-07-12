@@ -202,7 +202,7 @@ describe('application shell', () => {
   it('shows document operation metadata in evaluation cases', async () => {
     const user = userEvent.setup()
     localStorage.setItem('docops-role', 'administrator')
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input)
       if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
       if (path === '/backoffice/workspace') return json(workspaceWithPlannedWorkItem)
@@ -230,6 +230,16 @@ describe('application shell', () => {
         })
       }
       if (path === '/agentops/evaluations?limit=100') return json({ evaluations: [] })
+      if (path === '/agentops/backoffice/scenarios/evaluate' && init?.method === 'POST') {
+        return json({
+          result: {
+            passed: true,
+            checks: { document_type: true, operation_type: true },
+            actual_document_type: 'invoice',
+            actual_operation_type: 'document_review',
+          },
+        })
+      }
       return json({ detail: `Unexpected test request: ${path}` }, 404)
     })
 
@@ -239,6 +249,9 @@ describe('application shell', () => {
 
     expect(await screen.findByText('Document: Invoice')).toBeInTheDocument()
     expect(screen.getByText('Operation: Document Review')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /evaluate/i }))
+    expect(await screen.findByText(/Actual document: Invoice/)).toBeInTheDocument()
+    expect(screen.getByText(/Actual operation: Document Review/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /test datasets/i }))
     await user.click(await screen.findByRole('button', { name: /review a linked invoice without mutating state/i }))

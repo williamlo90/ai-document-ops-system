@@ -223,7 +223,8 @@ type ScenarioDataset = {
   scenarios: Scenario[]
   required_fields?: string[]
 }
-type ScenarioEvaluation = { scenario_id: string; passed: boolean; evidence: { checks?: Record<string, boolean> }; created_at: string }
+type ScenarioResult = { passed: boolean; checks: Record<string, boolean>; actual_document_type?: string; actual_operation_type?: string; expected_document_type?: string; expected_operation_type?: string }
+type ScenarioEvaluation = { scenario_id: string; passed: boolean; evidence: Partial<ScenarioResult>; created_at: string }
 type Regression = { deltas: Array<{ metric: string; previous: number | null; current: number | null; delta: number | null; regressed: boolean }>; improved_metrics: string[]; regressed_metrics: string[] }
 type PromptVersionMetric = { prompt_version: string; total_runs: number; evaluated_runs: number; tool_selection_accuracy: number | null; escalation_rate: number; average_confidence: number | null; estimated_cost_per_run: number | null }
 
@@ -1574,11 +1575,11 @@ function ReliabilityPage({ summary, runs, regression, promptVersions }: { summar
 function EvaluationPage({ agent, backoffice, runs, items, evaluations }: { agent?: ScenarioDataset; backoffice?: ScenarioDataset; runs: AgentRun[]; items: WorkItemDetail[]; evaluations: ScenarioEvaluation[] }) {
   const [tab, setTab] = useState<'agent' | 'backoffice'>('backoffice')
   const [targetId, setTargetId] = useState('')
-  const [results, setResults] = useState<Record<string, { passed: boolean; checks: Record<string, boolean> }>>({})
+  const [results, setResults] = useState<Record<string, ScenarioResult>>({})
   useEffect(() => {
     setResults(Object.fromEntries(evaluations.map((record) => [
       record.scenario_id,
-      { passed: record.passed, checks: record.evidence.checks ?? {} },
+      { passed: record.passed, checks: record.evidence.checks ?? {}, ...record.evidence },
     ])))
   }, [evaluations])
   const dataset = tab === 'agent' ? agent : backoffice
@@ -1587,7 +1588,7 @@ function EvaluationPage({ agent, backoffice, runs, items, evaluations }: { agent
     : items.filter((item) => item.current_plan).map((item) => ({ id: item.id, label: `${item.title} · ${shortId(item.current_plan!.id)}` }))
   const selectedTarget = targets.some((target) => target.id === targetId) ? targetId : targets[0]?.id ?? ''
   const evaluation = useMutation({
-    mutationFn: ({ scenarioId }: { scenarioId: string }) => api<{ result: { passed: boolean; checks: Record<string, boolean> } }>(
+    mutationFn: ({ scenarioId }: { scenarioId: string }) => api<{ result: ScenarioResult }>(
       tab === 'agent' ? '/agentops/scenarios/evaluate' : '/agentops/backoffice/scenarios/evaluate',
       { method: 'POST', body: JSON.stringify({ scenario_id: scenarioId, [tab === 'agent' ? 'run_id' : 'work_item_id']: selectedTarget }) },
     ),
@@ -1601,7 +1602,7 @@ function EvaluationPage({ agent, backoffice, runs, items, evaluations }: { agent
   return <>
     <EvidenceScope title="Deterministic case evaluation" detail="Each result compares one stored plan or run with a versioned expected contract. Passing a case does not imply broad document or production coverage." />
     <div className="stats-grid"><Stat label="Agent scenarios" value={agent?.scenario_count ?? 0} icon={<BotIcon />} /><Stat label="Backoffice scenarios" value={backoffice?.scenario_count ?? 0} icon={<Workflow size={18} />} /><Stat label="Observed runs" value={runs.length} icon={<Activity size={18} />} /><Stat label="Evaluation mode" value="Deterministic" icon={<CheckCircle2 size={18} />} /></div>
-    <div className="evaluation-result-strip"><strong>{completedResults.length ? `${passedResults} of ${completedResults.length} evaluated cases passed` : 'No cases evaluated yet'}</strong><span>Results are persisted against scenario IDs and versioned datasets.</span></div>
+    <div className="evaluation-result-strip"><strong>{completedResults.length ? `${passedResults} of ${completedResults.length} evaluated cases passed` : 'No cases evaluated yet'}</strong><span>Results are persisted against scenario IDs and versioned datasets.</span>{completedResults.some((result) => result.actual_document_type || result.actual_operation_type) ? <div className="scenario-tags">{completedResults.map((result, index) => <span key={index}>{[result.actual_document_type && `Actual document: ${humanize(result.actual_document_type)}`, result.actual_operation_type && `Actual operation: ${humanize(result.actual_operation_type)}`].filter(Boolean).join(' · ')}</span>)}</div> : null}</div>
     <section className="data-panel">
       <div className="evaluation-toolbar">
         <div className="segment-control"><button className={tab === 'backoffice' ? 'active' : ''} onClick={() => setTab('backoffice')}>Backoffice plans</button><button className={tab === 'agent' ? 'active' : ''} onClick={() => setTab('agent')}>Agent tools</button></div>
