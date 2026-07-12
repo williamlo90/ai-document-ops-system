@@ -853,7 +853,7 @@ function OperationsOverview({ workspace, loading, openItem, goQueue }: { workspa
     ['In progress', executing, <Play key="executing" size={18} />, 'progress'],
     ['Done today', completedToday, <CheckCircle2 key="completed" size={18} />, 'completed'],
   ]
-  return <main className="section-page"><section className="section-heading"><div><span className="section-eyebrow">REVIEWER</span><h2>Dashboard</h2><p>Invoices that need review, a decision, or a correction.</p></div><div className="section-actions"><button className="primary-button" onClick={() => goQueue()}>Open Approvals</button></div></section><div className="overview-metrics">{metrics.map(([label,value,icon,filter]) => <button key={label} disabled={!filter} onClick={() => filter && goQueue(filter)}><span>{icon}</span><small>{label}</small><strong>{loading ? '-' : value}</strong><ChevronRight size={15} /></button>)}</div><section className="data-panel"><DataPanelHeader icon={<Inbox size={17} />} title="Needs Review" count={attention.length} />{loading ? <LoadingState /> : attention.length ? <div className="overview-attention">{attention.map((item) => <button key={item.id} onClick={() => openItem(item.id)}><WorkIcon type={item.work_type} /><span><strong>{item.title}</strong><small>{attentionReason(item)}</small></span><Status value={item.status} /><ChevronRight size={16} /></button>)}</div> : <div className="healthy-empty"><CheckCircle2 size={28} /><div><strong>No invoices need review</strong><p>New invoices will appear here when someone needs to check them.</p></div></div>}</section>{createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}</main>
+  return <main className="section-page"><section className="section-heading"><div><span className="section-eyebrow">REVIEWER</span><h2>Dashboard</h2><p>Invoices that need review, a decision, or a correction.</p></div><div className="section-actions"><button className="primary-button" onClick={() => goQueue()}>Open Approvals</button></div></section><div className="overview-metrics">{metrics.map(([label,value,icon,filter]) => <button key={label} disabled={!filter} onClick={() => filter && goQueue(filter)}><span>{icon}</span><small>{label}</small><strong>{loading ? '-' : value}</strong><ChevronRight size={15} /></button>)}</div>{!loading && !items.length ? <section className="reviewer-start"><CheckCircle2 size={24} /><div><strong>No approval work yet</strong><p>This is normal in a new demo. Uploaded PDFs appear under Invoices first; this dashboard fills when an invoice needs a reviewer decision.</p></div><button className="outline-button" onClick={() => goQueue()}>Open Approvals</button></section> : null}<section className="data-panel"><DataPanelHeader icon={<Inbox size={17} />} title="Needs Review" count={attention.length} />{loading ? <LoadingState /> : attention.length ? <div className="overview-attention">{attention.map((item) => <button key={item.id} onClick={() => openItem(item.id)}><WorkIcon type={item.work_type} /><span><strong>{item.title}</strong><small>{attentionReason(item)}</small></span><Status value={item.status} /><ChevronRight size={16} /></button>)}</div> : <div className="healthy-empty"><CheckCircle2 size={28} /><div><strong>No invoices need review</strong><p>{items.length ? 'New invoices will appear here when someone needs to check them.' : 'Upload an invoice and send it for review to create a reviewer decision.'}</p></div></div>}</section>{createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}</main>
 }
 
 function QueuePage({ workspace, loading, openItem, exceptionMode = false, initialFilter }: { workspace?: Workspace; loading: boolean; openItem: (id: string) => void; exceptionMode?: boolean; initialFilter?: QueueFilter }) {
@@ -873,6 +873,17 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
   const filtered = items.filter((item) => matchesFilter(item, filter) && (!exceptionMode || matchesExceptionFilter(item, exceptionFilter, workspace?.documents ?? [])) && `${item.title} ${item.id} ${item.assignee}`.toLowerCase().includes(search.toLowerCase()))
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const emptyCopy = items.length
+    ? {
+      title: 'No invoices match this view',
+      body: 'Clear the search or switch to All.',
+      next: 'Invoices still waiting for a decision will remain in Approvals.',
+    }
+    : {
+      title: exceptionMode ? 'No invoices need attention' : 'No invoices waiting for approval',
+      body: exceptionMode ? 'Nothing is blocked or waiting for correction right now.' : 'Approvals only shows invoices that need a reviewer decision.',
+      next: 'Uploaded PDFs appear under Invoices first. After an invoice is sent for review, it will appear here.',
+    }
   useEffect(() => { setPage(1) }, [search, filter, exceptionFilter])
   useEffect(() => { if (page > totalPages) setPage(totalPages) }, [page, totalPages])
   const bulkPriority = useMutation({
@@ -916,14 +927,14 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
             ['completed', `Completed (${counts.completed})`],
           ] as [QueueFilter, string][]).map(([value, label]) => <button className={filter === value ? 'active' : ''} onClick={() => setFilter(value)} key={value}>{label}</button>)}
         </div>
-        <WorkItemTable items={paged} documents={workspace?.documents ?? []} loading={loading} openItem={openItem} page={page} totalPages={totalPages} total={filtered.length} setPage={setPage} />
+        <WorkItemTable items={paged} documents={workspace?.documents ?? []} loading={loading} openItem={openItem} page={page} totalPages={totalPages} total={filtered.length} setPage={setPage} emptyCopy={emptyCopy} />
       </section>
       {createOpen ? <CreateWorkItemModal documents={workspace?.documents ?? []} close={() => setCreateOpen(false)} openItem={openItem} /> : null}
     </main>
   )
 }
 
-function WorkItemTable({ items, documents, loading, openItem, page, totalPages, total, setPage }: { items: WorkItemSummary[]; documents: DocumentSummary[]; loading: boolean; openItem: (id: string) => void; page: number; totalPages: number; total: number; setPage: (page: number) => void }) {
+function WorkItemTable({ items, documents, loading, openItem, page, totalPages, total, setPage, emptyCopy }: { items: WorkItemSummary[]; documents: DocumentSummary[]; loading: boolean; openItem: (id: string) => void; page: number; totalPages: number; total: number; setPage: (page: number) => void; emptyCopy: { title: string; body: string; next?: string } }) {
   if (loading) return <LoadingState label="Loading invoices" />
   return (
     <div className="invoice-card-list">
@@ -951,7 +962,7 @@ function WorkItemTable({ items, documents, loading, openItem, page, totalPages, 
           </button>
         )
       })}
-      {items.length === 0 ? <EmptyState title="No invoices match this view" body="Clear the search or switch to All. If this is a new workspace, upload an invoice first." /> : null}
+      {items.length === 0 ? <EmptyState title={emptyCopy.title} body={emptyCopy.body} next={emptyCopy.next} /> : null}
       <div className="pagination"><span>Showing {items.length} of {total} items</span><div><button aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(page - 1)}><ChevronLeft size={15} /></button><button className="active" aria-current="page" disabled>{page}</button><button aria-label="Next page" disabled={page >= totalPages} onClick={() => setPage(page + 1)}><ChevronRight size={15} /></button></div><button disabled>{page} / {totalPages} pages</button></div>
     </div>
   )
