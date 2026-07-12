@@ -11,6 +11,47 @@ const workspace = {
   metrics: { work_items: 0, pending_approvals: 0, drafts: 0, policy_decisions: 0 },
 }
 
+const now = '2026-06-30T10:00:00Z'
+const linkedDocument = {
+  id: 'doc-1',
+  filename: 'acme.pdf',
+  status: 'approved',
+  created_at: now,
+  document_type: 'invoice',
+  supported_extraction_schema: 'invoice_v1',
+}
+const workItem = {
+  id: 'item-1',
+  title: 'Review ACME invoice',
+  work_type: 'invoice_review',
+  priority: 'normal',
+  status: 'awaiting_human',
+  linked_document_ids: ['doc-1'],
+  business_context: {},
+  created_at: now,
+  updated_at: now,
+  current_plan_id: null,
+  assignee: 'Finance reviewer',
+  requested_outcome: 'Review safely',
+  tags: [],
+}
+const workItemDetail = {
+  ...workItem,
+  plans: [],
+  current_plan: null,
+  drafts: [],
+  approvals: [],
+  policy_decisions: [],
+  activity: [],
+}
+const workspaceWithLinkedDocument = {
+  workspace_id: 'workspace-test',
+  work_items: [workItem],
+  pending_approvals: [],
+  documents: [linkedDocument],
+  metrics: { work_items: 1, pending_approvals: 0, drafts: 0, policy_decisions: 0 },
+}
+
 function json(body: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), {
     status,
@@ -110,5 +151,30 @@ describe('application shell', () => {
       '/backoffice/work-items',
       expect.objectContaining({ method: 'POST' }),
     ))
+  })
+
+  it('shows workspace document schema metadata on linked document records', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem('docops-role', 'administrator')
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/backoffice/workspace') return json(workspaceWithLinkedDocument)
+      if (path === '/backoffice/work-items/item-1') return json({ work_item: workItemDetail })
+      if (path === '/documents/doc-1') return json({ document: linkedDocument, extraction: null, audit_events: [] })
+      if (path === '/documents/doc-1/workflow') return json({ document: linkedDocument, extraction: null, work_item: workItemDetail, current_stage: 'needs_attention', current_owner: 'Finance reviewer', waiting_for: null, next_action: 'Review', attention_reason: null, activity: [] })
+      if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
+      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+    await user.click(await screen.findByText('Review ACME invoice'))
+    await user.click(await screen.findByRole('button', { name: /details/i }))
+
+    expect(await screen.findByText('invoice_v1')).toBeInTheDocument()
+    expect(screen.getByText('Invoice')).toBeInTheDocument()
   })
 })

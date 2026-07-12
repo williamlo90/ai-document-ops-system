@@ -42,7 +42,7 @@ import {
 import { useEffect, useState } from 'react'
 
 type Metrics = { work_items: number; pending_approvals: number; drafts: number; policy_decisions: number }
-type DocumentSummary = { id: string; filename: string; status: string; created_at: string }
+type DocumentSummary = { id: string; filename: string; status: string; created_at: string; document_type?: string; supported_extraction_schema?: string }
 type WorkItemSummary = {
   id: string
   title: string
@@ -1247,7 +1247,7 @@ function DetailsTab({ item, documents }: { item: WorkItemDetail; documents: Docu
       <TagsPanel item={item} />
       <section className="panel linked-records">
         <PanelTitle title="Linked Documents" action={<span className="version">{documents.length} records</span>} />
-        {documents.length ? documents.map((document) => <div key={document.id}><WorkIcon type="invoice_review" /><span><strong>{document.filename}</strong><small>{shortId(document.id)} · {formatDate(document.created_at)}</small></span><Status value={document.status} /></div>) : <EmptyState title="No linked documents" body="This work item was created without source evidence." />}
+        {documents.length ? documents.map((document) => <div key={document.id}><WorkIcon type="invoice_review" /><span><strong>{document.filename}</strong><small>{shortId(document.id)} · {formatDate(document.created_at)}</small><SchemaMeta document={document} extraction={null} compact /></span><Status value={document.status} /></div>) : <EmptyState title="No linked documents" body="This work item was created without source evidence." />}
       </section>
     </div>
   )
@@ -1642,7 +1642,7 @@ function BotIcon() {
 }
 
 function DocumentsPage({ workspace, loading }: { workspace?: Workspace; loading: boolean }) {
-  return <main className="queue-page"><section className="page-heading"><div><h2>Document Library</h2><p>Source records available to document operations workflows.</p></div></section><section className="queue-surface document-list">{loading ? <LoadingState /> : workspace?.documents.map((doc) => <article key={doc.id}><WorkIcon type="invoice_review" /><div><strong>{doc.filename}</strong><span>{shortId(doc.id)} · {formatDate(doc.created_at)}</span></div><Status value={doc.status} /></article>)}</section></main>
+  return <main className="queue-page"><section className="page-heading"><div><h2>Document Library</h2><p>Source records available to document operations workflows.</p></div></section><section className="queue-surface document-list">{loading ? <LoadingState /> : workspace?.documents.map((doc) => <article key={doc.id}><WorkIcon type="invoice_review" /><div><strong>{doc.filename}</strong><span>{shortId(doc.id)} · {formatDate(doc.created_at)}</span><SchemaMeta document={doc} extraction={null} compact /></div><Status value={doc.status} /></article>)}</section></main>
 }
 
 function DocumentTab({ document, documentDetail, extraction, loading }: { document?: DocumentSummary; documentDetail?: ApiDocument; extraction: Extraction | null; loading: boolean }) {
@@ -1651,10 +1651,10 @@ function DocumentTab({ document, documentDetail, extraction, loading }: { docume
   return <div className="document-review-layout"><AuthenticatedPdfPreview document={document} /><section className="panel document-evidence"><PanelTitle title="Extraction Evidence" action={<Status value={document.status} />} /><SchemaMeta document={documentDetail} extraction={extraction} /><div className="invoice-fields">{invoiceFields(extraction).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong><small><i /> Stored extraction</small></div>)}</div>{extraction?.confidence?.length ? <div className="evidence-list">{extraction.confidence.map((evidence) => <article key={evidence.field_name}><strong>{humanize(evidence.field_name)}</strong><span>{evidence.score == null ? 'Not scored' : `${Math.round(evidence.score * 100)}%`}</span><p>{evidence.source_text || 'No source excerpt stored.'}</p></article>)}</div> : null}{extraction?.validation?.length ? <div className="validation-list">{extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.message}</span></p>)}</div> : <div className="validation-ok"><CheckCircle2 size={15} /> No validation blockers.</div>}</section></div>
 }
 
-function SchemaMeta({ document, extraction }: { document?: ApiDocument; extraction: Extraction | null }) {
+function SchemaMeta({ document, extraction, compact = false }: { document?: ApiDocument | DocumentSummary; extraction: Extraction | null; compact?: boolean }) {
   const documentType = extraction?.document_type ?? document?.document_type ?? 'invoice'
   const schema = extraction?.schema_version ?? document?.supported_extraction_schema ?? 'invoice_v1'
-  return <div className="schema-meta"><span><FileText size={12} /> {humanize(documentType)}</span><span><Database size={12} /> {schema}</span></div>
+  return <div className={`schema-meta ${compact ? 'compact' : ''}`}><span><FileText size={12} /> {humanize(documentType)}</span><span><Database size={12} /> {schema}</span></div>
 }
 
 function AuthenticatedPdfPreview({ document }: { document: DocumentSummary }) {
