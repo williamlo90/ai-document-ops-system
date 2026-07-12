@@ -374,6 +374,37 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(approve_response.status_code, 200)
         self.assertEqual(approve_response.json()["review_task"]["status"], "approved")
 
+    def test_reviewer_cannot_review_cross_workspace_document(self) -> None:
+        acme_headers = {
+            **HEADERS,
+            "X-Workspace-Id": "acme",
+            "X-User-Id": "acme-admin",
+            "X-Role": "admin",
+        }
+        other_reviewer_headers = {
+            **HEADERS,
+            "X-Workspace-Id": "other",
+            "X-User-Id": "other-reviewer",
+            "X-Role": "reviewer",
+        }
+        upload_response = self.client.post(
+            "/documents/upload",
+            headers=acme_headers,
+            files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
+        )
+        document_id = upload_response.json()["document"]["id"]
+        self.client.post(f"/documents/{document_id}/process", headers=acme_headers)
+
+        queue_response = self.client.get("/review/queue", headers=other_reviewer_headers)
+        approve_response = self.client.post(
+            f"/review/{document_id}/approve",
+            headers=other_reviewer_headers,
+        )
+
+        self.assertEqual(queue_response.status_code, 200)
+        self.assertEqual(queue_response.json(), [])
+        self.assertEqual(approve_response.status_code, 404)
+
     def test_operator_role_cannot_use_review_api(self) -> None:
         upload_response = self.client.post(
             "/documents/upload",

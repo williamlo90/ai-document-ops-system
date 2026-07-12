@@ -111,7 +111,7 @@ def create_work_item(
         title=payload.title.strip() or "Untitled work item",
         context=context,
         work_type=payload.work_type,
-        linked_document_ids=tuple(payload.linked_document_ids),
+        linked_document_ids=_linked_document_ids_for_context(container, context, payload),
         business_context={
             "requested_outcome": payload.requested_outcome or "",
         },
@@ -297,6 +297,20 @@ def _work_item_for_context(
     if work_item.workspace_id != context.workspace_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     return work_item
+
+
+def _linked_document_ids_for_context(
+    container: AppContainer, context: SecurityContext, payload: WorkItemCreatePayload
+) -> tuple[UUID, ...]:
+    linked_document_ids = tuple(payload.linked_document_ids)
+    for document_id in linked_document_ids:
+        try:
+            document = container.documents.get(document_id)
+        except NotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+        if document.workspace_id != context.workspace_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    return linked_document_ids
 
 
 def _work_item_summary(work_item: WorkItem) -> dict[str, object]:

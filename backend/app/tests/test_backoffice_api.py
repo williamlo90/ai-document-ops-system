@@ -124,6 +124,69 @@ class BackofficeApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_create_work_item_rejects_cross_workspace_linked_document(self) -> None:
+        acme_headers = {
+            **HEADERS,
+            "X-Workspace-Id": "acme",
+            "X-User-Id": "acme-admin",
+            "X-Role": "admin",
+        }
+        other_headers = {
+            **HEADERS,
+            "X-Workspace-Id": "other",
+            "X-User-Id": "other-admin",
+            "X-Role": "admin",
+        }
+        upload = self.client.post(
+            "/documents/upload",
+            headers=acme_headers,
+            files={"file": ("invoice.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+        )
+        document_id = upload.json()["document"]["id"]
+
+        created = self.client.post(
+            "/backoffice/work-items",
+            headers=other_headers,
+            json={
+                "title": "Unsafe linked document",
+                "work_type": "invoice_export",
+                "linked_document_ids": [document_id],
+            },
+        )
+        workspace = self.client.get("/backoffice/workspace", headers=other_headers)
+
+        self.assertEqual(created.status_code, 404)
+        self.assertEqual(workspace.status_code, 200)
+        self.assertEqual(workspace.json()["work_items"], [])
+
+    def test_backoffice_mutations_are_workspace_scoped(self) -> None:
+        planned = self._planned_export_work_item()
+        other_headers = {
+            **HEADERS,
+            "X-Workspace-Id": "other",
+            "X-User-Id": "other-admin",
+            "X-Role": "admin",
+        }
+
+        update = self.client.patch(
+            f"/backoffice/work-items/{planned['work_item_id']}",
+            headers=other_headers,
+            json={"title": "Cross workspace update"},
+        )
+        approve = self.client.post(
+            f"/backoffice/approvals/{planned['approval_id']}/approve",
+            headers=other_headers,
+            json={"notes": "cross workspace"},
+        )
+        execute = self.client.post(
+            f"/backoffice/work-items/{planned['work_item_id']}/steps/{planned['export_step_id']}/execute",
+            headers=other_headers,
+        )
+
+        self.assertEqual(update.status_code, 404)
+        self.assertEqual(approve.status_code, 404)
+        self.assertEqual(execute.status_code, 404)
+
     def test_plan_ignores_client_claim_that_unprocessed_document_is_approved(self) -> None:
         upload = self.client.post(
             "/documents/upload",
@@ -240,6 +303,39 @@ class BackofficeApiTests(unittest.TestCase):
         detail = self.client.get(f"/documents/{document_id}", headers=HEADERS)
         self.assertEqual(detail.json()["document"]["status"], "approved")
         return str(UUID(document_id))
+
+    def _planned_export_work_item(self) -> dict[str, str]:
+        document_id = self._approved_document_id()
+        created = self.client.post(
+            "/backoffice/work-items",
+            headers=HEADERS,
+            json={
+                "title": "Export approved invoice",
+                "work_type": "invoice_export",
+                "linked_document_ids": [document_id],
+                "requested_outcome": "export invoice",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        work_item_id = created.json()["work_item"]["id"]
+
+        planned = self.client.post(
+            f"/backoffice/work-items/{work_item_id}/plan",
+            headers=HEADERS,
+            json={"requested_outcome": "export invoice"},
+        )
+        self.assertEqual(planned.status_code, 200)
+        planned_item = planned.json()["work_item"]
+        export_step = next(
+            step
+            for step in planned_item["current_plan"]["steps"]
+            if step["action_type"] == "export_approved_invoice"
+        )
+        return {
+            "work_item_id": work_item_id,
+            "approval_id": planned_item["approvals"][0]["id"],
+            "export_step_id": export_step["id"],
+        }
 
 
 if __name__ == "__main__":
