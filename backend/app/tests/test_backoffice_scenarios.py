@@ -53,6 +53,8 @@ class BackofficeScenarioTests(unittest.TestCase):
         self.assertEqual(dataset.dataset_version, "v1")
         self.assertEqual(len(dataset.scenarios), 5)
         self.assertEqual(dataset.scenarios[0].id, "invoice_review_read_only")
+        self.assertEqual(dataset.scenarios[0].document_type, "invoice")
+        self.assertEqual(dataset.scenarios[0].operation_type, "document_review")
 
     def test_evaluates_matched_confirm_execute_plan(self) -> None:
         dataset = load_backoffice_scenario_dataset(DEFAULT_BACKOFFICE_SCENARIO_DATASET)
@@ -84,6 +86,10 @@ class BackofficeScenarioTests(unittest.TestCase):
 
         self.assertTrue(evaluation.passed)
         self.assertTrue(all(evaluation.checks.values()))
+        self.assertTrue(evaluation.checks["document_type"])
+        self.assertTrue(evaluation.checks["operation_type"])
+        self.assertEqual(evaluation.actual_document_type, "invoice")
+        self.assertEqual(evaluation.actual_operation_type, "document_export")
         self.assertEqual(
             evaluation.actual_plan_steps,
             ("inspect_queue", "export_approved_invoice"),

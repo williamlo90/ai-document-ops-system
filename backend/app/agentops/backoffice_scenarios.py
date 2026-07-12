@@ -15,6 +15,8 @@ REQUIRED_BACKOFFICE_SCENARIO_FIELDS = frozenset(
         "title",
         "workspace_id",
         "actor_role",
+        "document_type",
+        "operation_type",
         "work_type",
         "document_state",
         "planning_input",
@@ -35,6 +37,8 @@ class BackofficeScenario:
     title: str
     workspace_id: str
     actor_role: str
+    document_type: str
+    operation_type: str
     work_type: str
     document_state: str
     planning_input: dict[str, Any]
@@ -73,6 +77,10 @@ class BackofficeScenarioEvaluationResult:
     actual_requires_human: bool
     expected_confidence: str
     actual_confidence: str
+    expected_document_type: str
+    actual_document_type: str
+    expected_operation_type: str
+    actual_operation_type: str
 
 
 def load_backoffice_scenario_dataset(
@@ -112,8 +120,14 @@ def evaluate_backoffice_scenario_plan(
     actual_statuses = tuple(step.status.value for step in plan.steps)
     actual_risks = tuple(step.risk_level.value for step in plan.steps)
     actual_policy_actions = tuple(decision.action_type.value for decision in policy_decisions)
+    actual_document_type = "invoice"
+    actual_operation_type = _operation_type_for_work_type(
+        work_item.work_type.value if work_item.work_type is not None else None
+    )
     checks = {
         "workspace": work_item.workspace_id == scenario.workspace_id,
+        "document_type": actual_document_type == scenario.document_type,
+        "operation_type": actual_operation_type == scenario.operation_type,
         "work_type": (
             work_item.work_type is not None and work_item.work_type.value == scenario.work_type
         ),
@@ -143,6 +157,10 @@ def evaluate_backoffice_scenario_plan(
         actual_requires_human=plan.requires_human,
         expected_confidence=scenario.expected_confidence,
         actual_confidence=plan.overall_confidence,
+        expected_document_type=scenario.document_type,
+        actual_document_type=actual_document_type,
+        expected_operation_type=scenario.operation_type,
+        actual_operation_type=actual_operation_type,
     )
 
 
@@ -155,6 +173,8 @@ def _scenario_from_mapping(raw: dict[str, Any]) -> BackofficeScenario:
         title=_required_text(raw, "title"),
         workspace_id=_required_text(raw, "workspace_id"),
         actor_role=_required_text(raw, "actor_role"),
+        document_type=_required_text(raw, "document_type"),
+        operation_type=_required_text(raw, "operation_type"),
         work_type=_required_text(raw, "work_type"),
         document_state=_required_text(raw, "document_state"),
         planning_input=_required_mapping(raw, "planning_input"),
@@ -202,3 +222,13 @@ def _contains_in_order(actual: tuple[str, ...], expected: tuple[str, ...]) -> bo
             return False
         start = index + 1
     return True
+
+
+def _operation_type_for_work_type(work_type: str | None) -> str:
+    return {
+        "invoice_review": "document_review",
+        "invoice_export": "document_export",
+        "vendor_follow_up": "document_follow_up",
+        "accounting_note": "document_note",
+        "insufficient_evidence": "document_escalation",
+    }.get(work_type or "", "document_operation")

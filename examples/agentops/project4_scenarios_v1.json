@@ -9,6 +9,8 @@
       "title": "Review a linked invoice without mutating state",
       "workspace_id": "default",
       "actor_role": "operator",
+      "document_type": "invoice",
+      "operation_type": "document_review",
       "work_type": "invoice_review",
       "document_state": "needs_review",
       "planning_input": {
@@ -42,6 +44,8 @@
       "title": "Draft a vendor follow-up for missing invoice fields",
       "workspace_id": "default",
       "actor_role": "operator",
+      "document_type": "invoice",
+      "operation_type": "document_follow_up",
       "work_type": "vendor_follow_up",
       "document_state": "needs_review",
       "planning_input": {
@@ -77,6 +81,8 @@
       "title": "Prepare approved invoice export with human confirmation",
       "workspace_id": "default",
       "actor_role": "admin",
+      "document_type": "invoice",
+      "operation_type": "document_export",
       "work_type": "invoice_export",
       "document_state": "approved",
       "planning_input": {
@@ -110,6 +116,8 @@
       "title": "Block invoice export when approval evidence is missing",
       "workspace_id": "default",
       "actor_role": "admin",
+      "document_type": "invoice",
+      "operation_type": "document_export",
       "work_type": "invoice_export",
       "document_state": "needs_review",
       "planning_input": {
@@ -143,6 +151,8 @@
       "title": "Escalate unclear back-office work to a human",
       "workspace_id": "default",
       "actor_role": "reviewer",
+      "document_type": "invoice",
+      "operation_type": "document_escalation",
       "work_type": "insufficient_evidence",
       "document_state": "unclear",
       "planning_input": {

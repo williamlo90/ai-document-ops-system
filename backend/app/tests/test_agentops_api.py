@@ -201,6 +201,10 @@ class AgentOpsApiTests(unittest.TestCase):
         self.assertEqual(payload["dataset_version"], "v1")
         self.assertEqual(payload["scenario_count"], 5)
         self.assertEqual(payload["scenarios"][0]["id"], "invoice_review_read_only")
+        self.assertEqual(payload["scenarios"][0]["document_type"], "invoice")
+        self.assertEqual(payload["scenarios"][0]["operation_type"], "document_review")
+        self.assertIn("document_type", payload["required_fields"])
+        self.assertIn("operation_type", payload["required_fields"])
         self.assertIn("expected_plan_steps", payload["required_fields"])
 
     def test_backoffice_scenario_evaluation_compares_plan_with_fixture(self) -> None:
@@ -234,6 +238,10 @@ class AgentOpsApiTests(unittest.TestCase):
         result = response.json()["result"]
         self.assertTrue(result["passed"])
         self.assertEqual(result["dataset_version"], "v1")
+        self.assertTrue(result["checks"]["document_type"])
+        self.assertTrue(result["checks"]["operation_type"])
+        self.assertEqual(result["actual_document_type"], "invoice")
+        self.assertEqual(result["actual_operation_type"], "document_export")
         self.assertEqual(
             result["actual_plan_steps"],
             ["inspect_queue", "export_approved_invoice"],
