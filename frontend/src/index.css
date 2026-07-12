@@ -417,6 +417,11 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
   .work-item-subpage, .governance-subpage { grid-template-columns: 1fr; }.decision-log { grid-column: auto; }
   .summary-tab-page, .plan-tab-page { grid-template-columns: 1fr; }
   .workspace-primary, .workspace-secondary { grid-template-columns: 1fr; }.workspace-preview .pdf-preview { min-height: 560px; }
+  .reviewer-flow { grid-template-columns: 1fr; }
+  .reviewer-stepper { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .reviewer-flow > .panel { grid-column: 1; }
+  .review-decision .panel-actions { align-items: stretch; }
+  .review-decision .panel-actions > button { min-height: 44px; }
 }
 @media (max-width: 720px) {
   .topbar { padding: 0 14px; }.topbar-actions .outline-button { display: none; }.queue-page { padding: 0 10px 14px; }
