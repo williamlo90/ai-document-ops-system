@@ -239,5 +239,11 @@ describe('application shell', () => {
 
     expect(await screen.findByText('Document: Invoice')).toBeInTheDocument()
     expect(screen.getByText('Operation: Document Review')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /test datasets/i }))
+    await user.click(await screen.findByRole('button', { name: /review a linked invoice without mutating state/i }))
+
+    expect(screen.getAllByText('Document: Invoice').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Operation: Document Review').length).toBeGreaterThan(0)
   })
 })
