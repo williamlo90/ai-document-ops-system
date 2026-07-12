@@ -137,7 +137,7 @@ Acceptance criteria:
 
 ### UX Sprint 4 - Technical Evidence Rewording
 
-Status: partially folded into UX Sprint 1 for navigation and page titles.
+Status: complete.
 
 Goal:
 Preserve rigor while making reliability pages less intimidating.

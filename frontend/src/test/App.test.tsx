@@ -350,6 +350,8 @@ describe('application shell', () => {
     await user.click(screen.getAllByRole('button', { name: /technical evidence/i })[0])
     await user.click(await screen.findByRole('button', { name: /reliability checks/i }))
 
+    expect(await screen.findByText(/Repeatable reliability checks/i)).toBeInTheDocument()
+    expect(screen.getByText(/Document workflow checks/i)).toBeInTheDocument()
     expect(await screen.findByText('Document: Invoice')).toBeInTheDocument()
     expect(screen.getByText('Operation: Document Review')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /evaluate/i }))
@@ -361,6 +363,8 @@ describe('application shell', () => {
     expect(screen.getByText('Actual operation')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /test scenarios/i }))
+    expect(await screen.findByText(/Versioned local test scenarios/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Repeatable reliability contract/i).length).toBeGreaterThan(0)
     await user.click(await screen.findByRole('button', { name: /review a linked invoice without mutating state/i }))
 
     expect(screen.getAllByText('Document: Invoice').length).toBeGreaterThan(0)
