@@ -213,7 +213,11 @@ def plan_work_item(
             ),
             idempotency_key=idempotency_key,
         )
-    except (NotFoundError, BackofficeWorkflowError, ValueError) as exc:
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except BackofficeWorkflowError as exc:
+        raise _backoffice_workflow_http_error(exc) from exc
+    except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {"work_item": _work_item_detail(container, context, result.work_item)}
 
@@ -271,8 +275,10 @@ def execute_step(
             action_step_id=action_step_id,
             context=context,
         )
-    except (NotFoundError, BackofficeWorkflowError) as exc:
+    except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except BackofficeWorkflowError as exc:
+        raise _backoffice_workflow_http_error(exc) from exc
     work_item = _work_item_for_context(container, context, work_item_id)
     return {
         "tool_response": {
@@ -311,6 +317,15 @@ def _linked_document_ids_for_context(
         if document.workspace_id != context.workspace_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     return linked_document_ids
+
+
+def _backoffice_workflow_http_error(exc: BackofficeWorkflowError) -> HTTPException:
+    if str(exc) == "Idempotency key is too long.":
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Backoffice action is not ready for that operation.",
+    )
 
 
 def _work_item_summary(work_item: WorkItem) -> dict[str, object]:

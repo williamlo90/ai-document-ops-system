@@ -187,6 +187,59 @@ class BackofficeApiTests(unittest.TestCase):
         self.assertEqual(approve.status_code, 404)
         self.assertEqual(execute.status_code, 404)
 
+    def test_backoffice_plan_is_workspace_scoped(self) -> None:
+        created = self.client.post(
+            "/backoffice/work-items",
+            headers=HEADERS,
+            json={"title": "Private planning item", "work_type": "invoice_review"},
+        )
+        work_item_id = created.json()["work_item"]["id"]
+
+        response = self.client.post(
+            f"/backoffice/work-items/{work_item_id}/plan",
+            headers={**HEADERS, "X-Workspace-Id": "other"},
+            json={"requested_outcome": "review invoice"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"], "Not found")
+
+    def test_execute_unplanned_work_item_returns_generic_conflict(self) -> None:
+        created = self.client.post(
+            "/backoffice/work-items",
+            headers=HEADERS,
+            json={"title": "Unplanned export", "work_type": "invoice_export"},
+        )
+        work_item_id = created.json()["work_item"]["id"]
+
+        response = self.client.post(
+            f"/backoffice/work-items/{work_item_id}/steps/{UUID(int=0)}/execute",
+            headers=HEADERS,
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.json()["detail"],
+            "Backoffice action is not ready for that operation.",
+        )
+
+    def test_plan_validation_error_stays_bad_request(self) -> None:
+        created = self.client.post(
+            "/backoffice/work-items",
+            headers=HEADERS,
+            json={"title": "Review invoice", "work_type": "invoice_review"},
+        )
+        work_item_id = created.json()["work_item"]["id"]
+
+        response = self.client.post(
+            f"/backoffice/work-items/{work_item_id}/plan",
+            headers={**HEADERS, "Idempotency-Key": "x" * 201},
+            json={"requested_outcome": "review invoice"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Idempotency key is too long.")
+
     def test_plan_ignores_client_claim_that_unprocessed_document_is_approved(self) -> None:
         upload = self.client.post(
             "/documents/upload",
