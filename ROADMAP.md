@@ -1,5 +1,7 @@
 # AI Document Operations System Roadmap
 
+This is the single source of truth for product scope, validation work, and portfolio release readiness. Do not create parallel sprint plans unless a temporary implementation plan is required and linked back here.
+
 ## Product Scope
 
 This is an invoice-review workflow for finance operations.
@@ -31,6 +33,23 @@ Latest verified baseline:
 - frontend suite: 9 tests passed
 - frontend lint and production build: passed
 - backend Ruff check: passed
+
+## Phase 0: Positioning Cleanup
+
+Status: Next documentation-only task. It may run before provider integration.
+
+Goal: remove historical build-log language so a new reader immediately understands the current product and its limits.
+
+Work:
+
+1. Rewrite public README, runbook, and demo copy around the invoice-review problem and the primary user flow.
+2. Remove historical project labels and generic autonomous/back-office claims from recruiter-facing documentation.
+3. State limitations plainly: local demo, no customer validation, and no unmeasured claims of accuracy, time savings, or cost reduction.
+
+Exit criteria:
+
+- a reader understands the user, problem, workflow, and limitation from the first documentation screen
+- public documentation uses the product name consistently
 
 ## Phase 1: Real Provider Integration
 
@@ -84,6 +103,7 @@ Work:
 4. Add a compact business-proof report or surface, kept separate from engineering reliability metrics.
 5. Record a 3-5 minute demo video with one normal invoice, one exception, one blocked risky action, and the audit result.
 6. Rewrite README for a five-minute recruiter scan: problem, demo flow, architecture, proof, limitations, and one-command local run.
+7. Run a 60-second first-impression check: a new reader can identify the queue, open an invoice with a visible PDF, understand the reviewer decision, and see why a risky action was blocked.
 
 Positioning rule:
 
@@ -96,6 +116,7 @@ Exit criteria:
 - a recruiter can understand the problem, safeguard, and evidence without reading source code
 - screenshots and video show real PDF rendering and observed outcomes
 - all README and case-study claims link to documented evidence
+- the primary UI passes the 60-second first-impression check without explanation
 
 ## Phase 4: Release Readiness
 
