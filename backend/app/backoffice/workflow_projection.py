@@ -80,6 +80,24 @@ def project_workflow(
 
     pending = approvals.list_pending(work_item.workspace_id)
     pending_for_item = any(item.work_item_id == work_item.id for item in pending)
+    correction_state = work_item.business_context.get("correction_state")
+    if correction_state == "requested":
+        return WorkflowProjection(
+            "correction_requested",
+            "Uploader",
+            "Corrected invoice data",
+            "Correct the invoice and send it back",
+            work_item.business_context.get("correction_reason")
+            or "The reviewer requested a correction.",
+        )
+    if correction_state == "submitted":
+        return WorkflowProjection(
+            "waiting_approval",
+            "Reviewer",
+            "Reviewer decision",
+            "Check the corrected invoice",
+            None,
+        )
     if pending_for_item:
         return WorkflowProjection(
             "waiting_approval",

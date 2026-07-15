@@ -40,6 +40,10 @@ async function mockApi(page: Page, options: { workspaceFailure?: boolean } = {})
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{"worker":{"status":"healthy"},"jobs":[]}' })
       return
     }
+    if (url.pathname === '/invoices') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[],"page":1,"page_size":100,"total":0,"total_pages":1}' })
+      return
+    }
     await route.continue()
   })
 }
@@ -53,7 +57,7 @@ test('reviewer opens the simplified approval area', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^Upload$/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Approvals' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Invoices' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'History' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'History' })).toHaveCount(0)
 
   const openNavigation = page.getByRole('button', { name: 'Open navigation' })
   if (await openNavigation.isVisible()) await openNavigation.click()

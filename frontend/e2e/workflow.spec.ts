@@ -2,101 +2,247 @@ import { expect, test, type Page } from '@playwright/test'
 
 const now = '2026-06-30T10:00:00Z'
 
-function aggregate(approvalStatus = 'pending') {
-  const step = { id: 'step-1', action_type: 'export_invoice', risk_level: 'high', tool_name: 'export', requires_approval: true, status: 'approved', why_this: 'Invoice is ready.', why_not: null }
-  const approval = { id: 'approval-1', work_item_id: 'item-1', action_step_id: 'step-1', status: approvalStatus, reviewer_notes: null, reviewed_by: null, reviewed_at: null, created_at: now }
+type FlowState = {
+  correctionRequested: boolean
+  correctionSubmitted: boolean
+  approved: boolean
+}
+
+type RecordedCall = {
+  method: string
+  path: string
+  body: Record<string, unknown>
+}
+
+const extraction = {
+  document_type: 'invoice',
+  schema_version: 'invoice_v1',
+  data: {
+    vendor_name: 'Acme Logistics',
+    invoice_number: 'INV-001',
+    invoice_date: '2026-06-18',
+    due_date: '2026-07-18',
+    subtotal: '90.00',
+    tax: '10.00',
+    total: '100.00',
+    currency: 'USD',
+    line_items: [],
+  },
+  validation: [],
+  confidence: [],
+}
+
+function currentDocument(state: FlowState) {
   return {
-    id: 'item-1', title: 'Review ACME invoice', work_type: 'invoice_export', priority: 'high', status: 'awaiting_human', linked_document_ids: ['doc-1'], business_context: { requested_outcome: 'Export approved invoice' }, created_at: now, updated_at: now, current_plan_id: 'plan-1', assignee: 'Finance reviewer', requested_outcome: 'Export approved invoice', tags: ['invoice'],
-    plans: [], current_plan: { id: 'plan-1', planner_version: 'test', overall_confidence: 'high', escalation_reason: null, requires_human: true, created_at: now, steps: [step], agent_run_id: 'run-1' }, drafts: [], approvals: [approval], policy_decisions: [], activity: [],
+    id: 'doc-1',
+    filename: 'acme.pdf',
+    original_filename: 'acme.pdf',
+    status: state.approved ? 'approved' : 'needs_review',
+    document_type: 'invoice',
+    supported_extraction_schema: 'invoice_v1',
+    created_at: now,
+    updated_at: now,
   }
 }
 
-async function mockWorkflow(page: Page, calls: string[], approvalStatus = 'pending', stage = 'needs_attention') {
-  const item = aggregate(approvalStatus)
-  const document = { id: 'doc-1', filename: 'acme.pdf', original_filename: 'acme.pdf', status: 'approved', document_type: 'invoice', supported_extraction_schema: 'invoice_v1', created_at: now }
-  await page.route('**/*', async (route) => {
-    const request = route.request()
-    const path = new URL(request.url()).pathname
-    if (path === '/auth/session') return route.fulfill({ json: { authenticated: true, actor: 'e2e-admin' } })
-    if (path === '/backoffice/workspace') return route.fulfill({ json: { workspace_id: 'e2e', work_items: [item], pending_approvals: item.approvals, documents: [document], metrics: { work_items: 1, pending_approvals: 1, drafts: 0, policy_decisions: 0 } } })
-    if (path === '/operations/notifications') return route.fulfill({ json: { notifications: [], unread_count: 0 } })
-    if (path === '/providers/health') return route.fulfill({ json: { overall_status: 'healthy', providers: [] } })
-    if (path === '/operations/jobs') return route.fulfill({ json: { worker: { status: 'healthy', queued_jobs: 0, failed_jobs: 0, stalled_jobs: 0, evidence: 'ok' }, failed_jobs: [] } })
-    if (path === '/backoffice/work-items/item-1') return route.fulfill({ json: { work_item: item } })
-    if (path === '/documents/doc-1') return route.fulfill({ json: { document, extraction: { document_type: 'invoice', schema_version: 'invoice_v1', data: {}, confidence: [], validation: [{ field_name: 'total', message: 'Total does not match line items', severity: 'error' }] }, audit_events: [] } })
-    if (path === '/documents/doc-1/content') return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4\n%%EOF' })
-    if (path === '/documents/doc-1/workflow') return route.fulfill({ json: { document, extraction: null, work_item: item, current_stage: stage, current_owner: 'Finance reviewer', waiting_for: 'Human decision', next_action: 'Review', attention_reason: 'Approval required', activity: [] } })
-    if (path === '/invoices/doc-1/workflow') return route.fulfill({ status: 410, json: { detail: 'Use the document workflow projection.' } })
-    if (path.startsWith('/invoices/doc-1/') && ['retry', 'request-correction', 'escalate'].some((action) => path.endsWith(`/${action}`))) return route.fulfill({ status: 410, json: { detail: 'Use the document workflow command.' } })
-    if (request.method() !== 'GET') {
-      calls.push(`${request.method()} ${path}`)
-      return route.fulfill({ json: { status: 'ok', work_item: item } })
-    }
-    return route.continue()
-  })
-  await page.addInitScript(() => localStorage.setItem('docops-role', 'administrator'))
-  await page.goto('/')
-  await page.getByText('Review ACME invoice', { exact: true }).first().click()
-  await expect(page.getByRole('heading', { name: 'Review ACME invoice' })).toBeVisible()
+function currentWorkItem(state: FlowState) {
+  return {
+    id: 'item-1',
+    title: 'Review Acme Logistics invoice',
+    work_type: 'invoice_review',
+    priority: 'normal',
+    status: state.approved ? 'completed' : 'planning',
+    linked_document_ids: ['doc-1'],
+    business_context: state.correctionRequested && !state.correctionSubmitted
+      ? { correction_state: 'requested', correction_reason: 'Use the full legal vendor name.' }
+      : {},
+    created_at: now,
+    updated_at: now,
+    current_plan_id: null,
+    assignee: state.correctionRequested && !state.correctionSubmitted ? 'Uploader' : 'Finance reviewer',
+    requested_outcome: 'Review the invoice safely',
+    tags: [],
+  }
 }
 
-test('approval mutation is wired to the selected approval', async ({ page }) => {
-  const calls: string[] = []
-  await mockWorkflow(page, calls)
-  await page.getByRole('button', { name: 'Approvals' }).last().click()
-  await page.getByPlaceholder('Decision notes and evidence considered...').fill('Evidence checked')
-  await page.getByRole('button', { name: 'Approve' }).click()
-  await expect.poll(() => calls).toContain('POST /backoffice/approvals/approval-1/approve')
+function correctionSummary(state: FlowState) {
+  if (!state.correctionSubmitted) return null
+  return {
+    event_count: 1,
+    latest_change_count: 1,
+    latest_changed_fields: ['vendor_name'],
+    latest_actor: 'e2e-uploader',
+    latest_reason: 'Used the legal vendor name.',
+    latest_at: now,
+  }
+}
+
+async function mockBusinessFlow(page: Page, state: FlowState, calls: RecordedCall[], role: 'administrator' | 'intake') {
+  await page.route('**/*', async (route) => {
+    const request = route.request()
+    const url = new URL(request.url())
+    const path = url.pathname
+    const method = request.method()
+    const document = currentDocument(state)
+    const item = currentWorkItem(state)
+    const itemDetail = {
+      ...item,
+      plans: [],
+      current_plan: null,
+      drafts: [],
+      approvals: [],
+      policy_decisions: [],
+      activity: [],
+    }
+
+    if (path === '/auth/session') return route.fulfill({ json: { authenticated: true, actor: role === 'intake' ? 'e2e-uploader' : 'e2e-reviewer' } })
+    if (path === '/operations/notifications') return route.fulfill({ json: { notifications: [], unread_count: 0 } })
+    if (path === '/providers/health') return route.fulfill({ json: { overall_status: 'healthy', providers: [] } })
+    if (path === '/operations/jobs') return route.fulfill({ json: { worker: { status: 'healthy' }, jobs: [] } })
+    if (path === '/backoffice/workspace') {
+      return route.fulfill({
+        json: {
+          workspace_id: 'e2e',
+          work_items: [item],
+          pending_approvals: [],
+          documents: [document],
+          metrics: { work_items: 1, pending_approvals: 0, drafts: 0, policy_decisions: 0 },
+        },
+      })
+    }
+    if (path === '/invoices' && method === 'GET') {
+      const needsCorrection = state.correctionRequested && !state.correctionSubmitted
+      return route.fulfill({
+        json: {
+          items: [{
+            ...document,
+            vendor_name: extraction.data.vendor_name,
+            total: extraction.data.total,
+            currency: extraction.data.currency,
+            business_status: state.approved ? 'approved' : needsCorrection ? 'needs_correction' : 'needs_review',
+            current_owner: needsCorrection ? 'Uploader' : 'Reviewer',
+            current_stage: needsCorrection ? 'correction_requested' : state.approved ? 'completed' : 'waiting_approval',
+            work_item_id: 'item-1',
+          }],
+          page: 1,
+          page_size: 100,
+          total: 1,
+          total_pages: 1,
+        },
+      })
+    }
+    if (path === '/backoffice/work-items/item-1') return route.fulfill({ json: { work_item: itemDetail } })
+    if (path === '/documents/doc-1' && method === 'GET') {
+      return route.fulfill({
+        json: {
+          document,
+          extraction,
+          correction_summary: correctionSummary(state),
+          audit_events: state.approved
+            ? [{ id: 'event-1', event_type: 'document_approved', actor: 'e2e-reviewer', new_status: 'approved', created_at: now }]
+            : [],
+        },
+      })
+    }
+    if (path === '/documents/doc-1/workflow' && method === 'GET') {
+      const needsCorrection = state.correctionRequested && !state.correctionSubmitted
+      return route.fulfill({
+        json: {
+          document,
+          extraction,
+          correction_summary: correctionSummary(state),
+          work_item: itemDetail,
+          current_stage: needsCorrection ? 'correction_requested' : state.approved ? 'completed' : 'waiting_approval',
+          current_owner: needsCorrection ? 'Uploader' : 'Reviewer',
+          waiting_for: needsCorrection ? 'Uploader correction' : state.approved ? null : 'Reviewer decision',
+          next_action: needsCorrection ? 'Correct the invoice and send it back' : state.approved ? 'No action needed' : 'Review invoice',
+          attention_reason: needsCorrection ? 'Use the full legal vendor name.' : null,
+          activity: [],
+        },
+      })
+    }
+    if (path === '/documents/doc-1/content') {
+      return route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4\n%%EOF' })
+    }
+    if (path === '/documents/doc-1/request-correction' && method === 'POST') {
+      state.correctionRequested = true
+      calls.push({ method, path, body: request.postDataJSON() })
+      return route.fulfill({ json: { status: 'correction_requested' } })
+    }
+    if (path === '/invoices/doc-1/draft' && method === 'POST') {
+      state.correctionSubmitted = true
+      calls.push({ method, path, body: request.postDataJSON() })
+      return route.fulfill({ json: { correction_recorded: true } })
+    }
+    if (path === '/review/doc-1/approve' && method === 'POST') {
+      state.approved = true
+      calls.push({ method, path, body: {} })
+      return route.fulfill({ json: { review_task: { status: 'approved', reviewed_by: 'e2e-reviewer', reviewed_at: now } } })
+    }
+
+    return route.continue()
+  })
+  await page.addInitScript((selectedRole) => localStorage.setItem('docops-role', selectedRole), role)
+}
+
+async function navigatePrimary(page: Page, name: 'Approvals' | 'My Invoices') {
+  const openNavigation = page.getByRole('button', { name: 'Open navigation' })
+  if (await openNavigation.isVisible()) await openNavigation.click()
+  await page.getByRole('button', { name }).click()
+}
+
+async function openReviewerInvoice(page: Page) {
+  await navigatePrimary(page, 'Approvals')
+  await page.getByRole('button', { name: 'Review invoice' }).click()
+  await expect(page.getByText('INVOICE DATA')).toBeVisible()
+}
+
+test('reviewer requests a correction from the invoice decision screen', async ({ page }) => {
+  const state: FlowState = { correctionRequested: false, correctionSubmitted: false, approved: false }
+  const calls: RecordedCall[] = []
+  await mockBusinessFlow(page, state, calls, 'administrator')
+  await page.goto('/')
+  await openReviewerInvoice(page)
+
+  await page.getByPlaceholder('Example: Total and vendor match the PDF.').fill('Use the full legal vendor name.')
+  await page.getByRole('button', { name: 'Request correction' }).click()
+
+  await expect.poll(() => calls.some((call) => call.path === '/documents/doc-1/request-correction')).toBe(true)
+  expect(calls.find((call) => call.path === '/documents/doc-1/request-correction')?.body).toEqual({ reason: 'Use the full legal vendor name.' })
 })
 
-test('rejection records the human decision against the selected approval', async ({ page }) => {
-  const calls: string[] = []
-  await mockWorkflow(page, calls)
-  await page.getByRole('button', { name: 'Approvals' }).last().click()
-  await page.getByPlaceholder('Decision notes and evidence considered...').fill('Evidence is insufficient')
-  await page.getByRole('button', { name: 'Reject' }).click()
-  await expect.poll(() => calls).toContain('POST /backoffice/approvals/approval-1/reject')
+test('uploader corrects invoice data and sends it back to the reviewer', async ({ page }) => {
+  const state: FlowState = { correctionRequested: true, correctionSubmitted: false, approved: false }
+  const calls: RecordedCall[] = []
+  await mockBusinessFlow(page, state, calls, 'intake')
+  await page.goto('/')
+  await navigatePrimary(page, 'My Invoices')
+  await page.getByRole('button', { name: 'View status' }).click()
+  await page.getByRole('button', { name: 'Fix invoice' }).click()
+
+  const vendor = page.getByRole('textbox', { name: 'Vendor' })
+  await vendor.fill('Acme Logistics Ltd')
+  const reason = page.getByRole('textbox', { name: 'Reason for the change' })
+  await reason.fill('Used the legal vendor name.')
+  await page.getByRole('button', { name: 'Send correction' }).click()
+
+  await expect(page.getByText('Waiting approval')).toBeVisible()
+  const draft = calls.find((call) => call.path === '/invoices/doc-1/draft')
+  expect(draft?.body.vendor_name).toBe('Acme Logistics Ltd')
+  expect(draft?.body.correction_reason).toBe('Used the legal vendor name.')
 })
 
-test('correction and escalation commands remain available from workflow activity', async ({ page }) => {
-  const calls: string[] = []
-  await mockWorkflow(page, calls)
-  await page.getByRole('button', { name: 'Activity' }).click()
-  await page.getByRole('textbox', { name: 'Reason or correction instruction' }).fill('PO evidence is ambiguous')
-  await page.getByRole('button', { name: 'Request Correction' }).click()
-  await expect.poll(() => calls).toContain('POST /documents/doc-1/request-correction')
-  await page.getByRole('button', { name: 'Escalate' }).click()
-  await expect.poll(() => calls).toContain('POST /documents/doc-1/escalate')
-})
+test('reviewer sees the correction summary before approval', async ({ page }) => {
+  const state: FlowState = { correctionRequested: true, correctionSubmitted: true, approved: false }
+  const calls: RecordedCall[] = []
+  await mockBusinessFlow(page, state, calls, 'administrator')
+  await page.goto('/')
+  await openReviewerInvoice(page)
 
-test('approved execution calls the bounded step endpoint', async ({ page }) => {
-  const calls: string[] = []
-  await mockWorkflow(page, calls, 'approved')
-  await page.getByRole('button', { name: 'Plan' }).click()
-  await page.getByTitle('Execute approved step').click()
-  await expect.poll(() => calls).toContain('POST /backoffice/work-items/item-1/steps/step-1/execute')
-})
+  await expect(page.getByText('1 field corrected by e2e-uploader')).toBeVisible()
+  await expect(page.getByText(/Vendor\. Used the legal vendor name\./)).toBeVisible()
+  await page.getByRole('button', { name: 'Approve', exact: true }).click()
 
-test('durable workflow is restored after a browser reload', async ({ page }) => {
-  const calls: string[] = []
-  await mockWorkflow(page, calls)
-  await page.reload()
-  await expect(page.getByRole('heading', { name: 'Document Queue' }).first()).toBeVisible()
-  await expect(page.getByText('Review ACME invoice', { exact: true }).first()).toBeVisible()
-})
-
-test('validation failures are visible with their stored evidence', async ({ page }) => {
-  const calls: string[] = []
-  await mockWorkflow(page, calls)
-  await expect(page.getByText('invoice_v1').first()).toBeVisible()
-  await expect(page.getByText('1 validation issue requires review')).toBeVisible()
-  await expect(page.getByText('Total does not match line items')).toBeVisible()
-})
-
-test('provider failure exposes a durable retry command', async ({ page }) => {
-  const calls: string[] = []
-  await mockWorkflow(page, calls, 'pending', 'failed')
-  await page.getByRole('button', { name: 'Activity' }).click()
-  await page.getByRole('button', { name: 'Retry Processing' }).click()
-  await expect.poll(() => calls).toContain('POST /documents/doc-1/retry')
+  await expect.poll(() => calls.some((call) => call.path === '/review/doc-1/approve')).toBe(true)
+  await expect(page.getByText('Decision recorded')).toBeVisible()
 })

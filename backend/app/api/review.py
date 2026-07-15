@@ -13,6 +13,7 @@ from app.core.security import SecurityContext
 from app.documents.repositories import NotFoundError
 from app.documents.status import InvalidStatusTransition
 from app.extraction.schemas import InvoiceData, InvoiceLineItem
+from app.review.corrections import correction_event_to_dict
 
 
 router = APIRouter(prefix="/review", tags=["review"])
@@ -54,6 +55,25 @@ def review_queue(
     return [
         document_response(document) for document in container.review_service.list_queue(context)
     ]
+
+
+@router.get("/{document_id}/corrections")
+def correction_history(
+    document_id: UUID,
+    context: SecurityContext = Depends(require_review_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    try:
+        document = container.documents.get(document_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    if document.workspace_id != context.workspace_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    events = container.correction_feedback.list_for_document(document_id, context)
+    return {
+        "document_id": str(document_id),
+        "corrections": [correction_event_to_dict(event) for event in events],
+    }
 
 
 @router.post("/{document_id}/save")

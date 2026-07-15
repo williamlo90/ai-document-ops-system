@@ -17,6 +17,8 @@ from app.documents.workflow import DocumentWorkflowService
 from app.extraction.schemas import InvoiceData, InvoiceExtraction
 from app.providers.contracts import ExtractionResult
 from app.validation.document import validate_document_invoice
+from app.review.corrections import CorrectionFeedbackService
+from app.review.models import CorrectionSource
 
 
 class ReviewService:
@@ -27,12 +29,14 @@ class ReviewService:
         extractions: ExtractionRepository,
         audits: AuditRepository,
         workflow: DocumentWorkflowService,
+        correction_feedback: CorrectionFeedbackService | None = None,
     ) -> None:
         self.documents = documents
         self.reviews = reviews
         self.extractions = extractions
         self.audits = audits
         self.workflow = workflow
+        self.correction_feedback = correction_feedback
 
     def list_queue(self, context: SecurityContext) -> list[DocumentRecord]:
         require_any_role(context, {"admin", "reviewer"})
@@ -54,6 +58,16 @@ class ReviewService:
             raise InvalidStatusTransition("Can only save review notes for needs_review documents")
         if corrected_data is not None:
             stored = self.extractions.get_for_document(document_id)
+            if self.correction_feedback is not None:
+                self.correction_feedback.capture(
+                    workspace_id=document.workspace_id,
+                    document_id=document_id,
+                    before=stored.extraction_result.extraction.data,
+                    after=corrected_data,
+                    actor=context.actor,
+                    reason=notes,
+                    source=CorrectionSource.REVIEWER_EDIT,
+                )
             updated_result = ExtractionResult(
                 extraction=InvoiceExtraction(
                     data=corrected_data,

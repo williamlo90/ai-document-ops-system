@@ -449,6 +449,10 @@ class BackofficeWorkflowService:
         notes: str,
     ) -> WorkItem:
         work_item = self._get_work_item_for_context(work_item_id, context)
+        work_item.attach_context("correction_state", "requested")
+        work_item.attach_context("correction_reason", notes.strip())
+        work_item.attach_context("correction_requested_by", context.actor)
+        work_item.attach_context("correction_requested_at", datetime.now(UTC).isoformat())
         work_item.status = WorkItemStatus.AWAITING_HUMAN
         self.work_items.save(work_item)
         self._record_event(
@@ -459,6 +463,29 @@ class BackofficeWorkflowService:
         )
         return work_item
 
+    def submit_correction(
+        self,
+        *,
+        work_item_id: UUID,
+        context: SecurityContext,
+        change_count: int,
+    ) -> WorkItem:
+        work_item = self._get_work_item_for_context(work_item_id, context)
+        if work_item.business_context.get("correction_state") != "requested":
+            return work_item
+        work_item.attach_context("correction_state", "submitted")
+        work_item.attach_context("correction_submitted_by", context.actor)
+        work_item.attach_context("correction_change_count", str(change_count))
+        work_item.status = WorkItemStatus.AWAITING_HUMAN
+        saved = self.work_items.save(work_item)
+        self._record_event(
+            work_item=saved,
+            event_type="correction_submitted",
+            actor=context.actor,
+            summary=f"Corrected invoice submitted with {change_count} changed fields.",
+        )
+        return saved
+
     def escalate_work_item(
         self,
         *,
@@ -467,6 +494,8 @@ class BackofficeWorkflowService:
         reason: str,
     ) -> WorkItem:
         work_item = self._get_work_item_for_context(work_item_id, context)
+        if work_item.business_context.get("correction_state") == "requested":
+            work_item.attach_context("correction_state", "escalated")
         work_item.status = WorkItemStatus.AWAITING_HUMAN
         self.work_items.save(work_item)
         self._record_event(

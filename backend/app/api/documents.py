@@ -105,6 +105,9 @@ def get_document(
     return {
         "document": document_response(document),
         "extraction": extraction_response(extraction),
+        "correction_summary": container.correction_feedback.summary(
+            document.workspace_id, document_id
+        ),
         "audit_events": [
             audit_response(event) for event in container.audits.list_for_document(document_id)
         ],

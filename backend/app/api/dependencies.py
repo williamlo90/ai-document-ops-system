@@ -89,6 +89,12 @@ from app.operations.notifications import (
     SqliteNotificationRepository,
 )
 from app.review.services import ReviewService
+from app.review.corrections import CorrectionFeedbackService
+from app.review.repositories import (
+    CorrectionEventRepository,
+    InMemoryCorrectionEventRepository,
+)
+from app.review.sqlite_repositories import SqliteCorrectionEventRepository
 
 
 @dataclass
@@ -100,12 +106,14 @@ class AppContainer:
     audits: AuditRepository
     extractions: ExtractionRepository
     reviews: ReviewTaskRepository
+    correction_events: CorrectionEventRepository
     benchmark_history: BenchmarkHistoryRepository
     workflow: DocumentWorkflowService
     upload_service: DocumentUploadService
     processing_service: DocumentProcessingService
     worker_service: DocumentProcessingWorker
     review_service: ReviewService
+    correction_feedback: CorrectionFeedbackService
     export_service: InvoiceExportService
     integration_service: InvoiceIntegrationService
     metrics_service: MetricsService
@@ -148,6 +156,7 @@ def build_container(settings: Settings) -> AppContainer:
         audits = SqliteAuditRepository(store)
         extractions = SqliteExtractionRepository(store)
         reviews = SqliteReviewTaskRepository(store)
+        correction_events = SqliteCorrectionEventRepository(store)
         benchmark_history = SqliteBenchmarkHistoryRepository(store)
         backoffice_work_items = SqliteWorkItemRepository(store)
         backoffice_plans = SqliteTaskPlanRepository(store)
@@ -164,6 +173,7 @@ def build_container(settings: Settings) -> AppContainer:
         audits = InMemoryAuditRepository()
         extractions = InMemoryExtractionRepository()
         reviews = InMemoryReviewTaskRepository()
+        correction_events = InMemoryCorrectionEventRepository()
         benchmark_history = InMemoryBenchmarkHistoryRepository()
         backoffice_work_items = InMemoryWorkItemRepository()
         backoffice_plans = InMemoryTaskPlanRepository()
@@ -198,7 +208,15 @@ def build_container(settings: Settings) -> AppContainer:
         max_processing_attempts=settings.max_processing_attempts,
     )
     worker_service = DocumentProcessingWorker(jobs, processing_service)
-    review_service = ReviewService(documents, reviews, extractions, audits, workflow)
+    correction_feedback = CorrectionFeedbackService(correction_events)
+    review_service = ReviewService(
+        documents,
+        reviews,
+        extractions,
+        audits,
+        workflow,
+        correction_feedback,
+    )
     export_service = InvoiceExportService(documents, extractions, audits, workflow)
     integration_service = InvoiceIntegrationService(
         documents,
@@ -245,12 +263,14 @@ def build_container(settings: Settings) -> AppContainer:
         audits=audits,
         extractions=extractions,
         reviews=reviews,
+        correction_events=correction_events,
         benchmark_history=benchmark_history,
         workflow=workflow,
         upload_service=upload_service,
         processing_service=processing_service,
         worker_service=worker_service,
         review_service=review_service,
+        correction_feedback=correction_feedback,
         export_service=export_service,
         integration_service=integration_service,
         metrics_service=metrics_service,

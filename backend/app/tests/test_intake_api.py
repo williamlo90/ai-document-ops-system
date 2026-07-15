@@ -230,6 +230,97 @@ class IntakeApiTests(unittest.TestCase):
             [event["event_type"] for event in detail["audit_events"]],
         )
 
+    def test_requested_correction_returns_to_reviewer_with_auditable_diff(self) -> None:
+        uploader_headers = {
+            "X-Admin-Token": TOKEN,
+            "X-User-Id": "William Lo",
+            "X-Role": "intake",
+        }
+        reviewer_headers = {
+            "X-Admin-Token": TOKEN,
+            "X-User-Id": "Rina Reviewer",
+            "X-Role": "reviewer",
+        }
+        upload = self.client.post(
+            "/documents/upload",
+            headers=uploader_headers,
+            files={"file": ("invoice.pdf", PDF, "application/pdf")},
+        )
+        document_id = upload.json()["document"]["id"]
+        self.client.post(f"/documents/{document_id}/process", headers=uploader_headers)
+        self.client.post(
+            "/backoffice/work-items",
+            headers=reviewer_headers,
+            json={
+                "title": "Review Acme invoice",
+                "work_type": "invoice_review",
+                "linked_document_ids": [document_id],
+                "requested_outcome": "Review invoice",
+            },
+        )
+
+        requested = self.client.post(
+            f"/documents/{document_id}/request-correction",
+            headers=reviewer_headers,
+            json={"reason": "Use the full legal vendor name from the PDF."},
+        )
+        uploader_workflow = self.client.get(
+            f"/documents/{document_id}/workflow",
+            headers=uploader_headers,
+        ).json()
+        corrected = self.client.post(
+            f"/invoices/{document_id}/draft",
+            headers=uploader_headers,
+            json={
+                "vendor_name": "Acme Logistics Ltd",
+                "invoice_number": "INV-001",
+                "invoice_date": "2026-06-18",
+                "due_date": "2026-07-18",
+                "subtotal": "100.00",
+                "tax": "10.00",
+                "total": "110.00",
+                "currency": "USD",
+                "correction_reason": "Matched the registered name shown on the invoice.",
+            },
+        )
+        reviewer_workflow = self.client.get(
+            f"/documents/{document_id}/workflow",
+            headers=reviewer_headers,
+        ).json()
+        history = self.client.get(
+            f"/review/{document_id}/corrections",
+            headers=reviewer_headers,
+        )
+        uploader_history = self.client.get(
+            f"/review/{document_id}/corrections",
+            headers=uploader_headers,
+        )
+
+        self.assertEqual(requested.status_code, 200)
+        self.assertEqual(uploader_workflow["current_stage"], "correction_requested")
+        self.assertEqual(uploader_workflow["current_owner"], "Uploader")
+        self.assertEqual(
+            uploader_workflow["attention_reason"],
+            "Use the full legal vendor name from the PDF.",
+        )
+        self.assertEqual(corrected.status_code, 200)
+        self.assertEqual(corrected.json()["correction_summary"]["latest_change_count"], 1)
+        self.assertEqual(reviewer_workflow["current_stage"], "waiting_approval")
+        self.assertEqual(reviewer_workflow["current_owner"], "Reviewer")
+        self.assertIn(
+            "correction_submitted",
+            [event["event_type"] for event in reviewer_workflow["activity"]],
+        )
+        self.assertEqual(history.status_code, 200)
+        event = history.json()["corrections"][0]
+        self.assertEqual(event["actor"], "William Lo")
+        self.assertEqual(event["reason_source"], "user")
+        self.assertEqual(event["original_ai_data"]["vendor_name"], "Acme Logistics")
+        self.assertEqual(event["changes"][0]["field_path"], "vendor_name")
+        self.assertEqual(event["changes"][0]["before_value"], "Acme Logistics")
+        self.assertEqual(event["changes"][0]["after_value"], "Acme Logistics Ltd")
+        self.assertEqual(uploader_history.status_code, 403)
+
     def test_intake_draft_preserves_duplicate_validation_and_cannot_edit_approved_invoice(
         self,
     ) -> None:

@@ -29,8 +29,9 @@ Delivered:
 
 Latest verified baseline:
 
-- backend suite: 370 tests passed, 2 skipped
-- frontend suite: 12 tests passed
+- backend suite: 393 tests passed, 2 skipped
+- frontend suite: 13 tests passed
+- browser E2E: 22 tests passed, 8 capture-only tests skipped
 - frontend lint and production build: passed
 - backend Ruff check: passed
 
@@ -156,6 +157,10 @@ Observed evidence so far:
 - the failed holdout is published as a 10% end-to-end result rather than being rerun or reframed as conditional accuracy; external robustness remains unproven
 - raw external documents, labels, OCR, and provider responses remain outside Git; only sanitized aggregate evidence is public
 - the complete claim boundary and aggregate results are recorded in [External Invoice Evaluation V1](docs/external-invoice-evaluation-v1.md)
+- reviewer correction requests now route to the uploader and return to the reviewer after a changed field is submitted
+- every correction retains the original AI output, sequential before/after values, actor, reason, timestamp, and field-level diff in append-only storage
+- raw correction datasets export only to a private or Git-ignored path; public evidence contains aggregate counts without invoice values or identities
+- the deterministic correction contract passes all 6 lineage, no-op, reason carry-forward, and privacy checks documented in [Reviewer Correction Feedback](docs/reviewer-correction-feedback.md)
 
 Positioning rule:
 

@@ -31,6 +31,7 @@ from app.documents.repositories import StoredExtraction
 from app.documents.status import DocumentStatus
 from app.extraction.schemas import InvoiceData, InvoiceExtraction, InvoiceLineItem
 from app.providers.contracts import ExtractionResult
+from app.review.models import CorrectionSource
 from app.validation.document import validate_document_invoice
 
 
@@ -54,6 +55,7 @@ class IntakeDraftPayload(BaseModel):
     total: Decimal | None = None
     currency: str | None = None
     line_items: list[IntakeLineItemPayload] = Field(default_factory=list)
+    correction_reason: str | None = Field(default=None, max_length=500)
 
 
 @router.get("")
@@ -112,7 +114,8 @@ def list_invoices(
                 "current_owner": projection.current_owner,
                 "current_stage": projection.current_stage,
                 "business_status": _invoice_business_status(
-                    document.status, bool(error_issues)
+                    document.status,
+                    bool(error_issues) or projection.current_stage == "correction_requested",
                 ),
                 "validation_issue_count": len(issues),
                 "validation_error_count": len(error_issues),
@@ -191,6 +194,22 @@ def save_intake_draft(
         provider_name=stored.extraction_result.provider_name,
         provider_trace_id=stored.extraction_result.provider_trace_id,
     )
+    work_item = current_work_item(container, context, document_id)
+    requested_reason = (
+        work_item.business_context.get("correction_reason")
+        if work_item and work_item.business_context.get("correction_state") == "requested"
+        else None
+    )
+    correction = container.correction_feedback.capture(
+        workspace_id=document.workspace_id,
+        document_id=document_id,
+        before=stored.extraction_result.extraction.data,
+        after=data,
+        actor=context.actor,
+        reason=payload.correction_reason,
+        requested_reason=requested_reason,
+        source=CorrectionSource.INTAKE_CHECK,
+    )
     saved = container.extractions.save(
         document_id,
         updated,
@@ -208,10 +227,26 @@ def save_intake_draft(
             actor=context.actor,
             old_status=document.status,
             new_status=document.status,
-            payload_summary="Operator corrections saved as an intake draft.",
+            payload_summary=(
+                f"Invoice data saved with {len(correction.changes)} corrected fields."
+                if correction
+                else "Invoice data checked with no field changes."
+            ),
         )
     )
-    return {"extraction": extraction_response(saved)}
+    if correction and work_item:
+        container.backoffice_service.submit_correction(
+            work_item_id=work_item.id,
+            context=context,
+            change_count=len(correction.changes),
+        )
+    return {
+        "extraction": extraction_response(saved),
+        "correction_recorded": correction is not None,
+        "correction_summary": container.correction_feedback.summary(
+            document.workspace_id, document_id
+        ),
+    }
 
 
 def _matches_invoice_search(

@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
   AlertTriangle,
@@ -39,6 +39,7 @@ import {
 } from 'lucide-react'
 import { PdfPreview } from './components/PdfPreview'
 import { ReviewerDecisionPanel } from './components/ReviewerDecisionPanel'
+import { queryClient } from './queryClient'
 import { useEffect, useState } from 'react'
 
 type Metrics = { work_items: number; pending_approvals: number; drafts: number; policy_decisions: number }
@@ -134,12 +135,16 @@ type ApiDocument = { id: string; original_filename: string; status: string; crea
 type InvoiceListItem = ApiDocument & { vendor_name?: string | null; total?: string | null; currency?: string | null; current_stage: string; business_status?: string; validation_issue_count?: number; validation_error_count?: number; has_validation_errors?: boolean; validation_codes?: string[]; work_item_id?: string | null }
 type InvoiceList = { items: InvoiceListItem[]; page: number; page_size: number; total: number; total_pages: number }
 type DocumentAuditEvent = { id?: string; event_type?: string; actor?: string; old_status?: string | null; new_status?: string | null; created_at?: string; payload_summary?: string }
-type DocumentDetail = { document: ApiDocument; extraction: Extraction | null; audit_events: DocumentAuditEvent[] }
+type CorrectionSummary = { event_count: number; latest_change_count: number; latest_changed_fields: string[]; latest_actor: string; latest_reason: string; latest_at: string }
+type DocumentDetail = { document: ApiDocument; extraction: Extraction | null; correction_summary?: CorrectionSummary | null; audit_events: DocumentAuditEvent[] }
 type WorkflowActivity = { id: string; event_type: string; actor: string; summary: string; source: string; document_id?: string | null; work_item_id?: string | null; agent_run_id?: string | null; created_at: string }
 type DocumentWorkflow = {
   document: ApiDocument
   extraction: Extraction | null
+  correction_summary?: CorrectionSummary | null
   current_stage: string
+  current_owner: string
+  next_action: string
   attention_reason: string | null
 }
 type UserRole = 'intake' | 'administrator'
@@ -224,7 +229,6 @@ type ScenarioEvaluation = { scenario_id: string; passed: boolean; evidence: Part
 type Regression = { deltas: Array<{ metric: string; previous: number | null; current: number | null; delta: number | null; regressed: boolean }>; improved_metrics: string[]; regressed_metrics: string[] }
 type PromptVersionMetric = { prompt_version: string; total_runs: number; evaluated_runs: number; tool_selection_accuracy: number | null; escalation_rate: number; average_confidence: number | null; estimated_cost_per_run: number | null }
 
-const queryClient = new QueryClient()
 const PRODUCT_NAME = 'Invoice Review'
 const workTypes = ['invoice_review', 'invoice_export', 'accounting_note', 'vendor_follow_up', 'exception_handling', 'insufficient_evidence']
 const technicalPages: PageId[] = ['runs', 'reliability', 'evaluation', 'datasets', 'operations', 'integrations', 'settings', 'drafts', 'approvals', 'policies', 'guardrails']
@@ -768,9 +772,42 @@ function InvoiceStatusPanel({ documentId, close, refresh }: { documentId: string
   const refreshAll = () => { workflow.refetch(); refresh() }
   const retry = useMutation({ mutationFn: () => api(`/documents/${documentId}/retry`, { method: 'POST' }), onSuccess: refreshAll })
   const data = workflow.data
+  const [editing, setEditing] = useState(false)
+  const [correctionFields, setCorrectionFields] = useState<Record<string, string>>({})
+  const [correctionItems, setCorrectionItems] = useState<LineItem[]>([])
+  const [correctionReason, setCorrectionReason] = useState('')
+  const [correctionError, setCorrectionError] = useState('')
+  useEffect(() => {
+    if (!data?.extraction?.data || editing) return
+    setCorrectionFields(Object.fromEntries(guidedFields.map(([key]) => [key, String(data.extraction?.data?.[key] ?? '')])))
+    setCorrectionItems(invoiceLineItems(data.extraction).map((item) => ({ description: item.description, quantity: item.quantity, unit_price: item.unit_price, amount: item.amount })))
+    if (data.current_stage === 'correction_requested') setCorrectionReason(data.attention_reason ?? '')
+  }, [data, editing])
+  const saveCorrection = useMutation({
+    mutationFn: () => api<{ correction_recorded: boolean }>(`/invoices/${documentId}/draft`, {
+      method: 'POST',
+      body: JSON.stringify({
+        ...Object.fromEntries(guidedFields.map(([key]) => [key, correctionFields[key] || null])),
+        line_items: correctionItems.map((item) => ({ description: item.description || null, quantity: item.quantity || null, unit_price: item.unit_price || null, amount: item.amount || null })),
+        correction_reason: correctionReason.trim() || null,
+      }),
+    }),
+    onSuccess: async (result) => {
+      if (!result.correction_recorded) {
+        setCorrectionError('Change at least one invoice field before sending it back.')
+        return
+      }
+      setCorrectionError('')
+      setEditing(false)
+      await workflow.refetch()
+      refresh()
+    },
+  })
   const foundFields = data ? guidedFields
     .map(([key, label]) => [label, String(data.extraction?.data?.[key] ?? '-')])
     .filter(([, value]) => value !== '-') : []
+  const canCorrect = data?.current_stage === 'correction_requested'
+  const correctionIssues = invoiceArithmeticIssues(correctionFields, correctionItems)
   return (
     <div className="invoice-detail-overlay">
       <button className="invoice-detail-scrim" aria-label="Close invoice status" onClick={close} />
@@ -779,13 +816,14 @@ function InvoiceStatusPanel({ documentId, close, refresh }: { documentId: string
         {workflow.isLoading ? <LoadingState /> : data ? <>
           <section className="invoice-status-summary"><Status value={invoiceDetailBusinessStatus(data)} /><div><strong>{invoiceDisplayStage({ status: data.document.status, current_stage: data.current_stage, has_validation_errors: invoiceDetailHasErrors(data) })}</strong><p>{invoiceDetailHasErrors(data) ? 'This invoice has issues that must be corrected before approval.' : invoiceStatusMessage(data.document.status)}</p></div></section>
           <PdfPreview url={pdfUrl} filename={data.document.original_filename} />
-          {foundFields.length ? <section className="status-extraction"><h3>Invoice details</h3><div>{foundFields.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div></section> : <section className="invoice-details-empty"><FileClock size={16} /><span>Invoice details will appear here after reading is complete.</span></section>}
+          {editing ? <section className="correction-editor"><div className="correction-editor-heading"><div><span>REVIEWER REQUEST</span><h3>Fix invoice data</h3><p>Compare the fields with the PDF, then send the corrected invoice back.</p></div></div><div className="correction-field-grid">{guidedFields.map(([key, label, type]) => <label key={key}><span>{label}</span><input type={type} value={correctionFields[key] ?? ''} onChange={(event) => setCorrectionFields((current) => ({ ...current, [key]: event.target.value }))} /></label>)}</div><LineItemEditor items={correctionItems} onChange={setCorrectionItems} /><label className="correction-reason"><span>Reason for the change</span><textarea value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} placeholder="What did you correct?" /></label>{correctionIssues.length ? <div className="validation-list">{correctionIssues.map((message) => <p key={message}><AlertTriangle size={14} /><span>{message}</span></p>)}</div> : null}{correctionError || saveCorrection.error ? <p className="wizard-error">{correctionError || (saveCorrection.error as Error).message}</p> : null}<div className="correction-actions"><button className="outline-button" onClick={() => { setEditing(false); setCorrectionError('') }}>Cancel</button><button className="primary-button" disabled={saveCorrection.isPending || correctionIssues.length > 0} onClick={() => saveCorrection.mutate()}>{saveCorrection.isPending ? <Loader2 className="spin" size={15} /> : <Check size={15} />} Send correction</button></div></section> : foundFields.length ? <section className="status-extraction"><h3>Invoice details</h3><div>{foundFields.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div></section> : <section className="invoice-details-empty"><FileClock size={16} /><span>Invoice details will appear here after reading is complete.</span></section>}
           {data.extraction?.validation?.length ? <section className="status-checks"><h3>Things to check</h3><div className="validation-list">{data.extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.message}</span></p>)}</div></section> : null}
           {data.attention_reason ? <div className="duplicate-warning"><AlertTriangle size={16} /><span><strong>Attention required</strong>{data.attention_reason}</span></div> : null}
           {retry.error ? <p className="wizard-error">{(retry.error as Error).message}</p> : null}
           <footer>
             {pdfUrl ? <a className="outline-button" href={pdfUrl} download={data.document.original_filename}><FileText size={15} /> Download PDF</a> : null}
             {data.document.status === 'failed' ? <button className="outline-button" disabled={retry.isPending} onClick={() => retry.mutate()}><RefreshCw size={15} /> Read again</button> : null}
+            {canCorrect && !editing ? <button className="primary-button" onClick={() => setEditing(true)}><Pencil size={15} /> Fix invoice</button> : null}
             <button className="primary-button" onClick={close}><FileClock size={15} /> Back to My Invoices</button>
           </footer>
         </> : <ErrorState message={(workflow.error as Error)?.message ?? 'Invoice unavailable'} retry={() => workflow.refetch()} />}
@@ -987,6 +1025,7 @@ function WorkItemPage({
           document={linkedDocument}
           extraction={documentDetail.data?.extraction ?? null}
           auditEvents={documentDetail.data?.audit_events ?? []}
+          correctionSummary={documentDetail.data?.correction_summary ?? null}
           loading={documentDetail.isLoading}
         />
       </section>
@@ -1036,10 +1075,10 @@ function InboxCard({ item, documents, active, open }: { item: WorkItemSummary; d
   )
 }
 
-function ReviewerReviewPage({ item, document, extraction, auditEvents, loading }: { item: WorkItemDetail; document?: DocumentSummary; extraction: Extraction | null; auditEvents: DocumentAuditEvent[]; loading: boolean }) {
+function ReviewerReviewPage({ item, document, extraction, auditEvents, correctionSummary, loading }: { item: WorkItemDetail; document?: DocumentSummary; extraction: Extraction | null; auditEvents: DocumentAuditEvent[]; correctionSummary: CorrectionSummary | null; loading: boolean }) {
   const queryClient = useQueryClient(); const fields = invoiceFields(extraction).filter(([label]) => ['Vendor', 'Invoice Number', 'Invoice Date', 'Total Amount', 'Currency'].includes(label)); const issues = extraction?.validation ?? []; const refresh = () => refreshReviewQueries(queryClient, item.id, document?.id)
   const approve = useMutation({ mutationFn: () => api(`/review/${document?.id}/approve`, { method: 'POST' }), onSuccess: refresh }); const reject = useMutation({ mutationFn: (notes: string) => api(`/review/${document?.id}/reject`, { method: 'POST', body: JSON.stringify({ notes: notes || 'Invoice rejected after review.' }) }), onSuccess: refresh }); const correction = useMutation({ mutationFn: (notes: string) => api(`/documents/${document?.id}/request-correction`, { method: 'POST', body: JSON.stringify({ reason: notes || 'Please correct the invoice information before approval.' }) }), onSuccess: refresh }); const busy = approve.isPending || reject.isPending || correction.isPending
-  return <ReviewerDecisionPanel pdf={loading ? <LoadingState label="Loading invoice PDF" /> : document ? <AuthenticatedPdfPreview document={document} /> : <EmptyState title="No invoice PDF" body="This review item has no linked PDF." />} title={invoiceReviewTitle(extraction, document)} fields={fields} issues={issues} canDecide={document?.status === 'needs_review'} status={<><Status value={document?.status ?? item.status} /><p>{document?.status === 'approved' ? 'This invoice has been approved.' : document?.status === 'rejected' ? 'This invoice was rejected.' : document?.status === 'exported' ? 'This invoice was exported.' : 'No reviewer decision is available right now.'}</p></>} decisionEvidence={reviewDecisionEvidence(document, auditEvents)} busy={busy || !document} error={(approve.error || reject.error || correction.error) ? String((approve.error || reject.error || correction.error)?.message) : undefined} onApprove={() => approve.mutate()} onReject={(notes) => reject.mutate(notes)} onCorrection={(notes) => correction.mutate(notes)} />
+  return <ReviewerDecisionPanel pdf={loading ? <LoadingState label="Loading invoice PDF" /> : document ? <AuthenticatedPdfPreview document={document} /> : <EmptyState title="No invoice PDF" body="This review item has no linked PDF." />} title={invoiceReviewTitle(extraction, document)} fields={fields} issues={issues} correctionSummary={correctionSummary} canDecide={document?.status === 'needs_review'} status={<><Status value={document?.status ?? item.status} /><p>{document?.status === 'approved' ? 'This invoice has been approved.' : document?.status === 'rejected' ? 'This invoice was rejected.' : document?.status === 'exported' ? 'This invoice was exported.' : 'No reviewer decision is available right now.'}</p></>} decisionEvidence={reviewDecisionEvidence(document, auditEvents)} busy={busy || !document} error={(approve.error || reject.error || correction.error) ? String((approve.error || reject.error || correction.error)?.message) : undefined} onApprove={() => approve.mutate()} onReject={(notes) => reject.mutate(notes)} onCorrection={(notes) => correction.mutate(notes)} />
 }
 
 function reviewDecisionEvidence(document: DocumentSummary | undefined, events: DocumentAuditEvent[]) {
@@ -1831,6 +1870,7 @@ function invoiceStageCopy(value: string) {
     planning: 'Preparing review',
     awaiting_human: 'Waiting approval',
     waiting_approval: 'Waiting approval',
+    correction_requested: 'Correction requested',
     approved: 'Approved',
     rejected: 'Rejected',
     completed: 'Completed',
@@ -1841,6 +1881,8 @@ function invoiceStageCopy(value: string) {
   return labels[value] ?? statusLabel(value)
 }
 function invoiceDisplayStage(document: Pick<InvoiceListItem, 'status' | 'current_stage' | 'business_status' | 'has_validation_errors'>) {
+  if (document.current_stage === 'correction_requested') return 'Correction requested'
+  if (document.current_stage === 'waiting_approval') return 'Waiting approval'
   if (document.has_validation_errors) return 'Needs correction'
   if (document.business_status) return invoiceStageCopy(document.business_status)
   const businessStatuses = ['approved', 'rejected', 'exported', 'failed', 'cancelled', 'needs_review']
@@ -1858,6 +1900,7 @@ function invoiceStatusNote(document: InvoiceListItem) {
     queued: 'Waiting for the system to read it',
     processing: 'The system is reading it now',
     needs_review: 'Waiting for reviewer decision',
+    needs_correction: 'The reviewer asked you to correct this invoice',
     approved: 'Reviewer approved this invoice',
     rejected: 'Reviewer rejected this invoice',
     cancelled: 'Upload was cancelled',
@@ -1869,6 +1912,7 @@ function invoiceDetailHasErrors(document: DocumentWorkflow) {
   return document.extraction?.validation?.some((issue) => !issue.severity || issue.severity === 'error') ?? false
 }
 function invoiceDetailBusinessStatus(document: DocumentWorkflow) {
+  if (document.current_stage === 'correction_requested') return 'needs_correction'
   return invoiceDetailHasErrors(document) ? 'needs_correction' : document.document.status
 }
 function invoiceStatusMessage(status: string) {

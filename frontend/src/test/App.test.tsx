@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
+import { queryClient } from '../queryClient'
 
 vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({
   GlobalWorkerOptions: {},
@@ -198,6 +199,7 @@ function json(body: unknown, status = 200) {
 
 describe('application shell', () => {
   beforeEach(() => {
+    queryClient.clear()
     localStorage.clear()
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = String(input)
@@ -229,7 +231,7 @@ describe('application shell', () => {
     render(<App />)
 
     await user.selectOptions(
-      screen.getByRole('combobox', { name: /view application as role/i }),
+      await screen.findByRole('combobox', { name: /view application as role/i }),
       'administrator',
     )
 
@@ -337,6 +339,43 @@ describe('application shell', () => {
     expect(statusOptions).toContain('Waiting to be read')
   })
 
+  it('lets the uploader fix a reviewer-requested correction and send it back', async () => {
+    const user = userEvent.setup()
+    let correctionSubmitted = false
+    localStorage.setItem('docops-role', 'intake')
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path.startsWith('/invoices?')) return json({ ...invoiceListWithReviewItem, items: [{ ...invoiceListWithReviewItem.items[0], original_filename: 'acme.pdf', status: 'needs_review', business_status: correctionSubmitted ? 'needs_review' : 'needs_correction', current_stage: correctionSubmitted ? 'waiting_approval' : 'correction_requested' }] })
+      if (path === '/documents/doc-1/workflow') return json({ document: { ...needsReviewDocument, original_filename: 'acme.pdf' }, extraction: { ...extractionWithEvidence, data: { ...extractionWithEvidence.data, subtotal: '90.00', tax: '10.00' } }, correction_summary: correctionSubmitted ? { event_count: 1, latest_change_count: 1, latest_changed_fields: ['vendor_name'], latest_actor: 'William Lo', latest_reason: 'Used the legal vendor name.', latest_at: now } : null, current_stage: correctionSubmitted ? 'waiting_approval' : 'correction_requested', current_owner: correctionSubmitted ? 'Reviewer' : 'Uploader', next_action: correctionSubmitted ? 'Check the corrected invoice' : 'Correct the invoice and send it back', attention_reason: correctionSubmitted ? null : 'Use the full legal vendor name.', activity: [] })
+      if (path === '/invoices/doc-1/draft') {
+        correctionSubmitted = true
+        return json({ correction_recorded: true })
+      }
+      if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: /my invoices/i }))
+    await user.click(await screen.findByRole('button', { name: /view status/i }))
+    await user.click(await screen.findByRole('button', { name: /fix invoice/i }))
+    const vendor = screen.getByRole('textbox', { name: /^vendor$/i })
+    await user.clear(vendor)
+    await user.type(vendor, 'Acme Logistics Ltd')
+    await user.clear(screen.getByRole('textbox', { name: /reason for the change/i }))
+    await user.type(screen.getByRole('textbox', { name: /reason for the change/i }), 'Used the legal vendor name.')
+    await user.click(screen.getByRole('button', { name: /send correction/i }))
+
+    expect(await screen.findByText(/waiting approval/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /send correction/i })).not.toBeInTheDocument()
+    const draftCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input) === '/invoices/doc-1/draft')
+    const payload = JSON.parse(String((draftCall?.[1] as RequestInit | undefined)?.body))
+    expect(payload.vendor_name).toBe('Acme Logistics Ltd')
+    expect(payload.correction_reason).toBe('Used the legal vendor name.')
+  })
+
   it('separates invoices with validation blockers from waiting decisions', async () => {
     const user = userEvent.setup()
     localStorage.setItem('docops-role', 'administrator')
@@ -382,7 +421,7 @@ describe('application shell', () => {
       if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
       if (path === '/backoffice/workspace') return json(workspaceWithNeedsReviewDocument)
       if (path === '/backoffice/work-items/item-1') return json({ work_item: workItemDetail })
-      if (path === '/documents/doc-1') return json({ document: needsReviewDocument, extraction: null, audit_events: [] })
+      if (path === '/documents/doc-1') return json({ document: needsReviewDocument, extraction: null, correction_summary: { event_count: 1, latest_change_count: 1, latest_changed_fields: ['vendor_name'], latest_actor: 'William Lo', latest_reason: 'Matched the vendor to the PDF.', latest_at: now }, audit_events: [] })
       if (path === '/review/doc-1/approve') return json({ status: 'approved' })
       if (path === '/documents/doc-1/workflow') return json({ document: needsReviewDocument, extraction: null, work_item: workItemDetail, current_stage: 'needs_attention', current_owner: 'Finance reviewer', waiting_for: null, next_action: 'Review', attention_reason: null, activity: [] })
       if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
@@ -399,6 +438,7 @@ describe('application shell', () => {
     expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /request correction/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
+    expect(screen.getByText(/1 field corrected by William Lo/i)).toBeInTheDocument()
     expect(screen.queryByText(/Needs review because/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /make decision/i })).not.toBeInTheDocument()
 

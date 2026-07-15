@@ -25,6 +25,9 @@ def document_workflow_response(
     return {
         "document": document_response(document),
         "extraction": extraction_response(extraction),
+        "correction_summary": container.correction_feedback.summary(
+            document.workspace_id, document_id
+        ),
         "work_item": (_work_item_detail(container, context, work_item) if work_item else None),
         "current_stage": projection.current_stage,
         "current_owner": projection.current_owner,
