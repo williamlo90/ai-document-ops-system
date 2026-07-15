@@ -47,6 +47,7 @@ def evaluate_invoices(
     evaluations: list[FieldEvaluation] = []
     for expected in expected_records:
         document_id = str(expected["document_id"])
+        has_prediction = document_id in predicted_by_id
         predicted = predicted_by_id.get(document_id, {})
         for field_name in EVALUATED_FIELDS:
             expected_value = _normalized(field_name, expected.get(field_name))
@@ -57,7 +58,7 @@ def evaluate_invoices(
                     field_name=field_name,
                     expected=expected_value,
                     predicted=predicted_value,
-                    matched=expected_value == predicted_value,
+                    matched=has_prediction and expected_value == predicted_value,
                 )
             )
     matched = sum(1 for item in evaluations if item.matched)

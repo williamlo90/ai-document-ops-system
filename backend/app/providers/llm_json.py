@@ -59,9 +59,14 @@ class LlmJsonInvoiceExtractor:
             )
             data = _extract_json_object(response)
             _reject_empty_invoice_payload(data)
+            invoice, confidence = _ground_extraction(
+                _invoice_data(data),
+                _field_confidence(data.get("field_confidence")),
+                parsed_document,
+            )
             extraction = InvoiceExtraction(
-                data=_ground_vendor(_invoice_data(data), parsed_document.text),
-                confidence=_field_confidence(data.get("field_confidence")),
+                data=invoice,
+                confidence=confidence,
             )
         except ProviderError:
             raise
@@ -90,7 +95,9 @@ def _payload(model: str, text: str) -> dict[str, Any]:
                     "total, currency, line_items, field_confidence. "
                     "Dates must be YYYY-MM-DD. "
                     "Money and quantities must be JSON strings or numbers. "
-                    "field_confidence must be a list of objects, each containing 'field_name' and 'score'. "
+                    "field_confidence must be a list of objects, each containing 'field_name', "
+                    "'score', 'source_page', and 'source_text'. source_page is 1-based and "
+                    "source_text is the shortest exact OCR excerpt that supports the value. "
                     "Rules: (1) Ignore common OCR typos: letter O vs digit 0, letter l vs digit 1. "
                     "(2) Normalise any date format to YYYY-MM-DD, even if partially garbled. "
                     "(3) If tax appears as a negative or is embedded in a total row, extract it as the absolute value. "
@@ -100,7 +107,12 @@ def _payload(model: str, text: str) -> dict[str, Any]:
                     "party; do not use a platform header, document title, or bill-to recipient. "
                     "(7) invoice_date must come from an explicitly labeled invoice or issue date; "
                     "do not derive it from a due date, invoice number, or unrelated date. "
-                    "(8) If no tax label and amount are present, return null rather than zero."
+                    "(8) If no tax label and amount are present, return null rather than zero. "
+                    "(9) Use the exact printed labeled subtotal, tax, and total values even when "
+                    "they are mathematically inconsistent; never recalculate or replace them. "
+                    "(10) A labeled aggregate TAX, VAT, or GST amount can be tax, but do not infer "
+                    "tax from a difference, a line-item tax column, or a menu of possible rates. "
+                    "Use JSON null for missing values, never the string 'null'."
                 ),
             },
             {"role": "user", "content": text},
@@ -189,12 +201,167 @@ def _has_vendor_context(source_text: str, vendor_name: str) -> bool:
         if re.search(r"\b(from|seller|supplier|vendor)\b", before, flags=re.IGNORECASE):
             return True
         if re.search(
-            r"(@|\b(vat|tax id|registration)\b|\b\d+\s+[^\n]*(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln)\b)",
+            r"(@|\baddress\s*:|\b(vat|tax id|registration)\b|\b\d+\s+[^\n]*(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln)\b)",
             after,
             flags=re.IGNORECASE,
         ):
             return True
+        if re.search(r"\binvoice\b", before, flags=re.IGNORECASE) and re.search(
+            r"\b(bill[ _-]*to|buyer)\b", after, flags=re.IGNORECASE
+        ):
+            return True
     return False
+
+
+@dataclass(frozen=True)
+class _MoneyEvidence:
+    amount: Decimal
+    currency: str | None
+    page_number: int
+    source_text: str
+
+
+def _ground_extraction(
+    invoice: InvoiceData,
+    confidence: tuple[FieldConfidence, ...],
+    parsed_document: ParsedDocument,
+) -> tuple[InvoiceData, tuple[FieldConfidence, ...]]:
+    invoice = _ground_vendor(invoice, parsed_document.text)
+    grounded_confidence = list(_ground_confidence(confidence, parsed_document))
+    subtotal = _find_labeled_money(parsed_document, "subtotal")
+    tax = _find_labeled_money(parsed_document, "tax")
+    total = _find_labeled_money(parsed_document, "total")
+
+    invoice = replace(
+        invoice,
+        subtotal=subtotal.amount if subtotal else invoice.subtotal,
+        tax=tax.amount if tax else None,
+        total=total.amount if total else invoice.total,
+        currency=(
+            (total.currency if total else None)
+            or (subtotal.currency if subtotal else None)
+            or (tax.currency if tax else None)
+            or invoice.currency
+        ),
+    )
+    for field_name, evidence in (("subtotal", subtotal), ("tax", tax), ("total", total)):
+        if evidence is not None or field_name == "tax":
+            grounded_confidence = [
+                item for item in grounded_confidence if item.field_name != field_name
+            ]
+        if evidence is not None:
+            grounded_confidence.append(
+                FieldConfidence(
+                    field_name=field_name,
+                    score=Decimal("1.0"),
+                    source_page=evidence.page_number,
+                    source_text=evidence.source_text,
+                )
+            )
+    return invoice, tuple(grounded_confidence)
+
+
+def _ground_confidence(
+    confidence: tuple[FieldConfidence, ...],
+    parsed_document: ParsedDocument,
+) -> tuple[FieldConfidence, ...]:
+    grounded = []
+    for item in confidence:
+        if not item.source_text or item.source_page is None:
+            grounded.append(item)
+            continue
+        page_text = _page_text(parsed_document, item.source_page)
+        if item.source_text in page_text:
+            grounded.append(item)
+        else:
+            grounded.append(replace(item, source_page=None, source_text=None))
+    return tuple(grounded)
+
+
+def _find_labeled_money(
+    parsed_document: ParsedDocument,
+    field_name: str,
+) -> _MoneyEvidence | None:
+    patterns = _money_label_patterns(field_name)
+    for pattern in patterns:
+        for page_number, page_text in _document_pages(parsed_document):
+            for raw_line in page_text.splitlines():
+                line = raw_line.strip().strip("#*| ")
+                if not pattern.match(line):
+                    continue
+                amounts = re.findall(r"-?\d[\d,. ]*\d|-?\d", line)
+                if not amounts:
+                    continue
+                amount = _source_decimal(amounts[-1])
+                if amount is None:
+                    continue
+                return _MoneyEvidence(
+                    amount=amount,
+                    currency=_source_currency(line),
+                    page_number=page_number,
+                    source_text=raw_line.strip(),
+                )
+    return None
+
+
+def _money_label_patterns(field_name: str) -> tuple[re.Pattern[str], ...]:
+    if field_name == "subtotal":
+        return (re.compile(r"^sub[\s_-]*total\b", flags=re.IGNORECASE),)
+    if field_name == "tax":
+        return (
+            re.compile(r"^tax\b", flags=re.IGNORECASE),
+            re.compile(r"^vat\b", flags=re.IGNORECASE),
+            re.compile(r"^gst\s*\(", flags=re.IGNORECASE),
+        )
+    if field_name == "total":
+        return tuple(
+            re.compile(pattern, flags=re.IGNORECASE)
+            for pattern in (
+                r"^balance[\s_-]*due\b",
+                r"^amount[\s_-]*due\b",
+                r"^grand[\s_-]*total\b",
+                r"^invoice[\s_-]*total\b",
+                r"^total\s*:",
+            )
+        )
+    raise ValueError(f"Unsupported money field: {field_name}")
+
+
+def _source_decimal(value: str) -> Decimal | None:
+    normalized = value.replace(" ", "")
+    if "," in normalized and "." in normalized:
+        if normalized.rfind(",") > normalized.rfind("."):
+            normalized = normalized.replace(".", "").replace(",", ".")
+        else:
+            normalized = normalized.replace(",", "")
+    elif "," in normalized:
+        tail = normalized.rsplit(",", 1)[-1]
+        normalized = normalized.replace(",", "." if len(tail) == 2 else "")
+    try:
+        return Decimal(normalized)
+    except InvalidOperation:
+        return None
+
+
+def _source_currency(value: str) -> str | None:
+    code = re.search(r"\b(IDR|USD|EUR|GBP|SGD|AUD|JPY|MYR)\b", value, flags=re.IGNORECASE)
+    if code:
+        return code.group(1).upper()
+    symbols = {"$": "USD", "€": "EUR", "£": "GBP", "¥": "JPY", "₹": "INR"}
+    return next((currency for symbol, currency in symbols.items() if symbol in value), None)
+
+
+def _document_pages(parsed_document: ParsedDocument) -> tuple[tuple[int, str], ...]:
+    if parsed_document.pages:
+        return tuple((page.page_number, page.text) for page in parsed_document.pages)
+    return ((1, parsed_document.text),)
+
+
+def _page_text(parsed_document: ParsedDocument, page_number: int) -> str:
+    for candidate_page, text in _document_pages(parsed_document):
+        if candidate_page == page_number:
+            return text
+    return ""
 
 
 def _searchable_text(value: str) -> str:
@@ -219,7 +386,7 @@ def _reject_empty_invoice_payload(data: dict[str, Any]) -> None:
 
 
 def _line_items(value: Any) -> tuple[InvoiceLineItem, ...]:
-    if value in (None, ""):
+    if _is_nullish(value):
         return ()
     if not isinstance(value, list):
         raise ValueError("line_items must be a list")
@@ -236,7 +403,7 @@ def _line_items(value: Any) -> tuple[InvoiceLineItem, ...]:
 
 
 def _field_confidence(value: Any) -> tuple[FieldConfidence, ...]:
-    if value in (None, ""):
+    if _is_nullish(value):
         return ()
     if not isinstance(value, list):
         raise ValueError("field_confidence must be a list")
@@ -258,12 +425,25 @@ def _date(value: Any) -> date | None:
 
 
 def _decimal(value: Any) -> Decimal | None:
-    if value in (None, ""):
+    text = _text(value)
+    if text is None:
         return None
-    return Decimal(str(value))
+    return Decimal(text)
 
 
 def _text(value: Any) -> str | None:
     if value in (None, ""):
         return None
-    return str(value).strip() or None
+    text = str(value).strip()
+    return None if _is_nullish(text) else text or None
+
+
+def _is_nullish(value: Any) -> bool:
+    if value in (None, ""):
+        return True
+    return isinstance(value, str) and value.strip().casefold() in {
+        "null",
+        "none",
+        "n/a",
+        "not available",
+    }

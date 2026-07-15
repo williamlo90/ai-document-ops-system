@@ -66,6 +66,24 @@ class InvoiceEvaluationTests(unittest.TestCase):
         self.assertEqual(report.fields_matched, 0)
         self.assertEqual(len(report.failures), 8)
 
+    def test_missing_prediction_does_not_match_expected_null(self) -> None:
+        expected = {
+            "document_id": "missing-null",
+            "vendor_name": None,
+            "invoice_number": None,
+            "invoice_date": None,
+            "due_date": None,
+            "subtotal": None,
+            "tax": None,
+            "total": None,
+            "currency": None,
+        }
+
+        report = evaluate_invoices([expected], [])
+
+        self.assertEqual(report.fields_matched, 0)
+        self.assertEqual(len(report.failures), 8)
+
     def test_expected_records_must_include_all_evaluated_fields(self) -> None:
         with self.assertRaisesRegex(ValueError, "missing fields"):
             evaluate_invoices([{"document_id": "partial", "total": "10.00"}], [])

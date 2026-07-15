@@ -33,7 +33,8 @@ def calculate_benchmark_metrics(
     run: BenchmarkRun,
     expected_records: list[dict[str, Any]],
 ) -> BenchmarkMetrics:
-    predicted_records = run_results_to_predicted_records(run.results)
+    successful_results = tuple(result for result in run.results if result.error is None)
+    predicted_records = run_results_to_predicted_records(successful_results)
     evaluation = evaluate_invoices(expected_records, predicted_records)
     expected_ids = {str(record["document_id"]) for record in expected_records}
     success_ids = _successful_document_ids(evaluation, run, expected_ids)

@@ -122,7 +122,7 @@ Exit criteria:
 
 ## Phase 3: Market Proof And Recruiter Readiness
 
-Status: In progress from 15 July 2026. Workflow hardening, first-impression checks, recruiter evidence, and a captioned demo video are complete; external validation remains open and is not claimed.
+Status: In progress from 15 July 2026. Workflow hardening, first-impression checks, recruiter evidence, and a captioned demo video are complete. An external licensed synthetic holdout was attempted, but provider availability failed its first sealed run, so external robustness remains open and is not claimed.
 
 Goal: turn the engineering proof into a credible finance-operations case study without overstating maturity.
 
@@ -150,6 +150,12 @@ Observed evidence so far:
 - a non-technical matrix maps all 20 scenarios to the business risk, expected safeguard, and observed result
 - the completed-decision UI shows actor, timestamp, audit-event count, and export eligibility next to the invoice
 - public artifact packaging now requires the case study and excludes obsolete historical planning documents
+- a private 25-invoice FATURA pack now separates 15 diagnostic cases from 10 checksum-sealed holdout cases across five scan-quality profiles
+- diagnostic iteration reached 93.33% end-to-end field accuracy; all 14 provider-successful documents matched every evaluated field and validation outcome
+- the first sealed holdout recorded only 1 of 10 provider-successful documents because nine requests ended in `extractor_http_error` after bounded backoff
+- the failed holdout is published as a 10% end-to-end result rather than being rerun or reframed as conditional accuracy; external robustness remains unproven
+- raw external documents, labels, OCR, and provider responses remain outside Git; only sanitized aggregate evidence is public
+- the complete claim boundary and aggregate results are recorded in [External Invoice Evaluation V1](docs/external-invoice-evaluation-v1.md)
 
 Positioning rule:
 

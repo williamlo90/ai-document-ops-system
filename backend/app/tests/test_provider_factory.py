@@ -205,7 +205,12 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
                         }
                     ],
                     "field_confidence": [
-                        {"field_name": "total", "score": "0.98", "source_page": 1}
+                        {
+                            "field_name": "total",
+                            "score": "0.98",
+                            "source_page": 1,
+                            "source_text": "total 110.00",
+                        }
                     ],
                 }
             }
@@ -218,10 +223,7 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         )
         result = extractor.extract_invoice(
             ParsedDocument(
-                text=(
-                    "FROM\nAcme Logistics\n100 Example Street\n"
-                    "Invoice #INV-001 total 110.00"
-                ),
+                text=("FROM\nAcme Logistics\n100 Example Street\n" "Invoice #INV-001 total 110.00"),
                 provider_trace_id="trace-123",
             )
         )
@@ -236,6 +238,9 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         system_prompt = captured["payload"]["messages"][0]["content"]
         self.assertIn("Never infer or guess", system_prompt)
         self.assertIn("return null rather than zero", system_prompt)
+        self.assertIn("shortest exact OCR excerpt", system_prompt)
+        self.assertIn("never recalculate or replace", system_prompt)
+        self.assertIn("never the string 'null'", system_prompt)
         self.assertEqual(result.provider_name, "llm_json")
         self.assertEqual(result.provider_trace_id, "trace-123")
         self.assertEqual(result.extraction.data.vendor_name, "Acme Logistics")
@@ -243,6 +248,7 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         self.assertEqual(str(result.extraction.data.total), "110.00")
         self.assertEqual(len(result.extraction.data.line_items), 1)
         self.assertEqual(len(result.extraction.confidence), 1)
+        self.assertEqual(result.extraction.confidence[0].source_text, "total 110.00")
 
     def test_accepts_chat_completion_json_content(self) -> None:
         extractor = LlmJsonInvoiceExtractor(
@@ -267,6 +273,41 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
 
         self.assertEqual(result.extraction.data.invoice_number, "INV-002")
         self.assertEqual(str(result.extraction.data.total), "25.00")
+
+    def test_normalizes_string_null_values_at_provider_boundary(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret",
+            endpoint="https://example.test/extract",
+            model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {
+                "data": {
+                    "vendor_name": "Acme Logistics",
+                    "invoice_number": "INV-002",
+                    "invoice_date": "2026-06-18",
+                    "due_date": "null",
+                    "subtotal": "100.00",
+                    "tax": "None",
+                    "total": "100.00",
+                    "currency": "USD",
+                    "line_items": "n/a",
+                    "field_confidence": "not available",
+                }
+            },
+        )
+
+        result = extractor.extract_invoice(
+            ParsedDocument(
+                text=(
+                    "FROM\nAcme Logistics\n100 Example Street\n"
+                    "Invoice Date: 2026-06-18\nTOTAL : 100.00 USD"
+                )
+            )
+        )
+
+        self.assertIsNone(result.extraction.data.due_date)
+        self.assertIsNone(result.extraction.data.tax)
+        self.assertEqual(result.extraction.data.line_items, ())
+        self.assertEqual(result.extraction.confidence[0].field_name, "total")
 
     def test_invalid_json_mapping_raises_provider_error(self) -> None:
         extractor = LlmJsonInvoiceExtractor(
@@ -344,6 +385,129 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         )
 
         self.assertEqual(result.extraction.data.vendor_name, "Acme Logistics")
+
+    def test_vendor_with_explicit_address_label_is_preserved(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret",
+            endpoint="https://example.test/extract",
+            model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {
+                "data": {
+                    "vendor_name": "Foster, Wells and Martin",
+                    "invoice_number": "INV-100",
+                    "invoice_date": "2026-07-01",
+                    "total": "110.00",
+                    "currency": "USD",
+                }
+            },
+        )
+
+        result = extractor.extract_invoice(
+            ParsedDocument(
+                text=(
+                    "Foster, Wells and Martin\n"
+                    "Address: 80626 Gates Plains Suite 320\n"
+                    "INVOICE # INV-100"
+                )
+            )
+        )
+
+        self.assertEqual(result.extraction.data.vendor_name, "Foster, Wells and Martin")
+
+    def test_vendor_between_invoice_title_and_bill_to_is_preserved(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret",
+            endpoint="https://example.test/extract",
+            model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {
+                "data": {
+                    "vendor_name": "Stein-Fernandez",
+                    "invoice_number": "INV-100",
+                    "invoice_date": "2026-07-01",
+                    "total": "110.00",
+                    "currency": "USD",
+                }
+            },
+        )
+
+        result = extractor.extract_invoice(
+            ParsedDocument(text="TAX INVOICE\nStein-Fernandez\nBILL_TO:\nCarol Strong")
+        )
+
+        self.assertEqual(result.extraction.data.vendor_name, "Stein-Fernandez")
+
+    def test_labeled_money_overrides_recalculation_and_grounds_evidence(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret",
+            endpoint="https://example.test/extract",
+            model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {
+                "data": {
+                    "vendor_name": "Acme Logistics",
+                    "invoice_number": "INV-100",
+                    "invoice_date": "2026-07-01",
+                    "subtotal": "100.00",
+                    "tax": "10.00",
+                    "total": "110.00",
+                    "currency": "USD",
+                    "field_confidence": [
+                        {
+                            "field_name": "total",
+                            "score": "1.0",
+                            "source_page": 1,
+                            "source_text": "TOTAL : 110.00 USD",
+                        }
+                    ],
+                }
+            },
+        )
+
+        result = extractor.extract_invoice(
+            ParsedDocument(
+                text=(
+                    "FROM\nAcme Logistics\n100 Example Street\n"
+                    "SUB_TOTAL : 100.00 USD\nTAX:VAT (10%): 10.00 USD\n"
+                    "TOTAL : 104.00 USD"
+                )
+            )
+        )
+
+        self.assertEqual(str(result.extraction.data.subtotal), "100.00")
+        self.assertEqual(str(result.extraction.data.tax), "10.00")
+        self.assertEqual(str(result.extraction.data.total), "104.00")
+        total_evidence = next(
+            item for item in result.extraction.confidence if item.field_name == "total"
+        )
+        self.assertEqual(total_evidence.source_text, "TOTAL : 104.00 USD")
+
+    def test_inferred_tax_is_removed_without_labeled_tax(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret",
+            endpoint="https://example.test/extract",
+            model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {
+                "data": {
+                    "vendor_name": "Acme Logistics",
+                    "invoice_number": "INV-100",
+                    "invoice_date": "2026-07-01",
+                    "subtotal": "100.00",
+                    "tax": "10.00",
+                    "total": "110.00",
+                    "currency": "USD",
+                }
+            },
+        )
+
+        result = extractor.extract_invoice(
+            ParsedDocument(
+                text=(
+                    "FROM\nAcme Logistics\n100 Example Street\n"
+                    "SUB_TOTAL : 100.00 USD\nTOTAL : 110.00 USD"
+                )
+            )
+        )
+
+        self.assertIsNone(result.extraction.data.tax)
 
     def test_http_4xx_error_is_not_retryable(self) -> None:
         with patch(

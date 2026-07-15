@@ -88,6 +88,26 @@ class BenchmarkMetricsTests(unittest.TestCase):
         self.assertEqual(metrics.invalid_schema_rate, 1.0)
         self.assertEqual(metrics.missing_field_rate, 1.0)
 
+    def test_provider_error_does_not_match_expected_null_fields(self) -> None:
+        expected = _expected_record("doc-1")
+        expected["due_date"] = None
+        expected["tax"] = None
+        run = _run(
+            ProviderRunResult(
+                "doc-1",
+                "mock",
+                {},
+                0.0,
+                error="extractor_http_error",
+            )
+        )
+
+        metrics = calculate_benchmark_metrics(run, [expected])
+
+        self.assertEqual(metrics.evaluation.field_accuracy, 0.0)
+        self.assertEqual(metrics.evaluation.fields_matched, 0)
+        self.assertEqual(metrics.missing_field_rate, 1.0)
+
     def test_partial_missing_field_rate(self) -> None:
         fields = _predicted_fields()
         fields["total"] = None
