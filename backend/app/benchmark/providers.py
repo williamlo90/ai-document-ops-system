@@ -55,11 +55,13 @@ def build_provider_pair(
                 api_key=settings.mistral_api_key or "",
                 endpoint=settings.mistral_ocr_endpoint,
                 model=settings.mistral_ocr_model,
+                timeout_seconds=settings.provider_timeout_seconds,
             ),
             LlmJsonInvoiceExtractor(
                 api_key=settings.extractor_api_key or "",
                 endpoint=settings.extractor_endpoint,
                 model=settings.extractor_model,
+                timeout_seconds=settings.provider_timeout_seconds,
             ),
         )
     raise ValueError(f"Benchmark provider is not available: {key}")

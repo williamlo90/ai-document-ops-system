@@ -53,7 +53,7 @@ Exit criteria:
 
 ## Phase 1: Real Provider Integration
 
-Status: Next when an extraction API is available.
+Status: Complete on 15 July 2026 for the first safe provider-backed invoice flow. Broader invoice variation belongs to Phase 2.
 
 Goal: verify that a real provider can process safe, non-sensitive invoice PDFs without changing the approved user flow.
 
@@ -64,10 +64,21 @@ Work:
 3. Record provider failures separately from application failures: timeout, invalid provider response, malformed PDF, and unsupported input.
 4. Keep approval as a reviewer action. A high-confidence result must not silently approve an invoice.
 
+Observed evidence:
+
+- the committed sample invoice produced one OCR page and non-empty text through Mistral OCR
+- Groq JSON extraction returned nine non-empty invoice fields with no validation issue for the sample
+- processing stopped at `needs_review`; it did not auto-approve
+- the reviewer queue contained the invoice and explicit approval changed it to `approved`
+- the completed smoke flow recorded six audit events
+- invalid credentials produced real Mistral and Groq HTTP errors classified as non-retryable
+- configurable provider timeouts now reach both HTTP clients instead of being silently fixed at 60 seconds
+- deterministic tests cover transient `429`/`5xx` classification, requeue, retry limits, and dead-letter behavior
+
 Exit criteria:
 
 - provider status is based on observed runtime behavior, not configuration alone
-- failure and retry behavior is demonstrated with real provider responses
+- real authentication failures are observed; transient failure and retry behavior is covered by deterministic adapter and job-lifecycle tests
 - no credential or real invoice data is committed to the repository
 
 ## Phase 2: Real-Data Evaluation

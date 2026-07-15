@@ -20,6 +20,7 @@ class LlmJsonInvoiceExtractor:
     api_key: str
     endpoint: str
     model: str
+    timeout_seconds: int = 60
     post_json: PostJson = None
 
     provider_name: str = "llm_json"
@@ -31,8 +32,19 @@ class LlmJsonInvoiceExtractor:
             raise ValueError("EXTRACTOR_ENDPOINT is required when EXTRACTOR_PROVIDER=llm_json")
         if not self.model:
             raise ValueError("EXTRACTOR_MODEL is required when EXTRACTOR_PROVIDER=llm_json")
+        if self.timeout_seconds <= 0:
+            raise ValueError("PROVIDER_TIMEOUT_SECONDS must be greater than zero")
         if self.post_json is None:
-            object.__setattr__(self, "post_json", _post_json)
+            object.__setattr__(
+                self,
+                "post_json",
+                lambda url, payload, headers: _post_json(
+                    url,
+                    payload,
+                    headers,
+                    timeout_seconds=self.timeout_seconds,
+                ),
+            )
 
     def extract_invoice(self, parsed_document: ParsedDocument) -> ExtractionResult:
         try:
@@ -91,7 +103,12 @@ def _payload(model: str, text: str) -> dict[str, Any]:
     }
 
 
-def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+def _post_json(
+    url: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout_seconds: int = 60,
+) -> dict[str, Any]:
     # Some hosted LLM gateways reject requests without a User-Agent.
     final_headers = {"User-Agent": "DocIntel-MVP/1.0"}
     final_headers.update(headers)
@@ -103,7 +120,7 @@ def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str]) -> di
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             return json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
         raise ProviderError(

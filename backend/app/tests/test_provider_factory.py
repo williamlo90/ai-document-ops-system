@@ -58,6 +58,23 @@ class ProviderFactoryTests(unittest.TestCase):
 
         self.assertEqual(extractor.provider_name, "llm_json")
 
+    def test_configured_timeout_reaches_real_providers(self) -> None:
+        settings = self.settings(
+            parser_provider="mistral_ocr",
+            extractor_provider="llm_json",
+            mistral_api_key="secret",
+            extractor_api_key="secret",
+            extractor_endpoint="https://example.test/extract",
+            extractor_model="invoice-model",
+            provider_timeout_seconds=17,
+        )
+
+        parser = build_parser_provider(settings)
+        extractor = build_extractor_provider(settings)
+
+        self.assertEqual(parser.timeout_seconds, 17)
+        self.assertEqual(extractor.timeout_seconds, 17)
+
     def test_unknown_provider_fails_fast(self) -> None:
         with self.assertRaises(ValueError):
             build_parser_provider(self.settings(parser_provider="unknown"))
@@ -146,6 +163,19 @@ class MistralOcrParserProviderTests(unittest.TestCase):
 
         self.assertEqual(str(caught.exception), "ocr_http_error")
         self.assertTrue(caught.exception.retryable)
+
+    def test_http_client_uses_configured_timeout(self) -> None:
+        with patch("urllib.request.urlopen") as urlopen:
+            urlopen.return_value.__enter__.return_value.read.return_value = b'{"pages": []}'
+
+            mistral_post_json(
+                "https://example.test/ocr",
+                {"model": "x"},
+                {},
+                timeout_seconds=17,
+            )
+
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 17)
 
 
 class LlmJsonInvoiceExtractorTests(unittest.TestCase):
@@ -288,6 +318,19 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
 
         self.assertEqual(str(caught.exception), "extractor_http_error")
         self.assertTrue(caught.exception.retryable)
+
+    def test_http_client_uses_configured_timeout(self) -> None:
+        with patch("urllib.request.urlopen") as urlopen:
+            urlopen.return_value.__enter__.return_value.read.return_value = b"{}"
+
+            llm_post_json(
+                "https://example.test/extract",
+                {"model": "x"},
+                {},
+                timeout_seconds=17,
+            )
+
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 17)
 
 
 if __name__ == "__main__":

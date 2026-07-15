@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-import os
-import tempfile
 import unittest
 from pathlib import Path
 
-from app.core.settings import Settings
+from app.core.settings import Settings, load_settings
 from app.providers.contracts import DocumentSource
 from app.providers.factory import build_extractor_provider, build_parser_provider
 
 
-MISTRAL_KEY = os.environ.get("MISTRAL_API_KEY") or ""
-EXTRACTOR_KEY = os.environ.get("EXTRACTOR_API_KEY") or ""
-EXTRACTOR_ENDPOINT = os.environ.get("EXTRACTOR_ENDPOINT") or ""
+CONFIGURED_SETTINGS = load_settings()
+MISTRAL_KEY = CONFIGURED_SETTINGS.mistral_api_key or ""
+EXTRACTOR_KEY = CONFIGURED_SETTINGS.extractor_api_key or ""
+EXTRACTOR_ENDPOINT = CONFIGURED_SETTINGS.extractor_endpoint
 HAVE_REAL_OCR = bool(MISTRAL_KEY)
 HAVE_REAL_LLM = bool(EXTRACTOR_KEY and EXTRACTOR_ENDPOINT)
+SAMPLE_INVOICE = Path(__file__).resolve().parents[3] / "sample_invoice.pdf"
 
 
 def _settings(**overrides) -> Settings:
@@ -26,36 +26,30 @@ def _settings(**overrides) -> Settings:
         "parser_provider": "mock",
         "extractor_provider": "mock",
         "mistral_api_key": MISTRAL_KEY or None,
-        "mistral_ocr_endpoint": "https://api.mistral.ai/v1/ocr",
-        "mistral_ocr_model": "mistral-ocr-latest",
+        "mistral_ocr_endpoint": CONFIGURED_SETTINGS.mistral_ocr_endpoint,
+        "mistral_ocr_model": CONFIGURED_SETTINGS.mistral_ocr_model,
         "extractor_api_key": EXTRACTOR_KEY or None,
         "extractor_endpoint": EXTRACTOR_ENDPOINT,
-        "extractor_model": os.environ.get("EXTRACTOR_MODEL", ""),
+        "extractor_model": CONFIGURED_SETTINGS.extractor_model,
+        "provider_timeout_seconds": CONFIGURED_SETTINGS.provider_timeout_seconds,
     }
     values.update(overrides)
     return Settings(**values)
-
-
-def _fake_pdf_bytes() -> bytes:
-    return b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF"
 
 
 @unittest.skipIf(not HAVE_REAL_OCR, "MISTRAL_API_KEY not set")
 class RealMistralOcrTests(unittest.TestCase):
     def test_parse_real_pdf(self) -> None:
         parser = build_parser_provider(_settings(parser_provider="mistral_ocr"))
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "invoice.pdf"
-            path.write_bytes(_fake_pdf_bytes())
-            source = DocumentSource(
-                storage_key="test-key",
-                path=path,
-                original_filename="invoice.pdf",
-                content_type="application/pdf",
-            )
-            parsed = parser.parse(source)
+        source = DocumentSource(
+            storage_key="test-key",
+            path=SAMPLE_INVOICE,
+            original_filename=SAMPLE_INVOICE.name,
+            content_type="application/pdf",
+        )
+        parsed = parser.parse(source)
         self.assertEqual(parsed.provider_name, "mistral_ocr")
-        self.assertIsInstance(parsed.text, str)
+        self.assertTrue(parsed.text.strip())
         self.assertGreater(len(parsed.pages), 0)
 
 

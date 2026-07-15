@@ -16,6 +16,7 @@ def build_parser_provider(settings: Settings) -> ParserProvider:
             api_key=settings.mistral_api_key or "",
             endpoint=settings.mistral_ocr_endpoint,
             model=settings.mistral_ocr_model,
+            timeout_seconds=settings.provider_timeout_seconds,
         )
     raise ValueError(f"Unsupported parser provider: {settings.parser_provider}")
 
@@ -29,5 +30,6 @@ def build_extractor_provider(settings: Settings) -> ExtractorProvider:
             api_key=settings.extractor_api_key or "",
             endpoint=settings.extractor_endpoint,
             model=settings.extractor_model,
+            timeout_seconds=settings.provider_timeout_seconds,
         )
     raise ValueError(f"Unsupported extractor provider: {settings.extractor_provider}")

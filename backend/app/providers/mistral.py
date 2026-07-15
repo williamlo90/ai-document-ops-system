@@ -18,6 +18,7 @@ class MistralOcrParserProvider:
     api_key: str
     endpoint: str
     model: str
+    timeout_seconds: int = 60
     post_json: PostJson = None
 
     provider_name: str = "mistral_ocr"
@@ -25,8 +26,19 @@ class MistralOcrParserProvider:
     def __post_init__(self) -> None:
         if not self.api_key:
             raise ValueError("MISTRAL_API_KEY is required when PARSER_PROVIDER=mistral_ocr")
+        if self.timeout_seconds <= 0:
+            raise ValueError("PROVIDER_TIMEOUT_SECONDS must be greater than zero")
         if self.post_json is None:
-            object.__setattr__(self, "post_json", _post_json)
+            object.__setattr__(
+                self,
+                "post_json",
+                lambda url, payload, headers: _post_json(
+                    url,
+                    payload,
+                    headers,
+                    timeout_seconds=self.timeout_seconds,
+                ),
+            )
 
     def parse(self, source: DocumentSource) -> ParsedDocument:
         payload = {
@@ -50,7 +62,12 @@ class MistralOcrParserProvider:
         return _parsed_document(data, source.storage_key, self.provider_name)
 
 
-def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+def _post_json(
+    url: str,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    timeout_seconds: int = 60,
+) -> dict[str, Any]:
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode(),
@@ -58,7 +75,7 @@ def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str]) -> di
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             return json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
         raise ProviderError(
