@@ -185,7 +185,7 @@ TOOL_DEFINITIONS: tuple[AgentToolDefinition, ...] = (
     AgentToolDefinition(
         name=AgentToolName.PROCESS_DOCUMENT,
         risk=AgentToolRisk.OPERATOR_ACTION,
-        purpose="Process an uploaded or queued document through Project 2 processing.",
+        purpose="Process an uploaded or queued document through the protected workflow.",
         allowed_roles=frozenset({"admin", "operator"}),
         requires_confirmation=True,
         input_schema=AgentToolSchema(required=("document_id",)),
@@ -204,7 +204,7 @@ TOOL_DEFINITIONS: tuple[AgentToolDefinition, ...] = (
     AgentToolDefinition(
         name=AgentToolName.SAVE_REVIEW_NOTES,
         risk=AgentToolRisk.REVIEW_ACTION,
-        purpose="Save review notes or corrections through Project 2 review workflow.",
+        purpose="Save review notes or corrections through the protected review workflow.",
         allowed_roles=REVIEW_ROLES,
         requires_confirmation=True,
         input_schema=AgentToolSchema(
@@ -225,7 +225,7 @@ TOOL_DEFINITIONS: tuple[AgentToolDefinition, ...] = (
     AgentToolDefinition(
         name=AgentToolName.APPROVE_REVIEW,
         risk=AgentToolRisk.REVIEW_ACTION,
-        purpose="Approve a reviewable document through Project 2 review workflow.",
+        purpose="Approve a reviewable document through the protected review workflow.",
         allowed_roles=REVIEW_ROLES,
         requires_confirmation=True,
         input_schema=AgentToolSchema(required=("document_id",)),
@@ -242,7 +242,7 @@ TOOL_DEFINITIONS: tuple[AgentToolDefinition, ...] = (
     AgentToolDefinition(
         name=AgentToolName.REJECT_REVIEW,
         risk=AgentToolRisk.REVIEW_ACTION,
-        purpose="Reject a reviewable document through Project 2 review workflow.",
+        purpose="Reject a reviewable document through the protected review workflow.",
         allowed_roles=REVIEW_ROLES,
         requires_confirmation=True,
         input_schema=AgentToolSchema(required=("document_id",), optional=("notes",)),
@@ -259,7 +259,7 @@ TOOL_DEFINITIONS: tuple[AgentToolDefinition, ...] = (
     AgentToolDefinition(
         name=AgentToolName.EXPORT_APPROVED_CSV,
         risk=AgentToolRisk.ADMIN_ACTION,
-        purpose="Export approved invoices to CSV through Project 2 export workflow.",
+        purpose="Export approved invoices to CSV through the protected export workflow.",
         allowed_roles=ADMIN_ROLES,
         requires_confirmation=True,
         output_schema=AgentToolSchema(required=("csv_text",)),
@@ -298,13 +298,13 @@ TOOL_REGISTRY: Mapping[AgentToolName, AgentToolDefinition] = MappingProxyType(
 
 BLOCKED_ACTIONS: Mapping[str, str] = MappingProxyType(
     {
-        "edit_database_record": "Direct database mutation bypasses Project 2 services.",
+        "edit_database_record": "Direct database mutation bypasses application services.",
         "change_workspace_id": "Workspace ownership must never be changed by the agent.",
         "change_user_role": "Role assignment is outside the copilot boundary.",
         "read_env_file": "Secrets must not be exposed to the agent.",
         "read_raw_storage_path": "Storage keys and local paths are implementation details.",
         "send_arbitrary_http_request": "Only explicit integration tools are allowed.",
-        "approve_non_reviewable_document": "Approval must follow Project 2 workflow status rules.",
+        "approve_non_reviewable_document": "Approval must follow document workflow status rules.",
         "export_non_approved_document": "Only approved documents can be exported.",
         "invent_invoice_fields": "Invoice fields must come from extraction or review evidence.",
     }

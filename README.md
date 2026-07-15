@@ -1,88 +1,128 @@
 # AI Document Operations System
 
-Local-first document operations for invoice intake, extraction, deterministic validation,
-exception review, approval-gated execution, durable audit activity, and technical evidence.
+An invoice-review application that combines OCR and structured extraction with deterministic
+validation, explicit reviewer decisions, and an auditable workflow.
 
-Invoice is the first fully supported document type. The architecture is designed for additive
-document-type adapters, but the current product does not claim complete non-invoice workflows.
+The system is designed for a finance operations reviewer who needs to answer three questions:
 
-## Source Baseline
+1. What did the system read from the invoice?
+2. Is there a reason this invoice should not be approved?
+3. What decision was made, by whom, and on what evidence?
 
-Project 4 starts from:
+![Reviewer invoice decision](docs/assets/screenshots/reviewer-decision.png)
 
-```text
-../3.5-agentops-reliability-dashboard-github-refactored
-```
-
-Project 3.5 remains the source of truth for reliability measurement, scenario evaluation, planning version comparison, regression comparison, and AgentOps trace behavior.
-
-For real provider, email, object storage, and PostgreSQL/Supabase setup, see
-[`docs/integrations.md`](docs/integrations.md), [`docs/object_storage.md`](docs/object_storage.md),
-and [`docs/aws_deployment.md`](docs/aws_deployment.md).
-
-## Product Thesis
+## Product Flow
 
 ```text
-AI-assisted document operations are valuable when evidence is visible, deterministic rules gate
-execution, risky actions require approval, and uncertain work returns to a human.
+Upload PDF -> OCR and extract fields -> Validate business rules
+           -> Reviewer checks PDF and data -> Approve, reject, or request correction
+           -> Record the decision and control any export
 ```
 
-## What The System Provides
+The primary UI stays focused on upload and review. Provider diagnostics, run traces, and
+scenario evaluation remain available as technical evidence without entering the daily user
+flow.
 
-- business-facing invoice intake for upload, system reading, review, approval or rejection, and history
-- reviewer queue with explicit human approval before export-ready work
-- controlled execution policies for safe versus risky actions
-- back-office planning and draft/execution APIs kept behind approval boundaries
-- simplified React UI for uploader and reviewer roles, with technical evidence kept out of the main user path
-- System Reliability, Reliability Checks, Test Scenarios, and Run Traces for local technical evidence
-- Project 4 repeatable test scenarios for multi-step document work
-- deployment readiness plan for Docker, CI, and future cloud delivery
+## Responsibility Boundaries
 
-## What Project 4 Must Preserve
+| Layer | Responsibility |
+| --- | --- |
+| AI providers | Read the PDF and return structured invoice fields with source evidence. |
+| Deterministic code | Check required fields, arithmetic, duplicates, state transitions, roles, and export gates. |
+| Human reviewer | Compare the PDF with extracted data and make the consequential decision. |
 
-- Project 2 workflow enforcement
-- Project 3 tool contracts and confirmation boundaries
-- Project 3 human escalation behavior
-- Project 3.5 AgentOps evaluation engine
-- Project 3.5 prompt and scenario versioning
-- Project 3.5 regression comparison
-- honest local-first portfolio scope
+A high-confidence extraction never approves an invoice. Error-level validation issues disable
+approval in the UI and are rejected independently by the backend.
 
-## Current Limitations
+## Architecture
 
-- unrestricted autonomy
-- production SaaS readiness
-- real customer deployment
-- billing-ready multi-tenant product
-- fully automated finance operations without human approval
+```mermaid
+flowchart LR
+    PDF["Invoice PDF"] --> API["FastAPI intake"]
+    API --> STORE["Private document storage"]
+    API --> OCR["OCR provider"]
+    OCR --> EXT["Structured extractor"]
+    EXT --> RULES["Deterministic validation"]
+    RULES --> REVIEW["React reviewer UI"]
+    REVIEW --> DECISION["Approve / Reject / Correct"]
+    DECISION --> AUDIT["Audit and workflow records"]
+    DECISION --> GATE["Controlled export gate"]
+    EXT --> EVAL["Scenario evaluation"]
+```
 
-## Local Demo
+The local profile uses React, TypeScript, FastAPI, SQLite, and private local file storage. Real
+provider verification uses Mistral OCR and a Groq-hosted structured extraction model. Provider
+adapters are configured through environment variables and can be replaced by deterministic
+mocks for offline development.
 
-The default profile uses SQLite, local storage, deterministic/mock providers, and no paid
-credentials. See `RUNBOOK.md` for startup commands and `docs/assets/screenshots/` for current UI
-captures.
+## Observed Evidence
 
-Fast local start after dependencies are installed:
+| Evidence | Current result |
+| --- | --- |
+| Provider-backed workflow | Upload, OCR, extraction, review queue, explicit approval, and six audit events observed locally. |
+| Synthetic invoice set | 20 deterministic PDFs covering normal, missing-field, mismatch, duplicate, low-contrast, rotated, and multi-page cases. |
+| Final controlled regression | 160 / 160 evaluated fields and 20 / 20 expected validation outcomes on that synthetic set. |
+| Approval boundary | Duplicate and other error-level cases are blocked in both UI and API tests. |
+| Automated verification | 370 backend tests passed with 2 skipped; 11 frontend tests passed; lint and production build passed. |
+
+The controlled regression is a small synthetic golden set, not a production accuracy claim.
+See [scenario evidence](docs/invoice-scenarios-v1-evidence.md) for the initial failures, fixes,
+latency observation, and claim boundaries.
+
+## Quick Start
+
+Prerequisites: Python 3.11+, Node.js, and npm.
 
 ```powershell
-$env:ENV_FILE='.env.example'
-$env:PYTHONPATH='backend'
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+.\scripts\setup_local_venv.ps1
+
+Push-Location frontend
+npm ci
+npm run build
+Pop-Location
+
+.\scripts\start_dev.ps1
 ```
 
-Open:
+Open `http://127.0.0.1:8000` and use the local demo token from `.env.example` (`123`). The
+default profile uses deterministic mock providers and requires no API credential.
 
-```text
-http://127.0.0.1:8000
+For real providers, copy `.env.example` to the ignored `.env`, set
+`PARSER_PROVIDER=mistral`, `EXTRACTOR_PROVIDER=openai_compatible`, and provide the documented
+provider variables. Never commit `.env` or real invoices. Full instructions are in
+[RUNBOOK.md](RUNBOOK.md).
+
+## Quality Gates
+
+```powershell
+$env:ENV_FILE = ".env.example"
+$env:PYTHONPATH = "backend"
+.\.venv\Scripts\python.exe -m unittest discover -s backend/app/tests -t backend
+.\.venv\Scripts\python.exe -m ruff check backend scripts
+
+Push-Location frontend
+npm test
+npm run lint
+npm run build
+Pop-Location
 ```
 
-## Read First
+## Honest Limitations
 
-- `PRD.md`
-- `ROADMAP.md`
-- `ARCHITECTURE.md`
-- `UI_PLAN.md`
-- `RUNBOOK.md`
-- `docs/pivot/FEATURE_API_MATRIX.md`
-- `docs/pivot/COMPATIBILITY_ALIASES.md`
-- `docs/final-release-notes.md`
+- Invoice is the only complete document workflow.
+- Evaluation uses synthetic fixtures; no customer dataset or external validation is claimed.
+- Time savings, cost reduction, and production accuracy have not been measured.
+- The default authentication and persistence profile is intended for a local portfolio demo.
+- Hosted tenancy, production monitoring, backups, secret management, and live ERP delivery are
+  not implemented.
+- Human approval remains mandatory for consequential actions.
+
+## Read Next
+
+- [Portfolio case study](PORTFOLIO_CASE_STUDY.md)
+- [Product requirements](PRD.md)
+- [Architecture](ARCHITECTURE.md)
+- [Runbook](RUNBOOK.md)
+- [Roadmap](ROADMAP.md)
+- [Demo script](docs/demo-script.md)
+- [Reliability report](docs/reliability-report.md)

@@ -6,14 +6,14 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT = ROOT / "dist" / "public-autonomous-backoffice-ai"
+DEFAULT_OUTPUT = ROOT / "dist" / "public-ai-document-ops-system"
 
 ALLOWLIST_TOP_LEVEL = {
     "README.md",
     "ROADMAP.md",
     "PRD.md",
     "ARCHITECTURE.md",
-    "UI_PLAN.md",
+    "PORTFOLIO_CASE_STUDY.md",
     "RUNBOOK.md",
     ".env.example",
     ".gitignore",
@@ -56,6 +56,7 @@ EXCLUDE_ANYWHERE = {
     "_local_docs",
     "node_modules",
     "playwright-report",
+    "pivot",
     "test-results",
 }
 

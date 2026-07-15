@@ -2,7 +2,7 @@
 
 Status: Step 3 foundation
 
-Project 2 targets PostgreSQL for production-shaped deployments while preserving SQLite and in-memory repositories for local development and tests.
+The target architecture uses PostgreSQL for hosted deployments while preserving SQLite and in-memory repositories for local development and tests.
 
 ## Runtime Modes
 

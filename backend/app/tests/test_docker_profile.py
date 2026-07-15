@@ -35,8 +35,8 @@ class DockerProfileTests(unittest.TestCase):
         aws_deployment = (ROOT / "docs" / "aws_deployment.md").read_text(encoding="utf-8")
         runbook = (ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
 
-        self.assertIn("production-shaped Docker topology", docker_profile)
-        self.assertIn("does not make the project a production SaaS", docker_profile)
+        self.assertIn("self-contained local Docker topology", docker_profile)
+        self.assertIn("does not make the system production-ready", docker_profile)
         self.assertIn("hosted or production certified", aws_deployment)
         self.assertIn("ECS", aws_deployment)
         self.assertIn("RDS", aws_deployment)

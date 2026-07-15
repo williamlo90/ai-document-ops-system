@@ -353,7 +353,7 @@ class ReadOnlyCopilotService:
         if response.status == "success":
             if response.risk.value == "read_only":
                 return "No mutation tool was used for this read-only request."
-            return "Controlled execution used an explicit tool with Project 2 guardrails."
+            return "Controlled execution used an explicit tool with service guardrails."
         if response.human_escalation_reason:
             return response.human_escalation_reason
         return None

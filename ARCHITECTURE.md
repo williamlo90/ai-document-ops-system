@@ -1,239 +1,141 @@
 # Architecture - AI Document Operations System
 
-The system extends a document platform and reliability engine into bounded document-operation workflows.
+## Design Goal
 
-## High-Level Flow
+Keep probabilistic document reading separate from deterministic business safeguards and human
+authority. Each layer produces evidence that the next layer can inspect.
 
-```text
-work item intake
--> classify work type
--> extract or attach business context
--> create action plan
--> apply execution policy
--> draft safe next actions
--> request human approval when needed
--> execute confirmed tools
--> record audit trail
--> record AgentOps run
--> evaluate reliability
--> operator dashboard
+## System Context
+
+```mermaid
+flowchart TB
+    U["Invoice uploader"] --> UI["React application"]
+    R["Finance reviewer"] --> UI
+    UI --> API["FastAPI application"]
+    API --> AUTH["Session, role, workspace, and CSRF checks"]
+    API --> DOCS["Document and workflow services"]
+    DOCS --> FILES["Private document storage"]
+    DOCS --> DB["SQLite repositories"]
+    DOCS --> OCR["OCR provider adapter"]
+    OCR --> EXTRACT["Structured extraction adapter"]
+    EXTRACT --> VALIDATE["Deterministic invoice validation"]
+    VALIDATE --> REVIEW["Review and decision service"]
+    REVIEW --> AUDIT["Audit and workflow events"]
+    REVIEW --> EXPORT["Approval-gated integration boundary"]
+    EXTRACT --> EVAL["Scenario and reliability evaluation"]
 ```
 
-## Role-Aware Presentation Architecture
+## Runtime Components
 
-The core domain remains generic. Guided user interfaces consume a workflow projection rather than encoding business state independently.
+### Frontend
 
-```text
-documents + extraction + validation
-              |
-work item + plan + approval + execution
-              |
-audit events + AgentOps evidence
-              v
-document workflow projection (invoice implementation today)
-              |
-intake operator UI / administrator-reviewer UI
-```
+- React, TypeScript, Vite, TanStack Query, and PDF.js
+- role-focused navigation for uploader and reviewer
+- source PDF and extracted values presented together
+- business status derived from backend workflow state
+- technical evidence routes separated from the primary review flow
 
-The projection should expose:
+The frontend does not decide whether approval is valid. It reflects backend capabilities and
+disables impossible actions for clarity; the API enforces the same rules independently.
 
-- current stage
-- current owner
-- waiting-for reason
-- next permitted action
-- attention reason
-- completed workflow stages
-- durable activity events
+### API and application services
 
-Invoice-specific labels belong in type-specific evidence components. Generic work-item, policy, approval, tool, and technical-evidence models remain reusable for future document workflow modules.
+FastAPI composes:
 
-Progress UI must be backed by durable state or events. The frontend must not simulate successful processing stages with timers.
+- authentication and session APIs
+- document upload, content, processing, and retry APIs
+- invoice workflow and draft APIs
+- reviewer queue and decision APIs
+- controlled accounting export
+- operational jobs, audit export, health, readiness, and metrics
+- technical run and scenario-evaluation APIs
 
-## Workflow Aggregate
+Application services own state transitions. API handlers translate HTTP input and output rather
+than duplicating policy logic.
 
-`GET /invoices/{document_id}/workflow` is the read model for invoice status and Activity. It combines:
+### Provider boundary
 
-- durable document audit events
-- durable backoffice workflow events
-- extraction and validation evidence
-- the current work item, plan, approvals, and execution state
-- derived stage, owner, waiting-for reason, next action, and attention reason
-
-The React Activity tab polls this aggregate every five seconds. Recovery commands are explicit:
-
-- `POST /invoices/{document_id}/retry`
-- `POST /invoices/{document_id}/request-correction`
-- `POST /invoices/{document_id}/escalate`
-
-AgentOps run linkage remains a separate Phase 5 responsibility; the aggregate does not fabricate trace identifiers.
-
-## Source System
-
-Project 4 inherits:
-
-- document upload, parsing, extraction, validation, review, and export workflow
-- controlled copilot tools
-- tool contracts and risk levels
-- confirmation-required execution
-- human escalation
-- failure taxonomy
-- agent run records and tool traces
-- AgentOps evaluation, scenario datasets, prompt comparison, and regression comparison
-
-## Operational Modules
-
-- `app.backoffice.models`: work items, task plans, action drafts, approvals, and policy decisions
-- `app.backoffice.policy`: autonomy levels, risk classification, and execution gates
-- `app.backoffice.planner`: deterministic planning over known workflow state
-- `app.backoffice.service`: orchestration service for intake, planning, drafting, and controlled execution
-- `app.api.backoffice`: JSON endpoints for work items, plans, approvals, and execution
-- `app.ui` extension: operator inbox, work item detail, plan review, and action confirmation views
-- `app.agentops` extension: document-operation run metrics and scenario evaluation
-- `backend/app/tests/test_backoffice*.py`: model, policy, service, API, UI, and boundary tests
-
-## Core Domain Objects
-
-Work item:
-
-- id
-- workspace id
-- source type
-- work type
-- priority
-- status
-- linked document ids
-- extracted business context
-- current plan id
-
-Task plan:
-
-- id
-- work item id
-- planner version
-- steps
-- overall confidence
-- escalation reason
-
-Action step:
-
-- action id
-- action type
-- tool name
-- risk level
-- required approval
-- status
-- why this action
-- why not alternatives
-
-Action draft:
-
-- id
-- work item id
-- draft type
-- safe preview content
-- approval status
-- execution result
-
-Policy decision:
-
-- action type
-- autonomy level
-- allowed or blocked
-- confirmation requirement
-- reason
-
-## Autonomy Levels
-
-- `read_only`: inspect state, summarize, and explain
-- `recommend`: propose next action without mutation
-- `draft`: prepare message, note, or export preview without external side effects
-- `confirm_execute`: execute only after explicit human confirmation
-- `blocked`: refuse unsafe, unsupported, cross-workspace, or high-risk action
-
-## Guardrail Principle
-
-Autonomy is not a binary switch.
-
-Project 4 should treat autonomy as a policy-controlled workflow:
+The parsing and extraction interfaces support deterministic mocks and real HTTP adapters.
 
 ```text
-Can inspect freely.
-Can recommend carefully.
-Can draft safely.
-Can execute only when allowed and confirmed.
-Must escalate when uncertain.
-Must refuse when unsafe.
+PDF bytes -> OCR text/pages -> structured invoice candidate -> grounding guard -> validation
 ```
 
-## AgentOps Integration
+The extractor is instructed not to infer missing values. A conservative seller-context guard
+rejects an ambiguous vendor candidate before validation. Provider timeouts and transient versus
+non-retryable failures are explicit.
 
-Every AI-assisted document workflow should remain measurable:
+### Validation boundary
 
-- selected work type
-- planned actions
-- executed tools
-- blocked actions
-- human escalations
-- confidence
-- failure type
-- prompt or planner version
-- scenario dataset version
-- estimated cost
+Validation is deterministic and runs after extraction or a reviewer correction. Current checks
+cover:
 
-User-facing AI explanations may use stored confidence, validation results, policy reasons, and safe tool-selection reasons. They must not expose private chain-of-thought or invent evidence that the system did not record.
+- required invoice fields
+- date and value normalization
+- subtotal, tax, total, and line-item consistency
+- supported values such as currency
+- duplicate vendor and invoice-number pairs within a workspace
 
-## Intake Operator Boundary
+Error-level findings route the invoice to correction and block approval.
 
-The intake experience is document-first. Operators upload and verify invoices without
-needing to understand internal work-item records.
+### Persistence and storage
 
-- `DocumentRecord` persists `submitted_by` and `size_bytes`.
-- `GET /documents/upload-policy` exposes the accepted limit and duplicate candidates.
-- `GET /documents/{id}/content` streams a workspace-scoped PDF preview.
-- `POST /invoices/{id}/draft` persists corrected header fields and line items, then
-  reruns deterministic invoice validation.
-- `GET /invoices` provides workspace-scoped search, status/date filtering, submitter
-  filtering, and server pagination.
-- Intake cancellation moves the document and queued job to explicit `cancelled`
-  states. Reprocessing creates a new queued job from an allowed recovery state.
-- PDF download reuses the authenticated, workspace-scoped content endpoint.
-- Submission creates one linked work item and plan through idempotency keys. It does
-  not grant the intake operator reviewer approval authority.
+The local profile uses repository-backed SQLite state and private local document storage. Stored
+state includes documents, extraction evidence, jobs, retries, workflow records, decisions, audit
+events, and evaluation runs. The document object-storage boundary can target an S3-compatible
+service, but the default demo is self-contained.
 
-## Reviewer Operations Boundary
+## State and Decision Model
 
-Reviewer-facing work-item metadata remains part of the durable aggregate. Title and
-priority are domain fields; assignee, requested outcome, and tags use the existing
-business context until a dedicated identity service is introduced.
+The business journey is projected from durable backend state:
 
-- `PATCH /backoffice/work-items/{id}` records ownership and metadata changes.
-- Draft editing updates an active draft; regeneration creates a separate version.
-- Work-item detail includes durable workflow activity for decision and execution evidence.
-- Queue selection and bulk priority changes use the same workspace-scoped update API.
-- The reviewer UI follows Understand, Review Plan, Decide, and Confirm Result stages.
+```text
+uploaded -> processing -> needs_review -> approved -> exported
+                         |              |
+                         |              -> rejected
+                         -> needs_correction
+```
 
-Provider health is evidence-based rather than a blind connectivity claim:
+Processing failures and retry exhaustion are represented separately. Approved, rejected, and
+exported evidence is immutable through the intake draft API.
 
-- mock providers report healthy when their deterministic runtime is available;
-- configured external providers report `ready_unverified` until a real run is observed;
-- observed provider failures move health to `degraded`;
-- opening the dashboard never creates a paid provider request.
+Decision invariants:
 
-The Attention Inbox projects exception-specific views from work type, work-item state,
-linked document validation state, and approval state. These are queue projections, not
-separate copies of the underlying work item.
+1. Extraction confidence does not approve an invoice.
+2. Approval requires reviewer capability and a reviewable document state.
+3. Error-level validation findings block approval.
+4. Export requires an approved state.
+5. Failed external delivery does not erase approval or falsely mark export complete.
+6. Workspace boundaries apply to reads and writes.
 
-## Deployment Direction
+## Security Model
 
-Project 4 remains local-first at setup time.
+The local application includes:
 
-The architecture should remain compatible with:
+- token-backed session cookies with role and workspace context
+- CSRF origin checks for cookie-authenticated mutations
+- request rate limiting
+- content security, frame, MIME, referrer, and permissions headers
+- upload type and size policies
+- private PDF content endpoints
+- request and trace identifiers
+- audit events for consequential operations
 
-- Docker Compose for local services
-- CI quality gates
-- future Postgres-backed persistence
-- future object storage
-- future cloud deployment
-- future Kubernetes/AWS portfolio extension
+These controls make the local demo defensible, but they are not a substitute for production
+identity, managed secrets, network controls, monitoring, and tenancy lifecycle.
 
-Deployment work should not weaken autonomy guardrails.
+## Reliability and Evaluation
+
+Two evidence layers are deliberately separate:
+
+- invoice scenario evaluation compares expected fields and validation behavior against versioned
+  synthetic PDFs
+- run evidence records tool choice, blocked actions, escalation, and workflow traces
+
+This separation prevents extraction quality from being confused with workflow safety.
+
+## Extension Boundary
+
+Invoice is the only complete schema. Shared document, policy, workflow, audit, storage, and
+provider interfaces can support another document type later, but no second workflow is claimed
+until its extraction, validation, review, execution, and evaluation contracts are implemented.

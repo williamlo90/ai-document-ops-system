@@ -1,43 +1,39 @@
-# Release Candidate Summary - AI Document Operations System
+# Release Candidate Summary
 
-Status: demo-ready local-first release candidate.
+Status: local portfolio release candidate.
 
-## What This Release Is
+## Included
 
-AI Document Operations System is an invoice-first document operations app with:
+- role-separated invoice upload and reviewer flows
+- PDF viewing, structured extraction, and editable review fields
+- deterministic required-field, arithmetic, supported-value, and duplicate checks
+- explicit approve, reject, and correction decisions
+- immutable terminal evidence and approval-gated accounting export
+- processing jobs, bounded retries, dead-letter behavior, and audit records
+- mock provider profile plus verified Mistral OCR and Groq extraction adapters
+- 20-PDF synthetic scenario set with documented failure iterations
+- local technical run and reliability evidence
+- responsive desktop and mobile workflow
+- Docker, CI, and public artifact packaging
 
-- secure local operator session
-- invoice intake, extraction, validation, and source evidence review
-- role-focused uploader and reviewer flows
-- review queue and exception handling
-- bounded planning for document work
-- human Approval Decision flow for risky execution
-- controlled execution after approval
-- durable workflow History and audit evidence
-- technical evidence APIs and pages for System Reliability, Reliability Checks, Test Scenarios, and Run Traces
+## Verification Baseline
 
-## Verification
+- backend suite: 370 passed, 2 skipped
+- frontend suite: 11 passed
+- backend Ruff check: passed
+- frontend lint and production build: passed
+- npm production dependency audit: no known vulnerabilities at verification time
+- tracked-secret and runtime-artifact scan: passed
 
-- Backend full suite: 367 tests OK, 2 skipped
-- Frontend tests: 8 tests OK
-- Frontend lint: passed
-- Frontend production build: passed
-- Docker compose config: passed
-- Public artifact tests: 16 tests OK
-- Public artifact packaging script: passed to a temporary output folder
+## Release Boundary
 
-Focused Ruff lint and format checks passed for the latest backend hardening changes.
+- invoice is the only complete document workflow
+- synthetic evaluation is not customer validation or production accuracy
+- local SQLite, file storage, and demo authentication are not a hosted tenancy architecture
+- no measured time saving, cost saving, or business error reduction is claimed
+- live ERP delivery, production monitoring, backups, and secret management remain out of scope
 
-## Honest Boundaries
+## Release Verdict
 
-- Invoice is the only complete extraction, validation, planning, and execution schema.
-- Generic `/documents/*` contracts are additive; invoice compatibility aliases remain intentionally supported.
-- A second executable document workflow is intentionally deferred.
-- This is a local-first portfolio system, not hosted production SaaS.
-- Real customer deployment, tenancy, billing, backups, production monitoring, and live-provider credentials are out of scope.
-
-## Recommended Release Tag
-
-```text
-v0.4.0-rc1
-```
+The artifact is suitable for a recruiter-facing local demonstration of production-shaped AI
+workflow engineering. It is not a production SaaS release.

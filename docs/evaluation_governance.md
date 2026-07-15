@@ -1,8 +1,8 @@
 # Evaluation Governance
 
-Status: Step 7.5 foundation
+Status: implemented local evaluation governance.
 
-Project 2 turns the Project 1.5 benchmark engine into a quality-control layer for provider decisions.
+The benchmark engine provides a quality-control layer for provider decisions.
 
 ## Purpose
 
@@ -63,4 +63,3 @@ Deferred:
 - scheduled benchmark jobs
 - production drift monitoring
 - statistically large benchmark claims
-

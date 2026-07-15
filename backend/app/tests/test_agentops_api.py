@@ -192,12 +192,12 @@ class AgentOpsApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_backoffice_scenario_contract_lists_project4_dataset(self) -> None:
+    def test_backoffice_scenario_contract_lists_document_operations_dataset(self) -> None:
         response = self.client.get("/agentops/backoffice/scenarios", headers=HEADERS)
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["dataset_id"], "project4_backoffice")
+        self.assertEqual(payload["dataset_id"], "document_operations")
         self.assertEqual(payload["dataset_version"], "v1")
         self.assertEqual(payload["scenario_count"], 5)
         self.assertEqual(payload["scenarios"][0]["id"], "invoice_review_read_only")

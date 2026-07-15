@@ -46,10 +46,10 @@ class BackofficeScenarioTests(unittest.TestCase):
             role="operator",
         )
 
-    def test_loads_project4_backoffice_scenario_dataset(self) -> None:
+    def test_loads_document_operations_scenario_dataset(self) -> None:
         dataset = load_backoffice_scenario_dataset(DEFAULT_BACKOFFICE_SCENARIO_DATASET)
 
-        self.assertEqual(dataset.dataset_id, "project4_backoffice")
+        self.assertEqual(dataset.dataset_id, "document_operations")
         self.assertEqual(dataset.dataset_version, "v1")
         self.assertEqual(len(dataset.scenarios), 5)
         self.assertEqual(dataset.scenarios[0].id, "invoice_review_read_only")

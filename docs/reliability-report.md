@@ -1,119 +1,75 @@
-# Reliability Report - Project 3.5
+# Reliability Report
 
-Status: local portfolio reliability evaluation.
+Status: verified local portfolio evidence as of 15 July 2026.
 
-## What Was Measured
+## Evidence Layers
 
-Project 3.5 measures copilot behavior from Project 3 agent run traces.
+The project separates three questions that should not be collapsed into one score:
 
-Measured dimensions:
+1. Did providers extract the expected invoice fields?
+2. Did deterministic validation produce the expected business result?
+3. Did the workflow enforce reviewer, approval, and execution boundaries?
 
-- tool selection accuracy
-- unevaluated runs
-- unsafe action prevention rate
-- successful completion rate
-- human escalation rate
-- average confidence
-- average tool calls per task
-- estimated cost per run
-- failure counts
-- recent failure trend
-- prompt version comparison
-- regression comparison
-- scenario dataset version coverage
+## Invoice Scenario Evidence
 
-## Evidence Source
+- dataset: `examples/benchmark/datasets/invoice_scenarios_v1`
+- size: 20 deterministic synthetic PDF invoices
+- parser: Mistral OCR (`mistral-ocr-latest`)
+- extractor: Groq OpenAI-compatible endpoint (`llama-3.3-70b-versatile`)
 
-Evidence comes from:
+| Iteration | Field match | Fully matched documents | Validation behavior | Provider errors |
+| --- | ---: | ---: | ---: | ---: |
+| Initial | 157 / 160 | 17 / 20 | 18 / 20 | 0 / 20 |
+| Anti-inference prompt | 159 / 160 | 19 / 20 | 19 / 20 | 0 / 20 |
+| Vendor grounding guard | 160 / 160 | 20 / 20 | 20 / 20 | 0 / 20 |
 
-- `AgentRun`
-- `AgentToolCallTrace`
-- `expected_tool`
-- `selected_tool`
-- `selection_reason`
-- `confidence`
-- `failure_type`
-- `human_escalation_reason`
-- `blocked_actions`
-- `prompt_version`
-- `token_usage`
-- `examples/agentops/scenarios_v1.json`
+The initial failures were preserved as evidence. The model incorrectly filled three intentionally
+missing fields. Null-handling instructions corrected date and tax. A deterministic seller-context
+guard rejected an ambiguous platform header returned as the vendor.
 
-## Implemented Reliability Surfaces
+## Workflow Safety Evidence
 
-- evaluation engine: `app.agentops.service.AgentOpsEvaluationService`
-- API: `/agentops/runs`, `/agentops/summary`, `/agentops/prompt-versions`, `/agentops/regression`, `/agentops/scenarios`
-- UI: `/?technical=runs`
-- scenario evaluator: `app.agentops.scenarios`
-- dataset: `agentops_core` version `v1`
+- real-provider processing stopped at `needs_review`; no high-confidence result auto-approved
+- explicit reviewer approval changed the clean invoice to `approved`
+- the duplicate pair produced one clean review item and one `duplicate_invoice` blocker
+- approval was disabled in the duplicate UI and refused independently by the backend
+- correction and rejection remained available
+- approved, rejected, and exported invoices were immutable through the intake draft API
+- export required an approved state and recorded delivery attempts
+- authentication, role, workspace, CSRF, and state-transition boundaries have focused tests
 
-## Scenario Dataset V1
+## Run and Agent Evidence
 
-The first dataset includes nine scenarios:
+The technical APIs retain local evidence for:
 
-- workflow summary
-- review queue
-- selected-document explanation
-- next-action recommendation
-- controlled processing
-- approved export
-- unsafe direct database edit
-- cross-workspace attempt
-- insufficient evidence
-
-These scenarios cover read-only, recommendation, controlled execution, blocked action, workspace boundary, and human escalation cases.
-
-## What Improved
-
-Compared with Project 3, Project 3.5 adds:
-
-- measurable tool choice
-- trace inspection
-- dashboard visibility
-- scenario versioning
-- regression comparison shape
-- prompt version comparison shape
-- safer portfolio language around reliability
-
-Project 3 could say:
-
-```text
-The copilot can operate through tools.
-```
-
-Project 3.5 can say:
-
-```text
-The copilot leaves evidence that can be evaluated.
-```
-
-## Known Failures And Limits
-
-- The dashboard is local, not hosted production monitoring.
-- Current prompt version is deterministic `deterministic-v1`.
-- Average latency remains a placeholder until run duration is recorded.
-- Token and real cost fields remain placeholders until an LLM planner is added.
-- Scenario replay validates run evidence against expected behavior, but does not yet provision every document state automatically.
-- Regression comparison currently compares run windows, not persisted benchmark snapshots.
-- LLM judge evaluation is intentionally out of scope for this slice.
-
-## Project 4 Handoff
-
-Project 4 can build more autonomous back-office behavior on top of this reliability foundation.
-
-Before Project 4 increases autonomy, it should preserve:
-
-- explicit tools
-- role and workspace boundaries
-- confirmation rules
-- scenario datasets
-- run traces
-- prompt version tracking
-- regression checks
+- run traces and tool calls
+- expected versus selected tool behavior
+- blocked action counts
 - human escalation
+- scenario dataset and planning versions
+- prompt-version and run-window comparisons
 
-The next question for Project 4 should be:
+Some run metrics are placeholders by design. Token cost is not claimed where no real LLM planner
+cost is recorded, and run-window comparison is not described as a persisted production regression
+system.
 
-```text
-Can the system handle a broader back-office workflow while keeping AgentOps visibility and safety gates intact?
-```
+## Automated Verification
+
+- backend: 370 passed, 2 skipped
+- frontend: 11 passed
+- backend Ruff check: passed
+- frontend lint: passed
+- frontend production build: passed
+- npm production dependency audit: no known vulnerabilities at verification time
+
+## Claim Boundary
+
+- the invoice set is synthetic and intentionally small
+- a perfect final controlled run is not a production accuracy estimate
+- 1.09 seconds average provider latency was one local observation, not an SLA
+- no false-positive or false-negative rate has been measured on customer data
+- no business time, cost, or error reduction has been measured
+- technical traces demonstrate implemented controls, not production operations maturity
+
+Detailed extraction evidence and reproduction commands are in
+`docs/invoice-scenarios-v1-evidence.md`.

@@ -50,7 +50,7 @@ class BackofficePlanner:
         )
 
         if work_type == WorkType.INSUFFICIENT_EVIDENCE or not inputs.evidence_sufficient:
-            plan.escalation_reason = "Insufficient evidence for autonomous planning."
+            plan.escalation_reason = "Insufficient evidence for safe planning."
             plan.add_step(
                 self._step(
                     work_item=work_item,

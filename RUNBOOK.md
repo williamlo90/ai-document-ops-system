@@ -1,126 +1,174 @@
-# Runbook - Autonomous Backoffice AI
+# Runbook - AI Document Operations System
 
-Project 4 extends the document operations platform with bounded autonomous back-office planning, drafts, approvals, controlled execution, and AgentOps evaluation.
+This runbook covers the local portfolio profile, optional real-provider verification, quality
+gates, and safe cleanup.
 
-## Local Quality Gate
+## Prerequisites
+
+- Python 3.11 or newer
+- Node.js and npm
+- PowerShell
+- optional: Docker Desktop
+
+Run commands from the repository root.
+
+## Local Mock Demo
+
+The mock profile requires no paid service or provider credential.
 
 ```powershell
-.\.venv\Scripts\python.exe -m black --check backend scripts run_tests.py
-.\.venv\Scripts\python.exe -m ruff check backend scripts run_tests.py
-.\.venv\Scripts\python.exe run_tests.py
-docker compose config --quiet
-cd frontend
+.\scripts\setup_local_venv.ps1
+
+Push-Location frontend
+npm ci
+npm run build
+Pop-Location
+
+.\scripts\start_dev.ps1
+```
+
+Open `http://127.0.0.1:8000`. Use the local demo token defined by `.env.example` (`123`).
+
+The startup script uses `.env` when present and `.env.example` otherwise. Local runtime state is
+written under `backend/data/`, which is ignored by Git.
+
+Health checks:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+Invoke-RestMethod http://127.0.0.1:8000/ready
+```
+
+## Real Provider Profile
+
+Create the ignored local configuration once:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Set these values in `.env` without placing credentials in commands or documentation:
+
+```dotenv
+PARSER_PROVIDER=mistral
+MISTRAL_API_KEY=
+MISTRAL_OCR_ENDPOINT=https://api.mistral.ai/v1/ocr
+MISTRAL_OCR_MODEL=mistral-ocr-latest
+
+EXTRACTOR_PROVIDER=openai_compatible
+EXTRACTOR_API_KEY=
+EXTRACTOR_ENDPOINT=https://api.groq.com/openai/v1/chat/completions
+EXTRACTOR_MODEL=llama-3.3-70b-versatile
+```
+
+Keep `APP_ENV=local`. Do not commit `.env`, provider responses containing sensitive content, or
+real invoice PDFs.
+
+Verify provider adapters with a safe invoice:
+
+```powershell
+$env:PYTHONPATH = "backend"
+.\.venv\Scripts\python.exe scripts\smoke_providers.py sample_invoice.pdf
+```
+
+Then start the app and exercise the full UI flow. A successful extraction must still stop for a
+reviewer decision.
+
+## Synthetic Scenario Evaluation
+
+The committed dataset contains 20 safe synthetic PDFs.
+
+```powershell
+$env:BENCHMARK_REAL_PROVIDER_MAX_DOCUMENTS = "20"
+.\.venv\Scripts\python.exe scripts\run_real_fixture_extraction.py `
+  "$env:TEMP\invoice-scenarios-predicted.json" `
+  --dataset examples\benchmark\datasets\invoice_scenarios_v1 `
+  --report "$env:TEMP\invoice-scenarios-report.json"
+```
+
+Real-provider results vary with network and provider changes. Compare the output with
+`docs/invoice-scenarios-v1-evidence.md` and report new failures rather than overwriting them.
+
+## Quality Gates
+
+Backend:
+
+```powershell
+$env:ENV_FILE = ".env.example"
+$env:PYTHONPATH = "backend"
+.\.venv\Scripts\python.exe -m unittest discover -s backend/app/tests -t backend
+.\.venv\Scripts\python.exe -m ruff check backend scripts
+```
+
+Frontend:
+
+```powershell
+Push-Location frontend
+npm test
 npm run lint
 npm run build
+Pop-Location
 ```
 
-## Local React UI Run
-
-Install dependencies once if this is a fresh checkout:
+Public artifact:
 
 ```powershell
-py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-dev.txt
-cd frontend
-npm install
-cd ..
+.\.venv\Scripts\python.exe scripts\prepare_public_artifact.py `
+  "$env:TEMP\ai-document-ops-public"
 ```
 
-Terminal 1:
+Review the generated directory before sharing it.
+
+## Docker Profile
 
 ```powershell
-$env:ENV_FILE='.env.example'
-$env:PYTHONPATH='backend'
-$env:UPLOAD_ROOT='backend/data/uploads'
-$env:SQLITE_PATH='backend/data/doc_intel.sqlite3'
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+.\scripts\start_docker.ps1
 ```
 
-Terminal 2:
+The default compose profile runs the API, worker, SQLite metadata, and local private document
+storage. The optional Postgres service documents a target topology; it is not the active runtime
+repository implementation.
+
+See `docs/docker_profile.md` for the local service boundary and `docs/aws_deployment.md` for an
+explicitly unimplemented hosted target architecture.
+
+## Safe Local Reset
+
+Stop the API and worker before resetting. These files contain only local runtime state when the
+documented configuration is used:
 
 ```powershell
-cd frontend
-npm run dev -- --host 127.0.0.1 --port 5173
+Remove-Item -LiteralPath "backend\data\doc_intel.sqlite3" -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath "backend\data\uploads" -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
-Open:
+Never run cleanup against an unverified custom `SQLITE_PATH` or `UPLOAD_ROOT`.
 
-```text
-http://127.0.0.1:5173
-```
+## Troubleshooting
 
-Use `123` as the local demo admin token unless you override it.
+### Frontend is not served
 
-## Local Docker Run
+Run `npm run build` in `frontend/`, then restart the API. FastAPI serves `frontend/dist` when it
+exists.
 
-```powershell
-docker compose config --quiet
-docker compose up --build
-```
+### PDF preview is blank
 
-Open:
+Confirm the document content request returns `application/pdf`, the session is authenticated,
+and the browser console has no CSP or worker error. Use the explicit open-PDF action as a fallback
+while diagnosing rendering.
 
-```text
-http://127.0.0.1:8000
-```
+### Invoice is not in Approvals
 
-This is the production-shaped one-command path: Docker builds the React bundle,
-serves it from FastAPI on the same origin, starts the API, and starts the durable
-worker process. Use `Ctrl+C`, then `docker compose down`, for graceful local
-shutdown.
+Check its business status. Processing invoices are still being read; correction-required
+invoices remain separate from clean invoices waiting for a reviewer decision.
 
-Runtime diagnostics:
+### Provider request fails
 
-```powershell
-Invoke-WebRequest http://127.0.0.1:8000/internal/metrics
-```
+Check `/providers/health`, endpoint/model compatibility, credential validity, and
+`PROVIDER_TIMEOUT_SECONDS`. Authentication failures are non-retryable. Rate limits and supported
+server failures use the bounded processing retry path.
 
-Responses include `X-Request-ID` and `X-Trace-ID` for correlation with JSON
-stdout logs. `/health` is liveness; `/ready` checks traffic acceptance, database,
-and storage and returns HTTP 503 when the API is draining or a dependency fails.
-`docker compose stop` sends SIGTERM. Uvicorn gets a 30-second graceful deadline,
-and the worker finishes its current job attempt before exiting.
+## Operating Boundary
 
-Development mode can use:
-
-- `http://127.0.0.1:5173` for the React development UI.
-- `http://127.0.0.1:8000` for the production-shaped same-origin UI after `npm run build`.
-- `/?technical=runs` for React technical trace evidence when needed during a demo.
-
-## Agent Safety Checks
-
-When implementing autonomous behavior, verify:
-
-- read-only tools do not mutate state
-- mutation tools require confirmation
-- low-confidence recommendations escalate to a human
-- recommendations include why-not explanations when alternatives are unsafe
-- workspace scoping still works
-- role checks still work
-- failure types use the Project 3 taxonomy
-- blocked actions are logged with reasons
-- no secret/storage path leaks appear in responses
-- back-office work items stay workspace scoped
-- risky Project 4 actions show approval controls before execution
-- Project 4 scenarios remain replayable through AgentOps
-
-## Backoffice Scenario Checks
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/agentops/backoffice/scenarios `
-  -Headers @{ "X-Admin-Token"="123" }
-```
-
-The dataset is also stored at:
-
-```text
-examples/agentops/project4_scenarios_v1.json
-```
-
-## Current Boundary
-
-Project 4 is not a full autonomous ERP or hosted production SaaS. It is a production-shaped local platform that demonstrates bounded autonomy, human approvals, controlled tool execution, and reliability measurement.
-
-For deployment gaps and the staged cloud path, see `docs/docker_profile.md`
-and `docs/aws_deployment.md`. Object-storage notes live in
-`docs/object_storage.md`.
+This is a local-first portfolio system. Do not present the Docker profile, security middleware,
+or synthetic benchmark as evidence of a production deployment or customer validation.

@@ -8,7 +8,9 @@ from typing import Any
 from app.backoffice.models import PolicyDecision, TaskPlan, WorkItem
 
 
-DEFAULT_BACKOFFICE_SCENARIO_DATASET = Path("examples/agentops/project4_scenarios_v1.json")
+DEFAULT_BACKOFFICE_SCENARIO_DATASET = Path(
+    "examples/agentops/document_operations_scenarios_v1.json"
+)
 REQUIRED_BACKOFFICE_SCENARIO_FIELDS = frozenset(
     {
         "id",

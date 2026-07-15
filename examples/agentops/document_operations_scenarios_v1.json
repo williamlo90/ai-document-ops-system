@@ -1,8 +1,8 @@
 {
-  "dataset_id": "project4_backoffice",
+  "dataset_id": "document_operations",
   "dataset_version": "v1",
   "created_at": "2026-06-26",
-  "description": "Deterministic Project 4 back-office autonomy scenarios for plan, policy, escalation, and approval evaluation.",
+  "description": "Deterministic document-operation scenarios for plan, policy, escalation, and approval evaluation.",
   "scenarios": [
     {
       "id": "invoice_review_read_only",
@@ -148,7 +148,7 @@
     },
     {
       "id": "insufficient_evidence_escalation",
-      "title": "Escalate unclear back-office work to a human",
+      "title": "Escalate unclear document work to a human",
       "workspace_id": "default",
       "actor_role": "reviewer",
       "document_type": "invoice",
@@ -175,7 +175,7 @@
       ],
       "expected_requires_human": true,
       "expected_confidence": "low",
-      "expected_escalation_reason": "Insufficient evidence for autonomous planning."
+      "expected_escalation_reason": "Insufficient evidence for safe planning."
     }
   ]
 }

@@ -36,7 +36,7 @@ Latest verified baseline:
 
 ## Phase 0: Positioning Cleanup
 
-Status: Next documentation-only task. It may run before provider integration.
+Status: Complete on 15 July 2026.
 
 Goal: remove historical build-log language so a new reader immediately understands the current product and its limits.
 
@@ -50,6 +50,13 @@ Exit criteria:
 
 - a reader understands the user, problem, workflow, and limitation from the first documentation screen
 - public documentation uses the product name consistently
+
+Observed evidence:
+
+- README now opens with the finance-review problem, decision boundary, architecture, proof, and limitations
+- PRD and architecture describe the current invoice product instead of its historical project sequence
+- `PORTFOLIO_CASE_STUDY.md` separates AI work, deterministic safeguards, human authority, evidence, and limitations
+- obsolete handoff, pivot, duplicate demo, and parallel UI planning documents were removed from the public artifact
 
 ## Phase 1: Real Provider Integration
 
@@ -137,6 +144,8 @@ Observed evidence so far:
 - approved invoice data is immutable through the intake draft API; edits require a new review cycle rather than silently changing approved evidence
 - desktop and 390 px mobile browser checks cover uploader list, reviewer queue, PDF detail, and blocked approval
 - the mobile reviewer queue was corrected from an overlapping wide table into readable tabs and single-column review cards
+- recruiter-facing README, case study, reliability report, and 3-5 minute demo script now tell one bounded product story
+- public artifact packaging now requires the case study and excludes obsolete historical planning documents
 
 Positioning rule:
 
@@ -163,6 +172,7 @@ Work:
 2. Verify that `.env`, private invoices, uploads, caches, local databases, and generated runtime files are excluded.
 3. Confirm the documented local run path works from a clean clone.
 4. Freeze the demo script, screenshots, case study, and evidence summary together.
+5. Remove deliberately hidden legacy detail views and split `frontend/src/App.tsx` in an isolated, behavior-preserving refactor covered by end-to-end tests.
 
 ## Guardrails
 

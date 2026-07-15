@@ -66,7 +66,11 @@ class PublicArtifactTests(unittest.TestCase):
         result = self._run_script(self.output)
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue((Path(self.output) / "ROADMAP.md").exists())
-        self.assertTrue((Path(self.output) / "UI_PLAN.md").exists())
+
+    def test_includes_portfolio_case_study(self) -> None:
+        result = self._run_script(self.output)
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue((Path(self.output) / "PORTFOLIO_CASE_STUDY.md").exists())
 
     def test_excludes_local_only_planning_documents(self) -> None:
         result = self._run_script(self.output)
@@ -123,23 +127,35 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         output = Path(self.output)
         self.assertTrue((output / "docs" / "demo-script.md").exists())
-        self.assertTrue((output / "docs" / "portfolio-demo.md").exists())
-        self.assertTrue((output / "docs" / "final-release-notes.md").exists())
+        self.assertTrue((output / "docs" / "invoice-scenarios-v1-evidence.md").exists())
+        self.assertTrue((output / "docs" / "release-candidate-summary.md").exists())
         self.assertTrue((output / "docs" / "reliability-report.md").exists())
-        self.assertTrue((output / "docs" / "project-4-handoff.md").exists())
         self.assertTrue(
-            (output / "docs" / "assets" / "screenshots" / "benchmark-decision-view.png").exists()
+            (output / "docs" / "assets" / "screenshots" / "reviewer-decision.png").exists()
         )
+
+    def test_excludes_obsolete_public_plans(self) -> None:
+        result = self._run_script(self.output)
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        output = Path(self.output)
+        self.assertFalse((output / "UI_PLAN.md").exists())
+        self.assertFalse((output / "docs" / "portfolio-demo.md").exists())
+        self.assertFalse((output / "docs" / "final-release-notes.md").exists())
+        self.assertFalse((output / "docs" / "project-4-handoff.md").exists())
+        self.assertFalse((output / "docs" / "pivot").exists())
 
     def test_includes_agentops_scenario_dataset(self) -> None:
         result = self._run_script(self.output)
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         scenario_dataset = Path(self.output) / "examples" / "agentops" / "scenarios_v1.json"
-        project4_dataset = (
-            Path(self.output) / "examples" / "agentops" / "project4_scenarios_v1.json"
+        document_operations_dataset = (
+            Path(self.output)
+            / "examples"
+            / "agentops"
+            / "document_operations_scenarios_v1.json"
         )
         self.assertTrue(scenario_dataset.exists())
-        self.assertTrue(project4_dataset.exists())
+        self.assertTrue(document_operations_dataset.exists())
 
     def test_includes_pdf_backed_benchmark_dataset(self) -> None:
         result = self._run_script(self.output)

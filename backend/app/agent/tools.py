@@ -81,7 +81,7 @@ class ControlledToolExecutor:
             confidence=AgentConfidence.LOW,
             requires_follow_up=True,
             failure_type=AgentFailureType.MISSING_TOOL,
-            human_escalation_reason="Use the existing Project 2 workflow for this action.",
+            human_escalation_reason="Use the protected document workflow for this action.",
         )
 
     def _process_document(
@@ -215,7 +215,7 @@ def _permission_denied(tool_name: AgentToolName) -> AgentToolResponse:
         tool_name=tool_name,
         status="escalated",
         risk=definition.risk,
-        summary="Project 2 denied this tool for the current role.",
+        summary="The document workflow denied this tool for the current role.",
         confidence=AgentConfidence.LOW,
         requires_follow_up=True,
         failure_type=AgentFailureType.PERMISSION_DENIED,

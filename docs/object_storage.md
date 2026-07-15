@@ -1,8 +1,8 @@
 # Object Storage Boundary
 
-Status: Step 5 foundation
+Status: implemented local adapter with a documented S3-compatible target.
 
-Project 2 separates document object storage from metadata persistence.
+Document object storage is separate from metadata persistence.
 
 ## Current Adapter
 

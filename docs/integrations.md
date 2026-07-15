@@ -1,6 +1,6 @@
 # Integration Boundary
 
-Project 2 exposes outbound integration as a separate boundary from CSV export.
+Outbound integration is kept separate from CSV export and document processing.
 
 The first supported target is a mock accounting adapter. It represents the shape of an ERP/accounting handoff without requiring real third-party credentials in the portfolio artifact.
 
