@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable
@@ -59,7 +60,7 @@ class LlmJsonInvoiceExtractor:
             data = _extract_json_object(response)
             _reject_empty_invoice_payload(data)
             extraction = InvoiceExtraction(
-                data=_invoice_data(data),
+                data=_ground_vendor(_invoice_data(data), parsed_document.text),
                 confidence=_field_confidence(data.get("field_confidence")),
             )
         except ProviderError:
@@ -93,7 +94,13 @@ def _payload(model: str, text: str) -> dict[str, Any]:
                     "Rules: (1) Ignore common OCR typos: letter O vs digit 0, letter l vs digit 1. "
                     "(2) Normalise any date format to YYYY-MM-DD, even if partially garbled. "
                     "(3) If tax appears as a negative or is embedded in a total row, extract it as the absolute value. "
-                    "(4) If a line_item amount is missing, compute it as quantity * unit_price."
+                    "(4) If a line_item amount is missing, compute it as quantity * unit_price. "
+                    "(5) Never infer or guess a field that is not explicitly present; return null. "
+                    "(6) vendor_name must be explicitly identified as the seller, supplier, or FROM "
+                    "party; do not use a platform header, document title, or bill-to recipient. "
+                    "(7) invoice_date must come from an explicitly labeled invoice or issue date; "
+                    "do not derive it from a due date, invoice number, or unrelated date. "
+                    "(8) If no tax label and amount are present, return null rather than zero."
                 ),
             },
             {"role": "user", "content": text},
@@ -163,6 +170,35 @@ def _invoice_data(data: dict[str, Any]) -> InvoiceData:
         currency=_text(data.get("currency")),
         line_items=_line_items(data.get("line_items")),
     )
+
+
+def _ground_vendor(invoice: InvoiceData, source_text: str) -> InvoiceData:
+    if invoice.vendor_name is None or _has_vendor_context(source_text, invoice.vendor_name):
+        return invoice
+    return replace(invoice, vendor_name=None)
+
+
+def _has_vendor_context(source_text: str, vendor_name: str) -> bool:
+    lines = [line.strip() for line in source_text.splitlines() if line.strip()]
+    normalized_vendor = _searchable_text(vendor_name)
+    for index, line in enumerate(lines):
+        if normalized_vendor not in _searchable_text(line):
+            continue
+        before = " ".join(lines[max(0, index - 2) : index + 1])
+        after = " ".join(lines[index : index + 3])
+        if re.search(r"\b(from|seller|supplier|vendor)\b", before, flags=re.IGNORECASE):
+            return True
+        if re.search(
+            r"(@|\b(vat|tax id|registration)\b|\b\d+\s+[^\n]*(street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln)\b)",
+            after,
+            flags=re.IGNORECASE,
+        ):
+            return True
+    return False
+
+
+def _searchable_text(value: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", value.casefold()))
 
 
 def _reject_empty_invoice_payload(data: dict[str, Any]) -> None:

@@ -65,14 +65,6 @@ def _record_to_document(root: Path, index: int, record: Any) -> EvaluationDocume
             f"Expected record {document_id} is missing fields: {', '.join(missing)}"
         )
 
-    empty_required = [
-        field for field in REQUIRED_EXPECTED_FIELDS if record.get(field) in (None, "")
-    ]
-    if empty_required:
-        raise DatasetValidationError(
-            f"Expected record {document_id} has empty required fields: {', '.join(empty_required)}"
-        )
-
     source_path = _safe_source_path(root, record.get("source_file"), document_id)
     expected_fields = {
         key: value for key, value in record.items() if key not in {"document_id", "source_file"}

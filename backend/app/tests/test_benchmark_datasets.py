@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from app.benchmark.datasets import (
@@ -10,6 +12,8 @@ from app.benchmark.datasets import (
     load_evaluation_dataset,
     records_from_dataset,
 )
+from app.extraction.schemas import InvoiceData
+from app.validation.invoice import validate_invoice
 
 
 def _valid_record(document_id: str = "invoice-001") -> dict[str, str]:
@@ -91,15 +95,77 @@ class BenchmarkDatasetTests(unittest.TestCase):
             with self.assertRaisesRegex(DatasetValidationError, "missing fields: total"):
                 load_evaluation_dataset(root)
 
-    def test_rejects_empty_required_expected_field(self) -> None:
+    def test_accepts_explicit_null_as_missing_field_ground_truth(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             record = _valid_record()
-            record["total"] = ""
+            record["vendor_name"] = None
             (root / "expected.json").write_text(json.dumps([record]), encoding="utf-8")
 
-            with self.assertRaisesRegex(DatasetValidationError, "empty required fields: total"):
-                load_evaluation_dataset(root)
+            dataset = load_evaluation_dataset(root)
+
+        self.assertIsNone(dataset.documents[0].expected_fields["vendor_name"])
+
+    def test_synthetic_scenario_dataset_has_twenty_pdf_backed_cases(self) -> None:
+        dataset_root = (
+            Path(__file__).resolve().parents[3]
+            / "examples"
+            / "benchmark"
+            / "datasets"
+            / "invoice_scenarios_v1"
+        )
+
+        dataset = load_evaluation_dataset(dataset_root)
+
+        self.assertEqual(len(dataset.documents), 20)
+        self.assertTrue(all(document.source_path for document in dataset.documents))
+        self.assertTrue(all(document.source_path.is_file() for document in dataset.documents))
+        missing_vendor = next(
+            document for document in dataset.documents if document.document_id == "missing_vendor"
+        )
+        self.assertIsNone(missing_vendor.expected_fields["vendor_name"])
+
+    def test_synthetic_scenario_ground_truth_matches_expected_validation(self) -> None:
+        dataset_root = (
+            Path(__file__).resolve().parents[3]
+            / "examples"
+            / "benchmark"
+            / "datasets"
+            / "invoice_scenarios_v1"
+        )
+        dataset = load_evaluation_dataset(dataset_root)
+
+        for document in dataset.documents:
+            fields = document.expected_fields
+            invoice = InvoiceData(
+                vendor_name=fields["vendor_name"],
+                invoice_number=fields["invoice_number"],
+                invoice_date=_date(fields["invoice_date"]),
+                due_date=_date(fields["due_date"]),
+                subtotal=_decimal(fields["subtotal"]),
+                tax=_decimal(fields["tax"]),
+                total=_decimal(fields["total"]),
+                currency=fields["currency"],
+            )
+
+            actual_codes = {issue.code for issue in validate_invoice(invoice).issues}
+
+            self.assertEqual(
+                actual_codes,
+                set(fields["expected_validation_codes"]),
+                document.document_id,
+            )
+
+        duplicate_documents = [
+            document
+            for document in dataset.documents
+            if document.expected_fields.get("duplicate_group") == "summit-dup-01"
+        ]
+        self.assertEqual(len(duplicate_documents), 2)
+        self.assertEqual(
+            {document.expected_fields["invoice_number"] for document in duplicate_documents},
+            {"SIP-7788"},
+        )
 
     def test_rejects_duplicate_document_ids(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -159,6 +225,14 @@ class BenchmarkDatasetTests(unittest.TestCase):
             self.assertEqual(records[0]["document_id"], "invoice-001")
             self.assertEqual(records[0]["vendor_name"], "Acme Logistics")
             self.assertEqual(records[0]["total"], "110.00")
+
+
+def _date(value: str | None) -> date | None:
+    return date.fromisoformat(value) if value else None
+
+
+def _decimal(value: str | None) -> Decimal | None:
+    return Decimal(value) if value is not None else None
 
 
 if __name__ == "__main__":

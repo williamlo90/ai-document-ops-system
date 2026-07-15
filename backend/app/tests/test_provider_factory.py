@@ -217,17 +217,28 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
             post_json=fake_post_json,
         )
         result = extractor.extract_invoice(
-            ParsedDocument(text="Invoice #INV-001 total 110.00", provider_trace_id="trace-123")
+            ParsedDocument(
+                text=(
+                    "FROM\nAcme Logistics\n100 Example Street\n"
+                    "Invoice #INV-001 total 110.00"
+                ),
+                provider_trace_id="trace-123",
+            )
         )
 
         self.assertEqual(captured["url"], "https://example.test/extract")
         self.assertEqual(captured["headers"]["Authorization"], "Bearer secret")
         self.assertEqual(captured["payload"]["model"], "invoice-model")
         self.assertEqual(
-            captured["payload"]["messages"][1]["content"], "Invoice #INV-001 total 110.00"
+            captured["payload"]["messages"][1]["content"],
+            "FROM\nAcme Logistics\n100 Example Street\nInvoice #INV-001 total 110.00",
         )
+        system_prompt = captured["payload"]["messages"][0]["content"]
+        self.assertIn("Never infer or guess", system_prompt)
+        self.assertIn("return null rather than zero", system_prompt)
         self.assertEqual(result.provider_name, "llm_json")
         self.assertEqual(result.provider_trace_id, "trace-123")
+        self.assertEqual(result.extraction.data.vendor_name, "Acme Logistics")
         self.assertEqual(result.extraction.data.invoice_number, "INV-001")
         self.assertEqual(str(result.extraction.data.total), "110.00")
         self.assertEqual(len(result.extraction.data.line_items), 1)
@@ -284,6 +295,55 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
             extractor.extract_invoice(ParsedDocument(text="invoice"))
 
         self.assertEqual(str(caught.exception), "invalid_extractor_response")
+
+    def test_vendor_without_seller_or_business_context_is_removed(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret",
+            endpoint="https://example.test/extract",
+            model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {
+                "data": {
+                    "vendor_name": "Northstar Accounts Demo",
+                    "invoice_number": "MV-1007",
+                    "invoice_date": "2026-07-07",
+                    "total": "99.00",
+                    "currency": "USD",
+                }
+            },
+        )
+
+        result = extractor.extract_invoice(
+            ParsedDocument(
+                text=(
+                    "INVOICE\nNorthstar Accounts Demo\nSynthetic fixture\n"
+                    "Invoice number MV-1007\nTotal 99.00"
+                )
+            )
+        )
+
+        self.assertIsNone(result.extraction.data.vendor_name)
+
+    def test_vendor_with_business_address_is_preserved_without_from_label(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret",
+            endpoint="https://example.test/extract",
+            model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {
+                "data": {
+                    "vendor_name": "Acme Logistics",
+                    "invoice_number": "AC-1001",
+                    "invoice_date": "2026-07-01",
+                    "total": "110.00",
+                    "currency": "USD",
+                }
+            },
+        )
+
+        result = extractor.extract_invoice(
+            ParsedDocument(text="Acme Logistics\n100 Example Street\nInvoice AC-1001")
+        )
+
+        self.assertEqual(result.extraction.data.vendor_name, "Acme Logistics")
 
     def test_http_4xx_error_is_not_retryable(self) -> None:
         with patch(

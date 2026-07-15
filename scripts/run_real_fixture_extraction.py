@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -10,26 +11,19 @@ BACKEND = ROOT / "backend"
 sys.path.insert(0, str(BACKEND))
 
 from app.core.settings import load_settings  # noqa: E402
+from app.benchmark.datasets import load_evaluation_dataset, records_from_dataset  # noqa: E402
+from app.benchmark.models import EvaluationDataset  # noqa: E402
+from app.benchmark.report import generate_json_report  # noqa: E402
+from app.benchmark.service import run_dataset  # noqa: E402
 from app.providers.factory import build_extractor_provider, build_parser_provider  # noqa: E402
-from app.providers.contracts import DocumentSource  # noqa: E402
-from app.validation.invoice import validate_invoice  # noqa: E402
 
 
-DOCUMENTS: list[dict[str, str]] = [
-    {"document_id": "sample_invoice", "pdf_path": str(ROOT / "sample_invoice.pdf")},
-]
+DEFAULT_DATASET = ROOT / "examples" / "benchmark" / "datasets" / "pdf_sample"
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit(
-            "Usage: python scripts/run_real_fixture_extraction.py <output_predicted_json>"
-        )
-
-    output_path = Path(sys.argv[1])
-
+    args = _arguments()
     settings = load_settings()
-
     if not settings.mistral_api_key:
         raise SystemExit(
             "ERROR: MISTRAL_API_KEY is not configured. Set it in .env to run real extraction."
@@ -50,43 +44,64 @@ def main() -> None:
 
     parser = build_parser_provider(settings)
     extractor = build_extractor_provider(settings)
+    dataset = _limited_dataset(
+        load_evaluation_dataset(args.dataset),
+        settings.benchmark_real_provider_max_documents,
+    )
+    run = run_dataset(
+        dataset,
+        parser,
+        extractor,
+        rate_limit_s=args.rate_limit_seconds,
+    )
+    predicted_records = [
+        {"document_id": result.document_id, **result.predicted_fields}
+        for result in run.results
+    ]
 
-    results: list[dict] = []
-    for doc in DOCUMENTS:
-        pdf_path = Path(doc["pdf_path"])
-        if not pdf_path.exists():
-            print(f"WARNING: {pdf_path} not found, skipping {doc['document_id']}")
-            continue
+    _write_json(args.output_predicted_json, predicted_records)
+    if args.report:
+        report = generate_json_report(run, records_from_dataset(dataset), verbose=True)
+        _write_json(args.report, report)
 
-        source = DocumentSource(
-            storage_key=doc["document_id"],
-            path=pdf_path,
-            original_filename=pdf_path.name,
-            content_type="application/pdf",
+    errors = [result for result in run.results if result.error]
+    print(
+        f"Processed {len(run.results)} document(s) from {dataset.name}; "
+        f"provider_errors={len(errors)}"
+    )
+    print(f"Predictions: {args.output_predicted_json}")
+    if args.report:
+        print(f"Report: {args.report}")
+
+
+def _arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run configured real providers on a safe dataset.")
+    parser.add_argument("output_predicted_json", type=Path)
+    parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
+    parser.add_argument("--report", type=Path)
+    parser.add_argument("--rate-limit-seconds", type=float, default=0.2)
+    return parser.parse_args()
+
+
+def _limited_dataset(dataset: EvaluationDataset, maximum: int) -> EvaluationDataset:
+    if maximum <= 0:
+        raise SystemExit("ERROR: BENCHMARK_REAL_PROVIDER_MAX_DOCUMENTS must be greater than zero.")
+    documents = dataset.documents[:maximum]
+    if len(documents) < len(dataset.documents):
+        print(
+            f"Safety limit: processing {len(documents)} of {len(dataset.documents)} documents. "
+            "Raise BENCHMARK_REAL_PROVIDER_MAX_DOCUMENTS explicitly to run more."
         )
-        parsed = parser.parse(source)
-        extraction = extractor.extract_invoice(parsed)
-        validation = validate_invoice(extraction.extraction.data)
+    return EvaluationDataset(
+        name=dataset.name,
+        documents=documents,
+        root_path=dataset.root_path,
+    )
 
-        d = extraction.extraction.data
-        record = {
-            "document_id": doc["document_id"],
-            "vendor_name": d.vendor_name,
-            "invoice_number": d.invoice_number,
-            "invoice_date": str(d.invoice_date) if d.invoice_date else None,
-            "due_date": str(d.due_date) if d.due_date else None,
-            "subtotal": str(d.subtotal) if d.subtotal else None,
-            "tax": str(d.tax) if d.tax else None,
-            "total": str(d.total) if d.total else None,
-            "currency": d.currency,
-        }
-        results.append(record)
 
-        print(f"Extracted {doc['document_id']}: validation_errors={len(validation.issues)}")
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
-    print(f"Written {len(results)} prediction(s) to {output_path}")
+def _write_json(path: Path, data: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

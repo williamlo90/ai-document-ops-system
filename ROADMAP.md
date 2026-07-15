@@ -83,7 +83,7 @@ Exit criteria:
 
 ## Phase 2: Real-Data Evaluation
 
-Status: Starts after Phase 1 succeeds.
+Status: In progress. A 20-document synthetic small golden set passed the first real-provider benchmark on 15 July 2026. Duplicate workflow behavior and in-app PDF preview remain open.
 
 Goal: test whether the workflow handles representative invoice variation, not just a controlled sample.
 
@@ -93,6 +93,15 @@ Work:
 2. Include normal and difficult cases: total mismatch, missing vendor/date, duplicate invoice, unsupported currency, low-confidence extraction, suspicious amount, approval required, and export blocked.
 3. Record observed extraction, validation, decision, retry, and failure outcomes.
 4. Confirm that the PDF preview is clear in the actual demo environment.
+
+Observed evidence:
+
+- 20 deterministic PDF fixtures cover happy paths, missing fields, validation failures, a duplicate pair, low contrast, rotation, and multiple pages
+- the first real-provider run exposed three hallucinated missing fields and only 17 of 20 fully matched documents
+- prompt anti-inference rules and deterministic vendor grounding removed those unsafe false positives
+- the final regression matched 160 of 160 evaluated fields and 20 of 20 expected validation behaviors with no provider error
+- average provider latency was 1.09 seconds per document on the final local run
+- these results are synthetic small-golden-set evidence, not production or customer accuracy
 
 Exit criteria:
 
