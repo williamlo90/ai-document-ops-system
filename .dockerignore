@@ -17,6 +17,7 @@ frontend/.vite/
 delegation/
 pembelajaran/assets/
 Implementation_plan/
+_private_data/
 *.sqlite3
 *.sqlite
 *.db

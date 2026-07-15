@@ -56,6 +56,7 @@ EXCLUDE_ANYWHERE = {
     "delegation",
     "dist",
     "_local_docs",
+    "_private_data",
     "node_modules",
     "playwright-report",
     "pivot",
@@ -128,6 +129,11 @@ def _fail_if_leaked(output: Path) -> None:
     leaked_uploads = [p for p in output.rglob("*") if "data" in p.parts and "uploads" in p.parts]
     if leaked_uploads:
         print("FAIL: Upload data found in output:", leaked_uploads)
+        sys.exit(1)
+
+    leaked_private_data = [p for p in output.rglob("*") if "_private_data" in p.parts]
+    if leaked_private_data:
+        print("FAIL: Private evaluation data found in output:", leaked_private_data)
         sys.exit(1)
 
 

@@ -20,6 +20,7 @@ frontend/coverage/
 docs/assets/demo/*.webm
 backups/
 _local_docs/
+/_private_data/
 outputs/*-rendered/
 outputs/*-screenshots/
 outputs/*.inspect.ndjson

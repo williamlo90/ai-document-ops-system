@@ -89,6 +89,21 @@ $env:BENCHMARK_REAL_PROVIDER_MAX_DOCUMENTS = "20"
 Real-provider results vary with network and provider changes. Compare the output with
 `docs/invoice-scenarios-v1-evidence.md` and report new failures rather than overwriting them.
 
+## Private External Evaluation
+
+Store licensed external invoices outside the repository, for example:
+
+```text
+C:\Users\William\Documents\Private Datasets\ai-document-ops-system\external_invoice_holdout_v1
+```
+
+Keep the raw PDFs, golden labels, OCR text, provider responses, and correction logs private. If a
+tool temporarily requires a repository-relative path, use `_private_data/`; Git, Docker, and the
+public-artifact packager exclude that directory.
+
+Only aggregate metrics, sanitized failure examples, dataset citations, and license attribution may
+be committed. Check `git status` and inspect the generated public artifact before every release.
+
 ## Quality Gates
 
 Backend:

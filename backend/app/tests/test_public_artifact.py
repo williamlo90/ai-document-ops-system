@@ -78,8 +78,12 @@ class PublicArtifactTests(unittest.TestCase):
     def test_excludes_local_only_planning_documents(self) -> None:
         result = self._run_script(self.output)
         self.assertEqual(result.returncode, 0, msg=result.stderr)
+        script_source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn('"_private_data"', script_source)
+        self.assertIn("Private evaluation data found in output", script_source)
         output = Path(self.output)
         self.assertFalse((output / "_local_docs").exists())
+        self.assertFalse((output / "_private_data").exists())
         self.assertFalse((output / "AGENTS.md").exists())
         self.assertFalse((output / "PORTFOLIO_STORY.md").exists())
         self.assertFalse((output / "AGENT_TOOL_CONTRACTS.md").exists())
