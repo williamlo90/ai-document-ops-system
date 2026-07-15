@@ -107,6 +107,97 @@ class DocumentServiceTests(unittest.TestCase):
         self.assertEqual(upload_result.job.status, ProcessingJobStatus.SUCCEEDED)
         self.assertTrue(self.extractions.get_for_document(document.id).validation_report.has_errors)
 
+    def test_duplicate_vendor_and_invoice_number_is_flagged_within_workspace(self) -> None:
+        processor = self._processing_service()
+        first = self._upload_service().upload_pdf(
+            "first.pdf",
+            "application/pdf",
+            [b"%PDF- first invoice"],
+            context=self.context,
+        )
+        second = self._upload_service().upload_pdf(
+            "second.pdf",
+            "application/pdf",
+            [b"%PDF- second invoice"],
+            context=self.context,
+        )
+
+        processor.process_job(first.job.id, context=self.context)
+        processor.process_job(second.job.id, context=self.context)
+
+        first_codes = {
+            issue.code
+            for issue in self.extractions.get_for_document(
+                first.document.id
+            ).validation_report.issues
+        }
+        second_codes = {
+            issue.code
+            for issue in self.extractions.get_for_document(
+                second.document.id
+            ).validation_report.issues
+        }
+        self.assertNotIn("duplicate_invoice", first_codes)
+        self.assertIn("duplicate_invoice", second_codes)
+
+    def test_duplicate_check_is_workspace_scoped(self) -> None:
+        processor = self._processing_service()
+        first_context = SecurityContext(
+            actor="first-admin",
+            is_admin=True,
+            workspace_id="first",
+        )
+        second_context = SecurityContext(
+            actor="second-admin",
+            is_admin=True,
+            workspace_id="second",
+        )
+        first = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- first workspace"],
+            context=first_context,
+        )
+        second = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- second workspace"],
+            context=second_context,
+        )
+
+        processor.process_job(first.job.id, context=first_context)
+        processor.process_job(second.job.id, context=second_context)
+
+        codes = {
+            issue.code
+            for issue in self.extractions.get_for_document(
+                second.document.id
+            ).validation_report.issues
+        }
+        self.assertNotIn("duplicate_invoice", codes)
+
+    def test_reprocessing_same_document_does_not_flag_itself_as_duplicate(self) -> None:
+        processor = self._processing_service()
+        uploaded = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        processor.process_job(uploaded.job.id, context=self.context)
+
+        processor.reprocess_document(uploaded.document.id, context=self.context)
+        retry_job = self.jobs.get_latest_for_document(uploaded.document.id)
+        processor.process_job(retry_job.id, context=self.context)
+
+        codes = {
+            issue.code
+            for issue in self.extractions.get_for_document(
+                uploaded.document.id
+            ).validation_report.issues
+        }
+        self.assertNotIn("duplicate_invoice", codes)
+
     def test_provider_error_fails_document_and_job_safely(self) -> None:
         upload_result = self._upload_service().upload_pdf(
             "invoice.pdf",

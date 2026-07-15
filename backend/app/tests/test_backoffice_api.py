@@ -56,7 +56,31 @@ class BackofficeApiTests(unittest.TestCase):
             payload["documents"][0]["supported_extraction_schema"],
             SCHEMA_VERSION,
         )
+        self.assertFalse(payload["documents"][0]["has_validation_errors"])
+        self.assertEqual(payload["documents"][0]["validation_error_count"], 0)
         self.assertIn("metrics", payload)
+
+    def test_workspace_summarizes_duplicate_validation_blocker(self) -> None:
+        document_ids: list[str] = []
+        for filename in ("original.pdf", "duplicate.pdf"):
+            upload = self.client.post(
+                "/documents/upload",
+                headers=HEADERS,
+                files={"file": (filename, b"%PDF-1.4\n%%EOF", "application/pdf")},
+            )
+            self.assertEqual(upload.status_code, 200)
+            document_id = upload.json()["document"]["id"]
+            process = self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+            self.assertEqual(process.status_code, 200)
+            document_ids.append(document_id)
+
+        workspace = self.client.get("/backoffice/workspace", headers=HEADERS).json()
+        documents = {document["id"]: document for document in workspace["documents"]}
+
+        self.assertFalse(documents[document_ids[0]]["has_validation_errors"])
+        self.assertTrue(documents[document_ids[1]]["has_validation_errors"])
+        self.assertEqual(documents[document_ids[1]]["validation_error_count"], 1)
+        self.assertEqual(documents[document_ids[1]]["validation_codes"], ["duplicate_invoice"])
 
     def test_create_plan_approve_and_execute_export_via_json_api(self) -> None:
         document_id = self._approved_document_id()

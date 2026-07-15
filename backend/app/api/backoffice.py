@@ -20,6 +20,7 @@ from app.backoffice.models import (
 from app.backoffice.evidence import planning_input_from_evidence
 from app.backoffice.services import BackofficeWorkflowError
 from app.core.security import SecurityContext
+from app.documents.models import DocumentRecord
 from app.documents.repositories import NotFoundError
 from app.extraction.schemas import SCHEMA_VERSION
 
@@ -70,17 +71,7 @@ def backoffice_workspace(
         "workspace_id": context.workspace_id,
         "work_items": [_work_item_summary(item) for item in work_items],
         "pending_approvals": [_approval_response(item) for item in pending],
-        "documents": [
-            {
-                "id": str(document.id),
-                "filename": document.original_filename,
-                "status": document.status.value,
-                "document_type": SUPPORTED_DOCUMENT_TYPE,
-                "supported_extraction_schema": SCHEMA_VERSION,
-                "created_at": document.created_at.isoformat(),
-            }
-            for document in documents
-        ],
+        "documents": [_workspace_document_summary(container, document) for document in documents],
         "metrics": {
             "work_items": len(work_items),
             "pending_approvals": len(pending),
@@ -97,6 +88,30 @@ def backoffice_workspace(
                 for item in work_items
             ),
         },
+    }
+
+
+def _workspace_document_summary(
+    container: AppContainer, document: DocumentRecord
+) -> dict[str, object]:
+    try:
+        stored = container.extractions.get_for_document(document.id)
+    except NotFoundError:
+        issues = ()
+    else:
+        issues = stored.validation_report.issues
+    error_issues = tuple(issue for issue in issues if issue.severity.value == "error")
+    return {
+        "id": str(document.id),
+        "filename": document.original_filename,
+        "status": document.status.value,
+        "document_type": SUPPORTED_DOCUMENT_TYPE,
+        "supported_extraction_schema": SCHEMA_VERSION,
+        "created_at": document.created_at.isoformat(),
+        "validation_issue_count": len(issues),
+        "validation_error_count": len(error_issues),
+        "has_validation_errors": bool(error_issues),
+        "validation_codes": sorted({issue.code for issue in error_issues}),
     }
 
 

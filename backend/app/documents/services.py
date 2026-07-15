@@ -26,7 +26,7 @@ from app.documents.status import DocumentStatus, InvalidStatusTransition
 from app.documents.workflow import DocumentWorkflowService
 from app.providers.contracts import DocumentSource, ExtractorProvider, ParserProvider, ProviderError
 from app.providers.storage import DocumentStorage
-from app.validation.invoice import validate_invoice
+from app.validation.document import validate_document_invoice
 
 
 @dataclass(frozen=True)
@@ -238,7 +238,12 @@ class DocumentProcessingService:
             if not parsed.text.strip():
                 raise ProviderError("empty_document_text", provider_name=self.parser.provider_name)
             result = self.extractor.extract_invoice(parsed)
-            report = validate_invoice(result.extraction.data)
+            report = validate_document_invoice(
+                result.extraction.data,
+                document,
+                self.documents,
+                self.extractions,
+            )
             self.extractions.save(document.id, result, report)
             self.audits.add(
                 self.workflow.transition(document, DocumentStatus.EXTRACTED, actor=context.actor)

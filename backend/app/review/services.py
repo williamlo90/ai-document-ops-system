@@ -16,7 +16,7 @@ from app.documents.status import DocumentStatus, InvalidStatusTransition
 from app.documents.workflow import DocumentWorkflowService
 from app.extraction.schemas import InvoiceData, InvoiceExtraction
 from app.providers.contracts import ExtractionResult
-from app.validation.invoice import validate_invoice
+from app.validation.document import validate_document_invoice
 
 
 class ReviewService:
@@ -63,7 +63,13 @@ class ReviewService:
                 provider_name=stored.extraction_result.provider_name,
                 provider_trace_id=stored.extraction_result.provider_trace_id,
             )
-            self.extractions.save(document_id, updated_result, validate_invoice(corrected_data))
+            report = validate_document_invoice(
+                corrected_data,
+                document,
+                self.documents,
+                self.extractions,
+            )
+            self.extractions.save(document_id, updated_result, report)
             self.audits.add(
                 AuditEvent(
                     document_id=document_id,
@@ -97,6 +103,9 @@ class ReviewService:
         self._require_workspace(document, context)
         if document.status != DocumentStatus.NEEDS_REVIEW:
             raise InvalidStatusTransition("Can only approve needs_review documents through review")
+        stored = self.extractions.get_for_document(document_id)
+        if stored.validation_report.has_errors:
+            raise InvalidStatusTransition("Resolve invoice issues before approving")
         task = self._get_or_create_task(document_id)
         self.audits.add(self.workflow.transition(document, DocumentStatus.APPROVED, context.actor))
         self.documents.add(document)

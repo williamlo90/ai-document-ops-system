@@ -25,6 +25,16 @@ The initial run incorrectly filled three intentionally missing fields: vendor, i
 
 The guard is intentionally conservative. A vendor name must appear with a seller label or nearby business identity/address evidence. Ambiguous headers become `null`, which forces human correction instead of silently treating a guessed company as the vendor.
 
+## Workflow Verification
+
+The duplicate pair was also processed through the local application with the real providers:
+
+- `duplicate_original.pdf` stopped at `needs_review` with no validation error.
+- `duplicate_copy.pdf` stopped at `needs_review` with `duplicate_invoice`.
+- The reviewer queue separated the pair into one `Waiting decision` item and one `Needs correction` item.
+- The duplicate review screen showed the source PDF and validation reason, disabled approval, and kept correction and rejection available.
+- The backend independently rejects approval while any error-level validation issue remains unresolved.
+
 ## Reproduce
 
 Configure credentials in the ignored local `.env`, then run:
@@ -49,5 +59,5 @@ python -m unittest discover -s backend/app/tests -t backend
 - This is a synthetic `small_golden_set`, not customer validation or a statistically representative benchmark.
 - A perfect final run on these 20 controlled fixtures is not a production accuracy claim.
 - Latency is one local observation and varies with network and provider conditions.
-- The duplicate pair records duplicate business identity, but duplicate workflow handling must be verified separately.
-- Approval gating and export blocking are covered by workflow tests and the Phase 1 end-to-end smoke flow, not by field accuracy alone.
+- Duplicate workflow behavior is one deterministic local observation, not a measured false-positive or false-negative rate.
+- Approval gating and export blocking are covered by workflow tests and provider-backed smoke flows, not by field accuracy alone.

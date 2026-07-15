@@ -16,7 +16,7 @@ The product goal is not unrestricted automation. It is to make invoice review fa
 
 ## Current Baseline
 
-Status: Complete for local demo and simulated-provider validation.
+Status: Complete for the local demo, real-provider integration, and representative synthetic evaluation.
 
 Delivered:
 
@@ -29,8 +29,8 @@ Delivered:
 
 Latest verified baseline:
 
-- backend suite: 355 tests passed, 2 skipped
-- frontend suite: 9 tests passed
+- backend suite: 368 tests passed, 2 skipped
+- frontend suite: 10 tests passed
 - frontend lint and production build: passed
 - backend Ruff check: passed
 
@@ -81,9 +81,9 @@ Exit criteria:
 - real authentication failures are observed; transient failure and retry behavior is covered by deterministic adapter and job-lifecycle tests
 - no credential or real invoice data is committed to the repository
 
-## Phase 2: Real-Data Evaluation
+## Phase 2: Representative Scenario Evaluation
 
-Status: In progress. A 20-document synthetic small golden set passed the first real-provider benchmark on 15 July 2026. Duplicate workflow behavior and in-app PDF preview remain open.
+Status: Complete on 15 July 2026 for the versioned synthetic small golden set and provider-backed application workflow. External or customer data validation remains future evidence, not a current claim.
 
 Goal: test whether the workflow handles representative invoice variation, not just a controlled sample.
 
@@ -101,6 +101,10 @@ Observed evidence:
 - prompt anti-inference rules and deterministic vendor grounding removed those unsafe false positives
 - the final regression matched 160 of 160 evaluated fields and 20 of 20 expected validation behaviors with no provider error
 - average provider latency was 1.09 seconds per document on the final local run
+- the duplicate pair was processed through the application; the second invoice received `duplicate_invoice` while the first remained clear
+- the reviewer queue separated clean decisions from correction-required invoices and displayed the duplicate reason in plain language
+- both the browser UI and backend block approval while error-level validation issues remain unresolved
+- the in-app PDF preview rendered the tested invoice in the uploader and reviewer workflow
 - these results are synthetic small-golden-set evidence, not production or customer accuracy
 
 Exit criteria:

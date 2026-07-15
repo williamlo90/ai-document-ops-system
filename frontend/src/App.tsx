@@ -42,7 +42,7 @@ import { ReviewerDecisionPanel } from './components/ReviewerDecisionPanel'
 import { useEffect, useState } from 'react'
 
 type Metrics = { work_items: number; pending_approvals: number; drafts: number; policy_decisions: number }
-type DocumentSummary = { id: string; filename: string; status: string; created_at: string; document_type?: string; supported_extraction_schema?: string; vendor_name?: string | null; total?: string | null; currency?: string | null }
+type DocumentSummary = { id: string; filename: string; status: string; created_at: string; document_type?: string; supported_extraction_schema?: string; vendor_name?: string | null; total?: string | null; currency?: string | null; validation_issue_count?: number; validation_error_count?: number; has_validation_errors?: boolean; validation_codes?: string[] }
 type WorkItemSummary = {
   id: string
   title: string
@@ -1638,6 +1638,7 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
   const signals = exceptionSignals(item, extraction)
   const evidence = extraction?.confidence ?? []
   const validation = extraction?.validation ?? []
+  const hasBlockers = validation.some((issue) => !issue.severity || issue.severity === 'error')
 
   return (
     <div className="decision-page">
@@ -1663,9 +1664,9 @@ function ApprovalTab({ item, document, extraction }: { item: WorkItemDetail; doc
         <PanelTitle title="Make Decision" />
         {pending ? <>
           <label className="decision-notes"><span>Decision note</span><textarea value={notes} placeholder="What did you check?" onChange={(event) => setNotes(event.target.value)} /></label>
-          <p className="decision-guidance"><FileClock size={14} /> Approve only when the invoice details match the PDF. Ask for correction when vendor, amount, tax, or invoice number is missing or wrong.</p>
+          <p className="decision-guidance">{hasBlockers ? <AlertTriangle size={14} /> : <FileClock size={14} />} {hasBlockers ? 'Resolve the invoice issues or ask for correction before approval.' : 'Approve only when the invoice details match the PDF.'}</p>
           <div className="decision-choice-grid">
-            <button className="approve-action" disabled={decision.isPending || correction.isPending} onClick={() => decision.mutate('approve')}><CheckCircle2 size={15} /> Approve invoice</button>
+            <button className="approve-action" disabled={hasBlockers || decision.isPending || correction.isPending} title={hasBlockers ? 'Resolve invoice issues before approving' : undefined} onClick={() => decision.mutate('approve')}><CheckCircle2 size={15} /> Approve invoice</button>
             <button className="reject-action" disabled={decision.isPending || correction.isPending} onClick={() => decision.mutate('reject')}><X size={15} /> Reject</button>
             <button className="outline-button" disabled={!document || decision.isPending || correction.isPending} onClick={() => correction.mutate()}><Pencil size={15} /> Ask for correction</button>
           </div>
@@ -1768,12 +1769,14 @@ function linkedDocumentForItem(item: WorkItemSummary, documents: DocumentSummary
 }
 function itemBusinessStatus(item: WorkItemSummary, documents: DocumentSummary[]) {
   const document = linkedDocumentForItem(item, documents)
+  if (document?.status === 'needs_review' && document.has_validation_errors) return 'blocked'
   if (document && ['approved', 'rejected', 'exported', 'failed', 'cancelled', 'needs_review'].includes(document.status)) return document.status
   return item.status
 }
 function isReviewerActionable(item: WorkItemSummary, documents: DocumentSummary[]) {
   const document = linkedDocumentForItem(item, documents)
-  return document?.status === 'needs_review' || ['awaiting_human', 'blocked', 'failed'].includes(item.status)
+  if (document?.status === 'needs_review') return !document.has_validation_errors
+  return !document?.has_validation_errors && item.status === 'awaiting_human'
 }
 function queueVendor(item: WorkItemSummary, document?: DocumentSummary) {
   const context = item.business_context
@@ -1878,7 +1881,7 @@ function matchesFilter(item: WorkItemSummary, filter: QueueFilter, documents: Do
 function matchesExceptionFilter(item: WorkItemSummary, filter: ExceptionFilter, documents: DocumentSummary[]) {
   if (filter === 'all') return true
   if (filter === 'missing_information') return ['vendor_follow_up', 'insufficient_evidence'].includes(item.work_type ?? '')
-  if (filter === 'validation_failure') return item.linked_document_ids.some((id) => documents.find((document) => document.id === id)?.status === 'needs_review')
+  if (filter === 'validation_failure') return item.linked_document_ids.some((id) => documents.find((document) => document.id === id)?.has_validation_errors)
   if (filter === 'waiting_approval') return item.status === 'awaiting_human'
   if (filter === 'blocked') return item.status === 'blocked'
   return item.status === 'failed'
@@ -1954,6 +1957,11 @@ function invoiceTitle(workType: string, fields: Record<string, string>) {
   return `Invoice Review - ${vendor}`
 }
 function attentionReason(item: WorkItemSummary, documents: DocumentSummary[] = []) {
+  const document = linkedDocumentForItem(item, documents)
+  if (document?.has_validation_errors) {
+    if (document.validation_codes?.includes('duplicate_invoice')) return 'Possible duplicate invoice'
+    return `${document.validation_error_count ?? 1} invoice issue${document.validation_error_count === 1 ? '' : 's'} must be corrected`
+  }
   const status = itemBusinessStatus(item, documents)
   if (status === 'needs_review') return 'Waiting for reviewer decision'
   if (status === 'approved') return 'Approved by reviewer'

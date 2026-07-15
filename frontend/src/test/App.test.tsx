@@ -31,6 +31,13 @@ const needsReviewDocument = {
   ...linkedDocument,
   status: 'needs_review',
 }
+const needsCorrectionDocument = {
+  ...needsReviewDocument,
+  validation_issue_count: 1,
+  validation_error_count: 1,
+  has_validation_errors: true,
+  validation_codes: ['duplicate_invoice'],
+}
 const workItem = {
   id: 'item-1',
   title: 'Review ACME invoice',
@@ -66,6 +73,10 @@ const workspaceWithNeedsReviewDocument = {
   ...workspaceWithLinkedDocument,
   work_items: [{ ...workItem, status: 'planning' }],
   documents: [needsReviewDocument],
+}
+const workspaceWithNeedsCorrectionDocument = {
+  ...workspaceWithNeedsReviewDocument,
+  documents: [needsCorrectionDocument],
 }
 const invoiceListWithReviewItem = {
   items: [{
@@ -293,6 +304,29 @@ describe('application shell', () => {
     expect(await screen.findByText(/Waiting decision \(1\)/i)).toBeInTheDocument()
     expect(screen.getByText(/Needs review/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /review invoice/i })).toBeInTheDocument()
+  })
+
+  it('separates invoices with validation blockers from waiting decisions', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem('docops-role', 'administrator')
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/backoffice/workspace') return json(workspaceWithNeedsCorrectionDocument)
+      if (path === '/invoices?page=1&page_size=100') return json(invoiceListWithReviewItem)
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
+      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: /approvals/i }))
+
+    expect(await screen.findByText(/Waiting decision \(0\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/Needs correction \(1\)/i)).toBeInTheDocument()
+    await user.click(screen.getByText(/Needs correction \(1\)/i))
+    expect(await screen.findByText(/Possible duplicate invoice/i)).toBeInTheDocument()
   })
 
   it('shows actionable secure session errors without raw implementation detail', async () => {

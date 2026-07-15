@@ -38,6 +38,7 @@ class ReviewAndExportTests(unittest.TestCase):
         self.reviews = InMemoryReviewTaskRepository()
         self.workflow = DocumentWorkflowService()
         self.context = SecurityContext(actor="tester", is_admin=True)
+        self.invoice_sequence = 0
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -101,6 +102,47 @@ class ReviewAndExportTests(unittest.TestCase):
             "document_rejected",
         )
 
+    def test_cannot_approve_invoice_with_unresolved_validation_errors(self) -> None:
+        document = self._process_invoice(
+            InvoiceData(
+                vendor_name="Acme",
+                invoice_number="INV-BLOCKED",
+                invoice_date=date(2026, 6, 18),
+                total=Decimal("0"),
+            )
+        )
+
+        with self.assertRaisesRegex(InvalidStatusTransition, "Resolve invoice issues"):
+            self._review_service().approve(document.id, context=self.context)
+
+        self.assertEqual(document.status, DocumentStatus.NEEDS_REVIEW)
+
+    def test_duplicate_issue_survives_review_save_until_identity_changes(self) -> None:
+        duplicate = InvoiceData(
+            vendor_name="Acme",
+            invoice_number="INV-DUPLICATE",
+            invoice_date=date(2026, 6, 18),
+            total=Decimal("25.00"),
+        )
+        self._process_invoice(duplicate)
+        second = self._process_invoice(duplicate)
+        service = self._review_service()
+
+        service.save_review(
+            second.id,
+            notes="Checked but still duplicated",
+            context=self.context,
+            corrected_data=duplicate,
+        )
+
+        codes = {
+            issue.code
+            for issue in self.extractions.get_for_document(second.id).validation_report.issues
+        }
+        self.assertIn("duplicate_invoice", codes)
+        with self.assertRaisesRegex(InvalidStatusTransition, "Resolve invoice issues"):
+            service.approve(second.id, context=self.context)
+
     def test_cannot_approve_non_reviewable_document(self) -> None:
         upload = DocumentUploadService(
             self.storage,
@@ -125,7 +167,7 @@ class ReviewAndExportTests(unittest.TestCase):
                 vendor_name="Acme",
                 invoice_number="INV-MUTATION",
                 invoice_date=date(2026, 6, 18),
-                total=Decimal("0"),
+                total=Decimal("25.00"),
             )
         )
         service = self._review_service()
@@ -430,6 +472,18 @@ class ReviewAndExportTests(unittest.TestCase):
         context: SecurityContext | None = None,
     ):
         context = context or self.context
+        if invoice_data is None:
+            self.invoice_sequence += 1
+            invoice_data = InvoiceData(
+                vendor_name="Acme Logistics",
+                invoice_number=f"INV-{self.invoice_sequence:03d}",
+                invoice_date=date(2026, 6, 18),
+                due_date=date(2026, 7, 18),
+                subtotal=Decimal("100.00"),
+                tax=Decimal("10.00"),
+                total=Decimal("110.00"),
+                currency="USD",
+            )
         upload = DocumentUploadService(
             self.storage,
             self.documents,
