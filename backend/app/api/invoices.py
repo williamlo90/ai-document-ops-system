@@ -27,10 +27,11 @@ from app.backoffice.workflow_projection import project_workflow
 from app.core.security import SecurityContext
 from app.core.security import is_intake_role
 from app.documents.models import AuditEvent
+from app.documents.repositories import StoredExtraction
 from app.documents.status import DocumentStatus
 from app.extraction.schemas import InvoiceData, InvoiceExtraction, InvoiceLineItem
 from app.providers.contracts import ExtractionResult
-from app.validation.invoice import validate_invoice
+from app.validation.document import validate_document_invoice
 
 
 router = APIRouter(prefix="/invoices", tags=["invoice-workflow"])
@@ -68,14 +69,17 @@ def list_invoices(
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     documents = container.documents.list_by_workspace(context.workspace_id)
+    extractions = {
+        document.id: extraction_or_none(container, document.id) for document in documents
+    }
     needle = search.strip().casefold()
     normalized_status = status_filter.strip().casefold()
     normalized_submitter = submitted_by.strip().casefold()
     filtered = [
         document
         for document in documents
-        if (not needle or needle in document.original_filename.casefold())
-        and (not normalized_status or document.status.value == normalized_status)
+        if _matches_invoice_search(document.original_filename, extractions[document.id], needle)
+        and _matches_invoice_status(document.status, extractions[document.id], normalized_status)
         and (not normalized_submitter or document.submitted_by.casefold() == normalized_submitter)
         and (not is_intake_role(context) or document.submitted_by == context.user_id)
         and (created_from is None or document.created_at.date() >= created_from)
@@ -88,7 +92,9 @@ def list_invoices(
     for document in filtered[start : start + page_size]:
         work_item = current_work_item(container, context, document.id)
         projection = project_workflow(document, work_item, container.backoffice_approvals)
-        extraction = extraction_or_none(container, document.id)
+        extraction = extractions[document.id]
+        issues = extraction.validation_report.issues if extraction else ()
+        error_issues = tuple(issue for issue in issues if issue.severity.value == "error")
         response = document_response(document)
         response.update(
             {
@@ -105,6 +111,13 @@ def list_invoices(
                 ),
                 "current_owner": projection.current_owner,
                 "current_stage": projection.current_stage,
+                "business_status": _invoice_business_status(
+                    document.status, bool(error_issues)
+                ),
+                "validation_issue_count": len(issues),
+                "validation_error_count": len(error_issues),
+                "has_validation_errors": bool(error_issues),
+                "validation_codes": sorted({issue.code for issue in error_issues}),
                 "work_item_id": str(work_item.id) if work_item else None,
             }
         )
@@ -135,7 +148,11 @@ def save_intake_draft(
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     document = document_for_context(container, context, document_id)
-    if document.status in {DocumentStatus.REJECTED, DocumentStatus.EXPORTED}:
+    if document.status in {
+        DocumentStatus.APPROVED,
+        DocumentStatus.REJECTED,
+        DocumentStatus.EXPORTED,
+    }:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Finalized invoices cannot be edited.",
@@ -174,7 +191,16 @@ def save_intake_draft(
         provider_name=stored.extraction_result.provider_name,
         provider_trace_id=stored.extraction_result.provider_trace_id,
     )
-    saved = container.extractions.save(document_id, updated, validate_invoice(data))
+    saved = container.extractions.save(
+        document_id,
+        updated,
+        validate_document_invoice(
+            data,
+            document,
+            container.documents,
+            container.extractions,
+        ),
+    )
     container.audits.add(
         AuditEvent(
             document_id=document_id,
@@ -186,6 +212,45 @@ def save_intake_draft(
         )
     )
     return {"extraction": extraction_response(saved)}
+
+
+def _matches_invoice_search(
+    filename: str,
+    extraction: StoredExtraction | None,
+    needle: str,
+) -> bool:
+    if not needle:
+        return True
+    data = extraction.extraction_result.extraction.data if extraction else None
+    searchable = " ".join(
+        value
+        for value in (
+            filename,
+            data.vendor_name if data else None,
+            data.invoice_number if data else None,
+        )
+        if value
+    ).casefold()
+    return needle in searchable
+
+
+def _matches_invoice_status(
+    status_value: DocumentStatus,
+    extraction: StoredExtraction | None,
+    expected: str,
+) -> bool:
+    if not expected:
+        return True
+    has_errors = bool(extraction and extraction.validation_report.has_errors)
+    return _invoice_business_status(status_value, has_errors) == expected
+
+
+def _invoice_business_status(status_value: DocumentStatus, has_errors: bool) -> str:
+    if status_value == DocumentStatus.FAILED:
+        return "needs_correction"
+    if status_value == DocumentStatus.NEEDS_REVIEW and has_errors:
+        return "needs_correction"
+    return status_value.value
 
 
 @router.post("/{document_id}/retry")

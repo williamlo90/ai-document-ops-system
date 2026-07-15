@@ -131,7 +131,7 @@ type Extraction = {
   validation?: Array<{ field?: string; field_name?: string; message?: string; severity?: string }>
 }
 type ApiDocument = { id: string; original_filename: string; status: string; created_at: string; updated_at?: string; error_message?: string | null; submitted_by?: string; size_bytes?: number; document_type?: string; supported_extraction_schema?: string }
-type InvoiceListItem = ApiDocument & { vendor_name?: string | null; total?: string | null; currency?: string | null; current_stage: string; work_item_id?: string | null }
+type InvoiceListItem = ApiDocument & { vendor_name?: string | null; total?: string | null; currency?: string | null; current_stage: string; business_status?: string; validation_issue_count?: number; validation_error_count?: number; has_validation_errors?: boolean; validation_codes?: string[]; work_item_id?: string | null }
 type InvoiceList = { items: InvoiceListItem[]; page: number; page_size: number; total: number; total_pages: number }
 type DocumentDetail = { document: ApiDocument; extraction: Extraction | null; audit_events: Array<{ id?: string; event_type?: string; created_at?: string; payload_summary?: string }> }
 type WorkflowActivity = { id: string; event_type: string; actor: string; summary: string; source: string; document_id?: string | null; work_item_id?: string | null; agent_run_id?: string | null; created_at: string }
@@ -727,7 +727,7 @@ function IntakeLibrary({ view }: { view: IntakeView }) {
         <label className="date-filter"><span>To</span><input aria-label="Submitted to" type="date" value={createdTo} min={createdFrom || undefined} onChange={(event) => { setCreatedTo(event.target.value); setPage(1) }} /></label>
         <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1) }}>
           <option value="">All statuses</option>
-          {['queued','processing','needs_review','awaiting_human','approved','rejected','failed','cancelled','exported'].map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
+          {['queued','processing','needs_review','needs_correction','approved','rejected','cancelled','exported'].map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
         </select>
         {(search || statusFilter || createdFrom || createdTo) ? <button className="outline-button" onClick={resetFilters}><X size={14} /> Clear</button> : null}
       </div>
@@ -747,8 +747,8 @@ function IntakeLibrary({ view }: { view: IntakeView }) {
               <span>Submitted<strong>{formatDate(doc.created_at)}</strong></span>
             </div>
             <div className="invoice-review-status">
-              <Status value={doc.status} />
-              <small>{invoiceDisplayStage(doc)}</small>
+              <Status value={invoiceBusinessStatus(doc)} />
+              <small>{invoiceStatusNote(doc)}</small>
             </div>
             <span className="primary-button">View status</span>
           </button>
@@ -776,7 +776,7 @@ function InvoiceStatusPanel({ documentId, close, refresh }: { documentId: string
       <aside className="invoice-status-panel">
         <header><div><span>INVOICE</span><h2>{data?.document.original_filename ?? 'Loading invoice...'}</h2></div><button className="icon-button" aria-label="Close" onClick={close}><X size={18} /></button></header>
         {workflow.isLoading ? <LoadingState /> : data ? <>
-          <section className="invoice-status-summary"><Status value={data.document.status} /><div><strong>{invoiceDisplayStage({ status: data.document.status, current_stage: data.current_stage })}</strong><p>{invoiceStatusMessage(data.document.status)}</p></div></section>
+          <section className="invoice-status-summary"><Status value={invoiceDetailBusinessStatus(data)} /><div><strong>{invoiceDisplayStage({ status: data.document.status, current_stage: data.current_stage, has_validation_errors: invoiceDetailHasErrors(data) })}</strong><p>{invoiceDetailHasErrors(data) ? 'This invoice has issues that must be corrected before approval.' : invoiceStatusMessage(data.document.status)}</p></div></section>
           <PdfPreview url={pdfUrl} filename={data.document.original_filename} />
           {foundFields.length ? <section className="status-extraction"><h3>Invoice details</h3><div>{foundFields.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div></section> : <section className="invoice-details-empty"><FileClock size={16} /><span>Invoice details will appear here after reading is complete.</span></section>}
           {data.extraction?.validation?.length ? <section className="status-checks"><h3>Things to check</h3><div className="validation-list">{data.extraction.validation.map((issue, index) => <p key={index}><AlertTriangle size={14} /><span>{issue.message}</span></p>)}</div></section> : null}
@@ -862,7 +862,7 @@ function QueuePage({ workspace, loading, openItem, exceptionMode = false, initia
   return (
     <main className="queue-page">
       <section className="page-heading">
-        <div><h2>{exceptionMode ? 'Needs Review' : 'Approvals'}</h2><p>{exceptionMode ? 'Invoices that need review, correction, approval, or recovery.' : 'Review invoices that are waiting for approve, reject, or correction decisions.'}</p></div>
+        <div><h2>{exceptionMode ? 'Needs Review' : 'Approvals'}</h2><p>{exceptionMode ? 'Invoices that need review, correction, approval, or recovery.' : 'Review invoices that are waiting for approval, rejection, or correction.'}</p></div>
         <div className="queue-tools">
           <label className="search-box"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoices..." /></label>
         </div>
@@ -1580,9 +1580,9 @@ function DocumentsPage({ workspace, loading, openItem }: { workspace?: Workspace
             <div>
               <strong>{doc.vendor_name || doc.original_filename}</strong>
               <span>{doc.original_filename} - {formatDate(doc.created_at)}</span>
-              <small>{invoiceDisplayStage(doc)}</small>
+              <small>{invoiceStatusNote(doc)}</small>
             </div>
-            <Status value={doc.status} />
+            <Status value={invoiceBusinessStatus(doc)} />
             <ChevronRight size={16} />
           </button>
         )) : <EmptyState title="No invoices yet" body="Upload an invoice first." />}
@@ -1818,9 +1818,36 @@ function invoiceStageCopy(value: string) {
   }
   return labels[value] ?? statusLabel(value)
 }
-function invoiceDisplayStage(document: Pick<InvoiceListItem, 'status' | 'current_stage'>) {
+function invoiceDisplayStage(document: Pick<InvoiceListItem, 'status' | 'current_stage' | 'business_status' | 'has_validation_errors'>) {
+  if (document.has_validation_errors) return 'Needs correction'
+  if (document.business_status) return invoiceStageCopy(document.business_status)
   const businessStatuses = ['approved', 'rejected', 'exported', 'failed', 'cancelled', 'needs_review']
   return invoiceStageCopy(businessStatuses.includes(document.status) ? document.status : document.current_stage)
+}
+function invoiceBusinessStatus(document: Pick<InvoiceListItem, 'status' | 'business_status' | 'has_validation_errors'>) {
+  if (document.has_validation_errors) return 'needs_correction'
+  return document.business_status ?? document.status
+}
+function invoiceStatusNote(document: InvoiceListItem) {
+  if (document.validation_codes?.includes('duplicate_invoice')) return 'Possible duplicate invoice'
+  if (document.has_validation_errors) return `${document.validation_error_count ?? 1} issue${document.validation_error_count === 1 ? '' : 's'} must be corrected`
+  const status = invoiceBusinessStatus(document)
+  const notes: Record<string, string> = {
+    queued: 'Waiting for the system to read it',
+    processing: 'The system is reading it now',
+    needs_review: 'Waiting for reviewer decision',
+    approved: 'Reviewer approved this invoice',
+    rejected: 'Reviewer rejected this invoice',
+    cancelled: 'Upload was cancelled',
+    exported: 'Approved invoice was exported',
+  }
+  return notes[status] ?? invoiceDisplayStage(document)
+}
+function invoiceDetailHasErrors(document: DocumentWorkflow) {
+  return document.extraction?.validation?.some((issue) => !issue.severity || issue.severity === 'error') ?? false
+}
+function invoiceDetailBusinessStatus(document: DocumentWorkflow) {
+  return invoiceDetailHasErrors(document) ? 'needs_correction' : document.document.status
 }
 function invoiceStatusMessage(status: string) {
   const messages: Record<string, string> = {
@@ -2022,7 +2049,7 @@ function humanize(value: string) {
 }
 function statusLabel(value: string) {
   const labels: Record<string, string> = {
-    queued: 'Reading invoice',
+    queued: 'Waiting to be read',
     processing: 'Reading invoice',
     extracted: 'Needs review',
     needs_review: 'Needs review',
@@ -2037,6 +2064,7 @@ function statusLabel(value: string) {
     completed: 'Completed',
     blocked: 'Needs correction',
     failed: 'Needs correction',
+    needs_correction: 'Needs correction',
     draft: 'Draft',
     drafted: 'Draft',
     pending: 'Waiting approval',

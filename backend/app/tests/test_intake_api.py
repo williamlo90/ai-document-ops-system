@@ -98,6 +98,32 @@ class IntakeApiTests(unittest.TestCase):
         self.assertEqual(dated.json()["total"], 3)
         self.assertEqual(future.json()["total"], 0)
 
+    def test_invoice_list_searches_extracted_fields_and_surfaces_correction_status(self) -> None:
+        headers = {"X-Admin-Token": TOKEN, "X-User-Id": "William Lo"}
+        document_ids: list[str] = []
+        for filename in ("first.pdf", "copy.pdf"):
+            upload = self.client.post(
+                "/documents/upload",
+                headers=headers,
+                files={"file": (filename, PDF, "application/pdf")},
+            )
+            document_id = upload.json()["document"]["id"]
+            self.client.post(f"/documents/{document_id}/process", headers=headers)
+            document_ids.append(document_id)
+
+        vendor_search = self.client.get("/invoices?search=acme%20logistics", headers=headers)
+        number_search = self.client.get("/invoices?search=inv-001", headers=headers)
+        correction_filter = self.client.get("/invoices?status=needs_correction", headers=headers)
+
+        self.assertEqual(vendor_search.json()["total"], 2)
+        self.assertEqual(number_search.json()["total"], 2)
+        self.assertEqual(correction_filter.json()["total"], 1)
+        item = correction_filter.json()["items"][0]
+        self.assertEqual(item["id"], document_ids[1])
+        self.assertEqual(item["business_status"], "needs_correction")
+        self.assertTrue(item["has_validation_errors"])
+        self.assertEqual(item["validation_codes"], ["duplicate_invoice"])
+
     def test_uploader_role_can_only_work_with_own_invoices(self) -> None:
         base = {"X-Admin-Token": TOKEN, "X-Workspace-Id": "alpha"}
         william_headers = {
@@ -203,6 +229,52 @@ class IntakeApiTests(unittest.TestCase):
             "intake_draft_saved",
             [event["event_type"] for event in detail["audit_events"]],
         )
+
+    def test_intake_draft_preserves_duplicate_validation_and_cannot_edit_approved_invoice(
+        self,
+    ) -> None:
+        headers = {"X-Admin-Token": TOKEN, "X-User-Id": "William Lo"}
+        document_ids: list[str] = []
+        for filename in ("original.pdf", "copy.pdf"):
+            upload = self.client.post(
+                "/documents/upload",
+                headers=headers,
+                files={"file": (filename, PDF, "application/pdf")},
+            )
+            document_id = upload.json()["document"]["id"]
+            self.client.post(f"/documents/{document_id}/process", headers=headers)
+            document_ids.append(document_id)
+
+        duplicate_payload = {
+            "vendor_name": "Acme Logistics",
+            "invoice_number": "INV-001",
+            "invoice_date": "2026-06-18",
+            "due_date": "2026-07-18",
+            "subtotal": "100.00",
+            "tax": "10.00",
+            "total": "110.00",
+            "currency": "USD",
+        }
+        saved = self.client.post(
+            f"/invoices/{document_ids[1]}/draft",
+            headers=headers,
+            json=duplicate_payload,
+        )
+        approved = self.client.post(f"/review/{document_ids[0]}/approve", headers=headers)
+        edit_after_approval = self.client.post(
+            f"/invoices/{document_ids[0]}/draft",
+            headers=headers,
+            json={**duplicate_payload, "invoice_number": "CHANGED-AFTER-APPROVAL"},
+        )
+
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(
+            [issue["code"] for issue in saved.json()["extraction"]["validation"]],
+            ["duplicate_invoice"],
+        )
+        self.assertEqual(approved.status_code, 200)
+        self.assertEqual(edit_after_approval.status_code, 409)
+        self.assertEqual(edit_after_approval.json()["detail"], "Finalized invoices cannot be edited.")
 
     def test_cancel_stops_queued_job_and_reprocess_creates_recovery_job(self) -> None:
         headers = {"X-Admin-Token": TOKEN, "X-User-Id": "William Lo"}

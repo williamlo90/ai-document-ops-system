@@ -29,8 +29,8 @@ Delivered:
 
 Latest verified baseline:
 
-- backend suite: 368 tests passed, 2 skipped
-- frontend suite: 10 tests passed
+- backend suite: 370 tests passed, 2 skipped
+- frontend suite: 11 tests passed
 - frontend lint and production build: passed
 - backend Ruff check: passed
 
@@ -115,7 +115,7 @@ Exit criteria:
 
 ## Phase 3: Market Proof And Recruiter Readiness
 
-Status: Starts after Phase 2, before public portfolio release.
+Status: In progress from 15 July 2026. Workflow hardening and desktop/mobile first-impression checks have started; recruiter packaging remains open.
 
 Goal: turn the engineering proof into a credible finance-operations case study without overstating maturity.
 
@@ -128,6 +128,15 @@ Work:
 5. Record a 3-5 minute demo video with one normal invoice, one exception, one blocked risky action, and the audit result.
 6. Rewrite README for a five-minute recruiter scan: problem, demo flow, architecture, proof, limitations, and one-command local run.
 7. Run a 60-second first-impression check: a new reader can identify the queue, open an invoice with a visible PDF, understand the reviewer decision, and see why a risky action was blocked.
+
+Observed evidence so far:
+
+- uploader and reviewer now show the same correction-required status for invoices with validation blockers
+- invoice search now matches the filename, extracted vendor, and invoice number as promised by the UI
+- status filters use distinct business labels instead of duplicate or unreachable options
+- approved invoice data is immutable through the intake draft API; edits require a new review cycle rather than silently changing approved evidence
+- desktop and 390 px mobile browser checks cover uploader list, reviewer queue, PDF detail, and blocked approval
+- the mobile reviewer queue was corrected from an overlapping wide table into readable tabs and single-column review cards
 
 Positioning rule:
 

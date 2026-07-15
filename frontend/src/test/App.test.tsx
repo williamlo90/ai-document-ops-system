@@ -99,6 +99,17 @@ const invoiceListWithReviewItem = {
   total: 1,
   total_pages: 1,
 }
+const invoiceListWithCorrectionItem = {
+  ...invoiceListWithReviewItem,
+  items: [{
+    ...invoiceListWithReviewItem.items[0],
+    business_status: 'needs_correction',
+    validation_issue_count: 1,
+    validation_error_count: 1,
+    has_validation_errors: true,
+    validation_codes: ['duplicate_invoice'],
+  }],
+}
 const plannedWorkItem = {
   ...workItem,
   current_plan_id: 'plan-1',
@@ -304,6 +315,26 @@ describe('application shell', () => {
     expect(await screen.findByText(/Waiting decision \(1\)/i)).toBeInTheDocument()
     expect(screen.getByText(/Needs review/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /review invoice/i })).toBeInTheDocument()
+  })
+
+  it('shows correction-required status consistently in the uploader invoice list', async () => {
+    localStorage.setItem('docops-role', 'intake')
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path.startsWith('/invoices?')) return json(invoiceListWithCorrectionItem)
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+    await screen.findByRole('heading', { name: /upload and check an invoice/i })
+    await userEvent.click(screen.getByRole('button', { name: /my invoices/i }))
+
+    expect(await screen.findAllByText(/needs correction/i)).not.toHaveLength(0)
+    const statusOptions = screen.getAllByRole('option').map((option) => option.textContent)
+    expect(statusOptions.filter((label) => label === 'Reading invoice')).toHaveLength(1)
+    expect(statusOptions).toContain('Waiting to be read')
   })
 
   it('separates invoices with validation blockers from waiting decisions', async () => {

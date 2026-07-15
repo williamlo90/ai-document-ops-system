@@ -525,6 +525,15 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
   .detail-header { grid-template-columns: 1fr; gap: 14px; padding: 14px; }.detail-header-actions { grid-row: 2; justify-content: space-between; }.detail-meta { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }.decision-summary { grid-template-columns: 1fr; }
   .detail-tabs { padding: 0 10px; }.detail-dashboard { grid-template-columns: 1fr; padding: 10px; }.context-column { grid-column: auto; display: flex; }
   .invoice-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }.app-footer { align-items: flex-start; flex-direction: column; justify-content: center; gap: 5px; padding: 8px 14px; }
+  .queue-tabs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0; min-height: 0; align-items: stretch; padding: 0; overflow: visible; }
+  .queue-tabs button { width: 100%; height: 44px; padding: 0 6px; }
+  .invoice-card-list { padding: 10px; }
+  .invoice-review-card { grid-template-columns: 1fr; gap: 12px; padding: 14px; }
+  .invoice-review-card .invoice-review-main { grid-template-columns: 34px minmax(0,1fr); align-items: start; }
+  .invoice-review-card .invoice-review-main h3 { white-space: normal; overflow-wrap: anywhere; }
+  .invoice-review-card .invoice-review-status { grid-template-columns: max-content minmax(0,1fr); align-items: center; }
+  .invoice-review-card .invoice-review-meta { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .invoice-review-card > .primary-button { width: 100%; justify-content: center; }
   .document-workspace { padding: 10px; }.workspace-alert { grid-template-columns: 20px minmax(0,1fr); }.workspace-alert > .priority { grid-column: 2; }.workspace-preview .pdf-preview { min-height: 440px; }
   .section-page { padding: 0 10px 16px; }.section-heading { align-items: flex-start; flex-direction: column; justify-content: center; }
   .artifact-grid, .guardrail-grid, .integration-grid, .reliability-metrics, .analytics-grid { grid-template-columns: 1fr; }.analytics-grid > :first-child { grid-column: auto; }
