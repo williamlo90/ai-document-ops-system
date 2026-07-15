@@ -9,7 +9,12 @@ The system is designed for a finance operations reviewer who needs to answer thr
 2. Is there a reason this invoice should not be approved?
 3. What decision was made, by whom, and on what evidence?
 
-![Reviewer invoice decision](docs/assets/screenshots/reviewer-decision.png)
+[![Reviewer invoice decision](docs/assets/screenshots/reviewer-decision.png)](docs/assets/demo/ai-document-ops-demo.mp4)
+
+**[Watch the 4-minute captioned recruiter demo](docs/assets/demo/ai-document-ops-demo.mp4).** It shows
+a clean approval path followed by a duplicate invoice whose approval is blocked. The recording uses
+the committed synthetic PDFs and a deterministic UI contract harness; provider-backed extraction
+evidence is reported separately below.
 
 ## Product Flow
 
@@ -124,5 +129,6 @@ Pop-Location
 - [Architecture](ARCHITECTURE.md)
 - [Runbook](RUNBOOK.md)
 - [Roadmap](ROADMAP.md)
+- [Demo video notes and reproduction](docs/demo-video.md)
 - [Demo script](docs/demo-script.md)
 - [Reliability report](docs/reliability-report.md)

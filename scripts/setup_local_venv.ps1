@@ -10,7 +10,6 @@ if (-not (Test-Path ".venv")) {
 }
 
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 
-Write-Host "Local virtual environment is ready."
-
+Write-Host "Local development environment and quality-gate tools are ready."

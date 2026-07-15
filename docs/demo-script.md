@@ -1,5 +1,11 @@
 # Recruiter Demo Script - 3 to 5 Minutes
 
+Recorded artifact: [4:01 captioned MP4](assets/demo/ai-document-ops-demo.mp4).
+
+The committed recording uses synthetic benchmark PDFs and deterministic route-level API responses
+to keep the UI walkthrough reproducible. Treat the reliability report and provider verification as
+the backend and real-provider evidence; the video itself is a product-flow demonstration.
+
 ## Demo Goal
 
 Show one business problem, one normal decision, one blocked exception, and the engineering evidence

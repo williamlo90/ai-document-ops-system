@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "capture:portfolio": "set CAPTURE_PORTFOLIO=1&& playwright test e2e/portfolio.spec.ts --project=desktop"
+    "capture:portfolio": "set CAPTURE_PORTFOLIO=1&& playwright test e2e/portfolio.spec.ts --project=desktop",
+    "capture:demo": "set CAPTURE_DEMO=1&& playwright test e2e/demo-video.spec.ts --project=desktop --workers=1"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.1",

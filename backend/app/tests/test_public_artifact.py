@@ -127,11 +127,15 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         output = Path(self.output)
         self.assertTrue((output / "docs" / "demo-script.md").exists())
+        self.assertTrue((output / "docs" / "demo-video.md").exists())
         self.assertTrue((output / "docs" / "invoice-scenarios-v1-evidence.md").exists())
         self.assertTrue((output / "docs" / "release-candidate-summary.md").exists())
         self.assertTrue((output / "docs" / "reliability-report.md").exists())
         self.assertTrue(
             (output / "docs" / "assets" / "screenshots" / "reviewer-decision.png").exists()
+        )
+        self.assertTrue(
+            (output / "docs" / "assets" / "demo" / "ai-document-ops-demo.mp4").exists()
         )
 
     def test_excludes_obsolete_public_plans(self) -> None:

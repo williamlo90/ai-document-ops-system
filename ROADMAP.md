@@ -122,7 +122,7 @@ Exit criteria:
 
 ## Phase 3: Market Proof And Recruiter Readiness
 
-Status: In progress from 15 July 2026. Workflow hardening and desktop/mobile first-impression checks have started; recruiter packaging remains open.
+Status: In progress from 15 July 2026. Workflow hardening, first-impression checks, recruiter documents, and a captioned demo video are complete; external validation and the compact business-proof pack remain open.
 
 Goal: turn the engineering proof into a credible finance-operations case study without overstating maturity.
 
@@ -145,6 +145,7 @@ Observed evidence so far:
 - desktop and 390 px mobile browser checks cover uploader list, reviewer queue, PDF detail, and blocked approval
 - the mobile reviewer queue was corrected from an overlapping wide table into readable tabs and single-column review cards
 - recruiter-facing README, case study, reliability report, and 3-5 minute demo script now tell one bounded product story
+- a 4:01 captioned MP4 demonstrates clean approval and duplicate blocking with committed synthetic PDFs through a deterministic UI contract harness
 - public artifact packaging now requires the case study and excludes obsolete historical planning documents
 
 Positioning rule:

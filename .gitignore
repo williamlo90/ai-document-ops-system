@@ -16,6 +16,7 @@ frontend/.vite/
 frontend/playwright-report/
 frontend/test-results/
 frontend/coverage/
+docs/assets/demo/*.webm
 backups/
 _local_docs/
 outputs/*-rendered/
