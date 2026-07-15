@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
@@ -413,6 +413,57 @@ describe('application shell', () => {
 
     await user.click(screen.getByRole('button', { name: /back to approvals/i }))
     expect(await screen.findByRole('button', { name: /review invoice/i })).toBeInTheDocument()
+  })
+
+  it('shows actor, timestamp, audit count, and export eligibility after approval', async () => {
+    const user = userEvent.setup()
+    let approved = false
+    localStorage.setItem('docops-role', 'administrator')
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      const approvedDocument = { ...linkedDocument, original_filename: 'acme.pdf', status: 'approved' }
+      const reviewDocument = { ...needsReviewDocument, original_filename: 'acme.pdf' }
+      const currentDocument = approved ? approvedDocument : reviewDocument
+      const currentItem = { ...workItem, status: approved ? 'completed' : 'awaiting_human' }
+      const currentItemDetail = { ...workItemDetail, status: currentItem.status }
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/backoffice/workspace') return json({ ...workspaceWithNeedsReviewDocument, work_items: [currentItem], documents: [currentDocument] })
+      if (path === '/backoffice/work-items/item-1') return json({ work_item: currentItemDetail })
+      if (path === '/documents/doc-1') return json({
+        document: currentDocument,
+        extraction: extractionWithEvidence,
+        audit_events: approved ? [
+          { id: 'event-1', event_type: 'document_uploaded', actor: 'intake-user', created_at: now },
+          { id: 'event-2', event_type: 'processing_queued', actor: 'intake-user', created_at: now },
+          { id: 'event-3', event_type: 'processing_started', actor: 'worker', created_at: now },
+          { id: 'event-4', event_type: 'processing_finished', actor: 'worker', created_at: now },
+          { id: 'event-5', event_type: 'review_required', actor: 'worker', created_at: now },
+          { id: 'event-6', event_type: 'document_approved', actor: 'finance-reviewer', new_status: 'approved', created_at: now },
+        ] : [],
+      })
+      if (path === '/review/doc-1/approve') {
+        approved = true
+        return json({ review_task: { status: 'approved', reviewed_by: 'finance-reviewer', reviewed_at: now } })
+      }
+      if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
+      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
+
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: /approvals/i }))
+    await user.click(await screen.findByRole('button', { name: /review invoice/i }))
+    await user.click(await screen.findByRole('button', { name: /^approve$/i }))
+
+    expect(await screen.findByText('Decision recorded')).toBeInTheDocument()
+    const evidence = screen.getByLabelText('Decision evidence')
+    expect(within(evidence).getByText('finance-reviewer')).toBeInTheDocument()
+    expect(within(evidence).getByText(/30 Jun 2026/i)).toBeInTheDocument()
+    expect(within(evidence).getByText('6 events saved')).toBeInTheDocument()
+    expect(within(evidence).getByText('Eligible for controlled export')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Example: Total and vendor match the PDF.')).not.toBeInTheDocument()
   })
 
   it('explains approval evidence and decision outcomes', async () => {

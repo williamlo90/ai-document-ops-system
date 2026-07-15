@@ -133,7 +133,8 @@ type Extraction = {
 type ApiDocument = { id: string; original_filename: string; status: string; created_at: string; updated_at?: string; error_message?: string | null; submitted_by?: string; size_bytes?: number; document_type?: string; supported_extraction_schema?: string }
 type InvoiceListItem = ApiDocument & { vendor_name?: string | null; total?: string | null; currency?: string | null; current_stage: string; business_status?: string; validation_issue_count?: number; validation_error_count?: number; has_validation_errors?: boolean; validation_codes?: string[]; work_item_id?: string | null }
 type InvoiceList = { items: InvoiceListItem[]; page: number; page_size: number; total: number; total_pages: number }
-type DocumentDetail = { document: ApiDocument; extraction: Extraction | null; audit_events: Array<{ id?: string; event_type?: string; created_at?: string; payload_summary?: string }> }
+type DocumentAuditEvent = { id?: string; event_type?: string; actor?: string; old_status?: string | null; new_status?: string | null; created_at?: string; payload_summary?: string }
+type DocumentDetail = { document: ApiDocument; extraction: Extraction | null; audit_events: DocumentAuditEvent[] }
 type WorkflowActivity = { id: string; event_type: string; actor: string; summary: string; source: string; document_id?: string | null; work_item_id?: string | null; agent_run_id?: string | null; created_at: string }
 type DocumentWorkflow = {
   document: ApiDocument
@@ -985,6 +986,7 @@ function WorkItemPage({
           item={item}
           document={linkedDocument}
           extraction={documentDetail.data?.extraction ?? null}
+          auditEvents={documentDetail.data?.audit_events ?? []}
           loading={documentDetail.isLoading}
         />
       </section>
@@ -1034,10 +1036,30 @@ function InboxCard({ item, documents, active, open }: { item: WorkItemSummary; d
   )
 }
 
-function ReviewerReviewPage({ item, document, extraction, loading }: { item: WorkItemDetail; document?: DocumentSummary; extraction: Extraction | null; loading: boolean }) {
+function ReviewerReviewPage({ item, document, extraction, auditEvents, loading }: { item: WorkItemDetail; document?: DocumentSummary; extraction: Extraction | null; auditEvents: DocumentAuditEvent[]; loading: boolean }) {
   const queryClient = useQueryClient(); const fields = invoiceFields(extraction).filter(([label]) => ['Vendor', 'Invoice Number', 'Invoice Date', 'Total Amount', 'Currency'].includes(label)); const issues = extraction?.validation ?? []; const refresh = () => refreshReviewQueries(queryClient, item.id, document?.id)
   const approve = useMutation({ mutationFn: () => api(`/review/${document?.id}/approve`, { method: 'POST' }), onSuccess: refresh }); const reject = useMutation({ mutationFn: (notes: string) => api(`/review/${document?.id}/reject`, { method: 'POST', body: JSON.stringify({ notes: notes || 'Invoice rejected after review.' }) }), onSuccess: refresh }); const correction = useMutation({ mutationFn: (notes: string) => api(`/documents/${document?.id}/request-correction`, { method: 'POST', body: JSON.stringify({ reason: notes || 'Please correct the invoice information before approval.' }) }), onSuccess: refresh }); const busy = approve.isPending || reject.isPending || correction.isPending
-  return <ReviewerDecisionPanel pdf={loading ? <LoadingState label="Loading invoice PDF" /> : document ? <AuthenticatedPdfPreview document={document} /> : <EmptyState title="No invoice PDF" body="This review item has no linked PDF." />} title={invoiceReviewTitle(extraction, document)} fields={fields} issues={issues} canDecide={document?.status === 'needs_review'} status={<><Status value={document?.status ?? item.status} /><p>{document?.status === 'approved' ? 'This invoice has been approved.' : document?.status === 'rejected' ? 'This invoice was rejected.' : 'No reviewer decision is available right now.'}</p></>} busy={busy || !document} error={(approve.error || reject.error || correction.error) ? String((approve.error || reject.error || correction.error)?.message) : undefined} onApprove={() => approve.mutate()} onReject={(notes) => reject.mutate(notes)} onCorrection={(notes) => correction.mutate(notes)} />
+  return <ReviewerDecisionPanel pdf={loading ? <LoadingState label="Loading invoice PDF" /> : document ? <AuthenticatedPdfPreview document={document} /> : <EmptyState title="No invoice PDF" body="This review item has no linked PDF." />} title={invoiceReviewTitle(extraction, document)} fields={fields} issues={issues} canDecide={document?.status === 'needs_review'} status={<><Status value={document?.status ?? item.status} /><p>{document?.status === 'approved' ? 'This invoice has been approved.' : document?.status === 'rejected' ? 'This invoice was rejected.' : document?.status === 'exported' ? 'This invoice was exported.' : 'No reviewer decision is available right now.'}</p></>} decisionEvidence={reviewDecisionEvidence(document, auditEvents)} busy={busy || !document} error={(approve.error || reject.error || correction.error) ? String((approve.error || reject.error || correction.error)?.message) : undefined} onApprove={() => approve.mutate()} onReject={(notes) => reject.mutate(notes)} onCorrection={(notes) => correction.mutate(notes)} />
+}
+
+function reviewDecisionEvidence(document: DocumentSummary | undefined, events: DocumentAuditEvent[]) {
+  if (!document || !['approved', 'rejected', 'exported'].includes(document.status)) return undefined
+  const decisionEvent = [...events].reverse().find((event) =>
+    ['document_approved', 'document_rejected'].includes(event.event_type ?? '') ||
+    ['approved', 'rejected'].includes(event.new_status ?? ''),
+  )
+  if (!decisionEvent?.actor || !decisionEvent.created_at) return undefined
+  const exportState = document.status === 'exported'
+    ? 'Export completed'
+    : document.status === 'approved'
+      ? 'Eligible for controlled export'
+      : 'Not eligible for export'
+  return {
+    actor: decisionEvent.actor,
+    recordedAt: formatDate(decisionEvent.created_at),
+    auditEventCount: events.length,
+    exportState,
+  }
 }
 function refreshReviewQueries(queryClient: ReturnType<typeof useQueryClient>, itemId: string, documentId?: string) {
   queryClient.invalidateQueries({ queryKey: ['workspace'] })

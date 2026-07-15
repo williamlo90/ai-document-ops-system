@@ -88,17 +88,20 @@ function extraction(blocked: boolean) {
 async function mockPortfolioApi(page: Page) {
   const cleanPdf = readFileSync(path.resolve('../examples/benchmark/datasets/invoice_scenarios_v1/documents/duplicate_original.pdf'))
   const duplicatePdf = readFileSync(path.resolve('../examples/benchmark/datasets/invoice_scenarios_v1/documents/duplicate_copy.pdf'))
+  let cleanApproved = false
   await page.route('**/*', async (route) => {
     const request = route.request()
     const pathname = new URL(request.url()).pathname
+    const currentCleanDocument = cleanApproved ? { ...cleanDocument, status: 'approved' } : cleanDocument
+    const currentCleanItem = cleanApproved ? { ...cleanItem, status: 'completed' } : cleanItem
     if (pathname === '/auth/session') return route.fulfill({ json: { authenticated: true, actor: 'portfolio-reviewer' } })
     if (pathname === '/backoffice/workspace') {
       return route.fulfill({
         json: {
           workspace_id: 'portfolio',
-          work_items: [cleanItem, duplicateItem],
+          work_items: [currentCleanItem, duplicateItem],
           pending_approvals: [],
-          documents: [cleanDocument, duplicateDocument],
+          documents: [currentCleanDocument, duplicateDocument],
           metrics: { work_items: 2, pending_approvals: 1, drafts: 0, policy_decisions: 0 },
         },
       })
@@ -107,7 +110,7 @@ async function mockPortfolioApi(page: Page) {
       return route.fulfill({
         json: {
           items: [
-            { ...cleanDocument, business_status: 'needs_review', current_stage: 'needs_review' },
+            { ...currentCleanDocument, business_status: cleanApproved ? 'approved' : 'needs_review', current_stage: cleanApproved ? 'completed' : 'needs_review' },
             { ...duplicateDocument, business_status: 'needs_correction', current_stage: 'needs_attention' },
           ],
           page: 1,
@@ -120,12 +123,23 @@ async function mockPortfolioApi(page: Page) {
     if (pathname === '/operations/notifications') return route.fulfill({ json: { notifications: [], unread_count: 0 } })
     if (pathname === '/providers/health') return route.fulfill({ json: { overall_status: 'healthy', providers: [] } })
     if (pathname === '/operations/jobs') return route.fulfill({ json: { worker: { status: 'healthy', queued_jobs: 0, failed_jobs: 0, stalled_jobs: 0, evidence: 'Ready' }, failed_jobs: [] } })
-    if (pathname === `/backoffice/work-items/${cleanItem.id}`) return route.fulfill({ json: { work_item: cleanItem } })
+    if (pathname === `/backoffice/work-items/${cleanItem.id}`) return route.fulfill({ json: { work_item: currentCleanItem } })
     if (pathname === `/backoffice/work-items/${duplicateItem.id}`) return route.fulfill({ json: { work_item: duplicateItem } })
-    if (pathname === `/documents/${cleanDocument.id}`) return route.fulfill({ json: { document: cleanDocument, extraction: extraction(false), audit_events: [] } })
+    if (pathname === `/documents/${cleanDocument.id}`) return route.fulfill({ json: { document: currentCleanDocument, extraction: extraction(false), audit_events: cleanApproved ? [
+      { id: 'event-1', event_type: 'document_uploaded', actor: 'intake-user', created_at: now },
+      { id: 'event-2', event_type: 'processing_queued', actor: 'intake-user', created_at: now },
+      { id: 'event-3', event_type: 'processing_started', actor: 'worker', created_at: now },
+      { id: 'event-4', event_type: 'processing_finished', actor: 'worker', created_at: now },
+      { id: 'event-5', event_type: 'review_required', actor: 'worker', created_at: now },
+      { id: 'event-6', event_type: 'document_approved', actor: 'portfolio-reviewer', new_status: 'approved', created_at: now },
+    ] : [] } })
     if (pathname === `/documents/${duplicateDocument.id}`) return route.fulfill({ json: { document: duplicateDocument, extraction: extraction(true), audit_events: [] } })
     if (pathname === `/documents/${cleanDocument.id}/content`) return route.fulfill({ contentType: 'application/pdf', body: cleanPdf })
     if (pathname === `/documents/${duplicateDocument.id}/content`) return route.fulfill({ contentType: 'application/pdf', body: duplicatePdf })
+    if (pathname === `/review/${cleanDocument.id}/approve` && request.method() === 'POST') {
+      cleanApproved = true
+      return route.fulfill({ json: { review_task: { status: 'approved', reviewed_by: 'portfolio-reviewer', reviewed_at: now } } })
+    }
     return route.continue()
   })
 }
@@ -137,13 +151,16 @@ async function waitForPdf(page: Page) {
   await expect(page.getByText('Loading invoice...')).toHaveCount(0, { timeout: 20_000 })
 }
 
-test('capture current uploader and reviewer workflow', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 960 })
+test('capture current uploader and reviewer workflow', async ({ page }, testInfo) => {
+  const isMobile = testInfo.project.name === 'mobile'
+  if (testInfo.project.name === 'desktop') await page.setViewportSize({ width: 1440, height: 960 })
+  if (isMobile) await page.setViewportSize({ width: 390, height: 844 })
   await mockPortfolioApi(page)
   const output = path.resolve('../docs/assets/screenshots')
 
   await page.addInitScript(() => localStorage.setItem('docops-role', 'intake'))
   await page.goto('/')
+  if (isMobile) await page.getByRole('button', { name: 'Open navigation' }).click()
   await page.getByRole('button', { name: 'My Invoices' }).click()
   await expect(page.getByRole('heading', { name: 'My Invoices', level: 2 })).toBeVisible()
   await page.screenshot({ path: path.join(output, 'uploader-invoices.png'), fullPage: true })
@@ -159,6 +176,13 @@ test('capture current uploader and reviewer workflow', async ({ page }) => {
   await page.getByRole('button', { name: 'Zoom out' }).click()
   await waitForPdf(page)
   await page.screenshot({ path: path.join(output, 'reviewer-decision.png') })
+
+  await page.getByPlaceholder('Example: Total and vendor match the PDF.').fill('Vendor, invoice number, and total match the PDF.')
+  await page.getByRole('button', { name: 'Approve' }).click()
+  await expect(page.getByText('Decision recorded')).toBeVisible()
+  await expect(page.getByLabel('Decision evidence')).toContainText('portfolio-reviewer')
+  await expect(page.getByLabel('Decision evidence')).toContainText('Eligible for controlled export')
+  await page.screenshot({ path: path.join(output, 'approved-decision.png') })
 
   await page.locator('.pager button').last().click()
   await expect(page.getByText('summit-industrial-parts-copy.pdf').first()).toBeVisible()

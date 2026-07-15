@@ -14,13 +14,13 @@ Status: local portfolio release candidate.
 - 20-PDF synthetic scenario set with documented failure iterations
 - local technical run and reliability evidence
 - responsive desktop and mobile workflow
-- a 4:01 captioned recruiter demo covering clean approval and duplicate blocking
+- a 3:37 captioned recruiter demo covering clean approval and duplicate blocking
 - Docker, CI, and public artifact packaging
 
 ## Verification Baseline
 
 - backend suite: 370 passed, 2 skipped
-- frontend suite: 11 passed
+- frontend suite: 12 passed
 - backend Ruff check: passed
 - frontend lint and production build: passed
 - npm production dependency audit: no known vulnerabilities at verification time

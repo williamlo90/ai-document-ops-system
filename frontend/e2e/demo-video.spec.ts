@@ -107,7 +107,7 @@ function workItemFor(kind: InvoiceKind, state: DemoState) {
     approvals: [],
     policy_decisions: [],
     activity: approved
-      ? [{ id: 'approval-event', event_type: 'invoice_approved', actor: 'portfolio-reviewer', created_at: createdAt }]
+      ? [{ id: 'approval-event', event_type: 'document_approved', actor: 'portfolio-reviewer', created_at: createdAt }]
       : [],
   }
 }
@@ -163,9 +163,12 @@ async function mockDemoApi(page: Page, state: DemoState) {
           extraction: state.processed.clean ? extractionFor('clean') : null,
           audit_events: state.processed.clean
             ? [
-              { id: 'clean-uploaded', event_type: 'document_uploaded', created_at: createdAt },
-              { id: 'clean-processed', event_type: 'processing_succeeded', created_at: createdAt },
-              ...(state.approved ? [{ id: 'clean-approved', event_type: 'invoice_approved', created_at: createdAt, actor: 'portfolio-reviewer' }] : []),
+              { id: 'clean-uploaded', event_type: 'document_uploaded', actor: 'intake-user', created_at: createdAt },
+              { id: 'clean-queued', event_type: 'processing_queued', actor: 'intake-user', created_at: createdAt },
+              { id: 'clean-started', event_type: 'processing_started', actor: 'worker', created_at: createdAt },
+              { id: 'clean-processed', event_type: 'processing_finished', actor: 'worker', created_at: createdAt },
+              { id: 'clean-review-required', event_type: 'review_required', actor: 'worker', created_at: createdAt },
+              ...(state.approved ? [{ id: 'clean-approved', event_type: 'document_approved', new_status: 'approved', created_at: createdAt, actor: 'portfolio-reviewer' }] : []),
             ]
             : [{ id: 'clean-uploaded', event_type: 'document_uploaded', created_at: createdAt }],
         },
@@ -459,7 +462,9 @@ async function recordDemo(browser: Browser) {
     await showCaption(page, 'Human authority', 'Approval is an explicit reviewer action. The model cannot press this button.', 6_000)
     await pointAndClick(page, page.getByRole('button', { name: 'Approve' }))
     await expect(page.getByText('This invoice has been approved.')).toBeVisible({ timeout: 15_000 })
-    await showCaption(page, 'Decision recorded', 'The document now shows Approved. The backend also records the actor, timestamp, and audit event.', 9_000)
+    await expect(page.getByLabel('Decision evidence')).toContainText('portfolio-reviewer')
+    await expect(page.getByLabel('Decision evidence')).toContainText('6 events saved')
+    await showCaption(page, 'Decision recorded', 'The screen now shows the actor, timestamp, six saved audit events, and controlled-export eligibility.', 11_000)
 
     await page.locator('select.role-select').selectOption('intake')
     await expect(page.getByRole('heading', { name: 'Upload and check an invoice' })).toBeVisible()

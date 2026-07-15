@@ -30,7 +30,7 @@ Delivered:
 Latest verified baseline:
 
 - backend suite: 370 tests passed, 2 skipped
-- frontend suite: 11 tests passed
+- frontend suite: 12 tests passed
 - frontend lint and production build: passed
 - backend Ruff check: passed
 
@@ -122,7 +122,7 @@ Exit criteria:
 
 ## Phase 3: Market Proof And Recruiter Readiness
 
-Status: In progress from 15 July 2026. Workflow hardening, first-impression checks, recruiter documents, and a captioned demo video are complete; external validation and the compact business-proof pack remain open.
+Status: In progress from 15 July 2026. Workflow hardening, first-impression checks, recruiter evidence, and a captioned demo video are complete; external validation remains open and is not claimed.
 
 Goal: turn the engineering proof into a credible finance-operations case study without overstating maturity.
 
@@ -145,7 +145,10 @@ Observed evidence so far:
 - desktop and 390 px mobile browser checks cover uploader list, reviewer queue, PDF detail, and blocked approval
 - the mobile reviewer queue was corrected from an overlapping wide table into readable tabs and single-column review cards
 - recruiter-facing README, case study, reliability report, and 3-5 minute demo script now tell one bounded product story
-- a 4:01 captioned MP4 demonstrates clean approval and duplicate blocking with committed synthetic PDFs through a deterministic UI contract harness
+- a 3:37 captioned MP4 demonstrates clean approval and duplicate blocking with committed synthetic PDFs through a deterministic UI contract harness
+- a compact recruiter evidence pack separates observed engineering proof from unmeasured business impact
+- a non-technical matrix maps all 20 scenarios to the business risk, expected safeguard, and observed result
+- the completed-decision UI shows actor, timestamp, audit-event count, and export eligibility next to the invoice
 - public artifact packaging now requires the case study and excludes obsolete historical planning documents
 
 Positioning rule:

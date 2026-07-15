@@ -70,7 +70,10 @@ class PublicArtifactTests(unittest.TestCase):
     def test_includes_portfolio_case_study(self) -> None:
         result = self._run_script(self.output)
         self.assertEqual(result.returncode, 0, msg=result.stderr)
-        self.assertTrue((Path(self.output) / "PORTFOLIO_CASE_STUDY.md").exists())
+        output = Path(self.output)
+        self.assertTrue((output / "PORTFOLIO_CASE_STUDY.md").exists())
+        self.assertTrue((output / "RECRUITER_EVIDENCE_PACK.md").exists())
+        self.assertTrue((output / "SCENARIO_COVERAGE_MATRIX.md").exists())
 
     def test_excludes_local_only_planning_documents(self) -> None:
         result = self._run_script(self.output)
@@ -133,6 +136,9 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertTrue((output / "docs" / "reliability-report.md").exists())
         self.assertTrue(
             (output / "docs" / "assets" / "screenshots" / "reviewer-decision.png").exists()
+        )
+        self.assertTrue(
+            (output / "docs" / "assets" / "screenshots" / "approved-decision.png").exists()
         )
         self.assertTrue(
             (output / "docs" / "assets" / "demo" / "ai-document-ops-demo.mp4").exists()

@@ -1,6 +1,6 @@
 # Recruiter Demo Video
 
-**Artifact:** [AI Document Operations System - 4:01 MP4](assets/demo/ai-document-ops-demo.mp4)
+**Artifact:** [AI Document Operations System - 3:37 MP4](assets/demo/ai-document-ops-demo.mp4)
 
 The captioned recording is designed for a recruiter or hiring manager who will not clone the
 repository before deciding whether to inspect it further.
@@ -10,7 +10,8 @@ repository before deciding whether to inspect it further.
 1. An uploader selects a synthetic invoice PDF and sees the source document.
 2. Extracted fields, source evidence, and deterministic arithmetic checks appear beside the PDF.
 3. The invoice is sent to a separate reviewer instead of being auto-approved.
-4. The reviewer compares the PDF and fields, records a note, and explicitly approves the invoice.
+4. The reviewer compares the PDF and fields, explicitly approves the invoice, and sees the saved
+   actor, timestamp, audit-event count, and export eligibility.
 5. A second PDF with the same vendor and invoice number is detected as a duplicate.
 6. The duplicate enters the correction queue and its Approve button remains disabled.
 7. The closing card states the measured synthetic evidence and its limitations.
@@ -18,7 +19,7 @@ repository before deciding whether to inspect it further.
 ## Evidence Boundary
 
 The video renders the committed synthetic PDFs through the real React PDF viewer. Route-level API
-responses are deterministic and stateful so the four-minute product walkthrough is reproducible and
+responses are deterministic and stateful so the short product walkthrough is reproducible and
 does not depend on hosted-provider latency or credentials.
 
 The recording is therefore evidence of the UI workflow and decision boundaries, not an independent

@@ -9,9 +9,9 @@ The system is designed for a finance operations reviewer who needs to answer thr
 2. Is there a reason this invoice should not be approved?
 3. What decision was made, by whom, and on what evidence?
 
-[![Reviewer invoice decision](docs/assets/screenshots/reviewer-decision.png)](docs/assets/demo/ai-document-ops-demo.mp4)
+[![Recorded invoice approval evidence](docs/assets/screenshots/approved-decision.png)](docs/assets/demo/ai-document-ops-demo.mp4)
 
-**[Watch the 4-minute captioned recruiter demo](docs/assets/demo/ai-document-ops-demo.mp4).** It shows
+**[Watch the 3:37 captioned recruiter demo](docs/assets/demo/ai-document-ops-demo.mp4).** It shows
 a clean approval path followed by a duplicate invoice whose approval is blocked. The recording uses
 the committed synthetic PDFs and a deterministic UI contract harness; provider-backed extraction
 evidence is reported separately below.
@@ -68,7 +68,7 @@ mocks for offline development.
 | Synthetic invoice set | 20 deterministic PDFs covering normal, missing-field, mismatch, duplicate, low-contrast, rotated, and multi-page cases. |
 | Final controlled regression | 160 / 160 evaluated fields and 20 / 20 expected validation outcomes on that synthetic set. |
 | Approval boundary | Duplicate and other error-level cases are blocked in both UI and API tests. |
-| Automated verification | 370 backend tests passed with 2 skipped; 11 frontend tests passed; lint and production build passed. |
+| Automated verification | 370 backend tests passed with 2 skipped; 12 frontend tests passed; lint and production build passed. |
 
 The controlled regression is a small synthetic golden set, not a production accuracy claim.
 See [scenario evidence](docs/invoice-scenarios-v1-evidence.md) for the initial failures, fixes,
@@ -125,6 +125,8 @@ Pop-Location
 ## Read Next
 
 - [Portfolio case study](PORTFOLIO_CASE_STUDY.md)
+- [Recruiter evidence pack](RECRUITER_EVIDENCE_PACK.md)
+- [Scenario coverage matrix](SCENARIO_COVERAGE_MATRIX.md)
 - [Product requirements](PRD.md)
 - [Architecture](ARCHITECTURE.md)
 - [Runbook](RUNBOOK.md)

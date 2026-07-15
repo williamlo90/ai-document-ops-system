@@ -219,6 +219,10 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
 .reviewer-actions .approve-action { color: #fff; background: #087a55; border: 1px solid #087a55; }.reviewer-actions .approve-action:hover { background: #056b4a; border-color: #056b4a; }
 .reviewer-actions .request-action { color: #8a5200; background: #fff9ed; border: 1px solid #f1d9a9; }.reviewer-actions .request-action:hover { background: #fff2d8; }
 .reviewer-actions .reject-action { color: #b42318; background: #fff5f5; border: 1px solid #efb7b2; }.reviewer-actions .reject-action:hover { background: #fee4e2; }
+.decision-evidence-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 12px 0 0; }
+.decision-evidence-grid div { min-width: 0; padding: 9px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+.decision-evidence-grid dt { color: #64748b; font-size: 9px; }
+.decision-evidence-grid dd { margin: 4px 0 0; color: #172033; font-size: 11px; font-weight: 800; overflow-wrap: anywhere; }
 .review-history { background: #fff; border: 1px solid #dbe3ef; border-radius: 8px; }
 .review-history summary { padding: 13px 14px; color: #334155; cursor: pointer; font-size: 11px; font-weight: 800; }
 .review-history .activity-tab { padding: 0 12px 12px; }
@@ -522,6 +526,7 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
   .reviewer-simple-page { grid-template-columns: 1fr; padding: 10px; }
   .review-pdf-pane .pdf-preview { min-height: 420px; }
   .compact-invoice-fields { grid-template-columns: 1fr; }
+  .decision-evidence-grid { grid-template-columns: 1fr; }
   .detail-header { grid-template-columns: 1fr; gap: 14px; padding: 14px; }.detail-header-actions { grid-row: 2; justify-content: space-between; }.detail-meta { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }.decision-summary { grid-template-columns: 1fr; }
   .detail-tabs { padding: 0 10px; }.detail-dashboard { grid-template-columns: 1fr; padding: 10px; }.context-column { grid-column: auto; display: flex; }
   .invoice-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }.app-footer { align-items: flex-start; flex-direction: column; justify-content: center; gap: 5px; padding: 8px 14px; }

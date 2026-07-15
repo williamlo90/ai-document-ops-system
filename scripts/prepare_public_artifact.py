@@ -14,6 +14,8 @@ ALLOWLIST_TOP_LEVEL = {
     "PRD.md",
     "ARCHITECTURE.md",
     "PORTFOLIO_CASE_STUDY.md",
+    "RECRUITER_EVIDENCE_PACK.md",
+    "SCENARIO_COVERAGE_MATRIX.md",
     "RUNBOOK.md",
     ".env.example",
     ".gitignore",

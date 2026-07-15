@@ -1,6 +1,6 @@
 # Recruiter Demo Script - 3 to 5 Minutes
 
-Recorded artifact: [4:01 captioned MP4](assets/demo/ai-document-ops-demo.mp4).
+Recorded artifact: [3:37 captioned MP4](assets/demo/ai-document-ops-demo.mp4).
 
 The committed recording uses synthetic benchmark PDFs and deterministic route-level API responses
 to keep the UI walkthrough reproducible. Treat the reliability report and provider verification as
@@ -48,9 +48,11 @@ Say:
 2. Open the clean invoice from Approvals.
 3. Compare vendor, invoice number, dates, and total with the PDF.
 4. Approve it explicitly.
-5. Return to the list and show the updated status.
+5. Show the recorded actor, timestamp, audit-event count, and controlled-export eligibility.
+6. Return to the list and show the updated status.
 
-Point out that approve, reject, and correction are separate actions and that the decision is saved.
+Point out that approve, reject, and correction are separate actions and that a completed decision
+leaves visible evidence instead of only changing a status label.
 
 ## 2:10 - 3:10: Exception and Blocked Action
 

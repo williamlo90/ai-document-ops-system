@@ -134,6 +134,17 @@ Two evidence layers are deliberately separate:
 
 This separation prevents extraction quality from being confused with workflow safety.
 
+## Internal Naming Boundary
+
+Some internal modules and technical routes still use the historical names `backoffice` and
+`AgentOps`. They belong to the inherited workflow and run-evidence engine; they are not separate
+products, user-facing concepts, or claims of autonomous finance execution. The public product
+language is **Invoice Review** and **Document Operations**.
+
+A broad route and module rename is deferred because it would change stable internal contracts
+without improving the reviewer workflow. The names can be replaced later as an isolated,
+behavior-preserving refactor if the product boundary expands.
+
 ## Extension Boundary
 
 Invoice is the only complete schema. Shared document, policy, workflow, audit, storage, and
