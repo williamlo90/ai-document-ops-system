@@ -547,6 +547,7 @@ class ApiTests(unittest.TestCase):
             admin_token="x" * 24,
             upload_root=Path(self.temp_dir.name),
             max_upload_bytes=1000,
+            malware_scanner_backend="clamav",
         )
         production_client = TestClient(create_app(strong_settings))
 

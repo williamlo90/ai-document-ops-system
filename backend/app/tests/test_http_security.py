@@ -3,12 +3,18 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from app.core.security import SecurityContext, SessionStore
 from app.core.settings import Settings
-from app.core.upload_scanning import SignatureUploadScanner
+from app.core.upload_scanning import (
+    ClamAvUploadScanner,
+    SignatureUploadScanner,
+    UploadScannerUnavailable,
+    validate_upload_scanning_policy,
+)
 from app.main import create_app
 from app.providers.storage import StorageError
 
@@ -124,7 +130,18 @@ class HttpMiddlewareTests(unittest.TestCase):
                 response = client.get(path)
                 self.assertEqual(response.headers["x-frame-options"], "SAMEORIGIN")
                 self.assertIn("frame-ancestors 'self'", response.headers["content-security-policy"])
-                self.assertNotIn("frame-ancestors 'none'", response.headers["content-security-policy"])
+                self.assertNotIn(
+                    "frame-ancestors 'none'", response.headers["content-security-policy"]
+                )
+
+    def test_private_api_responses_are_not_cacheable(self) -> None:
+        client = TestClient(create_app(settings()))
+        response = client.get("/documents", headers={"X-Access-Token": "test-token"})
+
+        self.assertEqual(response.headers["cache-control"], "no-store, private")
+        self.assertEqual(response.headers["pragma"], "no-cache")
+        self.assertEqual(response.headers["expires"], "0")
+        self.assertNotIn("cache-control", client.get("/health").headers)
 
     def test_rate_limit_returns_429(self) -> None:
         client = TestClient(create_app(settings(rate_limit_requests=1)))
@@ -144,6 +161,7 @@ class HttpMiddlewareTests(unittest.TestCase):
                         uploader_token=None,
                         reviewer_token=None,
                         upload_root=Path(temp_dir),
+                        malware_scanner_backend="clamav",
                     )
                 )
             )
@@ -209,6 +227,83 @@ class UploadScannerTests(unittest.TestCase):
         scanner = SignatureUploadScanner()
         with self.assertRaises(StorageError):
             list(scanner.scan([b"%PDF-EICAR-STANDARD-", b"ANTIVIRUS-TEST-FILE"]))
+
+    def test_clamav_scanner_streams_and_returns_clean_upload(self) -> None:
+        connection = _FakeClamAvConnection(b"stream: OK\0")
+        scanner = ClamAvUploadScanner(
+            host="clamav",
+            port=3310,
+            timeout_seconds=1,
+            max_upload_bytes=100,
+        )
+
+        with patch("app.core.upload_scanning.socket.create_connection", return_value=connection):
+            result = b"".join(scanner.scan([b"%PDF-", b"invoice"]))
+
+        self.assertEqual(result, b"%PDF-invoice")
+        self.assertTrue(connection.sent.startswith(b"zINSTREAM\0"))
+
+    def test_clamav_scanner_rejects_detected_upload(self) -> None:
+        connection = _FakeClamAvConnection(b"stream: Eicar-Test-Signature FOUND\0")
+        scanner = ClamAvUploadScanner(
+            host="clamav",
+            port=3310,
+            timeout_seconds=1,
+            max_upload_bytes=100,
+        )
+
+        with patch("app.core.upload_scanning.socket.create_connection", return_value=connection):
+            with self.assertRaises(StorageError):
+                list(scanner.scan([b"%PDF-invoice"]))
+
+    def test_clamav_scanner_fails_closed_when_service_is_unavailable(self) -> None:
+        scanner = ClamAvUploadScanner(
+            host="clamav",
+            port=3310,
+            timeout_seconds=1,
+            max_upload_bytes=100,
+        )
+        with patch(
+            "app.core.upload_scanning.socket.create_connection",
+            side_effect=TimeoutError,
+        ):
+            with self.assertRaises(UploadScannerUnavailable):
+                list(scanner.scan([b"%PDF-invoice"]))
+
+    def test_production_requires_clamav_backend(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_upload_scanning_policy(settings(app_env="production"))
+        validate_upload_scanning_policy(
+            settings(app_env="production", malware_scanner_backend="clamav")
+        )
+
+    def test_clamav_configuration_rejects_invalid_endpoint(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_upload_scanning_policy(
+                settings(malware_scanner_backend="clamav", clamav_port=0)
+            )
+
+
+class _FakeClamAvConnection:
+    def __init__(self, response: bytes) -> None:
+        self.response = response
+        self.sent = bytearray()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def settimeout(self, _timeout: float) -> None:
+        return None
+
+    def sendall(self, content: bytes) -> None:
+        self.sent.extend(content)
+
+    def recv(self, _size: int) -> bytes:
+        response, self.response = self.response, b""
+        return response
 
 
 if __name__ == "__main__":

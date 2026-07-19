@@ -45,6 +45,12 @@ class Settings:
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
     malware_scanning_enabled: bool = True
+    malware_scanner_backend: str = "signature"
+    clamav_host: str = "127.0.0.1"
+    clamav_port: int = 3310
+    clamav_timeout_seconds: float = 10.0
+    document_retention_days: int = 90
+    parser_cache_retention_hours: int = 24
 
 
 def is_hosted(settings: Settings) -> bool:
@@ -109,6 +115,12 @@ def load_settings() -> Settings:
         rate_limit_requests=int(_setting(config, "RATE_LIMIT_REQUESTS", "120")),
         rate_limit_window_seconds=int(_setting(config, "RATE_LIMIT_WINDOW_SECONDS", "60")),
         malware_scanning_enabled=_boolean(_setting(config, "MALWARE_SCANNING_ENABLED", "true")),
+        malware_scanner_backend=_setting(config, "MALWARE_SCANNER_BACKEND", "signature"),
+        clamav_host=_setting(config, "CLAMAV_HOST", "127.0.0.1"),
+        clamav_port=int(_setting(config, "CLAMAV_PORT", "3310")),
+        clamav_timeout_seconds=float(_setting(config, "CLAMAV_TIMEOUT_SECONDS", "10")),
+        document_retention_days=int(_setting(config, "DOCUMENT_RETENTION_DAYS", "90")),
+        parser_cache_retention_hours=int(_setting(config, "PARSER_CACHE_RETENTION_HOURS", "24")),
     )
 
 

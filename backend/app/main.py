@@ -30,6 +30,7 @@ from app.api.review import router as review_router
 from app.api.auth import router as auth_router
 from app.core.security import validate_access_token_policy, validate_public_demo_provider_policy
 from app.core.security import SessionStore
+from app.core.upload_scanning import validate_upload_scanning_policy
 from app.core.http_security import (
     CsrfOriginMiddleware,
     RateLimitMiddleware,
@@ -37,12 +38,15 @@ from app.core.http_security import (
 )
 from app.core.settings import Settings, is_hosted, load_settings
 from app.api.legacy_redirects import router as legacy_redirect_router
+from app.documents.retention import validate_retention_policy
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or load_settings()
     validate_access_token_policy(resolved_settings)
     validate_public_demo_provider_policy(resolved_settings)
+    validate_upload_scanning_policy(resolved_settings)
+    validate_retention_policy(resolved_settings)
     hosted = is_hosted(resolved_settings)
     configure_structured_logging()
 

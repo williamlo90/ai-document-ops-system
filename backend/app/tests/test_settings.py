@@ -28,6 +28,10 @@ class SettingsTests(unittest.TestCase):
                 "S3_REGION",
                 "S3_ACCESS_KEY_ID",
                 "S3_SECRET_ACCESS_KEY",
+                "MALWARE_SCANNER_BACKEND",
+                "CLAMAV_HOST",
+                "DOCUMENT_RETENTION_DAYS",
+                "PARSER_CACHE_RETENTION_HOURS",
             )
         }
         for key in self.original_env:
@@ -61,6 +65,10 @@ class SettingsTests(unittest.TestCase):
                         "S3_REGION=us-east-1",
                         "S3_ACCESS_KEY_ID=minio",
                         "S3_SECRET_ACCESS_KEY=minio-secret",
+                        "MALWARE_SCANNER_BACKEND=clamav",
+                        "CLAMAV_HOST=clamav.internal",
+                        "DOCUMENT_RETENTION_DAYS=45",
+                        "PARSER_CACHE_RETENTION_HOURS=12",
                     ]
                 ),
                 encoding="utf-8",
@@ -87,6 +95,10 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.s3_region, "us-east-1")
         self.assertEqual(settings.s3_access_key_id, "minio")
         self.assertEqual(settings.s3_secret_access_key, "minio-secret")
+        self.assertEqual(settings.malware_scanner_backend, "clamav")
+        self.assertEqual(settings.clamav_host, "clamav.internal")
+        self.assertEqual(settings.document_retention_days, 45)
+        self.assertEqual(settings.parser_cache_retention_hours, 12)
 
     def test_environment_variable_overrides_env_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

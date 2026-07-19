@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from os import PathLike
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -41,6 +42,10 @@ class DocumentStorage(Protocol):
     def open_for_parser(self, storage_key: str) -> Path: ...
 
     def create_download_url(self, storage_key: str, expires_seconds: int = 300) -> str | None: ...
+
+    def delete(self, storage_key: str) -> None: ...
+
+    def purge_parser_cache(self, older_than: datetime) -> int: ...
 
 
 class LocalStorageService:
@@ -114,6 +119,12 @@ class LocalStorageService:
     def create_download_url(self, storage_key: str, expires_seconds: int = 300) -> str | None:
         self._resolve_storage_key(storage_key)
         return None
+
+    def delete(self, storage_key: str) -> None:
+        self._resolve_storage_key(storage_key).unlink(missing_ok=True)
+
+    def purge_parser_cache(self, older_than: datetime) -> int:
+        return 0
 
     def _validate_upload(self, original_filename: str, content_type: str, content: bytes) -> None:
         if not content:
@@ -216,6 +227,28 @@ class S3CompatibleStorageService:
             Params={"Bucket": self.bucket, "Key": storage_key},
             ExpiresIn=min(max(expires_seconds, 60), 900),
         )
+
+    def delete(self, storage_key: str) -> None:
+        target = self._cache_path(storage_key)
+        self.client.delete_object(Bucket=self.bucket, Key=storage_key)
+        target.unlink(missing_ok=True)
+
+    def purge_parser_cache(self, older_than: datetime) -> int:
+        removed = 0
+        cutoff = older_than.timestamp()
+        for path in self.cache_root.glob("*.pdf"):
+            if path.is_file() and path.stat().st_mtime < cutoff:
+                path.unlink(missing_ok=True)
+                removed += 1
+        return removed
+
+    def _cache_path(self, storage_key: str) -> Path:
+        if Path(storage_key).name != storage_key:
+            raise StorageError("Invalid storage key")
+        target = (self.cache_root / storage_key).resolve()
+        if not target.is_relative_to(self.cache_root):
+            raise StorageError("Storage path escapes cache root")
+        return target
 
 
 def build_document_storage(

@@ -164,11 +164,13 @@ Observed evidence so far:
 
 ### Security Gate Before Provider Replacement
 
-Status: SEC-001 and SEC-002 remediated on 19 July 2026; remaining security hardening is pending.
+Status: SEC-001, SEC-002, SEC-004, and SEC-006 remediated on 19 July 2026. The SEC-003 production
+ClamAV boundary is implemented and test-covered; authorized deployment verification is still pending.
 
 - [Security And Privacy Assurance V1](docs/security/security-assurance-v1.md) records the threat model, provider data boundaries, verified controls, and residual risk
 - [Security Evidence And Traceability V1](docs/security/security-evidence-v1.md) binds the commands, candidate, results, and unrun checks
 - [Security Remediation V1](docs/security/security-remediation-v1.md) records the hosted-policy and server-owned identity changes and executed regression evidence
+- [Security Remediation V2](docs/security/security-remediation-v2.md) records upload scanning, private-cache headers, retention purge, and residual infrastructure gates
 - the loopback-only synthetic demo is `PASS_WITH_LIMITATIONS`
 - a controlled single-workspace hosted demo is `PASS_WITH_LIMITATIONS`; untrusted uploads and real-data use remain blocked by the other open findings
 - provider replacement must be evaluated against HTTPS/host restrictions, ZDR and retention, data location, DPA terms, quota stability, and deletion responsibilities
@@ -177,7 +179,7 @@ Remediation order:
 
 1. [x] Make every hosted mode enforce strong token, cookie, CSRF, and API-documentation policy.
 2. [x] Replace caller-asserted role/workspace headers with server-owned principal sessions.
-3. [ ] Add real PDF scanning, sensitive-response no-store policy, and explicit retention/deletion.
+3. [x] Add the production ClamAV adapter, sensitive-response no-store policy, and explicit retention/deletion; verify the scanner service and infrastructure lifecycle in the authorized deployment.
 4. [ ] Add durable outbound idempotency and adversarial invoice prompt-injection tests.
 5. [ ] Pin and scan the dependency, CI action, and release-image supply chain.
 6. [ ] Research a replacement extractor only after the provider-security acceptance criteria are bound.

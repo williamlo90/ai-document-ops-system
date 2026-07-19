@@ -7,10 +7,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 
 from app.api.dependencies import AppContainer, get_container, require_admin_context
 from app.api.serializers import job_response
-from app.core.security import SecurityContext
+from app.core.security import SecurityContext, UnauthorizedError
 from app.documents.jobs import ProcessingJobStatus
 from app.documents.repositories import NotFoundError
 from app.documents.status import InvalidStatusTransition
@@ -18,6 +19,43 @@ from app.operations.notifications import Notification, notification_response
 
 
 router = APIRouter(prefix="/operations", tags=["operations"])
+
+
+class RetentionPurgeRequest(BaseModel):
+    dry_run: bool = True
+    reason: str = Field(
+        default="retention_policy",
+        min_length=3,
+        max_length=100,
+        pattern=r"^[a-z0-9_-]+$",
+    )
+
+
+@router.get("/retention")
+def retention_policy(
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    try:
+        return container.retention_service.policy(context)
+    except UnauthorizedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden") from exc
+
+
+@router.post("/retention/purge")
+def purge_expired_documents(
+    payload: RetentionPurgeRequest,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    try:
+        return container.retention_service.purge_expired(
+            context,
+            dry_run=payload.dry_run,
+            reason=payload.reason,
+        )
+    except UnauthorizedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden") from exc
 
 
 @router.get("/notifications")

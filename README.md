@@ -103,6 +103,12 @@ For real providers, copy `.env.example` to the ignored `.env`, set
 provider variables. Never commit `.env` or real invoices. Full instructions are in
 [RUNBOOK.md](RUNBOOK.md).
 
+Production mode also requires a reachable ClamAV service. Private API responses are marked
+`no-store`, and administrators can inspect or execute the configured retention policy through the
+document-retention API. These controls are implemented and tested locally; hosted scanner,
+object-store lifecycle, backup deletion, and independent security verification remain deployment
+gates.
+
 ## Quality Gates
 
 ```powershell
@@ -127,6 +133,8 @@ Pop-Location
 - The default authentication and persistence profile is intended for a local portfolio demo.
 - Hosted tenancy, production monitoring, backups, secret management, and live ERP delivery are
   not implemented.
+- The ClamAV production adapter is test-covered but has not been verified against an authorized
+  hosted scanner in this repository's evidence record.
 - Human approval remains mandatory for consequential actions.
 
 ## Read Next

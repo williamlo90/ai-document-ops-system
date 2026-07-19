@@ -52,7 +52,7 @@ from app.core.security import (
     authenticate_access_token,
     require_any_role,
 )
-from app.core.upload_scanning import PassthroughUploadScanner, SignatureUploadScanner
+from app.core.upload_scanning import build_upload_scanner
 from app.core.settings import Settings
 from app.documents.repositories import (
     AuditRepository,
@@ -67,6 +67,11 @@ from app.documents.repositories import (
     ReviewTaskRepository,
 )
 from app.documents.services import DocumentProcessingService, DocumentUploadService
+from app.documents.retention import (
+    DocumentRetentionService,
+    InMemoryRetentionRepository,
+    SqliteRetentionRepository,
+)
 from app.documents.sqlite_repositories import (
     SqliteAuditRepository,
     SqliteDocumentRepository,
@@ -130,6 +135,7 @@ class AppContainer:
     backoffice_policy_decisions: PolicyDecisionRepository
     workflow_events: WorkflowEventRepository
     backoffice_service: BackofficeWorkflowService
+    retention_service: DocumentRetentionService
 
     def readiness(self) -> dict[str, bool]:
         return {
@@ -194,11 +200,7 @@ def build_container(settings: Settings) -> AppContainer:
         raise ValueError(f"Unsupported storage backend: {settings.storage_backend}")
     agentops_service = AgentOpsEvaluationService()
     workflow = DocumentWorkflowService()
-    upload_scanner = (
-        SignatureUploadScanner()
-        if settings.malware_scanning_enabled
-        else PassthroughUploadScanner()
-    )
+    upload_scanner = build_upload_scanner(settings)
     upload_service = DocumentUploadService(
         storage, documents, jobs, audits, workflow, upload_scanner
     )
@@ -261,6 +263,32 @@ def build_container(settings: Settings) -> AppContainer:
         agent_runs=agent_runs,
         documents=documents,
     )
+    if settings.storage_backend.strip().lower() == "sqlite":
+        retention_repository = SqliteRetentionRepository(store)
+    else:
+        retention_repository = InMemoryRetentionRepository(
+            documents=documents,
+            jobs=jobs,
+            audits=audits,
+            extractions=extractions,
+            reviews=reviews,
+            corrections=correction_events,
+            work_items=backoffice_work_items,
+            plans=backoffice_plans,
+            drafts=backoffice_drafts,
+            approvals=backoffice_approvals,
+            policy_decisions=backoffice_policy_decisions,
+            workflow_events=workflow_events,
+            agent_runs=agent_runs,
+            scenario_evaluations=scenario_evaluations,
+            notifications=notifications,
+        )
+    retention_service = DocumentRetentionService(
+        settings=settings,
+        storage=storage,
+        documents=documents,
+        repository=retention_repository,
+    )
     return AppContainer(
         settings=settings,
         storage=storage,
@@ -293,6 +321,7 @@ def build_container(settings: Settings) -> AppContainer:
         backoffice_policy_decisions=backoffice_policy_decisions,
         workflow_events=workflow_events,
         backoffice_service=backoffice_service,
+        retention_service=retention_service,
     )
 
 

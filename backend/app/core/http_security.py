@@ -34,6 +34,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault(
             "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
         )
+        if _is_sensitive_response_path(request.url.path):
+            response.headers.setdefault("Cache-Control", "no-store, private")
+            response.headers.setdefault("Pragma", "no-cache")
+            response.headers.setdefault("Expires", "0")
         return response
 
 
@@ -98,3 +102,21 @@ def _is_document_content_path(path: str) -> bool:
         and parts[1] == "documents"
         and parts[3] == "preview"
     )
+
+
+def _is_sensitive_response_path(path: str) -> bool:
+    prefixes = (
+        "/agent",
+        "/agentops",
+        "/auth",
+        "/backoffice",
+        "/documents",
+        "/exports",
+        "/integrations",
+        "/invoices",
+        "/metrics",
+        "/operations",
+        "/providers",
+        "/review",
+    )
+    return path.startswith(prefixes)

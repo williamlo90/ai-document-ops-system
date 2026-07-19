@@ -95,6 +95,16 @@ class LocalStorageServiceTests(unittest.TestCase):
             with self.assertRaises(StorageError):
                 storage.open_for_parser("../secret.pdf")
 
+    def test_delete_removes_stored_pdf_and_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            storage = LocalStorageService(Path(temp_dir))
+            stored = storage.save_upload("invoice.pdf", "application/pdf", b"%PDF- demo")
+
+            storage.delete(stored.storage_key)
+            storage.delete(stored.storage_key)
+
+            self.assertFalse((Path(temp_dir) / stored.storage_key).exists())
+
 
 if __name__ == "__main__":
     unittest.main()

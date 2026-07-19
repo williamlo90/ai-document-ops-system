@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from app.api.document_commands import (
     WorkflowCommandPayload,
@@ -18,11 +19,17 @@ from app.api.document_workflow import document_workflow_response
 from app.api.serializers import audit_response, document_response, extraction_response, job_response
 from app.core.security import SecurityContext, UnauthorizedError, is_intake_role
 from app.documents.repositories import NotFoundError
+from app.documents.retention import RetentionConflict, purge_record_response
 from app.documents.status import InvalidStatusTransition
 from app.providers.storage import StorageError
+from app.core.upload_scanning import UploadScannerUnavailable
 
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+class DeleteDocumentRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=100, pattern=r"^[a-z0-9_-]+$")
 
 
 @router.get("/upload-policy")
@@ -61,6 +68,11 @@ def upload_document(
             chunks=chunks,
             context=context,
         )
+    except UploadScannerUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Upload scanner is unavailable",
+        ) from exc
     except StorageError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except UnauthorizedError as exc:
@@ -234,6 +246,24 @@ def process_document(
     except InvalidStatusTransition as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return {"document": document_response(document), "job": job_response(job)}
+
+
+@router.delete("/{document_id}")
+def delete_document(
+    document_id: UUID,
+    payload: DeleteDocumentRequest,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    try:
+        record = container.retention_service.purge_document(document_id, context, payload.reason)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except UnauthorizedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden") from exc
+    except RetentionConflict as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return {"purge": purge_record_response(record)}
 
 
 def _document_visible_to_context(document, context: SecurityContext) -> bool:

@@ -76,6 +76,47 @@ $env:PYTHONPATH = "backend"
 Then start the app and exercise the full UI flow. A successful extraction must still stop for a
 reviewer decision.
 
+## Upload Scanning And Retention
+
+The local and controlled synthetic-demo profiles use the built-in signature guard. It proves the
+scanner boundary and EICAR rejection path, but it is not a production antivirus engine. Production
+mode fails startup unless these settings select ClamAV:
+
+```dotenv
+MALWARE_SCANNING_ENABLED=true
+MALWARE_SCANNER_BACKEND=clamav
+CLAMAV_HOST=clamav
+CLAMAV_PORT=3310
+CLAMAV_TIMEOUT_SECONDS=10
+```
+
+The ClamAV adapter uses the `INSTREAM` protocol and fails the upload closed with `503` when the
+scanner cannot verify it. Verify network isolation, signature updates, health monitoring, and an
+EICAR upload in the authorized deployment before accepting untrusted PDFs.
+
+Retention defaults to 90 days for terminal documents and 24 hours for downloaded parser-cache
+files. Inspect candidates without deleting data:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://127.0.0.1:8000/operations/retention" `
+  -Headers @{ "X-Access-Token" = "123" }
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8000/operations/retention/purge" `
+  -ContentType "application/json" `
+  -Body '{"dry_run":true,"reason":"retention_policy"}' `
+  -Headers @{ "X-Access-Token" = "123" }
+```
+
+Only an administrator can execute purge. Deletion reason codes accept lowercase letters, numbers,
+underscores, and hyphens so free-text invoice data does not enter access or audit logs. A purge
+removes the document object, S3 parser cache,
+core metadata, extraction, review, correction, workflow, notification, and document audit records.
+It retains only a hashed document fingerprint and deletion counts as the purge tombstone. Database
+backups and object-store version history require separate infrastructure lifecycle controls.
+
 ## Synthetic Scenario Evaluation
 
 The committed dataset contains 20 safe synthetic PDFs.
