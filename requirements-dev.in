@@ -1,0 +1,8 @@
+-r requirements.in
+
+# Development and evidence tooling.
+pip-audit==2.10.1
+pip-tools==7.6.0
+radon==6.0.1
+reportlab==4.4.9
+ruff==0.15.22

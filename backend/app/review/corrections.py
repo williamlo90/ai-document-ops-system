@@ -177,7 +177,10 @@ def _correction_reason(
         return reason.strip(), CorrectionReasonSource.USER
     if requested_reason and requested_reason.strip():
         return requested_reason.strip(), CorrectionReasonSource.REVIEWER_REQUEST
-    return "Corrected while checking the invoice against the PDF.", CorrectionReasonSource.SYSTEM_DEFAULT
+    return (
+        "Corrected while checking the invoice against the PDF.",
+        CorrectionReasonSource.SYSTEM_DEFAULT,
+    )
 
 
 def _value(value: object) -> CorrectionValue:

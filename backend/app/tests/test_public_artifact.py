@@ -144,9 +144,7 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertTrue(
             (output / "docs" / "assets" / "screenshots" / "approved-decision.png").exists()
         )
-        self.assertTrue(
-            (output / "docs" / "assets" / "demo" / "ai-document-ops-demo.mp4").exists()
-        )
+        self.assertTrue((output / "docs" / "assets" / "demo" / "ai-document-ops-demo.mp4").exists())
 
     def test_excludes_obsolete_public_plans(self) -> None:
         result = self._run_script(self.output)
@@ -163,10 +161,7 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         scenario_dataset = Path(self.output) / "examples" / "agentops" / "scenarios_v1.json"
         document_operations_dataset = (
-            Path(self.output)
-            / "examples"
-            / "agentops"
-            / "document_operations_scenarios_v1.json"
+            Path(self.output) / "examples" / "agentops" / "document_operations_scenarios_v1.json"
         )
         self.assertTrue(scenario_dataset.exists())
         self.assertTrue(document_operations_dataset.exists())

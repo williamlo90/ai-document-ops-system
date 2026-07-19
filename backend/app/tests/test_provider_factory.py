@@ -223,7 +223,7 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         )
         result = extractor.extract_invoice(
             ParsedDocument(
-                text=("FROM\nAcme Logistics\n100 Example Street\n" "Invoice #INV-001 total 110.00"),
+                text=("FROM\nAcme Logistics\n100 Example Street\nInvoice #INV-001 total 110.00"),
                 provider_trace_id="trace-123",
             )
         )

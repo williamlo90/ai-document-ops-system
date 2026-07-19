@@ -98,5 +98,6 @@ class BenchmarkHistoryTests(unittest.TestCase):
             self.assertEqual(sqlite_container.benchmark_history.count(), 1)
             sqlite_container.documents.store.connection.close()
 
+
 if __name__ == "__main__":
     unittest.main()

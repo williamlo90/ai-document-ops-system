@@ -55,8 +55,7 @@ def main() -> None:
         rate_limit_s=args.rate_limit_seconds,
     )
     predicted_records = [
-        {"document_id": result.document_id, **result.predicted_fields}
-        for result in run.results
+        {"document_id": result.document_id, **result.predicted_fields} for result in run.results
     ]
 
     _write_json(args.output_predicted_json, predicted_records)

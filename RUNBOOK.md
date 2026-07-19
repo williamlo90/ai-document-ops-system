@@ -162,13 +162,16 @@ Backend:
 $env:ENV_FILE = ".env.example"
 $env:PYTHONPATH = "backend"
 .\.venv\Scripts\python.exe -m unittest discover -s backend/app/tests -t backend
-.\.venv\Scripts\python.exe -m ruff check backend scripts
+.\.venv\Scripts\python.exe -m ruff format --check backend scripts run_tests.py
+.\.venv\Scripts\python.exe -m ruff check backend scripts run_tests.py
+.\.venv\Scripts\python.exe -m pip_audit --requirement requirements.txt --disable-pip --strict
 ```
 
 Frontend:
 
 ```powershell
 Push-Location frontend
+npm audit --audit-level=high
 npm test
 npm run lint
 npm run build

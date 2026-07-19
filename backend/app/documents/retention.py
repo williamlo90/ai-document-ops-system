@@ -351,8 +351,10 @@ class InMemoryRetentionRepository:
             _purge_list_records(
                 self.repositories,
                 name,
-                lambda value: getattr(value, "document_id", None) == document_id
-                or getattr(value, "work_item_id", None) in removed_work_items,
+                lambda value: (
+                    getattr(value, "document_id", None) == document_id
+                    or getattr(value, "work_item_id", None) in removed_work_items
+                ),
                 deleted,
             )
         _purge_dict_records(
@@ -364,8 +366,9 @@ class InMemoryRetentionRepository:
         _purge_dict_records(
             self.repositories,
             "notifications",
-            lambda value: value.document_id == document_id
-            or value.work_item_id in removed_work_items,
+            lambda value: (
+                value.document_id == document_id or value.work_item_id in removed_work_items
+            ),
             deleted,
         )
         _purge_list_records(

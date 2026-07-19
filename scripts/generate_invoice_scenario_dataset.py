@@ -12,7 +12,7 @@ try:
 except ImportError as exc:
     raise SystemExit(
         "reportlab is required. Install development dependencies with "
-        "'pip install -r requirements-dev.txt'."
+        "'pip install --require-hashes -r requirements-dev.txt'."
     ) from exc
 
 
@@ -96,7 +96,9 @@ def _draw_invoice_page(
     height: float,
     variant: str,
 ) -> None:
-    foreground = colors.HexColor("#9AA4B2") if variant == "low_contrast" else colors.HexColor("#172033")
+    foreground = (
+        colors.HexColor("#9AA4B2") if variant == "low_contrast" else colors.HexColor("#172033")
+    )
     muted = colors.HexColor("#B7C0CC") if variant == "low_contrast" else colors.HexColor("#64748B")
     accent = colors.HexColor("#8EA5A0") if variant == "low_contrast" else colors.HexColor("#0F766E")
     border = colors.HexColor("#CBD5E1")
@@ -156,7 +158,9 @@ def _draw_invoice_page(
     table_left = margin
     table_width = right - margin
     columns = (0.0, 0.55, 0.68, 0.84, 1.0)
-    pdf.setFillColor(colors.HexColor("#E8F3F1") if variant != "low_contrast" else colors.HexColor("#EEF1F4"))
+    pdf.setFillColor(
+        colors.HexColor("#E8F3F1") if variant != "low_contrast" else colors.HexColor("#EEF1F4")
+    )
     pdf.rect(table_left, table_top, table_width, 24, stroke=0, fill=1)
     pdf.setFillColor(foreground)
     pdf.setFont("Helvetica-Bold", 8)

@@ -178,7 +178,9 @@ class IntakeApiTests(unittest.TestCase):
 
         william_list = self.client.get("/invoices", headers=william_headers)
         william_documents = self.client.get("/documents", headers=william_headers)
-        william_detail = self.client.get(f"/documents/{william_document_id}", headers=william_headers)
+        william_detail = self.client.get(
+            f"/documents/{william_document_id}", headers=william_headers
+        )
         hidden_detail = self.client.get(f"/documents/{other_document_id}", headers=william_headers)
         hidden_workflow = self.client.get(
             f"/documents/{other_document_id}/workflow",
@@ -381,7 +383,9 @@ class IntakeApiTests(unittest.TestCase):
         )
         self.assertEqual(approved.status_code, 200)
         self.assertEqual(edit_after_approval.status_code, 409)
-        self.assertEqual(edit_after_approval.json()["detail"], "Finalized invoices cannot be edited.")
+        self.assertEqual(
+            edit_after_approval.json()["detail"], "Finalized invoices cannot be edited."
+        )
 
     def test_cancel_stops_queued_job_and_reprocess_creates_recovery_job(self) -> None:
         headers = session_headers(self.client, actor="William Lo")

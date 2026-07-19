@@ -1,17 +1,3 @@
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-exclude = '''
-/(
-  \.git
-  | \.venv
-  | dist
-  | backend/data
-  | delegation
-  | logs
-)/
-'''
-
 [tool.ruff]
 line-length = 100
 target-version = "py311"
