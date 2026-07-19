@@ -298,13 +298,33 @@ class ApiTests(unittest.TestCase):
 
         response = self.client.post(
             f"/integrations/accounting/documents/{document_id}/export",
-            headers=HEADERS,
+            headers={**HEADERS, "Idempotency-Key": "api-export-inv-001"},
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["document"]["status"], "exported")
         self.assertEqual(response.json()["integration"]["adapter_name"], "mock-accounting")
         self.assertEqual(response.json()["integration"]["external_id"], "mock-ap-INV-001")
+
+        replay = self.client.post(
+            f"/integrations/accounting/documents/{document_id}/export",
+            headers={**HEADERS, "Idempotency-Key": "api-export-inv-001"},
+        )
+        self.assertEqual(replay.status_code, 200)
+        self.assertTrue(replay.json()["integration"]["replayed"])
+
+    def test_accounting_integration_requires_idempotency_key(self) -> None:
+        document_id = self._upload_document()
+        self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
+
+        response = self.client.post(
+            f"/integrations/accounting/documents/{document_id}/export",
+            headers=HEADERS,
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("Idempotency-Key", response.json()["detail"])
 
     def test_api_document_access_is_scoped_by_workspace(self) -> None:
         acme_headers = session_headers(

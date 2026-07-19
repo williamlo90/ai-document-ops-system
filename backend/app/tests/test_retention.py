@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.core.settings import Settings
 from app.main import create_app
+from app.integrations.models import IntegrationDeliveryRecord
 
 
 class RetentionApiTests(unittest.TestCase):
@@ -29,6 +30,15 @@ class RetentionApiTests(unittest.TestCase):
                     f"/documents/{document_id}/cancel",
                     headers={"X-Access-Token": "admin-token"},
                     json={"reason": "test cleanup"},
+                )
+                app.state.container.integration_deliveries.reserve(
+                    IntegrationDeliveryRecord(
+                        workspace_id="default",
+                        document_id=UUID(document_id),
+                        adapter_name="mock-accounting",
+                        idempotency_key="retention-export-key",
+                        payload_hash="retention-test",
+                    )
                 )
 
                 response = client.request(
@@ -51,6 +61,13 @@ class RetentionApiTests(unittest.TestCase):
                 self.assertEqual(
                     store.query_one(
                         "SELECT COUNT(*) AS count FROM audit_events WHERE document_id = ?",
+                        (document_id,),
+                    )["count"],
+                    0,
+                )
+                self.assertEqual(
+                    store.query_one(
+                        "SELECT COUNT(*) AS count FROM integration_deliveries WHERE document_id = ?",
                         (document_id,),
                     )["count"],
                     0,

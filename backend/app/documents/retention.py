@@ -231,6 +231,7 @@ class SqliteRetentionRepository:
                     {document_key, *work_item_ids},
                 )
                 for table in (
+                    "integration_deliveries",
                     "correction_events",
                     "review_tasks",
                     "extractions",
@@ -371,6 +372,12 @@ class InMemoryRetentionRepository:
             self.repositories,
             "scenario_evaluations",
             lambda value: value.target_id == str(document_id),
+            deleted,
+        )
+        _purge_dict_records(
+            self.repositories,
+            "integration_deliveries",
+            lambda value: value.document_id == document_id,
             deleted,
         )
         documents.pop(document_id)

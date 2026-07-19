@@ -9,10 +9,11 @@
 
 ## Post-Audit Remediation
 
-SEC-001, SEC-002, SEC-004, and SEC-006 were remediated and self-verified on 19 July 2026. The
+SEC-001, SEC-002, SEC-004, SEC-005, SEC-006, and SEC-007 were remediated and self-verified on 19 July 2026. The
 production ClamAV boundary for SEC-003 is implemented and test-covered but not yet verified against
 an authorized scanner service. See [Security Remediation V1](security-remediation-v1.md) and
-[Security Remediation V2](security-remediation-v2.md). The original observations below are retained
+[Security Remediation V2](security-remediation-v2.md), [Security Remediation V3](security-remediation-v3.md),
+and [Security Remediation V4](security-remediation-v4.md). The original observations below are retained
 as the 15 July baseline, not as a current-state finding list. Hosted untrusted uploads and real
 client data remain blocked pending deployment and independent verification plus the other open gates.
 

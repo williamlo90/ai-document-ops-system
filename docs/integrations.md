@@ -10,6 +10,7 @@ The first supported target is a mock accounting adapter. It represents the shape
 approved document
 -> integration service
 -> invoice payload mapping
+-> durable delivery reservation
 -> accounting adapter
 -> audit attempt
 -> audit success or failure
@@ -26,12 +27,14 @@ Required headers:
 
 ```text
 X-Admin-Token: ...
-X-Workspace-Id: optional workspace scope
-X-User-Id: optional actor id
-X-Role: optional role, must resolve to admin capability
+Idempotency-Key: caller-generated stable key, 8-128 safe characters
 ```
 
-Only `approved` documents can be sent. A successful send marks the document `exported`.
+An authenticated admin session can replace `X-Admin-Token`. Identity, role, and workspace are resolved
+from the server-owned credential or session, not caller-asserted identity headers.
+
+Only `approved` documents can start a delivery. A successful send marks the document `exported`.
+Replaying the same key and payload returns the stored success without invoking the adapter again.
 
 ## Payload Boundary
 
@@ -58,11 +61,25 @@ Every integration attempt records audit events:
 
 Failed delivery keeps the document `approved` so the export can be retried.
 
+## Idempotency And Reconciliation
+
+- The ledger reserves the workspace, adapter, document, payload hash, and key before outbound I/O.
+- A known pre-acceptance failure may be retried only with the same key.
+- A timeout or crash with an uncertain provider outcome is marked `unknown` or remains `pending`.
+- Pending and unknown records cannot be resent automatically.
+- An admin must verify the provider ledger and call
+  `POST /integrations/accounting/deliveries/reconcile` with the same `Idempotency-Key`, a reason, and
+  the confirmed outcome.
+- A successful delivery record is persisted before the local document transition, allowing a replay
+  to finish local recovery after a process interruption.
+
+The current mock adapter honors keys. A future real adapter is not acceptable until the external
+provider also binds the same key or exposes a reliable lookup/reconciliation contract.
+
 ## Deferred
 
 - real webhook adapter
 - real accounting/ERP credentials
-- persisted outbound delivery queue
 - exponential retry scheduler
-- idempotency keys against external systems
+- real-provider idempotency and reconciliation verification
 - signed callback verification

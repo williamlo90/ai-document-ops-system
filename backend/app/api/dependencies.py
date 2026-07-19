@@ -84,6 +84,11 @@ from app.documents.worker import DocumentProcessingWorker
 from app.documents.workflow import DocumentWorkflowService
 from app.exports.services import InvoiceExportService
 from app.integrations.adapters import MockAccountingAdapter
+from app.integrations.repositories import (
+    InMemoryIntegrationDeliveryRepository,
+    IntegrationDeliveryRepository,
+    SqliteIntegrationDeliveryRepository,
+)
 from app.integrations.services import InvoiceIntegrationService
 from app.metrics.services import MetricsService
 from app.providers.factory import build_extractor_provider, build_parser_provider
@@ -120,6 +125,7 @@ class AppContainer:
     review_service: ReviewService
     correction_feedback: CorrectionFeedbackService
     export_service: InvoiceExportService
+    integration_deliveries: IntegrationDeliveryRepository
     integration_service: InvoiceIntegrationService
     metrics_service: MetricsService
     agent_runs: AgentRunRepository
@@ -179,6 +185,7 @@ def build_container(settings: Settings) -> AppContainer:
         agent_runs = SqliteAgentRunRepository(store)
         scenario_evaluations = SqliteScenarioEvaluationRepository(store)
         notifications = SqliteNotificationRepository(store)
+        integration_deliveries = SqliteIntegrationDeliveryRepository(store)
     elif settings.storage_backend.strip().lower() == "memory":
         documents = InMemoryDocumentRepository()
         jobs = InMemoryJobRepository()
@@ -196,6 +203,7 @@ def build_container(settings: Settings) -> AppContainer:
         agent_runs = InMemoryAgentRunRepository()
         scenario_evaluations = InMemoryScenarioEvaluationRepository()
         notifications = InMemoryNotificationRepository()
+        integration_deliveries = InMemoryIntegrationDeliveryRepository()
     else:
         raise ValueError(f"Unsupported storage backend: {settings.storage_backend}")
     agentops_service = AgentOpsEvaluationService()
@@ -232,6 +240,7 @@ def build_container(settings: Settings) -> AppContainer:
         audits,
         workflow,
         MockAccountingAdapter(),
+        integration_deliveries,
     )
     metrics_service = MetricsService(documents, jobs, audits)
     tool_executor = ControlledToolExecutor(
@@ -282,6 +291,7 @@ def build_container(settings: Settings) -> AppContainer:
             agent_runs=agent_runs,
             scenario_evaluations=scenario_evaluations,
             notifications=notifications,
+            integration_deliveries=integration_deliveries,
         )
     retention_service = DocumentRetentionService(
         settings=settings,
@@ -306,6 +316,7 @@ def build_container(settings: Settings) -> AppContainer:
         review_service=review_service,
         correction_feedback=correction_feedback,
         export_service=export_service,
+        integration_deliveries=integration_deliveries,
         integration_service=integration_service,
         metrics_service=metrics_service,
         agent_runs=agent_runs,

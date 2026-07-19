@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -20,8 +21,19 @@ from app.documents.status import DocumentStatus, InvalidStatusTransition
 from app.documents.workflow import DocumentWorkflowService
 from app.extraction.schemas import InvoiceData, InvoiceLineItem
 from app.integrations.adapters import MockAccountingAdapter
-from app.integrations.models import IntegrationDeliveryError
+from app.integrations.models import (
+    IntegrationDeliveryError,
+    IntegrationDeliveryRecord,
+    IntegrationDeliveryStatus,
+    IntegrationIdempotencyConflict,
+    IntegrationOutcomeUnknown,
+)
+from app.integrations.repositories import (
+    InMemoryIntegrationDeliveryRepository,
+    SqliteIntegrationDeliveryRepository,
+)
 from app.integrations.services import InvoiceIntegrationService
+from app.documents.sqlite_repositories import SqliteStore
 from app.providers.mock import MockInvoiceExtractor, MockParserProvider
 from app.providers.storage import LocalStorageService
 from app.review.services import ReviewService
@@ -37,6 +49,7 @@ class InvoiceIntegrationTests(unittest.TestCase):
         self.extractions = InMemoryExtractionRepository()
         self.reviews = InMemoryReviewTaskRepository()
         self.workflow = DocumentWorkflowService()
+        self.deliveries = InMemoryIntegrationDeliveryRepository()
         self.context = SecurityContext(actor="tester", is_admin=True)
 
     def tearDown(self) -> None:
@@ -67,6 +80,7 @@ class InvoiceIntegrationTests(unittest.TestCase):
         result = self._integration_service(adapter).send_approved_invoice(
             document.id,
             self.context,
+            idempotency_key="export-inv-erp-001",
         )
 
         self.assertEqual(result.integration_result.adapter_name, "mock-accounting")
@@ -99,7 +113,11 @@ class InvoiceIntegrationTests(unittest.TestCase):
         adapter = MockAccountingAdapter(fail_invoice_numbers={"INV-FAIL"})
 
         with self.assertRaises(IntegrationDeliveryError):
-            self._integration_service(adapter).send_approved_invoice(document.id, self.context)
+            self._integration_service(adapter).send_approved_invoice(
+                document.id,
+                self.context,
+                idempotency_key="export-inv-fail-001",
+            )
 
         self.assertEqual(document.status, DocumentStatus.APPROVED)
         events = self.audits.list_for_document(document.id)
@@ -122,7 +140,11 @@ class InvoiceIntegrationTests(unittest.TestCase):
         )
 
         with self.assertRaises(InvalidStatusTransition):
-            self._integration_service().send_approved_invoice(upload.document.id, self.context)
+            self._integration_service().send_approved_invoice(
+                upload.document.id,
+                self.context,
+                idempotency_key="export-not-approved-001",
+            )
 
     def test_integration_is_scoped_by_workspace(self) -> None:
         acme_context = SecurityContext(
@@ -142,7 +164,11 @@ class InvoiceIntegrationTests(unittest.TestCase):
         document = self._process_invoice(context=acme_context)
 
         with self.assertRaises(NotFoundError):
-            self._integration_service().send_approved_invoice(document.id, other_context)
+            self._integration_service().send_approved_invoice(
+                document.id,
+                other_context,
+                idempotency_key="export-wrong-workspace-001",
+            )
 
         self.assertEqual(document.status, DocumentStatus.APPROVED)
 
@@ -151,7 +177,116 @@ class InvoiceIntegrationTests(unittest.TestCase):
         operator_context = SecurityContext(actor="operator", is_admin=False, role="operator")
 
         with self.assertRaises(UnauthorizedError):
-            self._integration_service().send_approved_invoice(document.id, operator_context)
+            self._integration_service().send_approved_invoice(
+                document.id,
+                operator_context,
+                idempotency_key="export-operator-001",
+            )
+
+    def test_successful_replay_does_not_send_twice(self) -> None:
+        document = self._process_invoice()
+        adapter = MockAccountingAdapter()
+        service = self._integration_service(adapter)
+
+        first = service.send_approved_invoice(
+            document.id, self.context, idempotency_key="stable-replay-key"
+        )
+        second = service.send_approved_invoice(
+            document.id, self.context, idempotency_key="stable-replay-key"
+        )
+
+        self.assertFalse(first.replayed)
+        self.assertTrue(second.replayed)
+        self.assertEqual(len(adapter.sent_payloads), 1)
+        self.assertEqual(
+            first.integration_result.external_id, second.integration_result.external_id
+        )
+
+    def test_known_retryable_failure_can_retry_with_same_key(self) -> None:
+        data = self._valid_invoice("INV-RETRY", Decimal("25.00"))
+        document = self._process_invoice(data)
+        adapter = MockAccountingAdapter(fail_once_invoice_numbers={"INV-RETRY"})
+        service = self._integration_service(adapter)
+
+        with self.assertRaises(IntegrationDeliveryError):
+            service.send_approved_invoice(
+                document.id, self.context, idempotency_key="retryable-export-key"
+            )
+        result = service.send_approved_invoice(
+            document.id, self.context, idempotency_key="retryable-export-key"
+        )
+
+        self.assertEqual(result.delivery.attempt_count, 2)
+        self.assertEqual(result.delivery.status, IntegrationDeliveryStatus.SUCCEEDED)
+        self.assertEqual(len(adapter.attempted_keys), 2)
+        self.assertEqual(len(adapter.sent_payloads), 1)
+
+    def test_unknown_outcome_blocks_resend_until_reconciled(self) -> None:
+        data = self._valid_invoice("INV-UNKNOWN", Decimal("25.00"))
+        document = self._process_invoice(data)
+        adapter = MockAccountingAdapter(unknown_outcome_invoice_numbers={"INV-UNKNOWN"})
+        service = self._integration_service(adapter)
+
+        with self.assertRaises(IntegrationDeliveryError):
+            service.send_approved_invoice(
+                document.id, self.context, idempotency_key="unknown-export-key"
+            )
+        with self.assertRaises(IntegrationOutcomeUnknown):
+            service.send_approved_invoice(
+                document.id, self.context, idempotency_key="unknown-export-key"
+            )
+        reconciled = service.reconcile_delivery(
+            idempotency_key="unknown-export-key",
+            context=self.context,
+            succeeded=True,
+            external_id="ledger-123",
+            reason="Confirmed in accounting ledger",
+        )
+
+        self.assertEqual(len(adapter.attempted_keys), 1)
+        self.assertEqual(reconciled.status, IntegrationDeliveryStatus.SUCCEEDED)
+        self.assertEqual(document.status, DocumentStatus.EXPORTED)
+
+    def test_key_cannot_be_reused_for_different_document(self) -> None:
+        first = self._process_invoice(self._valid_invoice("INV-A", Decimal("1.00")))
+        second = self._process_invoice(self._valid_invoice("INV-B", Decimal("2.00")))
+        service = self._integration_service()
+        service.send_approved_invoice(first.id, self.context, idempotency_key="shared-export-key")
+
+        with self.assertRaises(IntegrationIdempotencyConflict):
+            service.send_approved_invoice(
+                second.id, self.context, idempotency_key="shared-export-key"
+            )
+
+    def test_sqlite_delivery_ledger_survives_repository_recreation(self) -> None:
+        db_path = Path(self.temp_dir.name) / "integration-ledger.sqlite3"
+        store = SqliteStore(db_path)
+        repository = SqliteIntegrationDeliveryRepository(store)
+        record = IntegrationDeliveryRecord(
+            workspace_id="default",
+            document_id=self._process_invoice().id,
+            adapter_name="mock-accounting",
+            idempotency_key="persistent-export-key",
+            payload_hash="abc123",
+        )
+        repository.reserve(record)
+        repository.save(
+            replace(
+                record,
+                status=IntegrationDeliveryStatus.SUCCEEDED,
+                external_id="ledger-persisted",
+            )
+        )
+        store.connection.close()
+
+        recreated_store = SqliteStore(db_path)
+        recreated = SqliteIntegrationDeliveryRepository(recreated_store).get_by_key(
+            "default", "mock-accounting", "persistent-export-key"
+        )
+        recreated_store.connection.close()
+
+        self.assertIsNotNone(recreated)
+        self.assertEqual(recreated.external_id, "ledger-persisted")
 
     def _integration_service(
         self,
@@ -163,6 +298,7 @@ class InvoiceIntegrationTests(unittest.TestCase):
             self.audits,
             self.workflow,
             adapter or MockAccountingAdapter(),
+            self.deliveries,
         )
 
     def _review_service(self) -> ReviewService:
@@ -172,6 +308,18 @@ class InvoiceIntegrationTests(unittest.TestCase):
             self.extractions,
             self.audits,
             self.workflow,
+        )
+
+    @staticmethod
+    def _valid_invoice(invoice_number: str, total: Decimal) -> InvoiceData:
+        return InvoiceData(
+            vendor_name="Acme",
+            invoice_number=invoice_number,
+            invoice_date=date(2026, 6, 21),
+            subtotal=total,
+            tax=Decimal("0.00"),
+            total=total,
+            currency="USD",
         )
 
     def _process_invoice(

@@ -2,17 +2,28 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+from pydantic import BaseModel, Field
 
 from app.api.dependencies import AppContainer, get_container, require_admin_context
 from app.api.serializers import document_response
 from app.core.security import SecurityContext
 from app.documents.repositories import NotFoundError
 from app.documents.status import InvalidStatusTransition
-from app.integrations.models import IntegrationDeliveryError
+from app.integrations.models import (
+    IntegrationDeliveryError,
+    IntegrationIdempotencyConflict,
+    IntegrationOutcomeUnknown,
+)
 
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
+
+
+class ReconcileDeliveryRequest(BaseModel):
+    succeeded: bool
+    external_id: str | None = Field(default=None, max_length=200)
+    reason: str = Field(min_length=1, max_length=500)
 
 
 @router.get("/status")
@@ -111,15 +122,26 @@ def _status(
 @router.post("/accounting/documents/{document_id}/export")
 def export_document_to_accounting(
     document_id: UUID,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:
-        result = container.integration_service.send_approved_invoice(document_id, context)
+        result = container.integration_service.send_approved_invoice(
+            document_id,
+            context,
+            idempotency_key=idempotency_key,
+        )
     except (NotFoundError, KeyError) as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
     except InvalidStatusTransition as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except (IntegrationIdempotencyConflict, IntegrationOutcomeUnknown) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     except IntegrationDeliveryError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -127,6 +149,7 @@ def export_document_to_accounting(
                 "message": "Integration delivery failed",
                 "code": exc.code,
                 "retryable": exc.retryable,
+                "outcome_unknown": exc.outcome_unknown,
             },
         ) from exc
     return {
@@ -136,5 +159,46 @@ def export_document_to_accounting(
             "external_id": result.integration_result.external_id,
             "status": result.integration_result.status,
             "retryable": result.integration_result.retryable,
+            "delivery_status": result.delivery.status.value,
+            "attempt_count": result.delivery.attempt_count,
+            "replayed": result.replayed,
         },
+    }
+
+
+@router.post("/accounting/deliveries/reconcile")
+def reconcile_accounting_delivery(
+    payload: ReconcileDeliveryRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    try:
+        delivery = container.integration_service.reconcile_delivery(
+            idempotency_key=idempotency_key,
+            context=context,
+            succeeded=payload.succeeded,
+            external_id=payload.external_id,
+            reason=payload.reason,
+        )
+    except (NotFoundError, KeyError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except IntegrationIdempotencyConflict as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except (InvalidStatusTransition, IntegrationOutcomeUnknown) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+    return {
+        "delivery": {
+            "document_id": str(delivery.document_id),
+            "adapter_name": delivery.adapter_name,
+            "status": delivery.status.value,
+            "external_id": delivery.external_id,
+            "retryable": delivery.retryable,
+            "attempt_count": delivery.attempt_count,
+            "updated_at": delivery.updated_at.isoformat(),
+        }
     }

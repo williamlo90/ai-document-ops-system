@@ -16,7 +16,11 @@ from app.documents.repositories import NotFoundError
 from app.documents.services import DocumentProcessingService
 from app.documents.status import InvalidStatusTransition
 from app.exports.services import InvoiceExportService
-from app.integrations.models import IntegrationDeliveryError
+from app.integrations.models import (
+    IntegrationDeliveryError,
+    IntegrationIdempotencyConflict,
+    IntegrationOutcomeUnknown,
+)
 from app.integrations.services import InvoiceIntegrationService
 
 
@@ -140,7 +144,11 @@ class ControlledToolExecutor:
         if request.document_id is None:
             return _missing_document_id(AgentToolName.SEND_ACCOUNTING_INTEGRATION)
         try:
-            result = self.integration_service.send_approved_invoice(request.document_id, context)
+            result = self.integration_service.send_approved_invoice(
+                request.document_id,
+                context,
+                idempotency_key=f"agent-accounting:{request.document_id}",
+            )
         except UnauthorizedError:
             return _permission_denied(AgentToolName.SEND_ACCOUNTING_INTEGRATION)
         except NotFoundError:
@@ -159,6 +167,20 @@ class ControlledToolExecutor:
                 retryable=exc.retryable,
                 human_escalation_reason=(
                     "Retry later if retryable, otherwise inspect integration configuration."
+                ),
+            )
+        except (IntegrationIdempotencyConflict, IntegrationOutcomeUnknown, ValueError) as exc:
+            return AgentToolResponse(
+                tool_name=AgentToolName.SEND_ACCOUNTING_INTEGRATION,
+                status="escalated",
+                risk=definition.risk,
+                summary=str(exc),
+                confidence=AgentConfidence.LOW,
+                failure_type=AgentFailureType.TOOL_EXECUTION_FAILED,
+                retryable=False,
+                requires_follow_up=True,
+                human_escalation_reason=(
+                    "Reconcile the existing delivery record before another export attempt."
                 ),
             )
         return AgentToolResponse(
