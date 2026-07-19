@@ -14,7 +14,7 @@ from app.core.security import (
 from app.core.upload_scanning import SignatureUploadScanner, UploadScanner
 from app.core.observability import OperationEvent, log_operation
 from app.documents.jobs import ProcessingJob, ProcessingJobStatus
-from app.documents.models import DocumentRecord
+from app.documents.models import AuditEvent, DocumentRecord
 from app.documents.repositories import (
     AuditRepository,
     DocumentRepository,
@@ -27,6 +27,8 @@ from app.documents.workflow import DocumentWorkflowService
 from app.providers.contracts import DocumentSource, ExtractorProvider, ParserProvider, ProviderError
 from app.providers.storage import DocumentStorage
 from app.validation.document import validate_document_invoice
+from app.validation.invoice import ValidationReport
+from app.validation.untrusted_content import validate_untrusted_extraction
 
 
 @dataclass(frozen=True)
@@ -244,6 +246,25 @@ class DocumentProcessingService:
                 self.documents,
                 self.extractions,
             )
+            security_issues = validate_untrusted_extraction(
+                result.extraction,
+                parsed,
+                result.provider_name,
+            )
+            if security_issues:
+                report = ValidationReport(issues=(*report.issues, *security_issues))
+                self.audits.add(
+                    AuditEvent(
+                        document_id=document.id,
+                        event_type="untrusted_content_flagged",
+                        actor=context.actor,
+                        old_status=document.status,
+                        new_status=document.status,
+                        payload_summary=(
+                            "codes=" + ",".join(sorted({issue.code for issue in security_issues}))
+                        ),
+                    )
+                )
             self.extractions.save(document.id, result, report)
             self.audits.add(
                 self.workflow.transition(document, DocumentStatus.EXTRACTED, actor=context.actor)

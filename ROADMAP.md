@@ -164,7 +164,7 @@ Observed evidence so far:
 
 ### Security Gate Before Provider Replacement
 
-Status: SEC-001, SEC-002, SEC-004, SEC-005, SEC-006, and SEC-007 have application-level remediation on
+Status: SEC-001, SEC-002, SEC-004, SEC-005, SEC-006, SEC-007, and SEC-008 have application-level remediation on
 19 July 2026. The SEC-003 production ClamAV boundary and SEC-005 provider endpoint boundary are
 implemented and test-covered; scanner deployment and provider-contract verification remain external
 gates.
@@ -175,6 +175,7 @@ gates.
 - [Security Remediation V2](docs/security/security-remediation-v2.md) records upload scanning, private-cache headers, retention purge, and residual infrastructure gates
 - [Security Remediation V3](docs/security/security-remediation-v3.md) records provider HTTPS/allowlist enforcement, redirect refusal, and the remaining provider-governance decision
 - [Security Remediation V4](docs/security/security-remediation-v4.md) records the durable accounting-delivery ledger, replay behavior, and ambiguous-result reconciliation path
+- [Security Remediation V5](docs/security/security-remediation-v5.md) records the untrusted-OCR prompt boundary, evidence requirements, adversarial tests, and approval blocker
 - [Provider Data Boundary](docs/security/provider-data-boundary.md) records exactly what is sent to each provider and what remains prohibited
 - the loopback-only synthetic demo is `PASS_WITH_LIMITATIONS`
 - a controlled single-workspace hosted demo is `PASS_WITH_LIMITATIONS`; untrusted uploads and real-data use remain blocked by the other open findings
@@ -186,7 +187,7 @@ Remediation order:
 2. [x] Replace caller-asserted role/workspace headers with server-owned principal sessions.
 3. [x] Add the production ClamAV adapter, sensitive-response no-store policy, and explicit retention/deletion; verify the scanner service and infrastructure lifecycle in the authorized deployment.
 4. [x] Add durable outbound idempotency with crash-safe replay and reconciliation evidence.
-5. [ ] Add adversarial invoice prompt-injection tests and consequence-blocking evidence.
+5. [x] Add adversarial invoice prompt-injection tests and consequence-blocking evidence.
 6. [ ] Pin and scan the dependency, CI action, and release-image supply chain.
 7. [x] Enforce provider HTTPS, exact-host allowlists, and redirect refusal; replacement-provider research remains gated by the documented data-governance acceptance criteria.
 8. [ ] Repeat affected checks and obtain independent review before making a hosted security claim.
