@@ -26,8 +26,10 @@ CI and the documented local gate enforce:
 - hash-verified Python installation;
 - Python runtime advisory scanning with `pip-audit`;
 - npm lockfile installation and high/critical advisory scanning;
+- full Git-history secret scanning with only an exact documented placeholder allowlisted;
 - immutable GitHub Action revisions;
 - digest-pinned runtime, build, and local Postgres images;
+- deployment of the exact scanned registry digest rather than a mutable image tag;
 - a high/critical Trivy scan of the built application image; and
 - weekly Dependabot checks for Python, npm, GitHub Actions, and Docker.
 

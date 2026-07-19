@@ -32,7 +32,7 @@ SQLite remains suitable for one-node demos only.
 
 ## Deployment sequence
 
-1. Build once, scan the image, and push an immutable SHA tag to ECR.
+1. Build once, scan the image, push it to ECR, and record the registry digest.
 2. Run migrations as a one-off ECS task before updating services.
 3. Update the worker service, then the API service with ECS deployment rollback enabled.
 4. Wait for `/ready` and run upload/review/export smoke checks.
@@ -43,9 +43,11 @@ The production Compose override is useful for validating hardening and the
 CloudWatch log driver on a VM:
 
 ```bash
-DOCINTEL_IMAGE=account.dkr.ecr.region.amazonaws.com/docintel:sha \
+DOCINTEL_IMAGE=account.dkr.ecr.region.amazonaws.com/docintel@sha256:<64-hex-digest> \
 docker compose -f docker-compose.yml -f docker-compose.production.yml config
 ```
+
+Do not supply a mutable tag such as `latest`; bind the deployment candidate to the scanned digest.
 
 ECS should normally be defined in Terraform/CDK rather than deployed from Compose.
 

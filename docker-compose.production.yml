@@ -1,6 +1,6 @@
 services:
   api:
-    image: ${DOCINTEL_IMAGE:?Set DOCINTEL_IMAGE to an immutable image tag}
+    image: ${DOCINTEL_IMAGE:?Set DOCINTEL_IMAGE to an immutable image digest}
     build: null
     ports: []
     expose:
@@ -22,7 +22,7 @@ services:
         awslogs-stream: api
 
   worker:
-    image: ${DOCINTEL_IMAGE:?Set DOCINTEL_IMAGE to an immutable image tag}
+    image: ${DOCINTEL_IMAGE:?Set DOCINTEL_IMAGE to an immutable image digest}
     build: null
     env_file:
       - ${DOC_INTEL_ENV_FILE:-.env.production}

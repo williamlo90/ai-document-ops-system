@@ -4,7 +4,14 @@
 - Repository: `main` at `b519f4150a01483b6112aa94416d69cf3733069a` plus inspected working-tree changes
 - Mode: `SELF_VERIFICATION`
 - Primary report: [Security And Privacy Assurance V1](security-assurance-v1.md)
-- Post-audit evidence: [Security Remediation V1](security-remediation-v1.md)
+- Current completion evidence: [Security Hardening Completion Audit](security-completion-audit.md)
+- Post-audit remediation: [V1](security-remediation-v1.md),
+  [V2](security-remediation-v2.md), [V3](security-remediation-v3.md),
+  [V4](security-remediation-v4.md), [V5](security-remediation-v5.md),
+  [V6](security-remediation-v6.md), and [V7](security-remediation-v7.md)
+
+This file preserves the original 15 July baseline evidence. Findings and checks below are historical;
+use the completion audit for the current decision and executed post-remediation gates.
 
 ## Candidate Binding
 
@@ -12,7 +19,7 @@ The worktree already contained modifications to portfolio documentation, lifecyc
 public-artifact handling before this audit. Those changes were inspected and preserved. The audit did
 not treat the candidate as a clean release commit and did not modify application code.
 
-## Executed Evidence
+## Baseline Executed Evidence
 
 | Claim | State | Check | Observed result |
 | --- | --- | --- | --- |
@@ -43,7 +50,7 @@ not treat the candidate as a clean release commit and did not modify application
 | Portfolio claim: evidence-bound extraction | exact-source grounding and deterministic validation tests | SEC-008: adversarial prompt-injection evidence missing |
 | Provider-backed workflow | Mistral and Groq adapters and prior provider evidence | SEC-005: egress policy, HTTPS allowlist, ZDR, region, and DPA not bound |
 
-## Checks Not Run
+## Checks Not Run In The Baseline
 
 | Check | State | Reason and required next evidence |
 | --- | --- | --- |
@@ -66,9 +73,9 @@ not treat the candidate as a clean release commit and did not modify application
 - No application code, credentials, private invoices, database, or existing user modification was changed.
 - Network access was limited to dependency advisory services and official Mistral, Groq, and Black documentation.
 
-## Recommendation
+## Baseline Recommendation
 
-Treat the local synthetic demo as bounded and usable. Do not host it or send real invoices until the
-two high findings are fixed. The next provider comparison must use the acceptance criteria in the
-primary report, especially data retention/ZDR, region, HTTPS/host policy, quota behavior, and DPA
-availability.
+This recommendation has been superseded by the
+[Security Hardening Completion Audit](security-completion-audit.md). The original two high
+application findings were remediated for the controlled single-workspace demo boundary; untrusted
+uploads and real-data use remain blocked by the external acceptance gates in the completion audit.

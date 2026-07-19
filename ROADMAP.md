@@ -29,11 +29,12 @@ Delivered:
 
 Latest verified baseline:
 
-- backend suite: 393 tests passed, 2 skipped
+- backend suite: 425 tests passed, 2 skipped
 - frontend suite: 13 tests passed
 - browser E2E: 22 tests passed, 8 capture-only tests skipped
-- frontend lint and production build: passed
-- backend Ruff check: passed
+- frontend lint, dependency audit, and production build: passed
+- backend Ruff and dependency audit: passed
+- full-history Gitleaks, actionlint, container runtime smoke, and Trivy HIGH/CRITICAL scan: passed
 
 ## Phase 0: Positioning Cleanup
 
@@ -179,6 +180,7 @@ gates.
 - [Security Remediation V5](docs/security/security-remediation-v5.md) records the untrusted-OCR prompt boundary, evidence requirements, adversarial tests, and approval blocker
 - [Security Remediation V6](docs/security/security-remediation-v6.md) records hash-locked dependencies, immutable CI references, advisory gates, image hardening, and scan evidence
 - [Security Remediation V7](docs/security/security-remediation-v7.md) records dedicated metrics authentication, hosted credential policy, and negative-route evidence
+- [Security Hardening Completion Audit](docs/security/security-completion-audit.md) records the final application finding closure, release decision, executed gates, and exact external blockers
 - [Supply-Chain Controls](docs/security/supply-chain.md) records lock regeneration, verification, and dependency-update policy
 - [Provider Data Boundary](docs/security/provider-data-boundary.md) records exactly what is sent to each provider and what remains prohibited
 - the loopback-only synthetic demo is `PASS_WITH_LIMITATIONS`
@@ -195,7 +197,8 @@ Remediation order:
 6. [x] Pin and scan the dependency, CI action, and release-image supply chain.
 7. [x] Enforce provider HTTPS, exact-host allowlists, and redirect refusal; replacement-provider research remains gated by the documented data-governance acceptance criteria.
 8. [x] Protect internal metrics with a dedicated service credential and private cache policy.
-9. [ ] Repeat affected checks and obtain independent review before making a hosted security claim.
+9. [x] Repeat all locally executable checks and record the completion audit.
+10. [ ] Obtain an independent review and verify the external deployment gates before making a hosted security claim.
 
 Positioning rule:
 

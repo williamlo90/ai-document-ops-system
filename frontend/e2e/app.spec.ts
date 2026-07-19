@@ -9,15 +9,24 @@ const workspace = {
   metrics: { work_items: 0, pending_approvals: 0, drafts: 0, policy_decisions: 0 },
 }
 
-async function mockApi(page: Page, options: { workspaceFailure?: boolean } = {}) {
+async function mockApi(
+  page: Page,
+  options: { workspaceFailure?: boolean; role?: 'reviewer' | 'uploader' } = {},
+) {
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url())
     if (url.pathname === '/auth/session') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"authenticated":true,"actor":"e2e-admin"}' })
-      return
-    }
-    if (url.pathname === '/auth/session') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"authenticated":true,"actor":"e2e-user"}' })
+      const role = options.role ?? 'reviewer'
+      await route.fulfill({
+        json: {
+          authenticated: true,
+          actor: role === 'uploader' ? 'e2e-uploader' : 'e2e-reviewer',
+          user_id: role === 'uploader' ? 'user-uploader' : 'user-reviewer',
+          workspace_id: 'e2e',
+          role,
+          is_admin: role === 'reviewer',
+        },
+      })
       return
     }
     if (url.pathname === '/backoffice/workspace') {
@@ -49,8 +58,7 @@ async function mockApi(page: Page, options: { workspaceFailure?: boolean } = {})
 }
 
 test('reviewer opens the simplified approval area', async ({ page }) => {
-  await mockApi(page)
-  await page.addInitScript(() => localStorage.setItem('docops-role', 'administrator'))
+  await mockApi(page, { role: 'reviewer' })
   await page.goto('/')
 
   await expect(page.getByRole('heading', { name: 'Approvals' }).first()).toBeVisible()
@@ -76,7 +84,7 @@ test('failure path presents a recoverable workspace error', async ({ page }) => 
 })
 
 test('intake screen has no serious automated accessibility violations', async ({ page }) => {
-  await mockApi(page)
+  await mockApi(page, { role: 'uploader' })
   await page.goto('/')
   await expect(page.getByRole('heading', { name: /upload and check an invoice/i })).toBeVisible()
   const results = await new AxeBuilder({ page }).exclude('iframe').analyze()
@@ -99,7 +107,7 @@ test('responsive shell does not create page-level horizontal overflow', async ({
 
 test('laptop layout remains usable at 125, 150, and 200 percent zoom', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'Zoom matrix is exercised once in the desktop project.')
-  await mockApi(page)
+  await mockApi(page, { role: 'uploader' })
   for (const zoom of [1.25, 1.5, 2]) {
     await page.setViewportSize({ width: Math.floor(1366 / zoom), height: Math.floor(768 / zoom) })
     await page.goto('/')

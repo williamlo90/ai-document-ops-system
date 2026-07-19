@@ -95,7 +95,19 @@ async function mockBusinessFlow(page: Page, state: FlowState, calls: RecordedCal
       activity: [],
     }
 
-    if (path === '/auth/session') return route.fulfill({ json: { authenticated: true, actor: role === 'intake' ? 'e2e-uploader' : 'e2e-reviewer' } })
+    if (path === '/auth/session') {
+      const sessionRole = role === 'intake' ? 'uploader' : 'reviewer'
+      return route.fulfill({
+        json: {
+          authenticated: true,
+          actor: role === 'intake' ? 'e2e-uploader' : 'e2e-reviewer',
+          user_id: role === 'intake' ? 'user-uploader' : 'user-reviewer',
+          workspace_id: 'e2e',
+          role: sessionRole,
+          is_admin: role === 'administrator',
+        },
+      })
+    }
     if (path === '/operations/notifications') return route.fulfill({ json: { notifications: [], unread_count: 0 } })
     if (path === '/providers/health') return route.fulfill({ json: { overall_status: 'healthy', providers: [] } })
     if (path === '/operations/jobs') return route.fulfill({ json: { worker: { status: 'healthy' }, jobs: [] } })
@@ -182,7 +194,6 @@ async function mockBusinessFlow(page: Page, state: FlowState, calls: RecordedCal
 
     return route.continue()
   })
-  await page.addInitScript((selectedRole) => localStorage.setItem('docops-role', selectedRole), role)
 }
 
 async function navigatePrimary(page: Page, name: 'Approvals' | 'My Invoices') {

@@ -7,28 +7,34 @@
 - Assessor: Codex, which also contributed to the implementation
 - Status: Draft security decision; not an independent audit or compliance certification
 
+Current decision and executed final gates are recorded in the
+[Security Hardening Completion Audit](security-completion-audit.md). Candidate references and
+observations below preserve the original 15 July baseline unless explicitly marked remediated.
+
 ## Post-Audit Remediation
 
-SEC-001, SEC-002, SEC-004, SEC-005, SEC-006, SEC-007, and SEC-008 were remediated and self-verified on 19 July 2026. The
-production ClamAV boundary for SEC-003 is implemented and test-covered but not yet verified against
-an authorized scanner service. See [Security Remediation V1](security-remediation-v1.md) and
-[Security Remediation V2](security-remediation-v2.md), [Security Remediation V3](security-remediation-v3.md),
-and [Security Remediation V4](security-remediation-v4.md) plus
-[Security Remediation V5](security-remediation-v5.md). The original observations below are retained
-as the 15 July baseline, not as a current-state finding list. Hosted untrusted uploads and real
-client data remain blocked pending deployment and independent verification plus the other open gates.
+SEC-001 through SEC-010 received application-level remediation and self-verification on 19 July
+2026. The production ClamAV boundary for SEC-003 is implemented and test-covered but not yet
+verified against an authorized scanner service. The remediation record is split across
+[V1](security-remediation-v1.md), [V2](security-remediation-v2.md),
+[V3](security-remediation-v3.md), [V4](security-remediation-v4.md),
+[V5](security-remediation-v5.md), [V6](security-remediation-v6.md), and
+[V7](security-remediation-v7.md). The original observations below are retained as the 15 July
+baseline. Hosted untrusted uploads and real client data remain blocked pending deployment,
+provider-governance, infrastructure-lifecycle, and independent verification gates.
 
 ## Executive Verdict
 
 | Intended use | Verdict | Reason |
 | --- | --- | --- |
 | Local, loopback-only portfolio demo with synthetic data | `PASS_WITH_LIMITATIONS` | Core route protection, workspace filtering, review gates, upload limits, security headers, and secret exclusion have executed evidence. |
-| Hosted recruiter demo accepting untrusted uploads | `FAIL` | Public-demo mode does not inherit production token, cookie, CSRF, or API-documentation hardening; the shared-token identity model and signature-only PDF scan are release blockers. |
-| Production or real client invoice processing | `BLOCKED` | Managed identity, provider data-governance decisions, real malware scanning, retention/deletion, durable tenancy, and independent verification are absent. |
+| Controlled single-workspace hosted recruiter demo with mock providers and seeded synthetic data | `PASS_WITH_LIMITATIONS` | Hosted security policy, server-owned roles, protected metrics, and deterministic workflow gates are implemented; deployment configuration still requires independent verification. |
+| Hosted recruiter demo accepting untrusted uploads | `BLOCKED` | The ClamAV adapter is implemented and test-covered, but no authorized deployed scanner, update policy, network boundary, or live EICAR evidence is bound. |
+| Production or real client invoice processing | `BLOCKED` | Provider governance, managed infrastructure lifecycle, backup deletion, production identity/tenancy, and independent verification remain external gates. |
 
-No critical finding was observed. Two high-severity findings block a public or multi-user release.
-They do not make a loopback-only synthetic demo unsafe by themselves, but that narrower boundary must
-remain explicit.
+No critical finding was observed. The two high-severity application findings were remediated for the
+controlled single-workspace boundary. That does not establish production IAM, multi-tenant isolation,
+or independently verified hosted security.
 
 The strongest counterargument is that the repository already labels authentication, SQLite, and local
 storage as portfolio-demo controls. That is correct and prevents an overclaim about the current local
@@ -46,11 +52,11 @@ In scope:
 - repository secret hygiene, Python and npm dependencies, GitHub Actions, and container posture
 - safe TestClient checks, existing security-focused tests, static analysis, and dependency advisories
 
-Not run:
+Not run in the original baseline (secret scanning and container scanning were completed later):
 
 - destructive testing, production penetration testing, cloud IAM or bucket inspection
 - real customer documents, real-provider calls, or credential validation
-- container image/CVE scanning, DAST against an internet-facing deployment, or denial-of-service testing
+- DAST against an internet-facing deployment or denial-of-service testing
 - legal/privacy assessment, DPA acceptance, data-subject workflow validation, or independent review
 - real antivirus scanning, backup restore, audit-log tamper testing, or hosted TLS verification
 
@@ -63,7 +69,7 @@ Not run:
 | AST-03 | Approval, export, and audit events | Integrity-critical business evidence | Application repositories; not tamper-evident |
 | AST-04 | Admin and provider credentials | Secret | Environment variables or ignored `.env` file |
 | ID-01 | Browser session | Privileged local administrator session | Opaque process-local cookie |
-| ID-02 | Uploader/reviewer/admin API context | Authorization identity | Derived from one shared token plus caller-supplied headers outside browser sessions |
+| ID-02 | Uploader/reviewer/admin API context | Authorization identity | Derived server-side from purpose-specific access tokens and bound into opaque sessions |
 | TP-01 | Mistral OCR | External subprocessor boundary | Receives the complete PDF as a base64 data URL |
 | TP-02 | Groq-hosted extractor | External subprocessor boundary | Receives OCR text and returns structured fields |
 | TP-03 | S3-compatible storage | Optional external storage boundary | Private object plus short-lived presigned URL |
@@ -120,16 +126,16 @@ Before any real invoice is processed, the owner must decide permitted data class
 region/jurisdiction, DPA terms, deletion responsibilities, incident ownership, and whether bank or tax
 data must be redacted before egress. This report does not make a legal compliance claim.
 
-## Verified Controls
+## Current Verified Controls
 
 | Control | Evidence state | Observed result |
 | --- | --- | --- |
-| Secret exclusion | `PARTIALLY_VERIFIED` | `.env` is ignored and untracked; bounded tracked/history patterns found no credential-like API value. Gitleaks was unavailable. |
+| Secret exclusion | `VERIFIED` | `.env` is ignored and untracked; digest-pinned Gitleaks scanned full Git history with only one exact documented local-demo placeholder allowlisted. |
 | Production token policy | `VERIFIED` | Production rejects weak/default tokens and requires at least 24 characters. |
 | Session cookie | `VERIFIED` | Opaque, revocable, HttpOnly, SameSite Strict; Secure is enabled in production mode. |
 | Production CSRF origin check | `VERIFIED` | Cross-origin cookie mutation is rejected by existing TestClient coverage. |
-| Route authentication | `PARTIALLY_VERIFIED` | Business API routes use an authentication dependency; health, readiness, redirects, and internal metrics are public. |
-| Role and workspace checks | `PARTIALLY_VERIFIED` | Core services reject invalid role/workspace access, but the shared-token caller can assert identity headers. |
+| Route authentication | `VERIFIED` | Business APIs use authentication dependencies; health, readiness, session creation, redirects, and static assets are intentionally public; internal metrics require a dedicated service token. |
+| Role and workspace checks | `VERIFIED_WITH_SCOPE` | Purpose-specific credentials map to server-owned role/workspace principals. Production IAM and multi-tenant isolation are not claimed. |
 | Upload bounds and path traversal | `VERIFIED` | File size, extension, MIME, PDF signature, generated storage key, and resolved-root checks are tested. |
 | Malware protection | `PARTIALLY_VERIFIED` | EICAR marker is blocked; malformed signature-only content is accepted and no real scanner is integrated. |
 | Security headers and rate limiting | `VERIFIED` | CSP, frame policy, MIME sniffing protection, referrer policy, permissions policy, and bounded IP rate limiting are exercised. |
@@ -138,7 +144,8 @@ data must be redacted before egress. This report does not make a legal complianc
 | Provider error sanitization | `VERIFIED` | API responses expose bounded error codes rather than provider bodies or credentials. |
 | Frontend secret storage | `VERIFIED` | Admin credential is exchanged once and not persisted in localStorage; only UI role and active document ID are stored there. |
 | npm advisory state | `VERIFIED` | `npm audit --json` reported zero known vulnerabilities across the current lockfile. |
-| Python advisory state | `PARTIALLY_VERIFIED` | Runtime packages reported no known advisories; pinned development Black 24.10.0 reported two advisories. |
+| Python advisory state | `VERIFIED` | Hash-locked runtime dependencies reported no known advisories; the vulnerable development formatter was removed in favor of Ruff. |
+| Container advisory state | `VERIFIED` | Trivy 0.72.0 reported zero HIGH/CRITICAL OS or Python findings with the documented scan policy. |
 
 ## Findings
 
@@ -171,7 +178,7 @@ workspace membership before claiming multi-user authorization.
 
 - Severity: Medium
 - Confidence: High
-- Status: Open
+- Status: Application boundary implemented and test-covered on 19 July 2026; live ClamAV deployment verification pending
 
 The scanner rejects one EICAR marker and storage checks `%PDF-`, MIME, extension, and size. A malformed
 payload beginning with `%PDF-` was accepted in the executed test. Integrate ClamAV or a managed scanner,
@@ -181,7 +188,7 @@ bound parser resource limits, and consider sanitization before accepting untrust
 
 - Severity: Medium
 - Confidence: High
-- Status: Open
+- Status: Remediated on 19 July 2026; object-store and browser deployment verification pending
 
 `GET /documents/{id}/content` returned no `Cache-Control: no-store`. Workflow, correction, and audit
 GET responses also lack a uniform private no-store policy. Apply explicit cache policy to sensitive
@@ -191,7 +198,7 @@ document and audit responses and verify S3 response metadata.
 
 - Severity: Medium
 - Confidence: High
-- Status: Open
+- Status: Application egress policy remediated on 19 July 2026; provider contract and data-governance decision pending
 
 The complete PDF is sent to Mistral and OCR text is sent to the configured extractor. Provider URLs
 are environment-controlled but are not restricted to HTTPS or approved hosts; Bandit reported B310 on
@@ -202,7 +209,7 @@ ZDR, region, DPA, and permitted-data decisions before real invoices.
 
 - Severity: Medium
 - Confidence: High
-- Status: Open
+- Status: Application retention and purge boundary remediated on 19 July 2026; backup and object-version lifecycle verification pending
 
 There is no document deletion workflow or verified retention schedule, and S3-downloaded parser cache
 files are not removed by the storage adapter. Define retention by data class, implement deletion across
@@ -212,7 +219,7 @@ metadata/object/cache/audit boundaries, and test it before real data.
 
 - Severity: Medium
 - Confidence: High
-- Status: Open
+- Status: Remediated and self-verified on 19 July 2026
 
 Create and plan operations have idempotency keys, but `send_approved_invoice()` does not bind a durable
 delivery key to the external system. Terminal exported state blocks a simple second success, but an
@@ -223,7 +230,7 @@ ambiguous-result reconciliation path.
 
 - Severity: Medium
 - Confidence: Medium
-- Status: Open
+- Status: Remediated with explicit detection limitations on 19 July 2026
 
 OCR text is correctly placed in a user message and the extractor has no tools, while deterministic
 validation and human approval reduce consequence. The system instruction does not explicitly treat
@@ -235,7 +242,7 @@ field evidence before consequential use.
 
 - Severity: Medium
 - Confidence: High
-- Status: Open
+- Status: Remediated and self-verified on 19 July 2026
 
 Runtime Python requirements and container base images are not digest-pinned, and GitHub Actions use
 major-version tags. `pip-audit` found two advisories on development-only Black 24.10.0; the applicable
@@ -247,7 +254,7 @@ pin should still be upgraded. See the
 
 - Severity: Low
 - Confidence: High
-- Status: Open
+- Status: Remediated at application level on 19 July 2026; private ingress verification pending
 
 `GET /internal/metrics` returns route and status aggregates without authentication. Deployment docs
 correctly require a private security group, but the application does not enforce that boundary. Keep
@@ -266,14 +273,16 @@ the route off the public ingress or add service authentication.
 9. Outbound delivery has durable idempotency and ambiguous-result reconciliation.
 10. Prompt-injection, quota exhaustion, cross-workspace, and negative-role tests pass.
 11. Python dependencies and CI actions are reproducibly pinned and the release image is scanned.
-12. A verifier who did not build the remediation repeats the high-risk checks before a public claim.
+12. Metrics require a dedicated service credential and remain outside public ingress.
+13. A verifier who did not build the remediation repeats the high-risk checks before a public claim.
 
 ## Gate Decision
 
 - `G07_SECURITY_BASELINE`: Draft baseline produced; human approval pending.
 - `G11_SECURITY_ASSURANCE`: `PASS_WITH_LIMITATIONS` for local synthetic use and a controlled,
   single-workspace, mock-provider hosted demo after the 19 July remediation self-verification.
-- Hosted untrusted-upload or real-data decision: `BLOCKED`; SEC-003 through SEC-009 must be resolved
-  or explicitly bounded before the corresponding capability is enabled.
-- Recommended next slice: close the upload scanning, cache, and retention boundary before enabling
-  untrusted documents, then apply the provider acceptance criteria above.
+- Hosted untrusted-upload or real-data decision: `BLOCKED`; authorized scanner deployment,
+  provider-governance evidence, infrastructure lifecycle verification, production identity/tenancy,
+  and independent review must be completed before the corresponding capability is enabled.
+- Recommended next slice: verify the already-implemented controls in an authorized hosted candidate;
+  do not add another application feature to disguise an external acceptance gap.
