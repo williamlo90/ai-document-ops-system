@@ -158,6 +158,7 @@ class HttpMiddlewareTests(unittest.TestCase):
                     settings(
                         app_env="production",
                         admin_token=strong_token,
+                        metrics_token="metrics-token-with-24-characters",
                         uploader_token=None,
                         reviewer_token=None,
                         upload_root=Path(temp_dir),
@@ -182,6 +183,7 @@ class HttpMiddlewareTests(unittest.TestCase):
         strong_settings = settings(
             app_env="public-demo",
             admin_token="admin-token-with-24-characters",
+            metrics_token="metrics-token-with-24-characters",
             uploader_token="upload-token-with-24-characters",
             reviewer_token="review-token-with-24-characters",
             parser_provider="mock",
@@ -216,6 +218,7 @@ class HttpMiddlewareTests(unittest.TestCase):
                 settings(
                     app_env="public-demo",
                     admin_token="123",
+                    metrics_token="metrics-token-with-24-characters",
                     uploader_token=None,
                     reviewer_token=None,
                 )

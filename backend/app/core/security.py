@@ -68,14 +68,15 @@ def validate_access_token_policy(settings: Settings) -> None:
         "APP_ADMIN_TOKEN": settings.admin_token,
         "APP_UPLOADER_TOKEN": settings.uploader_token,
         "APP_REVIEWER_TOKEN": settings.reviewer_token,
+        "APP_METRICS_TOKEN": settings.metrics_token,
     }
     configured = {name: value for name, value in credentials.items() if value}
     if len(set(configured.values())) != len(configured):
-        raise SecurityConfigurationError("Access tokens must be unique per server-owned role")
+        raise SecurityConfigurationError("Security credentials must be unique per purpose")
     if not is_hosted(settings):
         return
 
-    required = {"APP_ADMIN_TOKEN"}
+    required = {"APP_ADMIN_TOKEN", "APP_METRICS_TOKEN"}
     if is_public_demo(settings):
         required.update({"APP_UPLOADER_TOKEN", "APP_REVIEWER_TOKEN"})
     missing = sorted(name for name in required if not credentials[name])
@@ -159,6 +160,14 @@ def authenticate_access_token(
         if expected_token and compare_digest(provided_token, expected_token):
             return context
     raise UnauthorizedError("Invalid access token")
+
+
+def authenticate_metrics_token(provided_token: str | None, settings: Settings) -> None:
+    expected_token = settings.metrics_token
+    if not provided_token or not expected_token:
+        raise UnauthorizedError("Metrics token is required")
+    if not compare_digest(provided_token, expected_token):
+        raise UnauthorizedError("Invalid metrics token")
 
 
 def require_admin(context: SecurityContext) -> None:

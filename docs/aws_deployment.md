@@ -23,8 +23,9 @@ SQLite remains suitable for one-node demos only.
 - `GET /health` is the liveness check.
 - `GET /ready` is the dependency/readiness check and returns `503` when draining
   or when database/storage checks fail.
-- `GET /internal/metrics` exposes Prometheus text. Restrict it to the monitoring
-  security group or collector sidecar; do not expose it through the public ALB.
+- `GET /internal/metrics` exposes Prometheus text only with `X-Metrics-Token`. Store the dedicated
+  token in the deployment secret manager, inject it into the collector, and restrict the route to
+  the monitoring security group or collector sidecar. Do not expose it through the public ALB.
 - Requests receive `X-Request-ID` and `X-Trace-ID`. Incoming W3C `traceparent`
   trace IDs are preserved.
 - API and worker accept `SIGTERM`; allow at least 35 seconds before forced stop.

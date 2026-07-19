@@ -113,6 +113,7 @@ def _is_sensitive_response_path(path: str) -> bool:
         "/documents",
         "/exports",
         "/integrations",
+        "/internal",
         "/invoices",
         "/metrics",
         "/operations",

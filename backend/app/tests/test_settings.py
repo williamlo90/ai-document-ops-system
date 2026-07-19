@@ -15,6 +15,7 @@ class SettingsTests(unittest.TestCase):
             for key in (
                 "ENV_FILE",
                 "APP_ADMIN_TOKEN",
+                "APP_METRICS_TOKEN",
                 "APP_UPLOADER_TOKEN",
                 "APP_REVIEWER_TOKEN",
                 "APP_WORKSPACE_ID",
@@ -53,6 +54,7 @@ class SettingsTests(unittest.TestCase):
                 "\n".join(
                     [
                         "APP_ADMIN_TOKEN=file-token",
+                        "APP_METRICS_TOKEN=metrics-file-token",
                         "APP_UPLOADER_TOKEN=uploader-token",
                         "APP_REVIEWER_TOKEN=reviewer-token",
                         "APP_WORKSPACE_ID=finance-ops",
@@ -82,6 +84,7 @@ class SettingsTests(unittest.TestCase):
             settings = load_settings()
 
         self.assertEqual(settings.admin_token, "file-token")
+        self.assertEqual(settings.metrics_token, "metrics-file-token")
         self.assertEqual(settings.uploader_token, "uploader-token")
         self.assertEqual(settings.reviewer_token, "reviewer-token")
         self.assertEqual(settings.workspace_id, "finance-ops")

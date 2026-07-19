@@ -164,10 +164,11 @@ Observed evidence so far:
 
 ### Security Gate Before Provider Replacement
 
-Status: SEC-001, SEC-002, SEC-004, SEC-005, SEC-006, SEC-007, SEC-008, and SEC-009 have
+Status: SEC-001, SEC-002, SEC-004, SEC-005, SEC-006, SEC-007, SEC-008, SEC-009, and SEC-010 have
 application-level remediation on 19 July 2026. The SEC-003 production ClamAV boundary and SEC-005
 provider endpoint boundary are implemented and test-covered; scanner deployment,
-provider-contract verification, metrics-route protection, and independent review remain gates.
+provider-contract verification, hosted infrastructure verification, and independent review remain
+gates.
 
 - [Security And Privacy Assurance V1](docs/security/security-assurance-v1.md) records the threat model, provider data boundaries, verified controls, and residual risk
 - [Security Evidence And Traceability V1](docs/security/security-evidence-v1.md) binds the commands, candidate, results, and unrun checks
@@ -177,6 +178,7 @@ provider-contract verification, metrics-route protection, and independent review
 - [Security Remediation V4](docs/security/security-remediation-v4.md) records the durable accounting-delivery ledger, replay behavior, and ambiguous-result reconciliation path
 - [Security Remediation V5](docs/security/security-remediation-v5.md) records the untrusted-OCR prompt boundary, evidence requirements, adversarial tests, and approval blocker
 - [Security Remediation V6](docs/security/security-remediation-v6.md) records hash-locked dependencies, immutable CI references, advisory gates, image hardening, and scan evidence
+- [Security Remediation V7](docs/security/security-remediation-v7.md) records dedicated metrics authentication, hosted credential policy, and negative-route evidence
 - [Supply-Chain Controls](docs/security/supply-chain.md) records lock regeneration, verification, and dependency-update policy
 - [Provider Data Boundary](docs/security/provider-data-boundary.md) records exactly what is sent to each provider and what remains prohibited
 - the loopback-only synthetic demo is `PASS_WITH_LIMITATIONS`
@@ -192,7 +194,8 @@ Remediation order:
 5. [x] Add adversarial invoice prompt-injection tests and consequence-blocking evidence.
 6. [x] Pin and scan the dependency, CI action, and release-image supply chain.
 7. [x] Enforce provider HTTPS, exact-host allowlists, and redirect refusal; replacement-provider research remains gated by the documented data-governance acceptance criteria.
-8. [ ] Repeat affected checks and obtain independent review before making a hosted security claim.
+8. [x] Protect internal metrics with a dedicated service credential and private cache policy.
+9. [ ] Repeat affected checks and obtain independent review before making a hosted security claim.
 
 Positioning rule:
 

@@ -11,6 +11,7 @@ class Settings:
     admin_token: str | None
     upload_root: Path
     max_upload_bytes: int
+    metrics_token: str | None = "metrics-123"
     workspace_id: str = "default"
     uploader_token: str | None = None
     reviewer_token: str | None = None
@@ -77,6 +78,7 @@ def load_settings() -> Settings:
         admin_token=_setting(config, "APP_ADMIN_TOKEN"),
         upload_root=Path(_setting(config, "UPLOAD_ROOT", "backend/data/uploads")),
         max_upload_bytes=int(_setting(config, "MAX_UPLOAD_BYTES", "15728640")),
+        metrics_token=_setting(config, "APP_METRICS_TOKEN", "metrics-123"),
         workspace_id=_setting(config, "APP_WORKSPACE_ID", "default"),
         uploader_token=_setting(config, "APP_UPLOADER_TOKEN"),
         reviewer_token=_setting(config, "APP_REVIEWER_TOKEN"),

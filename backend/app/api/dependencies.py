@@ -50,6 +50,7 @@ from app.core.security import (
     SecurityContext,
     UnauthorizedError,
     authenticate_access_token,
+    authenticate_metrics_token,
     require_any_role,
 )
 from app.core.upload_scanning import build_upload_scanner
@@ -352,6 +353,20 @@ def require_admin_context(
         return session_context
     try:
         return authenticate_access_token(x_access_token or x_admin_token, settings)
+    except UnauthorizedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+        ) from exc
+
+
+def require_metrics_token(
+    request: Request,
+    x_metrics_token: str | None = Header(default=None, alias="X-Metrics-Token"),
+) -> None:
+    settings = get_container(request).settings
+    try:
+        authenticate_metrics_token(x_metrics_token, settings)
     except UnauthorizedError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

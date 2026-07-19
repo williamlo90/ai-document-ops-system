@@ -556,6 +556,7 @@ class ApiTests(unittest.TestCase):
         weak_settings = Settings(
             app_env="production",
             admin_token="test-token",
+            metrics_token="metrics-token-with-24-characters",
             upload_root=Path(self.temp_dir.name),
             max_upload_bytes=1000,
         )
@@ -565,6 +566,7 @@ class ApiTests(unittest.TestCase):
         strong_settings = Settings(
             app_env="production",
             admin_token="x" * 24,
+            metrics_token="metrics-token-with-24-characters",
             upload_root=Path(self.temp_dir.name),
             max_upload_bytes=1000,
             malware_scanner_backend="clamav",
@@ -578,6 +580,7 @@ class ApiTests(unittest.TestCase):
         settings = Settings(
             app_env="public-demo",
             admin_token="admin-token-with-24-characters",
+            metrics_token="metrics-token-with-24-characters",
             uploader_token="upload-token-with-24-characters",
             reviewer_token="review-token-with-24-characters",
             upload_root=Path(self.temp_dir.name),

@@ -70,7 +70,7 @@ mocks for offline development.
 | External licensed holdout | First sealed 10-document FATURA holdout exposed provider availability failure: 1 / 10 documents succeeded, so external robustness is not claimed. |
 | Reviewer correction loop | Correction requests route back to the uploader, preserve original AI output, store before/after diffs, and return the invoice to review. |
 | Approval boundary | Duplicate and other error-level cases are blocked in both UI and API tests. |
-| Automated verification | 393 backend tests passed with 2 skipped; 13 frontend tests passed; lint and production build passed. |
+| Automated verification | 425 backend tests passed with 2 skipped; 13 frontend tests passed; lint and production build passed. |
 
 The controlled regression is a small synthetic golden set, not a production accuracy claim.
 See [scenario evidence](docs/invoice-scenarios-v1-evidence.md) for the initial failures, fixes,

@@ -5,11 +5,11 @@ from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.responses import PlainTextResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.dependencies import build_container
+from app.api.dependencies import build_container, require_metrics_token
 from app.core.observability import (
     HttpMetrics,
     RequestObservabilityMiddleware,
@@ -129,7 +129,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     @app.get("/internal/metrics", response_class=PlainTextResponse)
-    def runtime_metrics() -> str:
+    def runtime_metrics(_authorized: None = Depends(require_metrics_token)) -> str:
         return app.state.http_metrics.prometheus()
 
     frontend_dist = _frontend_dist()

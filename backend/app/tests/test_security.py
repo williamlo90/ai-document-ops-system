@@ -7,6 +7,7 @@ from app.core.security import (
     SecurityContext,
     UnauthorizedError,
     authenticate_access_token,
+    authenticate_metrics_token,
     require_admin,
     require_any_role,
     validate_access_token_policy,
@@ -71,6 +72,35 @@ class SecurityTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             validate_access_token_policy(settings)
+
+    def test_metrics_token_is_separate_from_business_access(self) -> None:
+        settings = Settings(
+            app_env="local",
+            admin_token="admin-token",
+            metrics_token="metrics-token",
+            upload_root=Path("uploads"),
+            max_upload_bytes=1000,
+        )
+
+        authenticate_metrics_token("metrics-token", settings)
+        with self.assertRaises(UnauthorizedError):
+            authenticate_metrics_token("admin-token", settings)
+        with self.assertRaises(UnauthorizedError):
+            authenticate_access_token("metrics-token", settings)
+
+    def test_hosted_mode_requires_strong_unique_metrics_token(self) -> None:
+        base = {
+            "app_env": "production",
+            "admin_token": "admin-token-with-24-characters",
+            "upload_root": Path("uploads"),
+            "max_upload_bytes": 1000,
+        }
+        for metrics_token in (None, "metrics-123", "admin-token-with-24-characters"):
+            with self.subTest(metrics_token=metrics_token):
+                with self.assertRaises(ValueError):
+                    validate_access_token_policy(
+                        Settings(**base, metrics_token=metrics_token)  # type: ignore[arg-type]
+                    )
 
     def test_require_admin_rejects_non_admin_context(self) -> None:
         with self.assertRaises(UnauthorizedError):

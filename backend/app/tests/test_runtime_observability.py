@@ -19,6 +19,7 @@ class RuntimeObservabilityTests(unittest.TestCase):
                 Settings(
                     app_env="test",
                     admin_token="test-token",
+                    metrics_token="metrics-test-token",
                     upload_root=Path("backend/data/test-observability"),
                     max_upload_bytes=1024,
                 )
@@ -38,10 +39,31 @@ class RuntimeObservabilityTests(unittest.TestCase):
 
     def test_prometheus_endpoint_contains_request_counter(self) -> None:
         self.client.get("/health")
-        response = self.client.get("/internal/metrics")
+        response = self.client.get(
+            "/internal/metrics",
+            headers={"X-Metrics-Token": "metrics-test-token"},
+        )
         self.assertEqual(response.status_code, 200)
         self.assertIn("docintel_http_requests_total", response.text)
         self.assertIn('route="/health"', response.text)
+        self.assertEqual(response.headers["cache-control"], "no-store, private")
+
+    def test_prometheus_endpoint_rejects_missing_wrong_or_business_token(self) -> None:
+        self.assertEqual(self.client.get("/internal/metrics").status_code, 401)
+        self.assertEqual(
+            self.client.get(
+                "/internal/metrics",
+                headers={"X-Metrics-Token": "wrong-token"},
+            ).status_code,
+            401,
+        )
+        self.assertEqual(
+            self.client.get(
+                "/internal/metrics",
+                headers={"X-Access-Token": "test-token"},
+            ).status_code,
+            401,
+        )
 
     def test_not_ready_uses_service_unavailable(self) -> None:
         self.client.app.state.accepting_traffic = False
