@@ -32,6 +32,8 @@ class SettingsTests(unittest.TestCase):
                 "CLAMAV_HOST",
                 "DOCUMENT_RETENTION_DAYS",
                 "PARSER_CACHE_RETENTION_HOURS",
+                "MISTRAL_ALLOWED_HOSTS",
+                "EXTRACTOR_ALLOWED_HOSTS",
             )
         }
         for key in self.original_env:
@@ -69,6 +71,8 @@ class SettingsTests(unittest.TestCase):
                         "CLAMAV_HOST=clamav.internal",
                         "DOCUMENT_RETENTION_DAYS=45",
                         "PARSER_CACHE_RETENTION_HOURS=12",
+                        "MISTRAL_ALLOWED_HOSTS=api.mistral.ai,ocr.example.test",
+                        "EXTRACTOR_ALLOWED_HOSTS=api.groq.com",
                     ]
                 ),
                 encoding="utf-8",
@@ -99,6 +103,11 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.clamav_host, "clamav.internal")
         self.assertEqual(settings.document_retention_days, 45)
         self.assertEqual(settings.parser_cache_retention_hours, 12)
+        self.assertEqual(
+            settings.mistral_allowed_hosts,
+            ("api.mistral.ai", "ocr.example.test"),
+        )
+        self.assertEqual(settings.extractor_allowed_hosts, ("api.groq.com",))
 
     def test_environment_variable_overrides_env_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

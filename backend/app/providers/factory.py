@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.core.settings import Settings
+from app.core.provider_egress import validate_provider_endpoint
 from app.providers.contracts import ExtractorProvider, ParserProvider
 from app.providers.llm_json import LlmJsonInvoiceExtractor
 from app.providers.mistral import MistralOcrParserProvider
@@ -12,6 +13,11 @@ def build_parser_provider(settings: Settings) -> ParserProvider:
     if provider == "mock":
         return MockParserProvider()
     if provider == "mistral_ocr":
+        validate_provider_endpoint(
+            settings.mistral_ocr_endpoint,
+            settings.mistral_allowed_hosts,
+            label="Mistral OCR",
+        )
         return MistralOcrParserProvider(
             api_key=settings.mistral_api_key or "",
             endpoint=settings.mistral_ocr_endpoint,
@@ -26,6 +32,11 @@ def build_extractor_provider(settings: Settings) -> ExtractorProvider:
     if provider == "mock":
         return MockInvoiceExtractor()
     if provider == "llm_json":
+        validate_provider_endpoint(
+            settings.extractor_endpoint,
+            settings.extractor_allowed_hosts,
+            label="invoice extractor",
+        )
         return LlmJsonInvoiceExtractor(
             api_key=settings.extractor_api_key or "",
             endpoint=settings.extractor_endpoint,

@@ -25,9 +25,11 @@ class ProviderFactoryTests(unittest.TestCase):
             "mistral_api_key": None,
             "mistral_ocr_endpoint": "https://example.test/ocr",
             "mistral_ocr_model": "mistral-ocr-latest",
+            "mistral_allowed_hosts": ("example.test",),
             "extractor_api_key": None,
             "extractor_endpoint": "",
             "extractor_model": "",
+            "extractor_allowed_hosts": ("example.test",),
         }
         values.update(overrides)
         return Settings(**values)
@@ -131,16 +133,14 @@ class MistralOcrParserProviderTests(unittest.TestCase):
         self.assertIn("Total 110.00", parsed.text)
 
     def test_http_4xx_error_is_not_retryable(self) -> None:
-        with patch(
-            "urllib.request.urlopen",
-            side_effect=urllib.error.HTTPError(
+        with patch("app.providers.http_transport.urllib.request.build_opener") as build_opener:
+            build_opener.return_value.open.side_effect = urllib.error.HTTPError(
                 url="https://example.test/ocr",
                 code=400,
                 msg="bad request",
                 hdrs=None,
                 fp=None,
-            ),
-        ):
+            )
             with self.assertRaises(ProviderError) as caught:
                 mistral_post_json("https://example.test/ocr", {"model": "x"}, {})
 
@@ -148,16 +148,14 @@ class MistralOcrParserProviderTests(unittest.TestCase):
         self.assertFalse(caught.exception.retryable)
 
     def test_http_5xx_error_is_retryable(self) -> None:
-        with patch(
-            "urllib.request.urlopen",
-            side_effect=urllib.error.HTTPError(
+        with patch("app.providers.http_transport.urllib.request.build_opener") as build_opener:
+            build_opener.return_value.open.side_effect = urllib.error.HTTPError(
                 url="https://example.test/ocr",
                 code=502,
                 msg="bad gateway",
                 hdrs=None,
                 fp=None,
-            ),
-        ):
+            )
             with self.assertRaises(ProviderError) as caught:
                 mistral_post_json("https://example.test/ocr", {"model": "x"}, {})
 
@@ -165,8 +163,9 @@ class MistralOcrParserProviderTests(unittest.TestCase):
         self.assertTrue(caught.exception.retryable)
 
     def test_http_client_uses_configured_timeout(self) -> None:
-        with patch("urllib.request.urlopen") as urlopen:
-            urlopen.return_value.__enter__.return_value.read.return_value = b'{"pages": []}'
+        with patch("app.providers.http_transport.urllib.request.build_opener") as build_opener:
+            opener = build_opener.return_value
+            opener.open.return_value.__enter__.return_value.read.return_value = b'{"pages": []}'
 
             mistral_post_json(
                 "https://example.test/ocr",
@@ -175,7 +174,7 @@ class MistralOcrParserProviderTests(unittest.TestCase):
                 timeout_seconds=17,
             )
 
-        self.assertEqual(urlopen.call_args.kwargs["timeout"], 17)
+        self.assertEqual(opener.open.call_args.kwargs["timeout"], 17)
 
 
 class LlmJsonInvoiceExtractorTests(unittest.TestCase):
@@ -510,16 +509,14 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         self.assertIsNone(result.extraction.data.tax)
 
     def test_http_4xx_error_is_not_retryable(self) -> None:
-        with patch(
-            "urllib.request.urlopen",
-            side_effect=urllib.error.HTTPError(
+        with patch("app.providers.http_transport.urllib.request.build_opener") as build_opener:
+            build_opener.return_value.open.side_effect = urllib.error.HTTPError(
                 url="https://example.test/extract",
                 code=401,
                 msg="unauthorized",
                 hdrs=None,
                 fp=None,
-            ),
-        ):
+            )
             with self.assertRaises(ProviderError) as caught:
                 llm_post_json("https://example.test/extract", {"model": "x"}, {})
 
@@ -527,16 +524,14 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         self.assertFalse(caught.exception.retryable)
 
     def test_http_5xx_error_is_retryable(self) -> None:
-        with patch(
-            "urllib.request.urlopen",
-            side_effect=urllib.error.HTTPError(
+        with patch("app.providers.http_transport.urllib.request.build_opener") as build_opener:
+            build_opener.return_value.open.side_effect = urllib.error.HTTPError(
                 url="https://example.test/extract",
                 code=500,
                 msg="server error",
                 hdrs=None,
                 fp=None,
-            ),
-        ):
+            )
             with self.assertRaises(ProviderError) as caught:
                 llm_post_json("https://example.test/extract", {"model": "x"}, {})
 
@@ -544,8 +539,9 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         self.assertTrue(caught.exception.retryable)
 
     def test_http_client_uses_configured_timeout(self) -> None:
-        with patch("urllib.request.urlopen") as urlopen:
-            urlopen.return_value.__enter__.return_value.read.return_value = b"{}"
+        with patch("app.providers.http_transport.urllib.request.build_opener") as build_opener:
+            opener = build_opener.return_value
+            opener.open.return_value.__enter__.return_value.read.return_value = b"{}"
 
             llm_post_json(
                 "https://example.test/extract",
@@ -554,7 +550,7 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
                 timeout_seconds=17,
             )
 
-        self.assertEqual(urlopen.call_args.kwargs["timeout"], 17)
+        self.assertEqual(opener.open.call_args.kwargs["timeout"], 17)
 
 
 if __name__ == "__main__":

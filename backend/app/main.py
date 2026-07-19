@@ -31,6 +31,7 @@ from app.api.auth import router as auth_router
 from app.core.security import validate_access_token_policy, validate_public_demo_provider_policy
 from app.core.security import SessionStore
 from app.core.upload_scanning import validate_upload_scanning_policy
+from app.core.provider_egress import validate_configured_provider_egress
 from app.core.http_security import (
     CsrfOriginMiddleware,
     RateLimitMiddleware,
@@ -47,6 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     validate_public_demo_provider_policy(resolved_settings)
     validate_upload_scanning_policy(resolved_settings)
     validate_retention_policy(resolved_settings)
+    validate_configured_provider_egress(resolved_settings)
     hosted = is_hosted(resolved_settings)
     configure_structured_logging()
 

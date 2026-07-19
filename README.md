@@ -99,7 +99,7 @@ exchanged for a server-owned role session. The default profile uses deterministi
 and requires no AI-provider credential.
 
 For real providers, copy `.env.example` to the ignored `.env`, set
-`PARSER_PROVIDER=mistral`, `EXTRACTOR_PROVIDER=openai_compatible`, and provide the documented
+`PARSER_PROVIDER=mistral_ocr`, `EXTRACTOR_PROVIDER=llm_json`, and provide the documented
 provider variables. Never commit `.env` or real invoices. Full instructions are in
 [RUNBOOK.md](RUNBOOK.md).
 
@@ -108,6 +108,10 @@ Production mode also requires a reachable ClamAV service. Private API responses 
 document-retention API. These controls are implemented and tested locally; hosted scanner,
 object-store lifecycle, backup deletion, and independent security verification remain deployment
 gates.
+
+Real-provider endpoints are restricted to exact HTTPS host allowlists and redirects are rejected.
+The complete provider data boundary and the still-unverified contractual gates are documented in
+[Provider Data Boundary](docs/security/provider-data-boundary.md).
 
 ## Quality Gates
 

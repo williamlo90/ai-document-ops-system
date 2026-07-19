@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.core.settings import Settings
+from app.core.provider_egress import validate_provider_endpoint
 from app.providers.contracts import ExtractorProvider, ParserProvider
 from app.providers.llm_json import LlmJsonInvoiceExtractor
 from app.providers.mistral import MistralOcrParserProvider
@@ -49,6 +50,16 @@ def build_provider_pair(
     if normalized == MOCK_PROVIDER_PAIR.key:
         return MOCK_PROVIDER_PAIR, MockParserProvider(), MockInvoiceExtractor()
     if normalized == MISTRAL_LLM_PROVIDER_PAIR.key and _real_provider_configured(settings):
+        validate_provider_endpoint(
+            settings.mistral_ocr_endpoint,
+            settings.mistral_allowed_hosts,
+            label="Mistral OCR",
+        )
+        validate_provider_endpoint(
+            settings.extractor_endpoint,
+            settings.extractor_allowed_hosts,
+            label="invoice extractor",
+        )
         return (
             MISTRAL_LLM_PROVIDER_PAIR,
             MistralOcrParserProvider(

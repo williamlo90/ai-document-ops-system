@@ -52,19 +52,26 @@ Copy-Item .env.example .env
 Set these values in `.env` without placing credentials in commands or documentation:
 
 ```dotenv
-PARSER_PROVIDER=mistral
+PARSER_PROVIDER=mistral_ocr
 MISTRAL_API_KEY=
 MISTRAL_OCR_ENDPOINT=https://api.mistral.ai/v1/ocr
 MISTRAL_OCR_MODEL=mistral-ocr-latest
+MISTRAL_ALLOWED_HOSTS=api.mistral.ai
 
-EXTRACTOR_PROVIDER=openai_compatible
+EXTRACTOR_PROVIDER=llm_json
 EXTRACTOR_API_KEY=
 EXTRACTOR_ENDPOINT=https://api.groq.com/openai/v1/chat/completions
 EXTRACTOR_MODEL=llama-3.3-70b-versatile
+EXTRACTOR_ALLOWED_HOSTS=api.groq.com
 ```
 
 Keep `APP_ENV=local`. Do not commit `.env`, provider responses containing sensitive content, or
 real invoice PDFs.
+
+Provider endpoints must use HTTPS on the default port, match an exact host in the corresponding
+allowlist, and contain no URL credential, query, or fragment. HTTP redirects are rejected rather
+than followed. Do not add a proxy or replacement provider host until its data-governance decision is
+recorded in [Provider Data Boundary](docs/security/provider-data-boundary.md).
 
 Verify provider adapters with a safe invoice:
 

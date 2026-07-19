@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import re
 import urllib.error
-import urllib.request
 from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -11,6 +10,7 @@ from typing import Any, Callable
 
 from app.extraction.schemas import FieldConfidence, InvoiceData, InvoiceExtraction, InvoiceLineItem
 from app.providers.contracts import ExtractionResult, ParsedDocument, ProviderError
+from app.providers.http_transport import post_json_without_redirects
 
 
 PostJson = Callable[[str, dict[str, Any], dict[str, str]], dict[str, Any]]
@@ -132,19 +132,14 @@ def _post_json(
     final_headers = {"User-Agent": "DocIntel-MVP/1.0"}
     final_headers.update(headers)
 
-    request = urllib.request.Request(
+    return post_json_without_redirects(
         url,
-        data=json.dumps(payload).encode(),
-        headers=final_headers,
-        method="POST",
+        payload,
+        final_headers,
+        timeout_seconds=timeout_seconds,
+        provider_name="llm_json",
+        http_error_code="extractor_http_error",
     )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            return json.loads(response.read().decode())
-    except urllib.error.HTTPError as exc:
-        raise ProviderError(
-            "extractor_http_error", "llm_json", retryable=exc.code == 429 or exc.code >= 500
-        ) from exc
 
 
 def _extract_json_object(response: dict[str, Any]) -> dict[str, Any]:

@@ -164,13 +164,17 @@ Observed evidence so far:
 
 ### Security Gate Before Provider Replacement
 
-Status: SEC-001, SEC-002, SEC-004, and SEC-006 remediated on 19 July 2026. The SEC-003 production
-ClamAV boundary is implemented and test-covered; authorized deployment verification is still pending.
+Status: SEC-001, SEC-002, SEC-004, SEC-005, and SEC-006 have application-level remediation on
+19 July 2026. The SEC-003 production ClamAV boundary and SEC-005 provider endpoint boundary are
+implemented and test-covered; scanner deployment and provider-contract verification remain external
+gates.
 
 - [Security And Privacy Assurance V1](docs/security/security-assurance-v1.md) records the threat model, provider data boundaries, verified controls, and residual risk
 - [Security Evidence And Traceability V1](docs/security/security-evidence-v1.md) binds the commands, candidate, results, and unrun checks
 - [Security Remediation V1](docs/security/security-remediation-v1.md) records the hosted-policy and server-owned identity changes and executed regression evidence
 - [Security Remediation V2](docs/security/security-remediation-v2.md) records upload scanning, private-cache headers, retention purge, and residual infrastructure gates
+- [Security Remediation V3](docs/security/security-remediation-v3.md) records provider HTTPS/allowlist enforcement, redirect refusal, and the remaining provider-governance decision
+- [Provider Data Boundary](docs/security/provider-data-boundary.md) records exactly what is sent to each provider and what remains prohibited
 - the loopback-only synthetic demo is `PASS_WITH_LIMITATIONS`
 - a controlled single-workspace hosted demo is `PASS_WITH_LIMITATIONS`; untrusted uploads and real-data use remain blocked by the other open findings
 - provider replacement must be evaluated against HTTPS/host restrictions, ZDR and retention, data location, DPA terms, quota stability, and deletion responsibilities
@@ -182,7 +186,7 @@ Remediation order:
 3. [x] Add the production ClamAV adapter, sensitive-response no-store policy, and explicit retention/deletion; verify the scanner service and infrastructure lifecycle in the authorized deployment.
 4. [ ] Add durable outbound idempotency and adversarial invoice prompt-injection tests.
 5. [ ] Pin and scan the dependency, CI action, and release-image supply chain.
-6. [ ] Research a replacement extractor only after the provider-security acceptance criteria are bound.
+6. [x] Enforce provider HTTPS, exact-host allowlists, and redirect refusal; replacement-provider research remains gated by the documented data-governance acceptance criteria.
 7. [ ] Repeat affected checks and obtain independent review before making a hosted security claim.
 
 Positioning rule:

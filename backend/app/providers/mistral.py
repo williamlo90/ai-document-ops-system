@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import base64
-import json
 import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable
 
 from app.providers.contracts import DocumentSource, ParsedDocument, ParsedPage, ProviderError
+from app.providers.http_transport import post_json_without_redirects
 
 
 PostJson = Callable[[str, dict[str, Any], dict[str, str]], dict[str, Any]]
@@ -68,19 +67,14 @@ def _post_json(
     headers: dict[str, str],
     timeout_seconds: int = 60,
 ) -> dict[str, Any]:
-    request = urllib.request.Request(
+    return post_json_without_redirects(
         url,
-        data=json.dumps(payload).encode(),
-        headers=headers,
-        method="POST",
+        payload,
+        headers,
+        timeout_seconds=timeout_seconds,
+        provider_name="mistral_ocr",
+        http_error_code="ocr_http_error",
     )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            return json.loads(response.read().decode())
-    except urllib.error.HTTPError as exc:
-        raise ProviderError(
-            "ocr_http_error", "mistral_ocr", retryable=exc.code == 429 or exc.code >= 500
-        ) from exc
 
 
 def _pdf_data_url(content: bytes) -> str:

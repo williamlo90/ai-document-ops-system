@@ -28,9 +28,11 @@ class Settings:
     mistral_api_key: str | None = None
     mistral_ocr_endpoint: str = "https://api.mistral.ai/v1/ocr"
     mistral_ocr_model: str = "mistral-ocr-latest"
+    mistral_allowed_hosts: tuple[str, ...] = ("api.mistral.ai",)
     extractor_api_key: str | None = None
     extractor_endpoint: str = ""
     extractor_model: str = ""
+    extractor_allowed_hosts: tuple[str, ...] = ("api.groq.com",)
     benchmark_real_provider_max_documents: int = 3
     max_processing_attempts: int = 3
     provider_timeout_seconds: int = 60
@@ -96,9 +98,11 @@ def load_settings() -> Settings:
             "https://api.mistral.ai/v1/ocr",
         ),
         mistral_ocr_model=_setting(config, "MISTRAL_OCR_MODEL", "mistral-ocr-latest"),
+        mistral_allowed_hosts=_csv(_setting(config, "MISTRAL_ALLOWED_HOSTS", "api.mistral.ai")),
         extractor_api_key=_setting(config, "EXTRACTOR_API_KEY"),
         extractor_endpoint=_setting(config, "EXTRACTOR_ENDPOINT", ""),
         extractor_model=_setting(config, "EXTRACTOR_MODEL", ""),
+        extractor_allowed_hosts=_csv(_setting(config, "EXTRACTOR_ALLOWED_HOSTS", "api.groq.com")),
         benchmark_real_provider_max_documents=int(
             _setting(config, "BENCHMARK_REAL_PROVIDER_MAX_DOCUMENTS", "3")
         ),
@@ -158,3 +162,7 @@ def _unquote(value: str) -> str:
 
 def _boolean(value: str | None) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _csv(value: str | None) -> tuple[str, ...]:
+    return tuple(item.strip() for item in (value or "").split(",") if item.strip())

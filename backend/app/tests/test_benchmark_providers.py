@@ -76,9 +76,11 @@ def _settings(
         mistral_api_key=mistral_api_key,
         mistral_ocr_endpoint="https://mistral.test",
         mistral_ocr_model="mistral-ocr-test",
+        mistral_allowed_hosts=("mistral.test",),
         extractor_api_key=extractor_api_key,
         extractor_endpoint=extractor_endpoint,
         extractor_model=extractor_model,
+        extractor_allowed_hosts=("extractor.test",),
     )
 
 
