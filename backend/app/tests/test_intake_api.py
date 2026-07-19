@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.core.settings import Settings
 from app.main import create_app
+from app.tests.auth_helpers import session_headers
 
 
 TOKEN = "test-token"
@@ -31,11 +32,16 @@ class IntakeApiTests(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def test_upload_policy_metadata_and_preview_are_workspace_scoped(self) -> None:
-        headers = {
-            "X-Admin-Token": TOKEN,
-            "X-User-Id": "William Lo",
-            "X-Workspace-Id": "alpha",
-        }
+        headers = session_headers(
+            self.client,
+            actor="William Lo",
+            workspace_id="alpha",
+        )
+        beta_headers = session_headers(
+            self.client,
+            actor="Beta Admin",
+            workspace_id="beta",
+        )
         upload = self.client.post(
             "/documents/upload",
             headers=headers,
@@ -58,7 +64,7 @@ class IntakeApiTests(unittest.TestCase):
         preview = self.client.get(f"/documents/{document['id']}/content", headers=headers)
         hidden = self.client.get(
             f"/documents/{document['id']}/content",
-            headers={**headers, "X-Workspace-Id": "beta"},
+            headers=beta_headers,
         )
         self.assertEqual(preview.status_code, 200)
         self.assertEqual(preview.headers["content-type"], "application/pdf")
@@ -66,11 +72,19 @@ class IntakeApiTests(unittest.TestCase):
         self.assertEqual(hidden.status_code, 404)
 
     def test_invoice_list_filters_submitter_status_and_paginates(self) -> None:
-        base = {"X-Admin-Token": TOKEN, "X-Workspace-Id": "alpha"}
+        base = session_headers(
+            self.client,
+            actor="Alpha Admin",
+            workspace_id="alpha",
+        )
         for index, user in enumerate(("William Lo", "Other Operator", "William Lo")):
             response = self.client.post(
                 "/documents/upload",
-                headers={**base, "X-User-Id": user},
+                headers=session_headers(
+                    self.client,
+                    actor=user,
+                    workspace_id="alpha",
+                ),
                 files={"file": (f"invoice-{index}.pdf", PDF, "application/pdf")},
             )
             self.assertEqual(response.status_code, 200)
@@ -99,7 +113,7 @@ class IntakeApiTests(unittest.TestCase):
         self.assertEqual(future.json()["total"], 0)
 
     def test_invoice_list_searches_extracted_fields_and_surfaces_correction_status(self) -> None:
-        headers = {"X-Admin-Token": TOKEN, "X-User-Id": "William Lo"}
+        headers = session_headers(self.client, actor="William Lo")
         document_ids: list[str] = []
         for filename in ("first.pdf", "copy.pdf"):
             upload = self.client.post(
@@ -125,22 +139,24 @@ class IntakeApiTests(unittest.TestCase):
         self.assertEqual(item["validation_codes"], ["duplicate_invoice"])
 
     def test_uploader_role_can_only_work_with_own_invoices(self) -> None:
-        base = {"X-Admin-Token": TOKEN, "X-Workspace-Id": "alpha"}
-        william_headers = {
-            **base,
-            "X-User-Id": "William Lo",
-            "X-Role": "uploader",
-        }
-        other_headers = {
-            **base,
-            "X-User-Id": "Other Operator",
-            "X-Role": "uploader",
-        }
-        reviewer_headers = {
-            **base,
-            "X-User-Id": "Finance Reviewer",
-            "X-Role": "reviewer",
-        }
+        william_headers = session_headers(
+            self.client,
+            actor="William Lo",
+            workspace_id="alpha",
+            role="uploader",
+        )
+        other_headers = session_headers(
+            self.client,
+            actor="Other Operator",
+            workspace_id="alpha",
+            role="uploader",
+        )
+        reviewer_headers = session_headers(
+            self.client,
+            actor="Finance Reviewer",
+            workspace_id="alpha",
+            role="reviewer",
+        )
 
         william_upload = self.client.post(
             "/documents/upload",
@@ -190,7 +206,7 @@ class IntakeApiTests(unittest.TestCase):
         self.assertEqual(cross_process.status_code, 404)
 
     def test_intake_draft_persists_line_items_and_revalidates_arithmetic(self) -> None:
-        headers = {"X-Admin-Token": TOKEN, "X-User-Id": "William Lo"}
+        headers = session_headers(self.client, actor="William Lo")
         upload = self.client.post(
             "/documents/upload",
             headers=headers,
@@ -231,16 +247,16 @@ class IntakeApiTests(unittest.TestCase):
         )
 
     def test_requested_correction_returns_to_reviewer_with_auditable_diff(self) -> None:
-        uploader_headers = {
-            "X-Admin-Token": TOKEN,
-            "X-User-Id": "William Lo",
-            "X-Role": "intake",
-        }
-        reviewer_headers = {
-            "X-Admin-Token": TOKEN,
-            "X-User-Id": "Rina Reviewer",
-            "X-Role": "reviewer",
-        }
+        uploader_headers = session_headers(
+            self.client,
+            actor="William Lo",
+            role="intake",
+        )
+        reviewer_headers = session_headers(
+            self.client,
+            actor="Rina Reviewer",
+            role="reviewer",
+        )
         upload = self.client.post(
             "/documents/upload",
             headers=uploader_headers,
@@ -324,7 +340,7 @@ class IntakeApiTests(unittest.TestCase):
     def test_intake_draft_preserves_duplicate_validation_and_cannot_edit_approved_invoice(
         self,
     ) -> None:
-        headers = {"X-Admin-Token": TOKEN, "X-User-Id": "William Lo"}
+        headers = session_headers(self.client, actor="William Lo")
         document_ids: list[str] = []
         for filename in ("original.pdf", "copy.pdf"):
             upload = self.client.post(
@@ -368,7 +384,7 @@ class IntakeApiTests(unittest.TestCase):
         self.assertEqual(edit_after_approval.json()["detail"], "Finalized invoices cannot be edited.")
 
     def test_cancel_stops_queued_job_and_reprocess_creates_recovery_job(self) -> None:
-        headers = {"X-Admin-Token": TOKEN, "X-User-Id": "William Lo"}
+        headers = session_headers(self.client, actor="William Lo")
         upload = self.client.post(
             "/documents/upload",
             headers=headers,

@@ -162,6 +162,27 @@ Observed evidence so far:
 - raw correction datasets export only to a private or Git-ignored path; public evidence contains aggregate counts without invoice values or identities
 - the deterministic correction contract passes all 6 lineage, no-op, reason carry-forward, and privacy checks documented in [Reviewer Correction Feedback](docs/reviewer-correction-feedback.md)
 
+### Security Gate Before Provider Replacement
+
+Status: SEC-001 and SEC-002 remediated on 19 July 2026; remaining security hardening is pending.
+
+- [Security And Privacy Assurance V1](docs/security/security-assurance-v1.md) records the threat model, provider data boundaries, verified controls, and residual risk
+- [Security Evidence And Traceability V1](docs/security/security-evidence-v1.md) binds the commands, candidate, results, and unrun checks
+- [Security Remediation V1](docs/security/security-remediation-v1.md) records the hosted-policy and server-owned identity changes and executed regression evidence
+- the loopback-only synthetic demo is `PASS_WITH_LIMITATIONS`
+- a controlled single-workspace hosted demo is `PASS_WITH_LIMITATIONS`; untrusted uploads and real-data use remain blocked by the other open findings
+- provider replacement must be evaluated against HTTPS/host restrictions, ZDR and retention, data location, DPA terms, quota stability, and deletion responsibilities
+
+Remediation order:
+
+1. [x] Make every hosted mode enforce strong token, cookie, CSRF, and API-documentation policy.
+2. [x] Replace caller-asserted role/workspace headers with server-owned principal sessions.
+3. [ ] Add real PDF scanning, sensitive-response no-store policy, and explicit retention/deletion.
+4. [ ] Add durable outbound idempotency and adversarial invoice prompt-injection tests.
+5. [ ] Pin and scan the dependency, CI action, and release-image supply chain.
+6. [ ] Research a replacement extractor only after the provider-security acceptance criteria are bound.
+7. [ ] Repeat affected checks and obtain independent review before making a hosted security claim.
+
 Positioning rule:
 
 > AI Document Operations System with evidence-bound extraction, deterministic validation, approval-gated execution, and an auditable review trail.

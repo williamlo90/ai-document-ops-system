@@ -197,13 +197,16 @@ function json(body: unknown, status = 200) {
   }))
 }
 
+const uploaderSession = { authenticated: true, actor: 'William Lo', user_id: 'uploader', workspace_id: 'default', role: 'uploader', is_admin: false }
+const reviewerSession = { authenticated: true, actor: 'William Lo', user_id: 'reviewer', workspace_id: 'default', role: 'reviewer', is_admin: false }
+
 describe('application shell', () => {
   beforeEach(() => {
     queryClient.clear()
     localStorage.clear()
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = String(input)
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(uploaderSession)
       if (path === '/backoffice/workspace') return json(workspace)
       if (path === '/operations/notifications') {
         return json({ notifications: [], unread_count: 0 })
@@ -218,22 +221,24 @@ describe('application shell', () => {
     }))
   })
 
-  it('starts in the intake workflow with an accessible role selector', async () => {
+  it('starts in the server-assigned uploader workflow', async () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: /upload and check an invoice/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /view application as role/i })).toHaveValue('intake')
+    expect(screen.queryByRole('combobox', { name: /view application as role/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /new document task/i })).not.toBeInTheDocument()
   })
 
-  it('switches role and exposes the reviewer approval workspace', async () => {
-    const user = userEvent.setup()
+  it('uses the server-assigned reviewer role for the approval workspace', async () => {
+    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json(reviewerSession)
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    })
     render(<App />)
-
-    await user.selectOptions(
-      await screen.findByRole('combobox', { name: /view application as role/i }),
-      'administrator',
-    )
 
     expect((await screen.findAllByRole('heading', { name: /approvals/i })).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /^upload$/i })).not.toBeInTheDocument()
@@ -246,14 +251,14 @@ describe('application shell', () => {
     expect(screen.queryByRole('button', { name: /new document task/i })).not.toBeInTheDocument()
     expect(await screen.findByText(/No invoices waiting for approval/i)).toBeInTheDocument()
     expect(screen.getByText(/Uploaded PDFs appear under Invoices first/i)).toBeInTheDocument()
-    expect(localStorage.getItem('docops-role')).toBe('administrator')
+    expect(localStorage.getItem('docops-role')).toBeNull()
   })
 
   it('keeps uploader invoice list status-only', async () => {
     const user = userEvent.setup()
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(uploaderSession)
       if (path === '/backoffice/workspace') return json(workspaceWithLinkedDocument)
       if (path.startsWith('/invoices?')) return json(invoiceListWithReviewItem)
       if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
@@ -273,10 +278,9 @@ describe('application shell', () => {
   })
 
   it('keeps history out of primary navigation', async () => {
-    const user = userEvent.setup()
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(uploaderSession)
       if (path === '/backoffice/workspace') return json(workspaceWithLinkedDocument)
       if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
       if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
@@ -289,21 +293,14 @@ describe('application shell', () => {
     expect(screen.getByRole('button', { name: /my invoices/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^history$/i })).not.toBeInTheDocument()
 
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: /view application as role/i }),
-      'administrator',
-    )
-    expect(await screen.findByRole('button', { name: /approvals/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^invoices$/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^history$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /view application as role/i })).not.toBeInTheDocument()
   })
 
   it('shows submitted invoices in reviewer approvals when the document needs review', async () => {
     const user = userEvent.setup()
-    localStorage.setItem('docops-role', 'administrator')
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(reviewerSession)
       if (path === '/backoffice/workspace') return json(workspaceWithNeedsReviewDocument)
       if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
       if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
@@ -320,10 +317,9 @@ describe('application shell', () => {
   })
 
   it('shows correction-required status consistently in the uploader invoice list', async () => {
-    localStorage.setItem('docops-role', 'intake')
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(uploaderSession)
       if (path.startsWith('/invoices?')) return json(invoiceListWithCorrectionItem)
       if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
       return json({ detail: `Unexpected test request: ${path}` }, 404)
@@ -342,10 +338,9 @@ describe('application shell', () => {
   it('lets the uploader fix a reviewer-requested correction and send it back', async () => {
     const user = userEvent.setup()
     let correctionSubmitted = false
-    localStorage.setItem('docops-role', 'intake')
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(uploaderSession)
       if (path.startsWith('/invoices?')) return json({ ...invoiceListWithReviewItem, items: [{ ...invoiceListWithReviewItem.items[0], original_filename: 'acme.pdf', status: 'needs_review', business_status: correctionSubmitted ? 'needs_review' : 'needs_correction', current_stage: correctionSubmitted ? 'waiting_approval' : 'correction_requested' }] })
       if (path === '/documents/doc-1/workflow') return json({ document: { ...needsReviewDocument, original_filename: 'acme.pdf' }, extraction: { ...extractionWithEvidence, data: { ...extractionWithEvidence.data, subtotal: '90.00', tax: '10.00' } }, correction_summary: correctionSubmitted ? { event_count: 1, latest_change_count: 1, latest_changed_fields: ['vendor_name'], latest_actor: 'William Lo', latest_reason: 'Used the legal vendor name.', latest_at: now } : null, current_stage: correctionSubmitted ? 'waiting_approval' : 'correction_requested', current_owner: correctionSubmitted ? 'Reviewer' : 'Uploader', next_action: correctionSubmitted ? 'Check the corrected invoice' : 'Correct the invoice and send it back', attention_reason: correctionSubmitted ? null : 'Use the full legal vendor name.', activity: [] })
       if (path === '/invoices/doc-1/draft') {
@@ -378,10 +373,9 @@ describe('application shell', () => {
 
   it('separates invoices with validation blockers from waiting decisions', async () => {
     const user = userEvent.setup()
-    localStorage.setItem('docops-role', 'administrator')
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(reviewerSession)
       if (path === '/backoffice/workspace') return json(workspaceWithNeedsCorrectionDocument)
       if (path === '/invoices?page=1&page_size=100') return json(invoiceListWithReviewItem)
       if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
@@ -415,10 +409,9 @@ describe('application shell', () => {
 
   it('shows a simple invoice review screen without technical tabs', async () => {
     const user = userEvent.setup()
-    localStorage.setItem('docops-role', 'administrator')
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(reviewerSession)
       if (path === '/backoffice/workspace') return json(workspaceWithNeedsReviewDocument)
       if (path === '/backoffice/work-items/item-1') return json({ work_item: workItemDetail })
       if (path === '/documents/doc-1') return json({ document: needsReviewDocument, extraction: null, correction_summary: { event_count: 1, latest_change_count: 1, latest_changed_fields: ['vendor_name'], latest_actor: 'William Lo', latest_reason: 'Matched the vendor to the PDF.', latest_at: now }, audit_events: [] })
@@ -458,7 +451,6 @@ describe('application shell', () => {
   it('shows actor, timestamp, audit count, and export eligibility after approval', async () => {
     const user = userEvent.setup()
     let approved = false
-    localStorage.setItem('docops-role', 'administrator')
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
       const approvedDocument = { ...linkedDocument, original_filename: 'acme.pdf', status: 'approved' }
@@ -466,7 +458,7 @@ describe('application shell', () => {
       const currentDocument = approved ? approvedDocument : reviewDocument
       const currentItem = { ...workItem, status: approved ? 'completed' : 'awaiting_human' }
       const currentItemDetail = { ...workItemDetail, status: currentItem.status }
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(reviewerSession)
       if (path === '/backoffice/workspace') return json({ ...workspaceWithNeedsReviewDocument, work_items: [currentItem], documents: [currentDocument] })
       if (path === '/backoffice/work-items/item-1') return json({ work_item: currentItemDetail })
       if (path === '/documents/doc-1') return json({
@@ -508,10 +500,9 @@ describe('application shell', () => {
 
   it('explains approval evidence and decision outcomes', async () => {
     const user = userEvent.setup()
-    localStorage.setItem('docops-role', 'administrator')
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(reviewerSession)
       if (path === '/backoffice/workspace') return json(workspaceWithPendingApproval)
       if (path === '/backoffice/work-items/item-1') return json({ work_item: pendingApprovalWorkItemDetail })
       if (path === '/documents/doc-1') return json({ document: needsReviewDocument, extraction: extractionWithEvidence, audit_events: [] })
@@ -537,10 +528,9 @@ describe('application shell', () => {
   })
 
   it('keeps technical evidence out of primary administrator navigation', async () => {
-    localStorage.setItem('docops-role', 'administrator')
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
-      if (path === '/auth/session') return json({ authenticated: true, actor: 'William Lo' })
+      if (path === '/auth/session') return json(reviewerSession)
       if (path === '/backoffice/workspace') return json(workspaceWithPlannedWorkItem)
       if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
       if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })

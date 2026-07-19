@@ -1,42 +1,76 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from app.core.security import (
     SecurityContext,
     UnauthorizedError,
+    authenticate_access_token,
     require_admin,
     require_any_role,
-    verify_admin_token,
+    validate_access_token_policy,
 )
+from app.core.settings import Settings
 
 
 class SecurityTests(unittest.TestCase):
-    def test_verify_admin_token_accepts_matching_token(self) -> None:
-        context = verify_admin_token("secret", "secret")
-
-        self.assertEqual(context, SecurityContext(actor="admin", is_admin=True))
-
-    def test_verify_admin_token_accepts_workspace_user_and_role(self) -> None:
-        context = verify_admin_token(
+    def test_admin_access_token_maps_to_server_owned_identity(self) -> None:
+        context = authenticate_access_token(
             "secret",
-            "secret",
-            workspace_id="acme",
-            user_id="reviewer-1",
-            role="reviewer",
+            Settings(
+                app_env="test",
+                admin_token="secret",
+                upload_root=Path("uploads"),
+                max_upload_bytes=1000,
+            ),
+        )
+
+        self.assertEqual(context, SecurityContext(actor="Administrator", is_admin=True))
+
+    def test_access_token_maps_to_server_owned_reviewer_identity(self) -> None:
+        context = authenticate_access_token(
+            "review-secret",
+            Settings(
+                app_env="test",
+                admin_token="admin-secret",
+                uploader_token="upload-secret",
+                reviewer_token="review-secret",
+                workspace_id="acme",
+                upload_root=Path("uploads"),
+                max_upload_bytes=1000,
+            ),
         )
 
         self.assertEqual(context.workspace_id, "acme")
-        self.assertEqual(context.user_id, "reviewer-1")
-        self.assertEqual(context.actor, "reviewer-1")
+        self.assertEqual(context.user_id, "reviewer")
+        self.assertEqual(context.actor, "Invoice Reviewer")
         self.assertEqual(context.role, "reviewer")
         self.assertFalse(context.is_admin)
 
-    def test_verify_admin_token_rejects_missing_or_wrong_token(self) -> None:
+    def test_access_token_rejects_missing_or_wrong_token(self) -> None:
+        settings = Settings(
+            app_env="test",
+            admin_token="secret",
+            upload_root=Path("uploads"),
+            max_upload_bytes=1000,
+        )
         with self.assertRaises(UnauthorizedError):
-            verify_admin_token(None, "secret")
+            authenticate_access_token(None, settings)
         with self.assertRaises(UnauthorizedError):
-            verify_admin_token("wrong", "secret")
+            authenticate_access_token("wrong", settings)
+
+    def test_duplicate_role_tokens_are_rejected(self) -> None:
+        settings = Settings(
+            app_env="local",
+            admin_token="same-token",
+            uploader_token="same-token",
+            upload_root=Path("uploads"),
+            max_upload_bytes=1000,
+        )
+
+        with self.assertRaises(ValueError):
+            validate_access_token_policy(settings)
 
     def test_require_admin_rejects_non_admin_context(self) -> None:
         with self.assertRaises(UnauthorizedError):

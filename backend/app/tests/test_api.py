@@ -12,6 +12,7 @@ from app.core.settings import Settings
 from app.extraction.schemas import SCHEMA_VERSION
 from app.main import create_app
 from app.providers.mock import MockParserProvider
+from app.tests.auth_helpers import session_headers
 
 
 TOKEN = "test-token"
@@ -132,7 +133,11 @@ class ApiTests(unittest.TestCase):
         )
         document_id = upload_response.json()["document"]["id"]
         self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
-        reviewer_headers = {**HEADERS, "X-Role": "reviewer", "X-User-Id": "reviewer-1"}
+        reviewer_headers = session_headers(
+            self.client,
+            actor="reviewer-1",
+            role="reviewer",
+        )
 
         queue_response = self.client.get("/review/queue", headers=reviewer_headers)
         approve_response = self.client.post(
@@ -146,18 +151,17 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(approve_response.json()["review_task"]["status"], "approved")
 
     def test_reviewer_cannot_review_cross_workspace_document(self) -> None:
-        acme_headers = {
-            **HEADERS,
-            "X-Workspace-Id": "acme",
-            "X-User-Id": "acme-admin",
-            "X-Role": "admin",
-        }
-        other_reviewer_headers = {
-            **HEADERS,
-            "X-Workspace-Id": "other",
-            "X-User-Id": "other-reviewer",
-            "X-Role": "reviewer",
-        }
+        acme_headers = session_headers(
+            self.client,
+            actor="acme-admin",
+            workspace_id="acme",
+        )
+        other_reviewer_headers = session_headers(
+            self.client,
+            actor="other-reviewer",
+            workspace_id="other",
+            role="reviewer",
+        )
         upload_response = self.client.post(
             "/documents/upload",
             headers=acme_headers,
@@ -184,7 +188,11 @@ class ApiTests(unittest.TestCase):
         )
         document_id = upload_response.json()["document"]["id"]
         self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
-        operator_headers = {**HEADERS, "X-Role": "operator", "X-User-Id": "operator-1"}
+        operator_headers = session_headers(
+            self.client,
+            actor="operator-1",
+            role="operator",
+        )
 
         queue_response = self.client.get("/review/queue", headers=operator_headers)
         approve_response = self.client.post(
@@ -299,18 +307,16 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.json()["integration"]["external_id"], "mock-ap-INV-001")
 
     def test_api_document_access_is_scoped_by_workspace(self) -> None:
-        acme_headers = {
-            **HEADERS,
-            "X-Workspace-Id": "acme",
-            "X-User-Id": "acme-admin",
-            "X-Role": "admin",
-        }
-        other_headers = {
-            **HEADERS,
-            "X-Workspace-Id": "other",
-            "X-User-Id": "other-admin",
-            "X-Role": "admin",
-        }
+        acme_headers = session_headers(
+            self.client,
+            actor="acme-admin",
+            workspace_id="acme",
+        )
+        other_headers = session_headers(
+            self.client,
+            actor="other-admin",
+            workspace_id="other",
+        )
 
         upload_response = self.client.post(
             "/documents/upload",
@@ -332,8 +338,16 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(other_process.status_code, 404)
 
     def test_metrics_are_scoped_by_workspace(self) -> None:
-        acme_headers = {**HEADERS, "X-Workspace-Id": "acme"}
-        other_headers = {**HEADERS, "X-Workspace-Id": "other"}
+        acme_headers = session_headers(
+            self.client,
+            actor="acme-admin",
+            workspace_id="acme",
+        )
+        other_headers = session_headers(
+            self.client,
+            actor="other-admin",
+            workspace_id="other",
+        )
 
         self.client.post(
             "/documents/upload",
@@ -542,7 +556,9 @@ class ApiTests(unittest.TestCase):
     def test_public_demo_rejects_real_providers(self) -> None:
         settings = Settings(
             app_env="public-demo",
-            admin_token=TOKEN,
+            admin_token="admin-token-with-24-characters",
+            uploader_token="upload-token-with-24-characters",
+            reviewer_token="review-token-with-24-characters",
             upload_root=Path(self.temp_dir.name),
             max_upload_bytes=1000,
             parser_provider="mistral_ocr",

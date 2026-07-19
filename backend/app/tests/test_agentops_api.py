@@ -12,6 +12,7 @@ from app.backoffice.planner import PlanningInput
 from app.core.security import SecurityContext
 from app.core.settings import Settings
 from app.main import create_app
+from app.tests.auth_helpers import session_headers
 
 
 TOKEN = "test-token"
@@ -97,7 +98,11 @@ class AgentOpsApiTests(unittest.TestCase):
         detail_response = self.client.get(f"/agentops/runs/{run_id}", headers=HEADERS)
         other_workspace_response = self.client.get(
             f"/agentops/runs/{run_id}",
-            headers={**HEADERS, "X-Workspace-Id": "other"},
+            headers=session_headers(
+                self.client,
+                actor="other-admin",
+                workspace_id="other",
+            ),
         )
 
         self.assertEqual(detail_response.status_code, 200)
@@ -186,7 +191,11 @@ class AgentOpsApiTests(unittest.TestCase):
 
         response = self.client.post(
             "/agentops/scenarios/evaluate",
-            headers={**HEADERS, "X-Workspace-Id": "other"},
+            headers=session_headers(
+                self.client,
+                actor="other-admin",
+                workspace_id="other",
+            ),
             json={"scenario_id": "workflow_summary", "run_id": run_id},
         )
 
@@ -303,7 +312,11 @@ class AgentOpsApiTests(unittest.TestCase):
 
         response = self.client.post(
             "/agentops/backoffice/scenarios/evaluate",
-            headers={**HEADERS, "X-Workspace-Id": "other"},
+            headers=session_headers(
+                self.client,
+                actor="other-admin",
+                workspace_id="other",
+            ),
             json={
                 "scenario_id": "invoice_review_read_only",
                 "work_item_id": str(work_item.id),

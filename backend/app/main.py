@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
@@ -27,31 +28,34 @@ from app.api.providers import router as providers_router
 from app.api.operations import router as operations_router
 from app.api.review import router as review_router
 from app.api.auth import router as auth_router
-from app.core.security import validate_admin_token_policy, validate_public_demo_provider_policy
+from app.core.security import validate_access_token_policy, validate_public_demo_provider_policy
 from app.core.security import SessionStore
 from app.core.http_security import (
     CsrfOriginMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
 )
-from app.core.settings import Settings, is_production_like, load_settings
+from app.core.settings import Settings, is_hosted, load_settings
 from app.api.legacy_redirects import router as legacy_redirect_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or load_settings()
-    validate_admin_token_policy(resolved_settings)
+    validate_access_token_policy(resolved_settings)
     validate_public_demo_provider_policy(resolved_settings)
-    production_like = is_production_like(resolved_settings)
+    hosted = is_hosted(resolved_settings)
     configure_structured_logging()
 
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         application.state.accepting_traffic = True
         logging.getLogger("docintel.lifecycle").info("application_started")
-        yield
-        application.state.accepting_traffic = False
-        logging.getLogger("docintel.lifecycle").info("application_stopping")
+        try:
+            yield
+        finally:
+            application.state.accepting_traffic = False
+            application.state.container.close()
+            logging.getLogger("docintel.lifecycle").info("application_stopping")
 
     app = FastAPI(
         title="AI Document Operations System",
@@ -62,9 +66,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ),
         version="0.1.0",
         lifespan=lifespan,
-        docs_url=None if production_like else "/docs",
-        redoc_url=None if production_like else "/redoc",
-        openapi_url=None if production_like else "/openapi.json",
+        docs_url=None if hosted else "/docs",
+        redoc_url=None if hosted else "/redoc",
+        openapi_url=None if hosted else "/openapi.json",
     )
     app.state.accepting_traffic = True
     app.state.http_metrics = HttpMetrics()
@@ -139,3 +143,4 @@ def _frontend_dist() -> Path | None:
 
 
 app = create_app()
+atexit.register(app.state.container.close)

@@ -11,6 +11,9 @@ class Settings:
     admin_token: str | None
     upload_root: Path
     max_upload_bytes: int
+    workspace_id: str = "default"
+    uploader_token: str | None = None
+    reviewer_token: str | None = None
     document_storage_backend: str = "local"
     storage_backend: str = "memory"
     sqlite_path: Path = Path("backend/data/doc_intel.sqlite3")
@@ -44,8 +47,15 @@ class Settings:
     malware_scanning_enabled: bool = True
 
 
-def is_production_like(settings: Settings) -> bool:
-    return settings.app_env.strip().lower() in {"prod", "production"}
+def is_hosted(settings: Settings) -> bool:
+    return settings.app_env.strip().lower() in {
+        "prod",
+        "production",
+        "public",
+        "public-demo",
+        "public_demo",
+        "portfolio",
+    }
 
 
 def is_public_demo(settings: Settings) -> bool:
@@ -59,6 +69,9 @@ def load_settings() -> Settings:
         admin_token=_setting(config, "APP_ADMIN_TOKEN"),
         upload_root=Path(_setting(config, "UPLOAD_ROOT", "backend/data/uploads")),
         max_upload_bytes=int(_setting(config, "MAX_UPLOAD_BYTES", "15728640")),
+        workspace_id=_setting(config, "APP_WORKSPACE_ID", "default"),
+        uploader_token=_setting(config, "APP_UPLOADER_TOKEN"),
+        reviewer_token=_setting(config, "APP_REVIEWER_TOKEN"),
         document_storage_backend=_setting(config, "DOCUMENT_STORAGE_BACKEND", "local"),
         storage_backend=_setting(config, "STORAGE_BACKEND", "memory"),
         sqlite_path=Path(_setting(config, "SQLITE_PATH", "backend/data/doc_intel.sqlite3")),

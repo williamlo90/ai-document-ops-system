@@ -9,7 +9,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse, Response
 
-from app.core.settings import Settings, is_production_like
+from app.core.settings import Settings, is_hosted
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -40,7 +40,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class CsrfOriginMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: object, settings: Settings, cookie_name: str) -> None:
         super().__init__(app)
-        self.enabled = is_production_like(settings)
+        self.enabled = is_hosted(settings)
         self.cookie_name = cookie_name
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:

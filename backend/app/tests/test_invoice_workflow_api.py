@@ -11,6 +11,7 @@ from app.core.settings import Settings
 from app.documents.status import DocumentStatus
 from app.extraction.schemas import SCHEMA_VERSION
 from app.main import create_app
+from app.tests.auth_helpers import session_headers
 
 
 TOKEN = "test-token"
@@ -187,7 +188,11 @@ class InvoiceWorkflowApiTests(unittest.TestCase):
 
         response = self.client.get(
             f"/invoices/{document_id}/workflow",
-            headers={**HEADERS, "X-Workspace-Id": "other"},
+            headers=session_headers(
+                self.client,
+                actor="other-admin",
+                workspace_id="other",
+            ),
         )
 
         self.assertEqual(response.status_code, 404)
@@ -197,7 +202,11 @@ class InvoiceWorkflowApiTests(unittest.TestCase):
 
         response = self.client.get(
             f"/documents/{document_id}/workflow",
-            headers={**HEADERS, "X-Workspace-Id": "other"},
+            headers=session_headers(
+                self.client,
+                actor="other-admin",
+                workspace_id="other",
+            ),
         )
 
         self.assertEqual(response.status_code, 404)

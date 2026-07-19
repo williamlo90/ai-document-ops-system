@@ -49,8 +49,8 @@ from app.benchmark.history import (
 from app.core.security import (
     SecurityContext,
     UnauthorizedError,
+    authenticate_access_token,
     require_any_role,
-    verify_admin_token,
 )
 from app.core.upload_scanning import PassthroughUploadScanner, SignatureUploadScanner
 from app.core.settings import Settings
@@ -136,6 +136,12 @@ class AppContainer:
             "database": _repository_ready(self.documents),
             "storage": _storage_ready(self.storage),
         }
+
+    def close(self) -> None:
+        store = getattr(self.documents, "store", None)
+        close = getattr(store, "close", None)
+        if callable(close):
+            close()
 
 
 def build_container(settings: Settings) -> AppContainer:
@@ -296,24 +302,16 @@ def get_container(request: Request) -> AppContainer:
 
 def require_admin_context(
     request: Request,
+    x_access_token: str | None = Header(default=None, alias="X-Access-Token"),
     x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
     session_id: str | None = Cookie(default=None, alias="doc_intel_admin_token"),
-    x_workspace_id: str | None = Header(default=None, alias="X-Workspace-Id"),
-    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
-    x_role: str | None = Header(default=None, alias="X-Role"),
 ) -> SecurityContext:
     settings = get_container(request).settings
     session_context = request.app.state.sessions.get(session_id)
     if session_context is not None:
         return session_context
     try:
-        return verify_admin_token(
-            x_admin_token,
-            settings.admin_token,
-            workspace_id=x_workspace_id,
-            user_id=x_user_id,
-            role=x_role,
-        )
+        return authenticate_access_token(x_access_token or x_admin_token, settings)
     except UnauthorizedError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

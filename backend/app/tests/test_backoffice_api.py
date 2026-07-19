@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from app.core.settings import Settings
 from app.extraction.schemas import SCHEMA_VERSION
 from app.main import create_app
+from app.tests.auth_helpers import session_headers
 
 
 TOKEN = "test-token"
@@ -143,24 +144,26 @@ class BackofficeApiTests(unittest.TestCase):
 
         response = self.client.get(
             f"/backoffice/work-items/{work_item_id}",
-            headers={**HEADERS, "X-Workspace-Id": "other"},
+            headers=session_headers(
+                self.client,
+                actor="other-admin",
+                workspace_id="other",
+            ),
         )
 
         self.assertEqual(response.status_code, 404)
 
     def test_create_work_item_rejects_cross_workspace_linked_document(self) -> None:
-        acme_headers = {
-            **HEADERS,
-            "X-Workspace-Id": "acme",
-            "X-User-Id": "acme-admin",
-            "X-Role": "admin",
-        }
-        other_headers = {
-            **HEADERS,
-            "X-Workspace-Id": "other",
-            "X-User-Id": "other-admin",
-            "X-Role": "admin",
-        }
+        acme_headers = session_headers(
+            self.client,
+            actor="acme-admin",
+            workspace_id="acme",
+        )
+        other_headers = session_headers(
+            self.client,
+            actor="other-admin",
+            workspace_id="other",
+        )
         upload = self.client.post(
             "/documents/upload",
             headers=acme_headers,
@@ -185,12 +188,11 @@ class BackofficeApiTests(unittest.TestCase):
 
     def test_backoffice_mutations_are_workspace_scoped(self) -> None:
         planned = self._planned_export_work_item()
-        other_headers = {
-            **HEADERS,
-            "X-Workspace-Id": "other",
-            "X-User-Id": "other-admin",
-            "X-Role": "admin",
-        }
+        other_headers = session_headers(
+            self.client,
+            actor="other-admin",
+            workspace_id="other",
+        )
 
         update = self.client.patch(
             f"/backoffice/work-items/{planned['work_item_id']}",
@@ -221,7 +223,11 @@ class BackofficeApiTests(unittest.TestCase):
 
         response = self.client.post(
             f"/backoffice/work-items/{work_item_id}/plan",
-            headers={**HEADERS, "X-Workspace-Id": "other"},
+            headers=session_headers(
+                self.client,
+                actor="other-admin",
+                workspace_id="other",
+            ),
             json={"requested_outcome": "review invoice"},
         )
 

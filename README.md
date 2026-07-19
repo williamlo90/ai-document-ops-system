@@ -67,12 +67,16 @@ mocks for offline development.
 | Provider-backed workflow | Upload, OCR, extraction, review queue, explicit approval, and six audit events observed locally. |
 | Synthetic invoice set | 20 deterministic PDFs covering normal, missing-field, mismatch, duplicate, low-contrast, rotated, and multi-page cases. |
 | Final controlled regression | 160 / 160 evaluated fields and 20 / 20 expected validation outcomes on that synthetic set. |
+| External licensed holdout | First sealed 10-document FATURA holdout exposed provider availability failure: 1 / 10 documents succeeded, so external robustness is not claimed. |
+| Reviewer correction loop | Correction requests route back to the uploader, preserve original AI output, store before/after diffs, and return the invoice to review. |
 | Approval boundary | Duplicate and other error-level cases are blocked in both UI and API tests. |
-| Automated verification | 370 backend tests passed with 2 skipped; 12 frontend tests passed; lint and production build passed. |
+| Automated verification | 393 backend tests passed with 2 skipped; 13 frontend tests passed; lint and production build passed. |
 
 The controlled regression is a small synthetic golden set, not a production accuracy claim.
 See [scenario evidence](docs/invoice-scenarios-v1-evidence.md) for the initial failures, fixes,
 latency observation, and claim boundaries.
+See [external evaluation](docs/external-invoice-evaluation-v1.md) for the failed sealed holdout and
+provider-availability boundary.
 
 ## Quick Start
 
@@ -89,8 +93,10 @@ Pop-Location
 .\scripts\start_dev.ps1
 ```
 
-Open `http://127.0.0.1:8000` and use the local demo token from `.env.example` (`123`). The
-default profile uses deterministic mock providers and requires no API credential.
+Open `http://127.0.0.1:8000`. The local credentials in `.env.example` are `uploader-123` for
+invoice intake, `reviewer-123` for review, and `123` for local administration. Each credential is
+exchanged for a server-owned role session. The default profile uses deterministic mock providers
+and requires no AI-provider credential.
 
 For real providers, copy `.env.example` to the ignored `.env`, set
 `PARSER_PROVIDER=mistral`, `EXTRACTOR_PROVIDER=openai_compatible`, and provide the documented
@@ -115,7 +121,8 @@ Pop-Location
 ## Honest Limitations
 
 - Invoice is the only complete document workflow.
-- Evaluation uses synthetic fixtures; no customer dataset or external validation is claimed.
+- Evaluation uses synthetic fixtures and one external licensed synthetic holdout; no customer
+  dataset, production accuracy, or real-world robustness is claimed.
 - Time savings, cost reduction, and production accuracy have not been measured.
 - The default authentication and persistence profile is intended for a local portfolio demo.
 - Hosted tenancy, production monitoring, backups, secret management, and live ERP delivery are
@@ -127,6 +134,8 @@ Pop-Location
 - [Portfolio case study](PORTFOLIO_CASE_STUDY.md)
 - [Recruiter evidence pack](RECRUITER_EVIDENCE_PACK.md)
 - [Scenario coverage matrix](SCENARIO_COVERAGE_MATRIX.md)
+- [External invoice evaluation](docs/external-invoice-evaluation-v1.md)
+- [Reviewer correction feedback](docs/reviewer-correction-feedback.md)
 - [Product requirements](PRD.md)
 - [Architecture](ARCHITECTURE.md)
 - [Runbook](RUNBOOK.md)

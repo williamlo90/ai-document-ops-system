@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.core.settings import Settings
 from app.main import create_app
+from app.tests.auth_helpers import session_headers
 
 
 TOKEN = "test-token"
@@ -168,7 +169,11 @@ class AgentCopilotApiTests(unittest.TestCase):
     def test_operator_gets_human_escalation_for_admin_only_recommendation(self) -> None:
         document_id = self._upload_document()
         self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
-        operator_headers = {**HEADERS, "X-Role": "operator", "X-User-Id": "operator-1"}
+        operator_headers = session_headers(
+            self.client,
+            actor="operator-1",
+            role="operator",
+        )
 
         response = self.client.post(
             "/agent/copilot",
@@ -283,8 +288,16 @@ class AgentCopilotApiTests(unittest.TestCase):
         self.assertEqual(detail_response.json()["document"]["status"], "exported")
 
     def test_controlled_execution_does_not_cross_workspace_boundary(self) -> None:
-        acme_headers = {**HEADERS, "X-Workspace-Id": "acme", "X-User-Id": "acme-admin"}
-        other_headers = {**HEADERS, "X-Workspace-Id": "other", "X-User-Id": "other-admin"}
+        acme_headers = session_headers(
+            self.client,
+            actor="acme-admin",
+            workspace_id="acme",
+        )
+        other_headers = session_headers(
+            self.client,
+            actor="other-admin",
+            workspace_id="other",
+        )
         document_id = self._upload_document(headers=acme_headers)
 
         response = self.client.post(
@@ -307,8 +320,16 @@ class AgentCopilotApiTests(unittest.TestCase):
         self.assertEqual(acme_detail_response.json()["document"]["status"], "queued")
 
     def test_copilot_does_not_leak_cross_tenant_document_detail(self) -> None:
-        acme_headers = {**HEADERS, "X-Workspace-Id": "acme", "X-User-Id": "acme-admin"}
-        other_headers = {**HEADERS, "X-Workspace-Id": "other", "X-User-Id": "other-admin"}
+        acme_headers = session_headers(
+            self.client,
+            actor="acme-admin",
+            workspace_id="acme",
+        )
+        other_headers = session_headers(
+            self.client,
+            actor="other-admin",
+            workspace_id="other",
+        )
         document_id = self._upload_document(headers=acme_headers)
 
         response = self.client.post(
@@ -342,7 +363,11 @@ class AgentCopilotApiTests(unittest.TestCase):
         )
         document_id = self._upload_document()
         self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
-        reviewer_headers = {**HEADERS, "X-Role": "reviewer", "X-User-Id": "reviewer-1"}
+        reviewer_headers = session_headers(
+            self.client,
+            actor="reviewer-1",
+            role="reviewer",
+        )
 
         response = self.client.post(
             "/agent/copilot",

@@ -6,7 +6,7 @@ from threading import Lock
 from time import time
 from hmac import compare_digest
 
-from app.core.settings import Settings, is_production_like, is_public_demo
+from app.core.settings import Settings, is_hosted, is_public_demo
 
 
 class UnauthorizedError(PermissionError):
@@ -63,14 +63,44 @@ class SessionStore:
                 self._sessions.pop(session_id, None)
 
 
-def validate_admin_token_policy(settings: Settings) -> None:
-    if not is_production_like(settings):
+def validate_access_token_policy(settings: Settings) -> None:
+    credentials = {
+        "APP_ADMIN_TOKEN": settings.admin_token,
+        "APP_UPLOADER_TOKEN": settings.uploader_token,
+        "APP_REVIEWER_TOKEN": settings.reviewer_token,
+    }
+    configured = {name: value for name, value in credentials.items() if value}
+    if len(set(configured.values())) != len(configured):
+        raise SecurityConfigurationError("Access tokens must be unique per server-owned role")
+    if not is_hosted(settings):
         return
-    token = settings.admin_token or ""
-    weak_tokens = {"", "admin", "password", "test-token", "changeme", "change-me"}
-    if token.strip().lower() in weak_tokens or len(token) < 24:
+
+    required = {"APP_ADMIN_TOKEN"}
+    if is_public_demo(settings):
+        required.update({"APP_UPLOADER_TOKEN", "APP_REVIEWER_TOKEN"})
+    missing = sorted(name for name in required if not credentials[name])
+    if missing:
         raise SecurityConfigurationError(
-            "Production requires APP_ADMIN_TOKEN with at least 24 non-default characters"
+            f"Hosted mode requires configured credentials: {', '.join(missing)}"
+        )
+
+    weak_tokens = {
+        "",
+        "123",
+        "admin",
+        "password",
+        "test-token",
+        "changeme",
+        "change-me",
+    }
+    weak = sorted(
+        name
+        for name, value in configured.items()
+        if value.strip().lower() in weak_tokens or len(value) < 24
+    )
+    if weak:
+        raise SecurityConfigurationError(
+            f"Hosted mode requires at least 24 non-default characters for: {', '.join(weak)}"
         )
 
 
@@ -88,26 +118,47 @@ def validate_public_demo_provider_policy(settings: Settings) -> None:
         )
 
 
-def verify_admin_token(
+def authenticate_access_token(
     provided_token: str | None,
-    expected_token: str | None,
-    workspace_id: str | None = None,
-    user_id: str | None = None,
-    role: str | None = None,
+    settings: Settings,
 ) -> SecurityContext:
-    if not expected_token:
-        raise UnauthorizedError("Admin token is not configured")
-    if not provided_token or not compare_digest(provided_token, expected_token):
-        raise UnauthorizedError("Invalid admin token")
-    normalized_role = (role or "admin").strip().lower() or "admin"
-    normalized_user = (user_id or normalized_role).strip() or normalized_role
-    return SecurityContext(
-        actor=normalized_user,
-        is_admin=normalized_role == "admin",
-        workspace_id=(workspace_id or "default").strip() or "default",
-        user_id=normalized_user,
-        role=normalized_role,
+    if not provided_token:
+        raise UnauthorizedError("Access token is required")
+    workspace_id = settings.workspace_id.strip() or "default"
+    principals = (
+        (
+            settings.admin_token,
+            SecurityContext(
+                actor="Administrator",
+                is_admin=True,
+                workspace_id=workspace_id,
+                user_id="admin",
+                role="admin",
+            ),
+        ),
+        (
+            settings.uploader_token,
+            SecurityContext(
+                actor="Invoice Uploader",
+                workspace_id=workspace_id,
+                user_id="uploader",
+                role="uploader",
+            ),
+        ),
+        (
+            settings.reviewer_token,
+            SecurityContext(
+                actor="Invoice Reviewer",
+                workspace_id=workspace_id,
+                user_id="reviewer",
+                role="reviewer",
+            ),
+        ),
     )
+    for expected_token, context in principals:
+        if expected_token and compare_digest(provided_token, expected_token):
+            return context
+    raise UnauthorizedError("Invalid access token")
 
 
 def require_admin(context: SecurityContext) -> None:

@@ -4,8 +4,8 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.api.dependencies import AppContainer, get_container
-from app.core.security import UnauthorizedError, verify_admin_token
-from app.core.settings import is_production_like
+from app.core.security import SecurityContext, UnauthorizedError, authenticate_access_token
+from app.core.settings import is_hosted
 
 
 SESSION_COOKIE = "doc_intel_admin_token"
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 class LoginPayload(BaseModel):
-    admin_token: str
+    access_token: str
 
 
 @router.post("/session")
@@ -24,7 +24,7 @@ def create_session(
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:
-        context = verify_admin_token(payload.admin_token, container.settings.admin_token)
+        context = authenticate_access_token(payload.access_token, container.settings)
     except UnauthorizedError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized"
@@ -34,12 +34,12 @@ def create_session(
         SESSION_COOKIE,
         session_id,
         httponly=True,
-        secure=is_production_like(container.settings),
+        secure=is_hosted(container.settings),
         samesite="strict",
         max_age=container.settings.session_ttl_seconds,
         path="/",
     )
-    return {"authenticated": True, "actor": context.actor, "role": context.role}
+    return _session_payload(context)
 
 
 @router.get("/session")
@@ -50,7 +50,7 @@ def get_session(
     context = request.app.state.sessions.get(session_id)
     if context is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    return {"authenticated": True, "actor": context.actor, "role": context.role}
+    return _session_payload(context)
 
 
 @router.delete("/session")
@@ -60,5 +60,22 @@ def delete_session(
     session_id: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> dict[str, bool]:
     request.app.state.sessions.revoke(session_id)
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    response.delete_cookie(
+        SESSION_COOKIE,
+        path="/",
+        httponly=True,
+        secure=is_hosted(request.app.state.container.settings),
+        samesite="strict",
+    )
     return {"authenticated": False}
+
+
+def _session_payload(context: SecurityContext) -> dict[str, object]:
+    return {
+        "authenticated": True,
+        "actor": context.actor,
+        "user_id": context.user_id,
+        "workspace_id": context.workspace_id,
+        "role": context.role,
+        "is_admin": context.is_admin,
+    }

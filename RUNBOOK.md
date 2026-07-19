@@ -27,7 +27,9 @@ Pop-Location
 .\scripts\start_dev.ps1
 ```
 
-Open `http://127.0.0.1:8000`. Use the local demo token defined by `.env.example` (`123`).
+Open `http://127.0.0.1:8000`. Use `uploader-123` for invoice intake or `reviewer-123` for the
+review queue. The local admin credential remains `123`. These values are local-only; hosted modes
+reject weak or duplicate credentials.
 
 The startup script uses `.env` when present and `.env.example` otherwise. Local runtime state is
 written under `backend/data/`, which is ignored by Git.

@@ -15,6 +15,9 @@ class SettingsTests(unittest.TestCase):
             for key in (
                 "ENV_FILE",
                 "APP_ADMIN_TOKEN",
+                "APP_UPLOADER_TOKEN",
+                "APP_REVIEWER_TOKEN",
+                "APP_WORKSPACE_ID",
                 "PARSER_PROVIDER",
                 "EXTRACTOR_PROVIDER",
                 "MISTRAL_API_KEY",
@@ -44,6 +47,9 @@ class SettingsTests(unittest.TestCase):
                 "\n".join(
                     [
                         "APP_ADMIN_TOKEN=file-token",
+                        "APP_UPLOADER_TOKEN=uploader-token",
+                        "APP_REVIEWER_TOKEN=reviewer-token",
+                        "APP_WORKSPACE_ID=finance-ops",
                         "PARSER_PROVIDER=mistral_ocr",
                         "EXTRACTOR_PROVIDER=llm_json",
                         "MISTRAL_API_KEY='mistral-secret'",
@@ -64,6 +70,9 @@ class SettingsTests(unittest.TestCase):
             settings = load_settings()
 
         self.assertEqual(settings.admin_token, "file-token")
+        self.assertEqual(settings.uploader_token, "uploader-token")
+        self.assertEqual(settings.reviewer_token, "reviewer-token")
+        self.assertEqual(settings.workspace_id, "finance-ops")
         self.assertEqual(settings.parser_provider, "mistral_ocr")
         self.assertEqual(settings.extractor_provider, "llm_json")
         self.assertEqual(settings.mistral_api_key, "mistral-secret")

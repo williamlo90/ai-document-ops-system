@@ -363,7 +363,6 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6e49ed; }
 .guardrail-hero p, .guardrail-hero small, .policy-main small, .dataset-card header span:not(.dataset-icon):not(.badge) { font-size: 9px; }
 .reliability-metrics h3 { font-size: 12px; }.reliability-metrics p, .signal-list > div, .failure-bars > div, .evaluation-toolbar > span, .segment-control button { font-size: 10px; }
 .scenario-number { font-size: 10px; }
-.role-select { max-width: 190px; padding: 8px 28px 8px 10px; color: #334155; background: #fff; border: 1px solid #dbe3ef; border-radius: 6px; font-size: 11px; }
 .intake-nav { display: grid; align-content: start; gap: 5px; padding-top: 18px; }.role-nav-label { margin: 0 10px 8px; color: #91a0bc; font-size: 9px; font-weight: 800; }
 .intake-nav > button { display: flex; min-height: 44px; align-items: center; gap: 12px; padding: 0 12px; color: #cbd5e7; background: transparent; border: 0; border-radius: 6px; font-size: 13px; text-align: left; }.intake-nav > button.active { color: #c6b6ff; background: #1b2b58; box-shadow: inset 3px 0 #8b68ff; }
 .intake-role-card { display: flex; align-items: center; gap: 10px; margin: 14px; padding: 13px; color: #dbe5f5; background: #122143; border: 1px solid #22345a; border-radius: 7px; }.intake-role-card span, .intake-role-card strong { display: block; }.intake-role-card span { color: #9eabc3; font-size: 9px; }.intake-role-card strong { margin-top: 3px; font-size: 11px; }

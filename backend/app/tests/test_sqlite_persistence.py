@@ -14,6 +14,7 @@ from app.documents.jobs import ProcessingJobStatus
 from app.extraction.schemas import InvoiceData
 from app.main import create_app
 from app.providers.mock import MockInvoiceExtractor
+from app.tests.auth_helpers import session_headers
 
 
 TOKEN = "test-token"
@@ -35,7 +36,7 @@ class SqlitePersistenceTests(unittest.TestCase):
             client = TestClient(app)
             upload_response = client.post(
                 "/documents/upload",
-                headers={**HEADERS, "X-User-Id": "William Lo"},
+                headers=session_headers(client, actor="William Lo"),
                 files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
             )
             document_id = upload_response.json()["document"]["id"]
@@ -144,7 +145,7 @@ class SqlitePersistenceTests(unittest.TestCase):
             client = TestClient(app)
             upload_response = client.post(
                 "/documents/upload",
-                headers={**HEADERS, "X-User-Id": "William Lo"},
+                headers=session_headers(client, actor="William Lo"),
                 files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
             )
             document_id = upload_response.json()["document"]["id"]

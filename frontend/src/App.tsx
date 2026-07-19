@@ -21,6 +21,7 @@ import {
   Inbox,
   Link2,
   Loader2,
+  LogOut,
   Menu,
   Network,
   Pencil,
@@ -148,6 +149,7 @@ type DocumentWorkflow = {
   attention_reason: string | null
 }
 type UserRole = 'intake' | 'administrator'
+type SessionInfo = { authenticated: boolean; actor: string; user_id: string; workspace_id: string; role: string; is_admin: boolean }
 type IntakeView = 'new' | 'submissions' | 'invoices' | 'guide'
 type PageId = 'runs' | 'drafts' | 'approvals' | 'operations' | 'policies' | 'guardrails' | 'integrations' | 'settings' | 'reliability' | 'evaluation' | 'datasets'
 type Screen = { kind: 'overview' } | { kind: 'queue'; filter?: QueueFilter } | { kind: 'workitems' } | { kind: 'detail'; id: string } | { kind: 'documents' } | { kind: 'page'; page: PageId } | { kind: 'intake'; view: IntakeView }
@@ -280,12 +282,12 @@ function SessionGate() {
       const response = await fetch('/auth/session', { credentials: 'same-origin' })
       if (response.status === 401) return null
       if (!response.ok) throw new Error('Unable to verify the secure session.')
-      return response.json() as Promise<{ authenticated: boolean; actor: string }>
+      return response.json() as Promise<SessionInfo>
     },
     retry: false,
   })
   const login = useMutation({
-    mutationFn: () => api('/auth/session', { method: 'POST', body: JSON.stringify({ admin_token: token }) }),
+    mutationFn: () => api('/auth/session', { method: 'POST', body: JSON.stringify({ access_token: token }) }),
     onSuccess: () => {
       setToken('')
       setError('')
@@ -293,16 +295,23 @@ function SessionGate() {
     },
     onError: (loginError: Error) => setError(loginError.message),
   })
+  const logout = useMutation({
+    mutationFn: () => api('/auth/session', { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth-session' })
+      queryClient.setQueryData(['auth-session'], null)
+    },
+  })
   if (session.isLoading) return <LoadingState />
   if (session.error) return <ErrorState message={session.error.message} retry={() => session.refetch()} />
   if (!session.data?.authenticated) {
-    return <main className="session-login"><section className="data-panel settings-panel"><span className="brand-mark"><ShieldCheck size={22} /></span><h1>Sign in securely</h1><p>The admin credential is exchanged once for an opaque HttpOnly session cookie. It is not stored in the browser.</p><label><span>Local admin token</span><input type="password" autoComplete="current-password" value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && token) login.mutate() }} /></label><button className="primary-button" disabled={!token || login.isPending} onClick={() => login.mutate()}>{login.isPending ? <Loader2 className="spin" size={16} /> : <ShieldCheck size={16} />} Sign in</button>{error ? <div className="notice danger"><AlertTriangle size={15} /><p>{error}</p></div> : null}</section></main>
+    return <main className="session-login"><section className="data-panel settings-panel"><span className="brand-mark"><ShieldCheck size={22} /></span><h1>Sign in securely</h1><p>Your access token is exchanged once for an opaque HttpOnly session. Your role and workspace are assigned by the server.</p><label><span>Access token</span><input type="password" autoComplete="current-password" value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && token) login.mutate() }} /></label><button className="primary-button" disabled={!token || login.isPending} onClick={() => login.mutate()}>{login.isPending ? <Loader2 className="spin" size={16} /> : <ShieldCheck size={16} />} Sign in</button>{error ? <div className="notice danger"><AlertTriangle size={15} /><p>{error}</p></div> : null}</section></main>
   }
-  return <CommandCenter />
+  return <CommandCenter session={session.data} signOut={() => logout.mutate()} signingOut={logout.isPending} />
 }
 
-function CommandCenter() {
-  const [role, setRole] = useState<UserRole>(() => (localStorage.getItem('docops-role') as UserRole | null) ?? 'intake')
+function CommandCenter({ session, signOut, signingOut }: { session: SessionInfo; signOut: () => void; signingOut: boolean }) {
+  const role: UserRole = ['uploader', 'operator', 'intake'].includes(session.role) ? 'intake' : 'administrator'
   const [screen, setScreen] = useState<Screen>(() => {
     const page = new URLSearchParams(window.location.search).get('technical')
     return page && technicalPages.includes(page as PageId) ? { kind: 'page', page: page as PageId } : role === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'queue' }
@@ -315,11 +324,6 @@ function CommandCenter() {
   })
   const goQueue = (filter?: QueueFilter) => setScreen({ kind: 'queue', filter })
   const openItem = (id: string) => setScreen({ kind: 'detail', id })
-  const changeRole = (nextRole: UserRole) => {
-    localStorage.setItem('docops-role', nextRole)
-    setRole(nextRole)
-    setScreen(nextRole === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'queue' })
-  }
   const attentionCount = workspace.data?.work_items.filter((item) => ['awaiting_human', 'blocked', 'failed'].includes(item.status)).length ?? 0
 
   return (
@@ -341,7 +345,9 @@ function CommandCenter() {
           goQueue={goQueue}
           healthy={!workspace.error}
           role={role}
-          changeRole={changeRole}
+          actor={session.actor}
+          signOut={signOut}
+          signingOut={signingOut}
           openItem={openItem}
           openDocuments={() => setScreen({ kind: 'documents' })}
         />
@@ -447,7 +453,9 @@ function TopBar({
   goQueue,
   healthy,
   role,
-  changeRole,
+  actor,
+  signOut,
+  signingOut,
   openItem,
   openDocuments,
 }: {
@@ -456,7 +464,9 @@ function TopBar({
   goQueue: (filter?: QueueFilter) => void
   healthy: boolean
   role: UserRole
-  changeRole: (role: UserRole) => void
+  actor: string
+  signOut: () => void
+  signingOut: boolean
   openItem: (id: string) => void
   openDocuments: () => void
 }) {
@@ -492,12 +502,9 @@ function TopBar({
       <div className="topbar-actions">
         <span className={`health ${healthy ? '' : 'unhealthy'}`}><ShieldCheck size={15} /> {healthy ? 'Online' : 'Offline'}</span>
         {role === 'administrator' ? <div className="notification"><button className="icon-button" aria-label="Notifications" onClick={() => setNotificationsOpen((value) => !value)}><Bell size={18} />{notifications.data?.unread_count ? <b>{notifications.data.unread_count}</b> : null}</button>{notificationsOpen ? <section className="notification-popover"><header><strong>Notifications</strong><button className="outline-button" disabled={!notifications.data?.unread_count || markAll.isPending} onClick={() => markAll.mutate()}>Mark all read</button></header>{notifications.isLoading ? <LoadingState /> : notifications.error ? <p>{notifications.error.message}</p> : notifications.data?.notifications.length ? notifications.data.notifications.map((item) => <button className={item.read_at ? '' : 'unread'} key={item.id} onClick={() => follow(item)}><span className={`activity-dot ${item.severity}`}><Bell size={12} /></span><div><strong>{item.title}</strong><p>{item.message}</p><small>{relativeTime(item.created_at)}</small></div></button>) : <EmptyState title="No notifications" body="Operational events will appear here." />}</section> : null}</div> : null}
-        <span className="avatar">W</span>
-        <div className="operator"><strong>William Lo</strong><span>{role === 'intake' ? 'Uploader' : 'Reviewer'}</span></div>
-        <select className="role-select" value={role} onChange={(event) => changeRole(event.target.value as UserRole)} aria-label="View application as role" title="Demo view only; backend role enforcement is not enabled">
-          <option value="intake">Uploader</option>
-          <option value="administrator">Reviewer</option>
-        </select>
+        <span className="avatar">{actor.trim().charAt(0).toUpperCase() || 'U'}</span>
+        <div className="operator"><strong>{actor}</strong><span>{role === 'intake' ? 'Uploader' : 'Reviewer'}</span></div>
+        <button className="icon-button" aria-label="Sign out" title="Sign out" disabled={signingOut} onClick={signOut}>{signingOut ? <Loader2 className="spin" size={17} /> : <LogOut size={17} />}</button>
       </div>
     </header>
   )
