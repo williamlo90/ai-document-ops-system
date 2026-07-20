@@ -48,6 +48,20 @@ class AgentOpsApiTests(unittest.TestCase):
         self.assertIsNone(summary["tool_selection_accuracy"])
         self.assertEqual(summary["confidence_distribution"], {})
 
+    def test_provider_cost_summary_requires_admin_and_has_an_honest_shape(self) -> None:
+        unauthorized = self.client.get("/agentops/provider-costs")
+        response = self.client.get("/agentops/provider-costs", headers=HEADERS)
+
+        self.assertEqual(unauthorized.status_code, 401)
+        self.assertEqual(response.status_code, 200)
+        summary = response.json()["provider_costs"]
+        self.assertIn("available", summary)
+        if summary["available"]:
+            self.assertGreater(summary["documents_count"], 0)
+            self.assertIn("estimated_total_usd", summary)
+            self.assertEqual(summary["ocr"]["provider"], "Mistral")
+            self.assertEqual(summary["extraction"]["provider"], "OpenAI")
+
     def test_agentops_lists_runs_and_summary_from_copilot_traces(self) -> None:
         self.client.post(
             "/agent/copilot",

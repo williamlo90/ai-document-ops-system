@@ -45,7 +45,7 @@ finance platform.
 | Approval audit consequence | A completed local approval recorded actor, timestamp, terminal status, export eligibility, and six audit events. | Export eligibility is not a claim that an ERP delivery occurred. |
 | Reviewer correction feedback | Six deterministic feedback-lineage checks passed and public summaries exclude document IDs, actors, reasons, and values. | This proves correction capture and privacy filtering, not model improvement or user adoption. |
 | External licensed holdout | The V2 sealed holdout completed 10 / 10 documents with 98.75% field accuracy, 100% validation match, and one unsupported due date. | This is bounded licensed-synthetic evidence, not customer or production accuracy. |
-| Automated verification | 432 backend tests passed with 2 skipped; 13 frontend tests passed; Ruff, lint, production build, and dependency audits passed. | Tests support the local repository contract, not hosted production readiness. |
+| Automated verification | 435 backend tests passed with 2 skipped; 15 frontend tests passed; Ruff, lint, production build, and dependency audits passed. | Tests support the local repository contract, not hosted production readiness. |
 | Recruiter demo | A 3:37 captioned video shows a clean approval and a blocked duplicate. | The video uses committed synthetic PDFs and a deterministic UI contract harness. |
 
 The current provider-backed evaluation used Mistral OCR and an OpenAI structured extraction model.

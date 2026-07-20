@@ -29,6 +29,7 @@ from app.agentops.repositories import ScenarioEvaluationRecord, record_response
 from app.api.dependencies import AppContainer, get_container, require_admin_context
 from app.core.security import SecurityContext
 from app.documents.repositories import NotFoundError
+from app.evaluation.report_summary import load_latest_provider_cost_summary
 
 
 router = APIRouter(prefix="/agentops", tags=["agentops"])
@@ -89,6 +90,13 @@ def reliability_summary(
     runs = container.agent_runs.list_recent(context.workspace_id, limit=limit)
     summary = container.agentops_service.summarize(runs)
     return {"summary": _summary_response(summary)}
+
+
+@router.get("/provider-costs")
+def provider_cost_summary(
+    _context: SecurityContext = Depends(require_admin_context),
+) -> dict[str, object]:
+    return {"provider_costs": load_latest_provider_cost_summary()}
 
 
 @router.get("/prompt-versions")

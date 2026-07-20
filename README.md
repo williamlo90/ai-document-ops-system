@@ -70,7 +70,7 @@ mocks for offline development.
 | External licensed evaluation | V1 preserved a provider-availability failure. A new non-overlapping V2 pack completed 10 / 10 sealed holdout documents with 98.75% field accuracy, 100% validation match, and one documented due-date hallucination. |
 | Reviewer correction loop | Correction requests route back to the uploader, preserve original AI output, store before/after diffs, and return the invoice to review. |
 | Approval boundary | Duplicate and other error-level cases are blocked in both UI and API tests. |
-| Automated verification | 432 backend tests passed with 2 skipped; 13 frontend tests passed; lint and production build passed. |
+| Automated verification | 435 backend tests passed with 2 skipped; 15 frontend tests passed; lint and production build passed. |
 
 The controlled regression is a small synthetic golden set, not a production accuracy claim.
 See [scenario evidence](docs/invoice-scenarios-v1-evidence.md) for the initial failures, fixes,

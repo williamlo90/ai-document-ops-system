@@ -29,8 +29,8 @@ Delivered:
 
 Latest verified baseline:
 
-- backend suite: 425 tests passed, 2 skipped
-- frontend suite: 13 tests passed
+- backend suite: 435 tests passed, 2 skipped
+- frontend suite: 15 tests passed
 - browser E2E: 22 tests passed, 8 capture-only tests skipped
 - frontend lint, dependency audit, and production build: passed
 - backend Ruff and dependency audit: passed

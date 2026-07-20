@@ -24,8 +24,8 @@ Status: local portfolio release candidate.
 
 ## Verification Baseline
 
-- backend suite: 432 passed, 2 skipped
-- frontend suite: 13 passed
+- backend suite: 435 passed, 2 skipped
+- frontend suite: 15 passed
 - backend Ruff check: passed
 - frontend lint and production build: passed
 - Python and npm dependency audits: no known vulnerabilities at verification time

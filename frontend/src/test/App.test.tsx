@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { queryClient } from '../queryClient'
 
@@ -545,5 +545,77 @@ describe('application shell', () => {
     expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /reliability checks/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /test scenarios/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('monitoring evidence', () => {
+  const adminSession = { authenticated: true, actor: 'Admin', user_id: 'admin', workspace_id: 'default', role: 'administrator', is_admin: true }
+  const recordedRun = {
+    id: 'run-1',
+    actor: 'admin',
+    request: 'Plan invoice review',
+    intent: 'backoffice_plan_and_recommendation',
+    prompt_version: 'deterministic-backoffice-v1',
+    created_at: now,
+    token_usage: { prompt_tokens: null, completion_tokens: null, estimated_cost_usd: null },
+    evaluation: {
+      expected_tool: null,
+      selected_tool: null,
+      tool_selection_correct: null,
+      confidence: 'high',
+      confidence_score: 1,
+      failure_type: null,
+      human_escalated: false,
+      blocked_action_count: 0,
+      tool_call_count: 0,
+      estimated_cost_usd: 0,
+      successful_completion: true,
+      decision_reason: 'Generated a bounded invoice review plan.',
+    },
+  }
+
+  afterEach(() => window.history.replaceState({}, '', '/'))
+
+  it('separates provider invoice cost from automation-run cost', async () => {
+    window.history.replaceState({}, '', '/?technical=reliability')
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json(adminSession)
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      if (path === '/agentops/runs?limit=50') return json({ runs: [recordedRun] })
+      if (path === '/agentops/summary?limit=100') return json({ summary: { total_runs: 1, evaluated_runs: 0, tool_selection_accuracy: null, unsafe_action_prevention_rate: null, successful_completion_rate: 1, escalation_rate: 0, average_confidence: 1, average_tool_calls_per_task: 0, average_latency_ms: 0.22, estimated_cost_per_run: 0, confidence_distribution: { high: 1 }, failure_counts: {}, failure_trend: [] } })
+      if (path === '/agentops/provider-costs') return json({ provider_costs: { available: true, documents_count: 10, generated_at: now, split: 'holdout', pricing_effective_date: '2026-07-20', estimated_total_usd: 0.063624, estimated_per_document_usd: 0.006362, ocr: { provider: 'Mistral', model: 'mistral-ocr-latest', pages_processed: 10, estimated_cost_usd: 0.04 }, extraction: { provider: 'OpenAI', model: 'gpt-5.4-mini-2026-03-17', input_tokens: 7271, cached_input_tokens: 0, output_tokens: 4038, total_tokens: 11309, estimated_cost_usd: 0.023624 }, attempts: { total: 20, succeeded: 20, failed: 0 }, claim_boundary: 'List-price estimate only.' } })
+      if (path === '/agentops/regression') return json({ regression: { deltas: [], improved_metrics: [], regressed_metrics: [] } })
+      if (path === '/agentops/prompt-versions?limit=100') return json({ prompt_versions: [] })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    }))
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { level: 2, name: /monitoring overview/i })).toBeInTheDocument()
+    expect(await screen.findByText('$0.063624')).toBeInTheDocument()
+    expect(screen.getByText('$0.006362')).toBeInTheDocument()
+    expect(screen.getByText(/Mistral OCR/i)).toBeInTheDocument()
+    expect(screen.getByText(/OpenAI extraction/i)).toBeInTheDocument()
+    expect(screen.getByText(/No provider cost/i)).toBeInTheDocument()
+  })
+
+  it('does not call an unscored completed run an evaluation pass', async () => {
+    window.history.replaceState({}, '', '/?technical=runs')
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json(adminSession)
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
+      if (path === '/agentops/runs?limit=50') return json({ runs: [recordedRun] })
+      return json({ detail: `Unexpected test request: ${path}` }, 404)
+    }))
+
+    render(<App />)
+
+    expect(await screen.findByText(/Not checked against a scenario/i)).toBeInTheDocument()
+    expect(screen.getByText(/No provider call/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Trace passed reliability checks/i)).not.toBeInTheDocument()
   })
 })

@@ -14,6 +14,7 @@ import {
   ClipboardCheck,
   Columns3,
   Database,
+  DollarSign,
   FileCheck2,
   FileClock,
   FileText,
@@ -164,6 +165,11 @@ type AgentRun = {
   work_item_id?: string | null
   plan_id?: string | null
   latency_ms?: number | null
+  token_usage: {
+    prompt_tokens: number | null
+    completion_tokens: number | null
+    estimated_cost_usd: number | null
+  }
   evaluation: {
     expected_tool: string | null
     selected_tool: string | null
@@ -230,6 +236,24 @@ type ScenarioResult = { passed: boolean; checks: Record<string, boolean>; actual
 type ScenarioEvaluation = { scenario_id: string; passed: boolean; evidence: Partial<ScenarioResult>; created_at: string }
 type Regression = { deltas: Array<{ metric: string; previous: number | null; current: number | null; delta: number | null; regressed: boolean }>; improved_metrics: string[]; regressed_metrics: string[] }
 type PromptVersionMetric = { prompt_version: string; total_runs: number; evaluated_runs: number; tool_selection_accuracy: number | null; escalation_rate: number; average_confidence: number | null; estimated_cost_per_run: number | null }
+type ProviderCostSummary = {
+  available: boolean
+  message?: string
+  dataset_class?: string | null
+  split?: string | null
+  documents_count?: number
+  generated_at?: string | null
+  holdout_seal_verified?: boolean
+  currency?: string
+  pricing_effective_date?: string | null
+  estimate_status?: string | null
+  estimated_total_usd?: number | null
+  estimated_per_document_usd?: number | null
+  ocr?: { provider: string; model?: string | null; pages_processed: number; estimated_cost_usd?: number | null }
+  extraction?: { provider: string; model?: string | null; input_tokens: number; cached_input_tokens: number; output_tokens: number; total_tokens: number; estimated_cost_usd?: number | null }
+  attempts?: { total: number; succeeded: number; failed: number }
+  claim_boundary?: string | null
+}
 
 const PRODUCT_NAME = 'Invoice Review'
 const workTypes = ['invoice_review', 'invoice_export', 'accounting_note', 'vendor_follow_up', 'exception_handling', 'insufficient_evidence']
@@ -1351,6 +1375,11 @@ function SectionPage({
     queryFn: () => api<{ summary: ReliabilitySummary }>('/agentops/summary?limit=100'),
     enabled: page === 'reliability',
   })
+  const providerCosts = useQuery({
+    queryKey: ['agentops-provider-costs'],
+    queryFn: () => api<{ provider_costs: ProviderCostSummary }>('/agentops/provider-costs'),
+    enabled: page === 'reliability',
+  })
   const agentScenarios = useQuery({
     queryKey: ['agent-scenarios'],
     queryFn: () => api<ScenarioDataset>('/agentops/scenarios'),
@@ -1396,7 +1425,7 @@ function SectionPage({
     if (page === 'guardrails') return <GuardrailsPage items={details.data ?? []} />
     if (page === 'integrations') return <IntegrationsPage workspace={workspace} />
     if (page === 'settings') return <SettingsPage workspace={workspace} />
-    if (page === 'reliability') return <ReliabilityPage summary={reliability.data?.summary} runs={runs.data?.runs ?? []} regression={regression.data?.regression} promptVersions={promptVersions.data?.prompt_versions ?? []} />
+    if (page === 'reliability') return <ReliabilityPage summary={reliability.data?.summary} runs={runs.data?.runs ?? []} regression={regression.data?.regression} promptVersions={promptVersions.data?.prompt_versions ?? []} providerCosts={providerCosts.data?.provider_costs} providerCostsError={providerCosts.error?.message} />
     if (page === 'evaluation') return <EvaluationPage agent={agentScenarios.data} backoffice={backofficeScenarios.data} runs={runs.data?.runs ?? []} items={details.data ?? []} evaluations={evaluations.data?.evaluations ?? []} />
     return <DatasetsPage agent={agentScenarios.data} backoffice={backofficeScenarios.data} />
   }
@@ -1404,14 +1433,25 @@ function SectionPage({
   return (
     <main className="section-page">
       <SectionHeading page={page} />
+      {['reliability', 'evaluation', 'datasets', 'runs'].includes(page) ? <MonitoringNav page={page} /> : null}
       {content()}
     </main>
   )
 }
 
+function MonitoringNav({ page }: { page: PageId }) {
+  const links: Array<{ page: PageId; label: string }> = [
+    { page: 'reliability', label: 'Overview' },
+    { page: 'evaluation', label: 'Checks' },
+    { page: 'datasets', label: 'Test scenarios' },
+    { page: 'runs', label: 'Run details' },
+  ]
+  return <nav className="monitoring-nav" aria-label="Monitoring sections">{links.map((link) => <a className={page === link.page ? 'active' : ''} href={`/?technical=${link.page}`} key={link.page}>{link.label}</a>)}</nav>
+}
+
 function SectionHeading({ page }: { page: PageId }) {
   const copy: Record<PageId, string> = {
-    runs: 'See what the AI tried, what evidence it used, and whether the result passed review checks.',
+    runs: 'Inspect one recorded automation run without confusing completion with an evaluation pass.',
     drafts: 'Review AI-generated accounting notes, messages, and export previews.',
     approvals: 'Resolve the human decisions blocking controlled execution.',
     operations: 'Inspect worker failures, controlled retries, and authorized audit evidence.',
@@ -1419,9 +1459,9 @@ function SectionHeading({ page }: { page: PageId }) {
     guardrails: 'Monitor the safety boundaries enforced across document work.',
     integrations: 'Manage the systems this document workflow can read from or write to.',
     settings: 'Configure this local workspace and its operator access.',
-    reliability: 'Review the local evidence used to judge quality, safety, handoffs, and known weak spots.',
-    evaluation: 'Check stored runs and plans against repeatable expected outcomes.',
-    datasets: 'Inspect the versioned test scenarios behind the reliability checks.',
+    reliability: 'See workflow reliability, sample size, known limits, and provider cost in one place.',
+    evaluation: 'Compare stored invoice work with repeatable expected behavior.',
+    datasets: 'Understand the test cases used by reliability checks.',
   }
   return <section className="section-heading"><div><span className="section-eyebrow">{pageGroup(page)}</span><h2>{pageTitle(page)}</h2><p>{copy[page]}</p></div><button className="outline-button" onClick={() => queryClient.invalidateQueries()}><RefreshCw size={15} /> Refresh data</button></section>
 }
@@ -1429,7 +1469,23 @@ function SectionHeading({ page }: { page: PageId }) {
 function RunsPage({ runs }: { runs: AgentRun[] }) {
   const [selected, setSelected] = useState<string | null>(runs[0]?.id ?? null)
   const current = runs.find((run) => run.id === selected) ?? runs[0]
-  return <div className="split-page"><section className="data-panel"><DataPanelHeader icon={<Activity size={17} />} title="Recent AI Work" count={runs.length} /><div className="run-list">{runs.map((run) => <button className={current?.id === run.id ? 'active' : ''} key={run.id} onClick={() => setSelected(run.id)}><span className={`run-dot ${run.evaluation.successful_completion ? 'success' : 'warning'}`} /><div><strong>{humanize(run.intent)}</strong><p>{run.request}</p><small>{formatDate(run.created_at)} · {run.prompt_version}</small></div><Status value={run.evaluation.successful_completion ? 'resolved' : run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></button>)}</div>{runs.length === 0 ? <EmptyState title="No AI work recorded yet" body="Run a document workflow or reliability check to create trace evidence." next="Start from Work Queue or Reliability Checks after at least one document task exists." /> : null}</section><section className="data-panel run-detail"><DataPanelHeader icon={<Workflow size={17} />} title="Decision Trace" />{current ? <><div className="run-hero"><span className="work-icon purple"><BotIcon /></span><div><span>Run {shortId(current.id)}</span><h3>{humanize(current.intent)}</h3><p>{current.evaluation.decision_reason}</p></div></div><div className="stats-grid compact"><Stat label="Confidence" value={`${Math.round(current.evaluation.confidence_score * 100)}%`} /><Stat label="Tool calls" value={current.evaluation.tool_call_count} /><Stat label="Cost" value={currency(current.evaluation.estimated_cost_usd)} /><Stat label="Blocked actions" value={current.evaluation.blocked_action_count} /></div><div className="trace-comparison"><TraceValue label="Expected action" value={current.evaluation.expected_tool ?? 'Not scored'} /><ChevronRight size={16} /><TraceValue label="Actual action" value={current.evaluation.selected_tool ?? 'No action'} /></div>{current.evaluation.failure_type ? <div className="notice danger"><AlertTriangle size={16} /><div><strong>{humanize(current.evaluation.failure_type)}</strong><p>This run is listed as a known weak spot in the local reliability evidence.</p></div></div> : <div className="notice success"><CheckCircle2 size={16} /><div><strong>Trace passed reliability checks</strong><p>No known weak spot was recorded for this run.</p></div></div>}</> : <EmptyState title="Select a run" body="Decision trace and evaluation evidence will appear here." next="Choose a run from the left after trace data exists." />}</section></div>
+  return <div className="split-page">
+    <section className="data-panel">
+      <DataPanelHeader icon={<Activity size={17} />} title="Recorded runs" count={runs.length} />
+      <div className="run-list">{runs.map((run) => <button className={current?.id === run.id ? 'active' : ''} key={run.id} onClick={() => setSelected(run.id)}><span className={`run-dot ${run.evaluation.successful_completion ? 'success' : 'warning'}`} /><div><strong>{monitoringRunLabel(run.intent)}</strong><p>{run.evaluation.decision_reason}</p><small>{formatDate(run.created_at)} · {promptVersionLabel(run.prompt_version)}</small></div><Status value={run.evaluation.successful_completion ? 'resolved' : run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></button>)}</div>
+      {runs.length === 0 ? <EmptyState title="No runs recorded" body="A run appears after invoice automation or a reliability check is executed." /> : null}
+    </section>
+    <section className="data-panel run-detail">
+      <DataPanelHeader icon={<Workflow size={17} />} title="What happened" />
+      {current ? <>
+        <div className="run-hero"><span className="work-icon purple"><BotIcon /></span><div><span>Run {shortId(current.id)}</span><h3>{monitoringRunLabel(current.intent)}</h3><p>{current.evaluation.decision_reason}</p></div></div>
+        <div className="stats-grid compact"><Stat label="Decision confidence" value={`${Math.round(current.evaluation.confidence_score * 100)}%`} /><Stat label="Actions used" value={current.evaluation.tool_call_count} /><Stat label="Automation cost" value={automationRunCostLabel(current.token_usage)} /><Stat label="Blocked actions" value={current.evaluation.blocked_action_count} /></div>
+        <p className="metric-scope-note"><DollarSign size={14} /> Automation cost covers this orchestration run only. Invoice OCR and extraction costs are shown in Overview.</p>
+        {current.evaluation.expected_tool ? <div className="trace-comparison"><TraceValue label="Expected action" value={current.evaluation.expected_tool} /><ChevronRight size={16} /><TraceValue label="Actual action" value={current.evaluation.selected_tool ?? 'No action'} /></div> : <div className="trace-comparison single"><TraceValue label="Recorded action" value={current.evaluation.selected_tool ?? 'No external action'} /><TraceValue label="Scenario check" value="Not checked" /></div>}
+        {current.evaluation.failure_type ? <div className="notice danger"><AlertTriangle size={16} /><div><strong>{humanize(current.evaluation.failure_type)}</strong><p>This run is listed as a known weak spot in the local evidence.</p></div></div> : current.evaluation.expected_tool ? <div className="notice success"><CheckCircle2 size={16} /><div><strong>Expected behavior matched</strong><p>The recorded action passed its linked scenario check.</p></div></div> : <div className="notice neutral"><CircleGauge size={16} /><div><strong>Not checked against a scenario</strong><p>The run completed, but no expected action was attached. Completion is not the same as an evaluation pass.</p></div></div>}
+      </> : <EmptyState title="Select a run" body="Choose a recorded run to see its decision and evidence." />}
+    </section>
+  </div>
 }
 
 function DraftsPage({ items, openItem }: { items: WorkItemDetail[]; openItem: (id: string) => void }) {
@@ -1514,29 +1570,53 @@ function SettingsPage({ workspace }: { workspace?: Workspace }) {
   return <div className="settings-layout"><section className="data-panel settings-panel"><DataPanelHeader icon={<Settings size={17} />} title="Workspace Configuration" /><label><span>Workspace</span><input value={workspace?.workspace_id ?? 'default'} disabled /></label><DetailRow label="Authentication" value="Opaque HttpOnly server session" /><DetailRow label="Credential storage" value="Server-side only; no browser token" /><label><span>Backend endpoint</span><input value="Same origin" disabled /></label><label><span>Frontend endpoint</span><input value={window.location.origin} disabled /></label><div className="settings-actions"><button className="primary-button" onClick={refresh}><RefreshCw size={15} /> Refresh configuration</button>{saved ? <span><CheckCircle2 size={14} /> Refreshed</span> : null}</div></section><section className="data-panel settings-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Runtime And Providers" /><div className="mode-banner"><strong>Production-shaped runtime</strong><p>Secrets stay in the server-side .env file and are never returned to this browser.</p></div>{providers.data?.providers.map((provider) => <DetailRow key={provider.role} label={`${humanize(provider.role)} provider`} value={`${provider.provider_name} · ${humanize(provider.status)}`} />)}{integrations.data?.integrations.map((integration) => <DetailRow key={integration.name} label={humanize(integration.name)} value={`${integration.provider} · ${humanize(integration.status)}`} />)}<DetailRow label="Fallback state" value={providers.data?.overall_status === 'healthy' ? 'Local deterministic providers active' : 'Real provider configured; mock remains available via .env'} /><DetailRow label="Telemetry" value="Durable local AgentOps" /></section></div>
 }
 
-function ReliabilityPage({ summary, runs, regression, promptVersions }: { summary?: ReliabilitySummary; runs: AgentRun[]; regression?: Regression; promptVersions: PromptVersionMetric[] }) {
+function ReliabilityPage({ summary, runs, regression, promptVersions, providerCosts, providerCostsError }: { summary?: ReliabilitySummary; runs: AgentRun[]; regression?: Regression; promptVersions: PromptVersionMetric[]; providerCosts?: ProviderCostSummary; providerCostsError?: string }) {
   const metrics = [
-    ['Action Match Rate', percent(summary?.tool_selection_accuracy), 'Expected vs actual actions'],
-    ['Unsafe Action Prevention', percent(summary?.unsafe_action_prevention_rate), 'Blocked unsafe attempts'],
-    ['Successful Completion', percent(summary?.successful_completion_rate), 'Runs completing safely'],
-    ['Human Handoff Rate', percent(summary?.escalation_rate), 'Runs sent to a human'],
+    { label: 'Action match', value: summary?.tool_selection_accuracy, note: 'Checked runs that selected the expected action' },
+    { label: 'Unsafe actions prevented', value: summary?.unsafe_action_prevention_rate, note: 'Known unsafe attempts that were blocked' },
+    { label: 'Runs completed', value: summary?.successful_completion_rate, note: 'Recorded automation runs that completed' },
+    { label: 'Human handoff', value: summary?.escalation_rate, note: 'Runs that requested a person to continue' },
   ]
   const enoughObservations = (summary?.total_runs ?? 0) >= 5
   const failedRuns = runs.filter((run) => run.evaluation.failure_type || !run.evaluation.successful_completion)
   return <>
-    <EvidenceScope title="Local reliability evidence" detail={`Metrics below come from ${summary?.total_runs ?? 0} stored local run${(summary?.total_runs ?? 0) === 1 ? '' : 's'}. They are useful for this demo workflow, not a production telemetry or general model-quality claim.`} />
-    <div className="reliability-metrics">{metrics.map(([label, value, note]) => <article key={label}><div className="ring"><span>{value}</span></div><div><h3>{label}</h3><p>{note}</p></div></article>)}</div>
+    <EvidenceScope title="Local monitoring evidence" detail={`Automation metrics use ${summary?.total_runs ?? 0} stored local run${(summary?.total_runs ?? 0) === 1 ? '' : 's'}. Provider cost uses the latest sealed external holdout report. Neither is production telemetry or a billing statement.`} />
+    <div className="reliability-metrics">{metrics.map((metric) => <ReliabilityMetric {...metric} sampleSize={summary?.total_runs ?? 0} key={metric.label} />)}</div>
+    <ProviderCostPanel summary={providerCosts} error={providerCostsError} />
+    <div className="monitoring-section-title"><div><span>Automation evidence</span><h3>Runs, failures, and change detection</h3></div><p>These panels describe the local orchestration layer, separate from OCR and extraction spend.</p></div>
     <div className="analytics-grid">
-      <section className="data-panel"><DataPanelHeader icon={<Activity size={17} />} title="Recent Document Work" /><div className="signal-list">{runs.slice(0, 8).map((run) => <div key={run.id}><span className={`run-dot ${run.evaluation.successful_completion ? 'success' : 'warning'}`} /><strong>{humanize(run.intent)}</strong><span>{Math.round(run.evaluation.confidence_score * 100)}% confidence</span><Status value={run.evaluation.successful_completion ? 'resolved' : run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></div>)}</div>{runs.length === 0 ? <EmptyState title="No reliability signals yet" body="Create document work or run checks to populate this page." next="Upload an invoice, process it, then run Reliability Checks to build evidence." /> : null}</section>
-      <section className="data-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Operational Efficiency" /><div className="large-stat"><span>Average confidence</span><strong>{percent(summary?.average_confidence)}</strong></div><DetailRow label="Evaluated runs" value={summary?.evaluated_runs ?? 0} /><DetailRow label="Average tool calls" value={decimal(summary?.average_tool_calls_per_task)} /><DetailRow label="Average latency" value={`${decimal(summary?.average_latency_ms)} ms`} /><DetailRow label="Estimated cost / run" value={currency(summary?.estimated_cost_per_run)} /></section>
-      <section className="data-panel"><DataPanelHeader icon={<AlertTriangle size={17} />} title="Error Trend" />{enoughObservations ? <div className="failure-bars">{(summary?.failure_trend ?? []).map(({ failure_type, count }) => <div key={failure_type}><span>{humanize(failure_type)}</span><i><b style={{ width: `${Math.min(100, count * 20)}%` }} /></i><strong>{count}</strong></div>)}</div> : <EmptyState title="Not enough observations" body="At least five runs are required before showing an error trend." />}</section>
-      <section className="data-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Confidence Calibration" />{enoughObservations ? <div className="failure-bars">{Object.entries(summary?.confidence_distribution ?? {}).map(([name, count]) => <div key={name}><span>{humanize(name)}</span><i><b style={{ width: `${Math.min(100, count / Math.max(summary?.total_runs ?? 1, 1) * 100)}%` }} /></i><strong>{count}</strong></div>)}</div> : <EmptyState title="Calibration pending" body="Confidence distribution appears after five observed runs." />}</section>
-      <section className="data-panel"><DataPanelHeader icon={<Workflow size={17} />} title="Planning Version Evidence" />{promptVersions.map((version) => <div className="trace-comparison" key={version.prompt_version}><TraceValue label="Version" value={version.prompt_version} /><TraceValue label="Runs" value={String(version.total_runs)} /><TraceValue label="Action match" value={percent(version.tool_selection_accuracy)} /></div>)}</section>
-      <section className="data-panel"><DataPanelHeader icon={<Columns3 size={17} />} title="Regression Comparison" />{regression?.deltas.map((delta) => <div className="trace-comparison" key={delta.metric}><TraceValue label="Metric" value={delta.metric} /><TraceValue label="Previous" value={percent(delta.previous)} /><TraceValue label="Current" value={percent(delta.current)} /><Status value={delta.regressed ? 'failed' : 'approved'} /></div>)}{!regression?.deltas.length ? <EmptyState title="No comparison window" body="More runs are needed to compare current and previous windows." /> : null}</section>
+      <section className="data-panel recent-runs-panel"><DataPanelHeader icon={<Activity size={17} />} title="Recent automation runs" count={runs.length} /><div className="signal-list">{runs.slice(0, 8).map((run) => <div key={run.id}><span className={`run-dot ${run.evaluation.successful_completion ? 'success' : 'warning'}`} /><strong>{monitoringRunLabel(run.intent)}</strong><span>{Math.round(run.evaluation.confidence_score * 100)}% confidence</span><Status value={run.evaluation.successful_completion ? 'resolved' : run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></div>)}</div>{runs.length === 0 ? <EmptyState title="No runs recorded" body="Upload and process an invoice to create the first monitoring signal." /> : null}</section>
+      <section className="data-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Automation efficiency" /><div className="large-stat"><span>Average decision confidence</span><strong>{metricPercent(summary?.average_confidence)}</strong></div><DetailRow label="Runs checked against scenarios" value={summary?.evaluated_runs ?? 0} /><DetailRow label="Average actions used" value={decimal(summary?.average_tool_calls_per_task)} /><DetailRow label="Average runtime" value={`${decimal(summary?.average_latency_ms)} ms`} /><DetailRow label="Automation API cost / run" value={automationCostLabel(summary?.estimated_cost_per_run)} /></section>
+      <section className="data-panel"><DataPanelHeader icon={<AlertTriangle size={17} />} title="Failure trend" />{enoughObservations ? <div className="failure-bars">{(summary?.failure_trend ?? []).map(({ failure_type, count }) => <div key={failure_type}><span>{humanize(failure_type)}</span><i><b style={{ width: `${Math.min(100, count * 20)}%` }} /></i><strong>{count}</strong></div>)}</div> : <EmptyState title="Need 5 runs" body={`${summary?.total_runs ?? 0} of 5 runs recorded. A trend would be misleading before then.`} />}</section>
+      <section className="data-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Confidence distribution" />{enoughObservations ? <div className="failure-bars">{Object.entries(summary?.confidence_distribution ?? {}).map(([name, count]) => <div key={name}><span>{humanize(name)}</span><i><b style={{ width: `${Math.min(100, count / Math.max(summary?.total_runs ?? 1, 1) * 100)}%` }} /></i><strong>{count}</strong></div>)}</div> : <EmptyState title="Need 5 runs" body={`${summary?.total_runs ?? 0} of 5 runs recorded. This is a distribution, not calibrated confidence.`} />}</section>
+      <section className="data-panel"><DataPanelHeader icon={<Workflow size={17} />} title="Planner versions" />{promptVersions.length ? <div className="monitoring-table"><div className="monitoring-table-head"><span>Planner</span><span>Runs</span><span>Action match</span></div>{promptVersions.map((version) => <div className="monitoring-table-row" key={version.prompt_version}><strong>{promptVersionLabel(version.prompt_version)}</strong><span>{version.total_runs}</span><span>{metricPercent(version.tool_selection_accuracy)}</span><small>{version.prompt_version}</small></div>)}</div> : <EmptyState title="No planner versions" body="Planner evidence appears after an automation run." />}</section>
+      <section className="data-panel"><DataPanelHeader icon={<Columns3 size={17} />} title="Regression comparison" />{regression?.deltas.length ? <div className="monitoring-table regression-table"><div className="monitoring-table-head"><span>Metric</span><span>Previous</span><span>Current</span><span>Result</span></div>{regression.deltas.map((delta) => <div className="monitoring-table-row" key={delta.metric}><strong>{humanize(delta.metric)}</strong><span>{metricPercent(delta.previous)}</span><span>{metricPercent(delta.current)}</span><Status value={delta.regressed ? 'failed' : 'approved'} /></div>)}</div> : <EmptyState title="No comparison window" body="More runs are needed to compare two meaningful time windows." />}</section>
       <section className="data-panel known-failures"><DataPanelHeader icon={<AlertTriangle size={17} />} title="Known Weak Spots" count={failedRuns.length} />{failedRuns.slice(0, 6).map((run) => <article key={run.id}><span className="approval-icon rejected"><AlertTriangle size={15} /></span><div><strong>{humanize(run.evaluation.failure_type ?? 'Incomplete run')}</strong><p>{run.evaluation.decision_reason}</p><small>{humanize(run.intent)} · Run {shortId(run.id)} · {formatDate(run.created_at)}</small></div><Status value={run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></article>)}{!failedRuns.length ? <EmptyState title="No weak spots in this sample" body="This only describes the stored local observation set." /> : null}</section>
-      <section className="data-panel evidence-limitations"><DataPanelHeader icon={<ShieldCheck size={17} />} title="Known Limitations" /><p><Check size={14} /> Invoice is the only complete document schema in the current workflow.</p><p><Check size={14} /> Metrics depend on stored local runs and may have a small sample size.</p><p><Check size={14} /> Confidence distribution is descriptive, not calibrated against production outcomes.</p><p><Check size={14} /> Provider and external integration quality are evaluated separately.</p></section>
+      <section className="data-panel evidence-limitations"><DataPanelHeader icon={<ShieldCheck size={17} />} title="What this does not prove" /><p><Check size={14} /> Invoice is the only complete document schema.</p><p><Check size={14} /> Local run metrics may have a very small sample.</p><p><Check size={14} /> Confidence is descriptive, not calibrated against production outcomes.</p><p><Check size={14} /> Estimated provider cost is not an account billing record.</p></section>
     </div>
   </>
+}
+
+function ReliabilityMetric({ label, value, note, sampleSize }: { label: string; value: number | null | undefined; note: string; sampleSize: number }) {
+  const progress = value === null || value === undefined ? 0 : Math.max(0, Math.min(100, value * 100))
+  const background = value === null || value === undefined ? '#eef2f7' : `conic-gradient(#7048ef 0 ${progress}%, #e8edf5 ${progress}% 100%)`
+  return <article><div className="ring" style={{ background }}><span>{metricPercent(value)}</span></div><div><h3>{label}</h3><p>{note}</p><small>{sampleSize} stored run{sampleSize === 1 ? '' : 's'}</small></div></article>
+}
+
+function ProviderCostPanel({ summary, error }: { summary?: ProviderCostSummary; error?: string }) {
+  return <section className="data-panel provider-cost-panel">
+    <DataPanelHeader icon={<DollarSign size={17} />} title="API cost for invoice processing" />
+    {error ? <div className="notice danger"><AlertTriangle size={16} /><div><strong>Cost evidence could not be loaded</strong><p>{error}</p></div></div> : !summary?.available ? <EmptyState title="No cost report yet" body={summary?.message ?? 'Run the external holdout evaluation to create provider usage evidence.'} /> : <>
+      <div className="cost-summary-grid">
+        <article><span>Evaluation total</span><strong>{preciseCurrency(summary.estimated_total_usd)}</strong><small>{summary.documents_count} holdout invoices</small></article>
+        <article><span>Average per invoice</span><strong>{preciseCurrency(summary.estimated_per_document_usd)}</strong><small>OCR and extraction combined</small></article>
+        <article><span>Mistral OCR</span><strong>{preciseCurrency(summary.ocr?.estimated_cost_usd)}</strong><small>{summary.ocr?.pages_processed ?? 0} pages · {summary.ocr?.model}</small></article>
+        <article><span>OpenAI extraction</span><strong>{preciseCurrency(summary.extraction?.estimated_cost_usd)}</strong><small>{formatInteger(summary.extraction?.total_tokens ?? 0)} tokens · {summary.extraction?.model}</small></article>
+      </div>
+      <div className="cost-evidence-row"><span><strong>{summary.attempts?.succeeded ?? 0}/{summary.attempts?.total ?? 0}</strong> provider calls succeeded</span><span><strong>{formatInteger(summary.extraction?.input_tokens ?? 0)}</strong> input tokens</span><span><strong>{formatInteger(summary.extraction?.output_tokens ?? 0)}</strong> output tokens</span><span><strong>{summary.pricing_effective_date ?? '-'}</strong> price snapshot</span></div>
+      <div className="cost-boundary"><ShieldCheck size={16} /><div><strong>Estimate, not account billing</strong><p>{summary.claim_boundary}</p><small>Latest sealed {summary.split} evaluation · generated {summary.generated_at ? formatDate(summary.generated_at) : '-'}</small></div></div>
+    </>}
+  </section>
 }
 
 function EvaluationPage({ agent, backoffice, runs, items, evaluations }: { agent?: ScenarioDataset; backoffice?: ScenarioDataset; runs: AgentRun[]; items: WorkItemDetail[]; evaluations: ScenarioEvaluation[] }) {
@@ -1564,21 +1644,22 @@ function EvaluationPage({ agent, backoffice, runs, items, evaluations }: { agent
       queryClient.invalidateQueries({ queryKey: ['scenario-evaluations'] })
     },
   })
-  const completedResults = Object.values(results)
-  const passedResults = completedResults.filter((result) => result.passed).length
+  const visibleResults = (dataset?.scenarios ?? []).map((scenario) => results[scenario.id]).filter(Boolean)
+  const passedResults = visibleResults.filter((result) => result.passed).length
+  const failedResults = visibleResults.length - passedResults
   return <>
-    <EvidenceScope title="Repeatable reliability checks" detail="Each result compares one stored plan or run with a versioned expected outcome. Passing a case does not imply broad document or production coverage." />
-    <div className="stats-grid"><Stat label="AI action checks" value={agent?.scenario_count ?? 0} icon={<BotIcon />} /><Stat label="Document workflow checks" value={backoffice?.scenario_count ?? 0} icon={<Workflow size={18} />} /><Stat label="Observed runs" value={runs.length} icon={<Activity size={18} />} /><Stat label="Check mode" value="Repeatable" icon={<CheckCircle2 size={18} />} /></div>
-    <div className="evaluation-result-strip"><strong>{completedResults.length ? `${passedResults} of ${completedResults.length} checked cases passed` : 'No cases checked yet'}</strong><span>Results are saved against scenario IDs and versioned test sets.</span>{completedResults.some((result) => result.actual_document_type || result.actual_operation_type) ? <div className="scenario-tags">{completedResults.map((result, index) => <span key={index}>{[result.actual_document_type && `Actual document: ${humanize(result.actual_document_type)}`, result.actual_operation_type && `Actual operation: ${humanize(result.actual_operation_type)}`].filter(Boolean).join(' · ')}</span>)}</div> : null}</div>
+    <EvidenceScope title="Repeatable checks against stored work" detail="Choose one stored observation, then run the matching checks. A pass means that observation matched a versioned expectation; it does not prove general production accuracy." />
+    <div className="stats-grid"><Stat label="Available checks" value={dataset?.scenario_count ?? 0} icon={<Workflow size={18} />} /><Stat label="Checks completed" value={visibleResults.length} icon={<Activity size={18} />} /><Stat label="Passed" value={passedResults} icon={<CheckCircle2 size={18} />} /><Stat label="Need attention" value={failedResults} icon={<AlertTriangle size={18} />} /></div>
+    <div className={`evaluation-result-strip ${failedResults ? 'has-failures' : visibleResults.length ? 'has-results' : ''}`}><div><strong>{visibleResults.length ? `${passedResults} of ${visibleResults.length} completed checks passed` : 'No checks run for this test set'}</strong><span>{visibleResults.length ? 'Open any failed check below to compare expected and actual behavior.' : 'Select an observation below, then run only the checks that apply to it.'}</span></div><b>{dataset ? `${datasetDisplayName(dataset.dataset_id)} · ${dataset.dataset_version}` : 'Loading test set'}</b></div>
     <section className="data-panel">
       <div className="evaluation-toolbar">
-        <div className="segment-control"><button className={tab === 'backoffice' ? 'active' : ''} onClick={() => setTab('backoffice')}>Document workflow</button><button className={tab === 'agent' ? 'active' : ''} onClick={() => setTab('agent')}>AI tool use</button></div>
-        <select value={selectedTarget} onChange={(event) => setTargetId(event.target.value)} aria-label="Evaluation target">{targets.length ? targets.map((target) => <option value={target.id} key={target.id}>{target.label}</option>) : <option value="">No compatible observations</option>}</select>
-        <span>{dataset?.dataset_id} · {dataset?.dataset_version}</span>
+        <div><span className="toolbar-label">What to check</span><div className="segment-control"><button className={tab === 'backoffice' ? 'active' : ''} onClick={() => setTab('backoffice')}>Invoice workflow</button><button className={tab === 'agent' ? 'active' : ''} onClick={() => setTab('agent')}>Automation action</button></div></div>
+        <label><span className="toolbar-label">Stored observation</span><select value={selectedTarget} onChange={(event) => setTargetId(event.target.value)} aria-label="Stored observation to check">{targets.length ? targets.map((target) => <option value={target.id} key={target.id}>{target.label}</option>) : <option value="">No compatible observation available</option>}</select></label>
       </div>
       <div className="scenario-list">{dataset?.scenarios.map((scenario, index) => {
         const result = results[scenario.id]
-        return <article key={scenario.id}><span className="scenario-number">{String(index + 1).padStart(2, '0')}</span><div><h3>{scenario.title ?? humanize(scenario.id)}</h3><p>{scenario.message ?? `${humanize(scenario.work_type ?? 'backoffice')} scenario with deterministic plan expectations.`}</p><div className="scenario-tags">{scenario.document_type ? <span>Document: {humanize(scenario.document_type)}</span> : null}{scenario.operation_type ? <span>Operation: {humanize(scenario.operation_type)}</span> : null}{scenario.expected_tool ? <span>Tool: {humanize(scenario.expected_tool)}</span> : null}{scenario.expected_risk ? <span>Risk: {humanize(scenario.expected_risk)}</span> : null}{scenario.expected_confidence ? <span>Confidence: {scenario.expected_confidence}</span> : null}{result ? <Status value={result.passed ? 'approved' : 'failed'} /> : null}</div>{result ? <small>{Object.entries(result.checks).map(([name, passed]) => `${humanize(name)}: ${passed ? 'pass' : 'fail'}`).join(' · ')}</small> : null}<ScenarioResultEvidence scenario={scenario} result={result} /></div><button className="outline-button" disabled={!selectedTarget || evaluation.isPending} onClick={() => evaluation.mutate({ scenarioId: scenario.id })}>{evaluation.isPending ? <Loader2 size={14} /> : <Play size={14} />} Evaluate</button></article>
+        const checking = evaluation.isPending && evaluation.variables?.scenarioId === scenario.id
+        return <article className={result ? (result.passed ? 'scenario-passed' : 'scenario-failed') : ''} key={scenario.id}><span className="scenario-number">{String(index + 1).padStart(2, '0')}</span><div><h3>{scenario.title ?? humanize(scenario.id)}</h3><p>{scenario.message ?? `${humanize(scenario.work_type ?? 'workflow')} check with fixed expected behavior.`}</p><div className="scenario-tags">{scenario.document_type ? <span>Document: {humanize(scenario.document_type)}</span> : null}{scenario.operation_type ? <span>Operation: {humanize(scenario.operation_type)}</span> : null}{scenario.expected_tool ? <span>Expected action: {humanize(scenario.expected_tool)}</span> : null}{scenario.expected_risk ? <span>Risk: {humanize(scenario.expected_risk)}</span> : null}{scenario.expected_confidence ? <span>Confidence: {scenario.expected_confidence}</span> : null}{result ? <Status value={result.passed ? 'approved' : 'failed'} /> : null}</div>{result ? <small className="check-summary">{Object.entries(result.checks).map(([name, passed]) => `${humanize(name)}: ${passed ? 'pass' : 'fail'}`).join(' · ')}</small> : null}<ScenarioResultEvidence scenario={scenario} result={result} /></div><button className="outline-button" disabled={!selectedTarget || evaluation.isPending} onClick={() => evaluation.mutate({ scenarioId: scenario.id })}>{checking ? <Loader2 className="spin" size={14} /> : <Play size={14} />} {result ? 'Run again' : 'Run check'}</button></article>
       })}</div>
       {evaluation.error ? <div className="notice danger"><AlertTriangle size={16} /><p>{evaluation.error.message}</p></div> : null}
     </section>
@@ -1588,9 +1669,9 @@ function EvaluationPage({ agent, backoffice, runs, items, evaluations }: { agent
 function DatasetsPage({ agent, backoffice }: { agent?: ScenarioDataset; backoffice?: ScenarioDataset }) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [scenarioId, setScenarioId] = useState<string | null>(null)
-  return <><EvidenceScope title="Versioned local test scenarios" detail="These test sets define repeatable expectations for the implemented invoice workflow and AI tool use. They are fixtures, not customer documents." /><div className="dataset-grid">{[agent, backoffice].filter(Boolean).map((dataset) => {
+  return <><EvidenceScope title="Versioned test scenarios" detail="These are repeatable fixtures, not uploaded customer invoices. Select a scenario to see the behavior it expects before running checks." /><div className="dataset-grid">{[backoffice, agent].filter(Boolean).map((dataset) => {
     const selected = dataset!.scenarios.find((scenario) => scenario.id === scenarioId)
-    return <section className="dataset-card" key={dataset!.dataset_id}><header><span className="dataset-icon"><Database size={22} /></span><div><span>VERSIONED TEST SET</span><h3>{humanize(dataset!.dataset_id)}</h3></div><Status value="approved" /></header><p>{dataset!.description}</p><div className="dataset-meta"><div><span>Current version</span><strong>{dataset!.dataset_version}</strong></div><div><span>Version history</span><strong>{dataset!.dataset_version} (current)</strong></div><div><span>Scenarios</span><strong>{dataset!.scenario_count}</strong></div></div><div className="dataset-preview">{dataset!.scenarios.map((scenario) => <button key={scenario.id} onClick={() => setScenarioId(scenario.id)}><FileText size={14} /><span>{scenario.title ?? scenario.message ?? humanize(scenario.id)}</span><ChevronRight size={14} /></button>)}</div>{selected ? <div className="notice"><FileText size={16} /><div><strong>{selected.title ?? humanize(selected.id)}</strong><p>{selected.message ?? `Expected workflow: ${selected.expected_plan_steps?.map(humanize).join(' -> ') ?? humanize(selected.work_type ?? 'AI tool scenario')}`}</p><ScenarioMetaTags scenario={selected} /><small>Scenario ID: {selected.id}</small></div></div> : null}{expanded === dataset!.dataset_id ? <div className="dataset-preview"><strong>Required scenario fields</strong>{(dataset!.required_fields ?? Object.keys(dataset!.scenarios[0] ?? {})).map((field) => <div key={field}><Check size={14} /><span>{field}</span></div>)}</div> : null}<footer><button className="outline-button" onClick={() => setExpanded(expanded === dataset!.dataset_id ? null : dataset!.dataset_id)}><FileText size={14} /> {expanded === dataset!.dataset_id ? 'Hide fields' : 'Inspect fields'}</button><span>Repeatable reliability contract</span></footer></section>
+    return <section className="dataset-card" key={dataset!.dataset_id}><header><span className="dataset-icon"><Database size={22} /></span><div><span>TEST SET</span><h3>{datasetDisplayName(dataset!.dataset_id)}</h3></div><span className="dataset-version">{dataset!.dataset_version}</span></header><p>{datasetDescription(dataset!.dataset_id, dataset!.description)}</p><div className="dataset-meta"><div><span>Scenarios</span><strong>{dataset!.scenario_count}</strong></div><div><span>Version</span><strong>{dataset!.dataset_version}</strong></div><div><span>Purpose</span><strong>{datasetPurpose(dataset!.dataset_id)}</strong></div></div><div className="dataset-preview">{dataset!.scenarios.map((scenario, index) => <button className={scenario.id === scenarioId ? 'active' : ''} key={scenario.id} onClick={() => setScenarioId(scenario.id)}><span className="scenario-list-index">{String(index + 1).padStart(2, '0')}</span><span><strong>{scenario.title ?? humanize(scenario.id)}</strong><small>{scenario.operation_type ? humanize(scenario.operation_type) : scenario.expected_tool ? humanize(scenario.expected_tool) : 'Expected workflow behavior'}</small></span><ChevronRight size={15} /></button>)}</div>{selected ? <div className="scenario-detail"><div><span>Expected behavior</span><strong>{selected.title ?? humanize(selected.id)}</strong><p>{selected.message ?? `Expected workflow: ${selected.expected_plan_steps?.map(humanize).join(' -> ') ?? humanize(selected.work_type ?? 'automation action')}`}</p><ScenarioMetaTags scenario={selected} /><small>Technical ID: {selected.id}</small></div></div> : <p className="dataset-hint">Select a scenario above to inspect its expected behavior.</p>}{expanded === dataset!.dataset_id ? <div className="technical-fields"><strong>Technical fields in this test set</strong><div>{(dataset!.required_fields ?? Object.keys(dataset!.scenarios[0] ?? {})).map((field) => <span key={field}>{humanize(field)}</span>)}</div></div> : null}<footer><button className="outline-button" onClick={() => setExpanded(expanded === dataset!.dataset_id ? null : dataset!.dataset_id)}><FileText size={14} /> {expanded === dataset!.dataset_id ? 'Hide technical fields' : 'Show technical fields'}</button><span>Used by repeatable checks</span></footer></section>
   })}</div></>
 }
 
@@ -2023,7 +2104,7 @@ function relativeTime(value: string) {
 }
 function pageTitle(page: PageId) {
   const titles: Record<PageId, string> = {
-    runs: 'Run Traces',
+    runs: 'Run Details',
     drafts: 'Drafts',
     approvals: 'Approvals',
     operations: 'Runtime Diagnostics',
@@ -2031,7 +2112,7 @@ function pageTitle(page: PageId) {
     guardrails: 'Safety Boundaries',
     integrations: 'Integrations',
     settings: 'Settings',
-    reliability: 'System Reliability',
+    reliability: 'Monitoring Overview',
     evaluation: 'Reliability Checks',
     datasets: 'Test Scenarios',
   }
@@ -2108,14 +2189,66 @@ function pageGroup(page: PageId) {
   if (['reliability', 'evaluation', 'datasets', 'runs', 'operations'].includes(page)) return 'Technical Evidence'
   return 'Daily Work'
 }
-function percent(value: number | null | undefined) {
-  return value === null || value === undefined ? '-' : `${Math.round(value * 100)}%`
+function metricPercent(value: number | null | undefined) {
+  return value === null || value === undefined ? 'Not measured' : `${Math.round(value * 100)}%`
 }
 function decimal(value: number | null | undefined) {
   return value === null || value === undefined ? '-' : value.toFixed(2)
 }
-function currency(value: number | null | undefined) {
-  return value === null || value === undefined ? '-' : `$${value.toFixed(4)}`
+function preciseCurrency(value: number | null | undefined) {
+  return value === null || value === undefined ? 'Not available' : `$${value.toFixed(6)}`
+}
+function automationCostLabel(value: number | null | undefined) {
+  if (value === null || value === undefined) return 'Not reported'
+  return value === 0 ? 'No provider cost' : preciseCurrency(value)
+}
+function automationRunCostLabel(usage: AgentRun['token_usage'] | undefined) {
+  if (!usage || (usage.estimated_cost_usd === null && usage.prompt_tokens === null && usage.completion_tokens === null)) return 'No provider call'
+  return automationCostLabel(usage.estimated_cost_usd)
+}
+function formatInteger(value: number | null | undefined) {
+  return new Intl.NumberFormat('en-US').format(value ?? 0)
+}
+function monitoringRunLabel(value: string) {
+  const labels: Record<string, string> = {
+    backoffice_plan_and_recommendation: 'Invoice review plan',
+    invoice_review: 'Invoice review',
+    invoice_export: 'Invoice export',
+    accounting_note: 'Accounting note',
+    vendor_follow_up: 'Vendor follow-up',
+    exception_handling: 'Exception handling',
+    insufficient_evidence: 'Insufficient evidence',
+  }
+  return labels[value] ?? humanize(value)
+}
+function promptVersionLabel(value: string | null | undefined) {
+  if (!value) return 'Unversioned planner'
+  if (value === 'deterministic-backoffice-v1') return 'Rules-based invoice planner v1'
+  if (value === 'deterministic-v1') return 'Rules-based assistant v1'
+  return value.replace(/^planner[-_]?/i, 'Planner ').replaceAll('_', ' ')
+}
+function datasetDisplayName(value: string) {
+  const labels: Record<string, string> = {
+    document_operations: 'Invoice workflow checks',
+    agentops_core: 'Automation action checks',
+    document_operations_scenarios_v1: 'Invoice workflow checks',
+    agentops_scenarios_v1: 'Automation action checks',
+  }
+  return labels[value] ?? humanize(value)
+}
+function datasetDescription(id: string, fallback?: string | null) {
+  const descriptions: Record<string, string> = {
+    document_operations: 'Checks that invoice review, escalation, approval, and export follow the expected business rules.',
+    agentops_core: 'Checks that automation selects the expected action and avoids unsafe or unrelated work.',
+    document_operations_scenarios_v1: 'Checks whether invoice workflows preserve evidence, approval gates, risk decisions, and safe execution boundaries.',
+    agentops_scenarios_v1: 'Checks whether automation runs select the expected action, avoid unsafe tools, and escalate when evidence is insufficient.',
+  }
+  return descriptions[id] ?? fallback ?? 'Versioned local test scenarios for repeatable workflow checks.'
+}
+function datasetPurpose(id: string) {
+  if (id.includes('document') || id.includes('backoffice')) return 'Workflow safety'
+  if (id.includes('agent')) return 'Action reliability'
+  return 'Regression evidence'
 }
 function humanize(value: string) {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
