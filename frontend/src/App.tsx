@@ -258,6 +258,12 @@ type ProviderCostSummary = {
 const PRODUCT_NAME = 'Invoice Review'
 const workTypes = ['invoice_review', 'invoice_export', 'accounting_note', 'vendor_follow_up', 'exception_handling', 'insufficient_evidence']
 const technicalPages: PageId[] = ['runs', 'reliability', 'evaluation', 'datasets', 'operations', 'integrations', 'settings', 'drafts', 'approvals', 'policies', 'guardrails']
+const monitoringPages: PageId[] = ['reliability', 'evaluation', 'datasets', 'runs']
+
+function screenFromLocation(role: UserRole): Screen {
+  const page = new URLSearchParams(window.location.search).get('technical')
+  return page && technicalPages.includes(page as PageId) ? { kind: 'page', page: page as PageId } : role === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'queue' }
+}
 
 function api<T>(path: string, init?: RequestInit): Promise<T> {
   return fetch(path, {
@@ -336,19 +342,36 @@ function SessionGate() {
 
 function CommandCenter({ session, signOut, signingOut }: { session: SessionInfo; signOut: () => void; signingOut: boolean }) {
   const role: UserRole = ['uploader', 'operator', 'intake'].includes(session.role) ? 'intake' : 'administrator'
-  const [screen, setScreen] = useState<Screen>(() => {
-    const page = new URLSearchParams(window.location.search).get('technical')
-    return page && technicalPages.includes(page as PageId) ? { kind: 'page', page: page as PageId } : role === 'intake' ? { kind: 'intake', view: 'new' } : { kind: 'queue' }
-  })
+  const [screen, setScreen] = useState<Screen>(() => screenFromLocation(role))
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const workspace = useQuery({
     queryKey: ['workspace'],
     queryFn: () => api<Workspace>('/backoffice/workspace'),
     refetchInterval: 10000,
   })
-  const goQueue = (filter?: QueueFilter) => setScreen({ kind: 'queue', filter })
-  const openItem = (id: string) => setScreen({ kind: 'detail', id })
+  const goBusinessScreen = (next: Screen) => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('technical')) {
+      url.searchParams.delete('technical')
+      window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`)
+    }
+    setScreen(next)
+  }
+  const goQueue = (filter?: QueueFilter) => goBusinessScreen({ kind: 'queue', filter })
+  const openItem = (id: string) => goBusinessScreen({ kind: 'detail', id })
+  const goTechnicalPage = (page: PageId) => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('technical', page)
+    window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`)
+    setScreen({ kind: 'page', page })
+  }
   const attentionCount = workspace.data?.work_items.filter((item) => ['awaiting_human', 'blocked', 'failed'].includes(item.status)).length ?? 0
+
+  useEffect(() => {
+    const handlePopState = () => setScreen(screenFromLocation(role))
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [role])
 
   return (
     <div className="app-shell">
@@ -359,8 +382,10 @@ function CommandCenter({ session, signOut, signingOut }: { session: SessionInfo;
         goQueue={goQueue}
         inboxCount={attentionCount}
         role={role}
-        goIntake={(view) => setScreen({ kind: 'intake', view })}
-        openDocuments={() => setScreen({ kind: 'documents' })}
+        isAdmin={session.is_admin}
+        goIntake={(view) => goBusinessScreen({ kind: 'intake', view })}
+        openDocuments={() => goBusinessScreen({ kind: 'documents' })}
+        openMonitoring={() => goTechnicalPage('reliability')}
       />
       <div className="app-main">
         <TopBar
@@ -373,12 +398,12 @@ function CommandCenter({ session, signOut, signingOut }: { session: SessionInfo;
           signOut={signOut}
           signingOut={signingOut}
           openItem={openItem}
-          openDocuments={() => setScreen({ kind: 'documents' })}
+          openDocuments={() => goBusinessScreen({ kind: 'documents' })}
         />
         {workspace.error ? (
           <ErrorState message={(workspace.error as Error).message} retry={() => workspace.refetch()} />
         ) : screen.kind === 'intake' ? (
-          screen.view === 'new' ? <GuidedInvoiceWizard onSubmitted={() => setScreen({ kind: 'intake', view: 'invoices' })} /> : <IntakeLibrary view={screen.view} />
+          screen.view === 'new' ? <GuidedInvoiceWizard onSubmitted={() => goBusinessScreen({ kind: 'intake', view: 'invoices' })} /> : <IntakeLibrary view={screen.view} />
         ) : screen.kind === 'overview' ? (
           <OperationsOverview workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} goQueue={goQueue} />
         ) : screen.kind === 'detail' ? (
@@ -393,7 +418,7 @@ function CommandCenter({ session, signOut, signingOut }: { session: SessionInfo;
         ) : screen.kind === 'documents' ? (
           <DocumentsPage workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} />
         ) : screen.kind === 'page' ? (
-          <SectionPage page={screen.page} workspace={workspace.data} loadingWorkspace={workspace.isLoading} openItem={openItem} />
+          <SectionPage page={screen.page} workspace={workspace.data} loadingWorkspace={workspace.isLoading} openItem={openItem} goTechnicalPage={goTechnicalPage} />
         ) : (
           <QueuePage workspace={workspace.data} loading={workspace.isLoading} openItem={openItem} initialFilter={screen.filter} />
         )}
@@ -413,8 +438,10 @@ function Sidebar({
   goQueue,
   inboxCount,
   role,
+  isAdmin,
   goIntake,
   openDocuments,
+  openMonitoring,
 }: {
   open: boolean
   screen: Screen
@@ -422,8 +449,10 @@ function Sidebar({
   goQueue: (filter?: QueueFilter) => void
   inboxCount: number
   role: UserRole
+  isAdmin: boolean
   goIntake: (view: IntakeView) => void
   openDocuments: () => void
+  openMonitoring: () => void
 }) {
   if (role === 'intake') {
     const intakeItems = [
@@ -434,7 +463,7 @@ function Sidebar({
       <>
         {open ? <button className="sidebar-scrim" aria-label="Close menu" onClick={close} /> : null}
         <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
-          <div className="brand"><div className="brand-mark"><Sparkles size={23} /></div><div><strong>{PRODUCT_NAME}</strong><span>Intake</span></div></div>
+          <div className="brand"><div className="brand-mark"><FileCheck2 size={21} /></div><div><strong>{PRODUCT_NAME}</strong><span>Upload workspace</span></div></div>
           <nav className="sidebar-nav intake-nav">
             <p className="role-nav-label">INVOICE WORK</p>
             {intakeItems.map(([Icon, label, action, active]) => <button key={label} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={() => { action(); close() }}><Icon size={19} /><span>{label}</span></button>)}
@@ -455,8 +484,8 @@ function Sidebar({
       {open ? <button className="sidebar-scrim" aria-label="Close menu" onClick={close} /> : null}
       <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
         <div className="brand">
-          <div className="brand-mark"><Sparkles size={23} /></div>
-          <div><strong>{PRODUCT_NAME}</strong><span>Review</span></div>
+          <div className="brand-mark"><FileCheck2 size={21} /></div>
+          <div><strong>{PRODUCT_NAME}</strong><span>Finance operations</span></div>
         </div>
         <nav className="sidebar-nav intake-nav">
           <p className="role-nav-label">INVOICE WORK</p>
@@ -465,6 +494,7 @@ function Sidebar({
               <Icon size={19} /><span>{label}</span>{count ? <b>{count}</b> : null}
             </button>
           ))}
+          {isAdmin ? <><p className="role-nav-label system-nav-label">SYSTEM</p><button className={screen.kind === 'page' && monitoringPages.includes(screen.page) ? 'active' : ''} aria-current={screen.kind === 'page' && monitoringPages.includes(screen.page) ? 'page' : undefined} onClick={() => { openMonitoring(); close() }}><CircleGauge size={19} /><span>Monitoring</span></button></> : null}
         </nav>
       </aside>
     </>
@@ -520,8 +550,8 @@ function TopBar({
       <div className="topbar-title">
         <button className="mobile-menu" onClick={openMenu} aria-label="Open navigation"><Menu size={20} /></button>
         {screen.kind === 'detail' ? (
-          <><h1>Invoice Review</h1><button className="back-link" onClick={() => goQueue('all')}><ArrowLeft size={14} /> Back to approvals</button></>
-        ) : <h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Dashboard' : screen.kind === 'workitems' ? 'Needs Review' : screen.kind === 'documents' ? 'Invoices' : screen.kind === 'page' ? pageTitle(screen.page) : 'Approvals'}</h1>}
+          <><button className="back-link" onClick={() => goQueue('all')}><ArrowLeft size={15} /> Back to approvals</button><span className="topbar-divider" /><span className="topbar-context">Invoice review</span></>
+        ) : <><span className="topbar-context">{screen.kind === 'page' ? 'System evidence' : role === 'intake' ? 'Invoice intake' : 'Finance operations'}</span><span className="topbar-divider" /><h1>{screen.kind === 'intake' ? intakeTitle(screen.view) : screen.kind === 'overview' ? 'Dashboard' : screen.kind === 'workitems' ? 'Needs Review' : screen.kind === 'documents' ? 'Invoices' : screen.kind === 'page' ? pageTitle(screen.page) : 'Approvals'}</h1></>}
       </div>
       <div className="topbar-actions">
         <span className={`health ${healthy ? '' : 'unhealthy'}`}><ShieldCheck size={15} /> {healthy ? 'Online' : 'Offline'}</span>
@@ -1353,11 +1383,13 @@ function SectionPage({
   workspace,
   loadingWorkspace,
   openItem,
+  goTechnicalPage,
 }: {
   page: PageId
   workspace?: Workspace
   loadingWorkspace: boolean
   openItem: (id: string) => void
+  goTechnicalPage: (page: PageId) => void
 }) {
   const needsDetails = ['drafts', 'approvals', 'policies', 'guardrails', 'evaluation'].includes(page)
   const details = useQuery({
@@ -1433,20 +1465,20 @@ function SectionPage({
   return (
     <main className="section-page">
       <SectionHeading page={page} />
-      {['reliability', 'evaluation', 'datasets', 'runs'].includes(page) ? <MonitoringNav page={page} /> : null}
+      {monitoringPages.includes(page) ? <MonitoringNav page={page} navigate={goTechnicalPage} /> : null}
       {content()}
     </main>
   )
 }
 
-function MonitoringNav({ page }: { page: PageId }) {
+function MonitoringNav({ page, navigate }: { page: PageId; navigate: (page: PageId) => void }) {
   const links: Array<{ page: PageId; label: string }> = [
     { page: 'reliability', label: 'Overview' },
     { page: 'evaluation', label: 'Checks' },
     { page: 'datasets', label: 'Test scenarios' },
     { page: 'runs', label: 'Run details' },
   ]
-  return <nav className="monitoring-nav" aria-label="Monitoring sections">{links.map((link) => <a className={page === link.page ? 'active' : ''} href={`/?technical=${link.page}`} key={link.page}>{link.label}</a>)}</nav>
+  return <nav className="monitoring-nav" aria-label="Monitoring sections">{links.map((link) => <button aria-current={page === link.page ? 'page' : undefined} className={page === link.page ? 'active' : ''} key={link.page} onClick={() => navigate(link.page)}>{link.label}</button>)}</nav>
 }
 
 function SectionHeading({ page }: { page: PageId }) {
@@ -1579,12 +1611,31 @@ function ReliabilityPage({ summary, runs, regression, promptVersions, providerCo
   ]
   const enoughObservations = (summary?.total_runs ?? 0) >= 5
   const failedRuns = runs.filter((run) => run.evaluation.failure_type || !run.evaluation.successful_completion)
+  const providerAttemptTotal = providerCosts?.attempts?.total ?? 0
+  const providerAttemptSuccess = providerCosts?.attempts?.succeeded ?? 0
   return <>
+    <section className="monitoring-hero">
+      <div className="monitoring-hero-copy">
+        <span className="section-eyebrow">EVIDENCE SNAPSHOT</span>
+        <h3>Invoice processing, measured honestly</h3>
+        <p>See the latest provider evaluation, operating cost, and known limits before opening run-level diagnostics.</p>
+      </div>
+      <span className="monitoring-scope-badge"><ShieldCheck size={15} /> Local evidence</span>
+      <div className="monitoring-hero-stats">
+        <article><span>Provider calls</span><strong>{providerAttemptTotal ? `${providerAttemptSuccess}/${providerAttemptTotal}` : 'Not measured'}</strong><small>Latest sealed holdout</small></article>
+        <article><span>Invoices evaluated</span><strong>{providerCosts?.documents_count ?? 0}</strong><small>Latest sealed holdout</small></article>
+        <article><span>Automation runs</span><strong>{summary?.total_runs ?? 0}</strong><small>Stored locally</small></article>
+        <article><span>Known weak spots</span><strong>{failedRuns.length}</strong><small>In this sample</small></article>
+      </div>
+    </section>
     <EvidenceScope title="Local monitoring evidence" detail={`Automation metrics use ${summary?.total_runs ?? 0} stored local run${(summary?.total_runs ?? 0) === 1 ? '' : 's'}. Provider cost uses the latest sealed external holdout report. Neither is production telemetry or a billing statement.`} />
     <div className="reliability-metrics">{metrics.map((metric) => <ReliabilityMetric {...metric} sampleSize={summary?.total_runs ?? 0} key={metric.label} />)}</div>
     <ProviderCostPanel summary={providerCosts} error={providerCostsError} />
-    <div className="monitoring-section-title"><div><span>Automation evidence</span><h3>Runs, failures, and change detection</h3></div><p>These panels describe the local orchestration layer, separate from OCR and extraction spend.</p></div>
-    <div className="analytics-grid">
+    <details className="monitoring-deep-dive">
+      <summary><span><small>AUTOMATION DIAGNOSTICS</small><strong>Inspect runs, failures, and change detection</strong></span><ChevronDown size={18} /></summary>
+      <div className="monitoring-deep-dive-body">
+        <div className="monitoring-section-title"><div><span>Automation evidence</span><h3>Run-level diagnostics</h3></div><p>These panels describe the local orchestration layer, separate from OCR and extraction spend.</p></div>
+        <div className="analytics-grid">
       <section className="data-panel recent-runs-panel"><DataPanelHeader icon={<Activity size={17} />} title="Recent automation runs" count={runs.length} /><div className="signal-list">{runs.slice(0, 8).map((run) => <div key={run.id}><span className={`run-dot ${run.evaluation.successful_completion ? 'success' : 'warning'}`} /><strong>{monitoringRunLabel(run.intent)}</strong><span>{Math.round(run.evaluation.confidence_score * 100)}% confidence</span><Status value={run.evaluation.successful_completion ? 'resolved' : run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></div>)}</div>{runs.length === 0 ? <EmptyState title="No runs recorded" body="Upload and process an invoice to create the first monitoring signal." /> : null}</section>
       <section className="data-panel"><DataPanelHeader icon={<CircleGauge size={17} />} title="Automation efficiency" /><div className="large-stat"><span>Average decision confidence</span><strong>{metricPercent(summary?.average_confidence)}</strong></div><DetailRow label="Runs checked against scenarios" value={summary?.evaluated_runs ?? 0} /><DetailRow label="Average actions used" value={decimal(summary?.average_tool_calls_per_task)} /><DetailRow label="Average runtime" value={`${decimal(summary?.average_latency_ms)} ms`} /><DetailRow label="Automation API cost / run" value={automationCostLabel(summary?.estimated_cost_per_run)} /></section>
       <section className="data-panel"><DataPanelHeader icon={<AlertTriangle size={17} />} title="Failure trend" />{enoughObservations ? <div className="failure-bars">{(summary?.failure_trend ?? []).map(({ failure_type, count }) => <div key={failure_type}><span>{humanize(failure_type)}</span><i><b style={{ width: `${Math.min(100, count * 20)}%` }} /></i><strong>{count}</strong></div>)}</div> : <EmptyState title="Need 5 runs" body={`${summary?.total_runs ?? 0} of 5 runs recorded. A trend would be misleading before then.`} />}</section>
@@ -1593,13 +1644,15 @@ function ReliabilityPage({ summary, runs, regression, promptVersions, providerCo
       <section className="data-panel"><DataPanelHeader icon={<Columns3 size={17} />} title="Regression comparison" />{regression?.deltas.length ? <div className="monitoring-table regression-table"><div className="monitoring-table-head"><span>Metric</span><span>Previous</span><span>Current</span><span>Result</span></div>{regression.deltas.map((delta) => <div className="monitoring-table-row" key={delta.metric}><strong>{humanize(delta.metric)}</strong><span>{metricPercent(delta.previous)}</span><span>{metricPercent(delta.current)}</span><Status value={delta.regressed ? 'failed' : 'approved'} /></div>)}</div> : <EmptyState title="No comparison window" body="More runs are needed to compare two meaningful time windows." />}</section>
       <section className="data-panel known-failures"><DataPanelHeader icon={<AlertTriangle size={17} />} title="Known Weak Spots" count={failedRuns.length} />{failedRuns.slice(0, 6).map((run) => <article key={run.id}><span className="approval-icon rejected"><AlertTriangle size={15} /></span><div><strong>{humanize(run.evaluation.failure_type ?? 'Incomplete run')}</strong><p>{run.evaluation.decision_reason}</p><small>{humanize(run.intent)} · Run {shortId(run.id)} · {formatDate(run.created_at)}</small></div><Status value={run.evaluation.human_escalated ? 'awaiting_human' : 'failed'} /></article>)}{!failedRuns.length ? <EmptyState title="No weak spots in this sample" body="This only describes the stored local observation set." /> : null}</section>
       <section className="data-panel evidence-limitations"><DataPanelHeader icon={<ShieldCheck size={17} />} title="What this does not prove" /><p><Check size={14} /> Invoice is the only complete document schema.</p><p><Check size={14} /> Local run metrics may have a very small sample.</p><p><Check size={14} /> Confidence is descriptive, not calibrated against production outcomes.</p><p><Check size={14} /> Estimated provider cost is not an account billing record.</p></section>
-    </div>
+        </div>
+      </div>
+    </details>
   </>
 }
 
 function ReliabilityMetric({ label, value, note, sampleSize }: { label: string; value: number | null | undefined; note: string; sampleSize: number }) {
   const progress = value === null || value === undefined ? 0 : Math.max(0, Math.min(100, value * 100))
-  const background = value === null || value === undefined ? '#eef2f7' : `conic-gradient(#7048ef 0 ${progress}%, #e8edf5 ${progress}% 100%)`
+  const background = value === null || value === undefined ? '#eef2f0' : `conic-gradient(#0d7965 0 ${progress}%, #e3ebe8 ${progress}% 100%)`
   return <article><div className="ring" style={{ background }}><span>{metricPercent(value)}</span></div><div><h3>{label}</h3><p>{note}</p><small>{sampleSize} stored run{sampleSize === 1 ? '' : 's'}</small></div></article>
 }
 
@@ -2186,7 +2239,7 @@ function isToday(value: string) {
 function pageGroup(page: PageId) {
   if (['policies', 'guardrails'].includes(page)) return 'Safety Rules'
   if (['integrations', 'settings'].includes(page)) return 'System Setup'
-  if (['reliability', 'evaluation', 'datasets', 'runs', 'operations'].includes(page)) return 'Technical Evidence'
+  if (['reliability', 'evaluation', 'datasets', 'runs', 'operations'].includes(page)) return 'System Evidence'
   return 'Daily Work'
 }
 function metricPercent(value: number | null | undefined) {

@@ -215,6 +215,47 @@ Exit criteria:
 - all README and case-study claims link to documented evidence
 - the primary UI passes the 60-second first-impression check without explanation
 
+### Product UI Redesign Loop
+
+Status: Complete on 20 July 2026 for the current uploader, reviewer, and monitoring surfaces.
+
+Goal: make the product feel like one calm finance-operations application while preserving the
+existing upload, review, approval, correction, monitoring, and audit behavior.
+
+Design direction:
+
+- use a restrained invoice-management shell for navigation and document lists
+- use a focused split workspace for PDF review and reviewer decisions
+- use an evidence-first analytics layout for monitoring, with technical diagnostics disclosed only on demand
+- prefer plain business language, clear status hierarchy, and one obvious next action per screen
+
+Implementation loop:
+
+1. Establish shared visual tokens, spacing, typography, navigation, buttons, and status treatments.
+2. Rebuild invoice lists as the primary work surface instead of a collection of equal-weight cards.
+3. Simplify the review workspace around the PDF, extracted values, blockers, and one decision area.
+4. Put monitoring conclusions, sample size, and provider cost before detailed diagnostics.
+5. Verify desktop and mobile screenshots, keyboard focus, text fit, loading, empty, and error states.
+6. Repeat visual inspection and usability fixes until no material first-impression issue remains.
+
+Exit criteria:
+
+- uploader, reviewer, and administrator surfaces look like one product
+- the main business action can be identified within five seconds on every primary screen
+- technical evidence remains available without competing with invoice work
+- desktop and mobile browser captures have no clipping, overlap, unreadably small text, or blank PDF state
+
+Observed evidence:
+
+- uploader, reviewer, and administrator now share one light finance-operations shell with literal document iconography and restrained status colors
+- approvals and invoice libraries use scan-friendly rows with one primary action instead of floating card-heavy composition
+- the reviewer workspace keeps the invoice PDF and decision evidence side by side on desktop, while mobile caps the scrollable PDF so the decision remains reachable
+- monitoring opens with provider calls, evaluated invoices, stored runs, and known weak spots; run-level diagnostics are available through progressive disclosure
+- monitoring tabs use in-app history navigation without full-page refresh and remain directly reachable for administrators
+- browser inspection confirmed rendered PDF content, working monitoring disclosure, no page-level horizontal overflow, and no browser console errors
+- frontend unit tests pass 15 of 15; browser tests pass 22 with 8 capture-only tests skipped across desktop, tablet, and mobile
+- automated accessibility checks report no serious or critical violations on the intake screen across all three viewports
+
 ## Phase 4: Release Readiness
 
 Status: Starts after Phase 3.

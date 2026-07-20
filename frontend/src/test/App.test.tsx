@@ -527,7 +527,7 @@ describe('application shell', () => {
     expect(screen.getByRole('button', { name: /request correction/i })).toBeInTheDocument()
   })
 
-  it('keeps technical evidence out of primary administrator navigation', async () => {
+  it('keeps technical evidence out of reviewer navigation', async () => {
     vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
       const path = String(input)
       if (path === '/auth/session') return json(reviewerSession)
@@ -543,6 +543,7 @@ describe('application shell', () => {
     expect(screen.getByRole('button', { name: /invoices/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^history$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^monitoring$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /reliability checks/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /test scenarios/i })).not.toBeInTheDocument()
   })
@@ -574,6 +575,7 @@ describe('monitoring evidence', () => {
     },
   }
 
+  beforeEach(() => queryClient.clear())
   afterEach(() => window.history.replaceState({}, '', '/'))
 
   it('separates provider invoice cost from automation-run cost', async () => {
@@ -599,6 +601,17 @@ describe('monitoring evidence', () => {
     expect(screen.getByText(/Mistral OCR/i)).toBeInTheDocument()
     expect(screen.getByText(/OpenAI extraction/i)).toBeInTheDocument()
     expect(screen.getByText(/No provider cost/i)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^approvals$/i }))
+    expect(window.location.search).toBe('')
+    await userEvent.click(screen.getByRole('button', { name: /^monitoring$/i }))
+    expect(window.location.search).toBe('?technical=reliability')
+    expect(await screen.findByRole('heading', { level: 2, name: /monitoring overview/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /run details/i }))
+    expect(window.location.search).toBe('?technical=runs')
+    expect(await screen.findByRole('heading', { level: 2, name: /run details/i })).toBeInTheDocument()
+    expect(screen.getByText(/Not checked against a scenario/i)).toBeInTheDocument()
   })
 
   it('does not call an unscored completed run an evaluation pass', async () => {
