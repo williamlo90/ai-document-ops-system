@@ -10,6 +10,7 @@ import { PlaceholderPage } from './pages/PlaceholderPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 import { ReviewQueuePage } from './pages/ReviewQueuePage'
 import { ReviewWorkspacePage } from './pages/ReviewWorkspacePage'
+import { ExceptionsPage } from './pages/ExceptionsPage'
 import { Button, ErrorState, LoadingState } from './shared/ui'
 import { queryClient } from './queryClient'
 import './product.css'
@@ -52,7 +53,7 @@ function SessionGate() {
       <Route path="invoices" element={<InvoicesPage />} />
       <Route path="review-queue" element={<ReviewQueuePage />} />
       <Route path="review/:documentId" element={<ReviewWorkspacePage />} />
-      <Route path="exceptions" element={<PlaceholderPage title="Exceptions" description="Resolve issues that are blocking invoice processing." />} />
+      <Route path="exceptions" element={<ExceptionsPage />} />
       <Route path="exports" element={<PlaceholderPage title="Exports" description="Prepare and track approved invoice exports." />} />
       <Route path="evaluation" element={<PlaceholderPage title="Evaluation" description="Measure invoice reading quality against labeled cases." />} />
       <Route path="system" element={<PlaceholderPage title="System" description="Monitor invoice processing and connected services." />} />

@@ -494,6 +494,56 @@ class ApiTests(unittest.TestCase):
         approve_response = self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
         self.assertEqual(approve_response.status_code, 200)
 
+    def test_exception_worklist_detail_assignment_and_export(self) -> None:
+        container = self.client.app.state.container
+        current = container.processing_service.extractor.invoice_data
+        container.processing_service.extractor.invoice_data = current.__class__(
+            vendor_name="Acme Logistics",
+            invoice_number=None,
+            invoice_date=current.invoice_date,
+            due_date=current.due_date,
+            subtotal=current.subtotal,
+            tax=current.tax,
+            total=current.total,
+            currency=current.currency,
+            line_items=current.line_items,
+        )
+        document_id = self._upload_document()
+        self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+
+        response = self.client.get(
+            "/exceptions?scope=blocking&page=1&page_size=10", headers=HEADERS
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["summary"]["open_exceptions"], 1)
+        self.assertEqual(payload["summary"]["high_risk"], 1)
+        self.assertEqual(payload["summary"]["invoices_affected"], 1)
+        self.assertFalse(payload["capabilities"]["resolved_history"])
+        exception_id = payload["items"][0]["id"]
+
+        detail = self.client.get(f"/exceptions/{exception_id}", headers=HEADERS)
+        assignment = self.client.patch(
+            f"/exceptions/{exception_id}/assignment",
+            headers=HEADERS,
+            json={"assignee": "Senior Reviewer"},
+        )
+        filtered = self.client.get(
+            "/exceptions?owner=Senior%20Reviewer", headers=HEADERS
+        )
+        exported = self.client.get("/exceptions/export", headers=HEADERS)
+
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()["exception"]["document_id"], document_id)
+        self.assertEqual(assignment.status_code, 200)
+        self.assertEqual(assignment.json()["exception"]["owner"], "Senior Reviewer")
+        self.assertEqual(filtered.json()["total"], 1)
+        self.assertEqual(exported.status_code, 200)
+        self.assertIn("text/csv", exported.headers["content-type"])
+        self.assertIn("Missing invoice number", exported.text)
+
     def test_process_unknown_document_is_not_found(self) -> None:
         response = self.client.post(f"/documents/{uuid4()}/process", headers=HEADERS)
 

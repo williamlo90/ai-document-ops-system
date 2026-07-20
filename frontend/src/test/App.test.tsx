@@ -171,3 +171,44 @@ describe('review workspace', () => {
     expect(within(dialog).getByText('Please provide the missing PO number.')).toBeInTheDocument()
   })
 })
+
+describe('exceptions workspace', () => {
+  it('keeps issue triage grounded and records assignment through the API', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/exceptions')
+    const exception = {
+      id: 'exception-1', document_id: 'doc-1', work_item_id: null, original_filename: 'acme.pdf', invoice_number: 'INV-001', vendor_name: 'Acme Logistics', total: '1250.00', currency: 'USD', issue: 'Missing invoice number', category: 'vendor_invoice', risk: 'high', blocks_approval: true, owner: null, detected_at: now, age_seconds: 900,
+    }
+    const detail = {
+      ...exception, message: 'Invoice number is required.', code: 'missing_critical_field', field_name: 'invoice_number', field_value: null, required_action: 'Add or request a valid invoice number, then save the invoice so validation can run again.', related_checks: [{ label: 'Invoice extracted', status: 'passed' }, { label: 'Invoice number present', status: 'blocked' }],
+    }
+    const list = {
+      items: [exception], page: 1, page_size: 10, total: 1, total_pages: 1,
+      summary: { open_exceptions: 1, high_risk: 1, warning_issues: 0, invoices_affected: 1, categories: { vendor_invoice: 1 }, top_issues: [{ label: 'Missing invoice number', category: 'vendor_invoice', count: 1 }] },
+      assignee_options: ['Reviewer'], capabilities: { resolved_history: false, due_policy: false, validated_resolution_only: true },
+    }
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'Reviewer', user_id: 'reviewer', workspace_id: 'default', role: 'reviewer', is_admin: false })
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path.startsWith('/exceptions?')) return json(list)
+      if (path === '/exceptions/exception-1' && !init?.method) return json({ exception: detail })
+      if (path === '/exceptions/exception-1/assignment' && init?.method === 'PATCH') return json({ exception: { ...detail, owner: 'Senior Reviewer', work_item_id: 'item-1' }, assignment: { work_item_id: 'item-1', assignee: 'Senior Reviewer', recorded_by: 'Reviewer', recorded_at: now } })
+      return json({ detail: `Unexpected request: ${path}` }, 404)
+    }))
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Exceptions' })).toBeInTheDocument()
+    expect((await screen.findByText('Open exceptions')).previousSibling).toHaveTextContent('1')
+    await user.click(screen.getByRole('button', { name: 'INV-001' }))
+    const inspector = await screen.findByRole('region', { name: 'Exception details' })
+    expect(within(inspector).getByText('Approval is blocked until this issue is resolved.')).toBeInTheDocument()
+    expect(within(inspector).getByRole('link', { name: /open invoice/i })).toHaveAttribute('href', '/review/doc-1?from=exceptions&exception=exception-1')
+    await user.click(within(inspector).getByRole('button', { name: 'Assign' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Assign exception' })
+    const input = within(dialog).getByLabelText('Owner')
+    await user.clear(input)
+    await user.type(input, 'Senior Reviewer')
+    await user.click(within(dialog).getByRole('button', { name: 'Save assignment' }))
+    expect(await screen.findByText('Assigned to Senior Reviewer')).toBeInTheDocument()
+  })
+})

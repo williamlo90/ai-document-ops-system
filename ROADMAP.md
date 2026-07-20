@@ -485,6 +485,12 @@ Exit criteria:
 
 #### Sprint UI-04: Exceptions
 
+Status: Complete on 2026-07-20. The page now uses a dedicated server read model for grounded
+workload totals, categories, filters, paginated issue detail, assignment, and CSV export. The
+responsive master-detail workspace links deterministic blockers back to invoice revalidation;
+unsupported SLA, due-policy, and resolved-history claims remain explicitly unavailable instead
+of being simulated.
+
 References:
 
 - `docs/assets/ui-reference/modern-operations-exceptions.png`
