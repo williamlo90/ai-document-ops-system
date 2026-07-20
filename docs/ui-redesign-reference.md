@@ -11,6 +11,12 @@ frontend remains functional, but it is not the final presentation target.
 - Overview reference: [modern-operations-overview.png](assets/ui-reference/modern-operations-overview.png)
 - Review Queue reference: [modern-operations-review-queue.png](assets/ui-reference/modern-operations-review-queue.png)
 
+## Working Concept Batch
+
+Seven remaining desktop page concepts and their handoff instructions are available in
+[`ui-concept-handoff.md`](ui-concept-handoff.md). These files extend the approved direction but
+remain drafts until revised images are explicitly accepted as final references.
+
 ## Design Contract
 
 - Use one persistent application shell with a left navigation rail and a compact top bar.
@@ -44,4 +50,3 @@ Planned sequence:
 7. Evaluation
 8. System
 9. Settings
-

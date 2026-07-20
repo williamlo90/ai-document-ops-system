@@ -271,7 +271,9 @@ findings are presentation examples, not product claims.
 
 Work:
 
-1. Approve each primary page as a mockup before implementation.
+1. Approve each primary page as a mockup before implementation. A complete seven-page concept
+   batch is recorded in [`docs/ui-concept-handoff.md`](docs/ui-concept-handoff.md) for external
+   critique and revision.
 2. Map every approved screen to existing behavior and identify genuine capability gaps.
 3. Implement the shared shell and design tokens before converting individual feature pages.
 4. Preserve role boundaries, approval safeguards, audit evidence, and real application data.
