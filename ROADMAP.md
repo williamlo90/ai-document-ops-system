@@ -560,6 +560,16 @@ Exit criteria:
 
 #### Sprint UI-06: Evaluation
 
+Status: Complete on 2026-07-20. The page now combines immutable public evaluation evidence with
+workspace-scoped run attempts, reconciles every field and validation denominator, and compares
+regressions only against an exactly compatible baseline. Provider-backed runs require an explicit
+preflight confirmation, are capped at three documents for the local demo, persist failed attempts
+separately, and derive estimated cost only from recorded provider usage. The frontend implements
+URL-addressable run and range selection, accessible trend points, field and scenario details,
+visible synthetic-data limitations, and responsive desktop/mobile states. Backend aggregation,
+attempt persistence, authorization, frontend behavior, lint, production build, and browser QA are
+covered by the sprint verification.
+
 References:
 
 - `docs/assets/ui-reference/modern-operations-evaluation.png`

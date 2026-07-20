@@ -12,6 +12,7 @@ from app.core.settings import Settings
 from app.extraction.schemas import SCHEMA_VERSION
 from app.main import create_app
 from app.providers.mock import MockParserProvider
+from app.providers.contracts import ProviderError
 from app.tests.auth_helpers import session_headers
 
 
@@ -110,6 +111,8 @@ class ApiTests(unittest.TestCase):
             ("get", "/exports/predictions.json"),
             ("post", f"/integrations/accounting/documents/{document_id}/export"),
             ("get", "/metrics/summary"),
+            ("get", "/evaluation/dashboard"),
+            ("post", "/evaluation/runs"),
             ("post", "/agent/copilot"),
         )
 
@@ -648,6 +651,67 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(run.json()["run"]["status"], "succeeded")
         self.assertEqual(downloaded.status_code, 200)
         self.assertIn("document_id,vendor_name", downloaded.text)
+
+    def test_evaluation_dashboard_reconciles_evidence_and_regression_denominator(self) -> None:
+        latest = self.client.get("/evaluation/dashboard", headers=HEADERS)
+        comparable = self.client.get(
+            "/evaluation/dashboard?run=20260720T042832Z&range_limit=10",
+            headers=HEADERS,
+        )
+
+        self.assertEqual(latest.status_code, 200)
+        self.assertEqual(latest.json()["selected_run"]["id"], "20260720T043136Z")
+        self.assertEqual(latest.json()["selected_run"]["fields_matched"], 79)
+        self.assertEqual(latest.json()["selected_run"]["fields_total"], 80)
+        self.assertTrue(latest.json()["selected_run"]["passed"])
+        self.assertEqual(len(latest.json()["scenario_coverage"]["groups"]), 6)
+        self.assertFalse(latest.json()["scenario_coverage"]["included_in_selected_run"])
+
+        self.assertEqual(comparable.status_code, 200)
+        regression = comparable.json()["regression"]
+        self.assertEqual(regression["comparison_run_id"], "20260720T042050Z")
+        self.assertEqual(
+            regression["improved"] + regression["stable"] + regression["regressed"],
+            regression["comparable_fields"],
+        )
+        self.assertEqual(regression["comparable_fields"], 8)
+
+    def test_failed_evaluation_attempt_does_not_replace_latest_valid_run(self) -> None:
+        class FailingParser:
+            provider_name = "failing_parser"
+
+            def parse(self, _source):
+                raise ProviderError("provider unavailable", self.provider_name)
+
+        before = self.client.get("/evaluation/dashboard", headers=HEADERS).json()
+        self.client.app.state.container.evaluation_dashboard.parser = FailingParser()
+
+        attempted = self.client.post("/evaluation/runs", headers=HEADERS)
+        after = self.client.get("/evaluation/dashboard", headers=HEADERS).json()
+
+        self.assertEqual(attempted.status_code, 502)
+        self.assertEqual(
+            after["selected_run"]["id"],
+            before["selected_run"]["id"],
+        )
+        self.assertEqual(after["attempts"][0]["status"], "failed")
+        self.assertEqual(after["attempts"][0]["documents_processed"], 0)
+
+    def test_completed_evaluation_is_stored_as_a_valid_run(self) -> None:
+        completed = self.client.post("/evaluation/runs", headers=HEADERS)
+
+        self.assertEqual(completed.status_code, 200)
+        run_id = completed.json()["run_id"]
+        dashboard = self.client.get(
+            f"/evaluation/dashboard?run={run_id}",
+            headers=HEADERS,
+        )
+
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertEqual(dashboard.json()["selected_run"]["id"], run_id)
+        self.assertEqual(dashboard.json()["selected_run"]["source"], "workspace_history")
+        self.assertEqual(dashboard.json()["attempts"][0]["status"], "succeeded")
+        self.assertEqual(dashboard.json()["attempts"][0]["run_id"], run_id)
 
     def test_process_unknown_document_is_not_found(self) -> None:
         response = self.client.post(f"/documents/{uuid4()}/process", headers=HEADERS)

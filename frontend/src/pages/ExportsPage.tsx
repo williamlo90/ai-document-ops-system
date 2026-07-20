@@ -193,7 +193,7 @@ export function ExportsPage() {
         selectedAmount={selectedAmount}
         selectedCurrency={selectedCurrency}
         open={batchOpen}
-        loading={workspace.isLoading}
+        loading={workspace.isLoading && !batch}
         mutationError={(createBatch.error || saveBatch.error || executeBatch.error) as Error | null}
         expanded={expandedInvoices}
         setExpanded={setExpandedInvoices}

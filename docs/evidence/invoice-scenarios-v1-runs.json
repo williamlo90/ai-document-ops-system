@@ -1,0 +1,80 @@
+{
+  "report_version": "1.0",
+  "dataset_id": "invoice_scenarios_v1",
+  "dataset_version": "1.0",
+  "dataset_class": "deterministic synthetic invoice scenarios",
+  "source": "docs/invoice-scenarios-v1-evidence.md",
+  "runs": [
+    {
+      "id": "invoice-scenarios-v1-initial",
+      "label": "Initial prompt",
+      "observed_on": "2026-07-15",
+      "provider": "mistral_ocr+retired_extractor",
+      "documents_count": 20,
+      "metrics": {
+        "field_accuracy": 0.98125,
+        "fields_matched": 157,
+        "fields_total": 160,
+        "document_exact_match_rate": 0.85,
+        "validation_code_exact_match_rate": 0.9,
+        "latency_ms": { "average": 1990.0 }
+      },
+      "limitations": [
+        "This is a small deterministic synthetic set, not production accuracy.",
+        "Per-field baseline values were not retained for this iteration.",
+        "The extractor used by this historical run is no longer configured."
+      ]
+    },
+    {
+      "id": "invoice-scenarios-v1-anti-inference",
+      "label": "Anti-inference prompt",
+      "observed_on": "2026-07-15",
+      "provider": "mistral_ocr+retired_extractor",
+      "documents_count": 20,
+      "metrics": {
+        "field_accuracy": 0.99375,
+        "fields_matched": 159,
+        "fields_total": 160,
+        "document_exact_match_rate": 0.95,
+        "validation_code_exact_match_rate": 0.95,
+        "latency_ms": { "average": 1130.0 }
+      },
+      "limitations": [
+        "This is a small deterministic synthetic set, not production accuracy.",
+        "Per-field baseline values were not retained for this iteration.",
+        "The extractor used by this historical run is no longer configured."
+      ]
+    },
+    {
+      "id": "invoice-scenarios-v1-final",
+      "label": "Vendor grounding guard",
+      "observed_on": "2026-07-15",
+      "provider": "mistral_ocr+retired_extractor",
+      "documents_count": 20,
+      "metrics": {
+        "field_accuracy": 1.0,
+        "fields_matched": 160,
+        "fields_total": 160,
+        "by_field": {
+          "vendor_name": 1.0,
+          "invoice_number": 1.0,
+          "invoice_date": 1.0,
+          "due_date": 1.0,
+          "subtotal": 1.0,
+          "tax": 1.0,
+          "total": 1.0,
+          "currency": 1.0
+        },
+        "document_exact_match_rate": 1.0,
+        "validation_code_exact_match_rate": 1.0,
+        "latency_ms": { "average": 1090.0 }
+      },
+      "failure_taxonomy": {},
+      "limitations": [
+        "This is a small deterministic synthetic set, not production accuracy.",
+        "Per-field values for the prior iteration were not retained, so field-level regression comparison is excluded.",
+        "The extractor used by this historical run is no longer configured."
+      ]
+    }
+  ]
+}

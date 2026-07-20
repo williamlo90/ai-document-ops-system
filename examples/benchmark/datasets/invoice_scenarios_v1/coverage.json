@@ -1,0 +1,43 @@
+{
+  "dataset_id": "invoice_scenarios_v1",
+  "dataset_version": "1.0",
+  "claim_boundary": "Coverage is case count versus a configured test-suite target, not model accuracy.",
+  "groups": [
+    {
+      "id": "ordinary_variations",
+      "label": "Ordinary and varied invoices",
+      "categories": ["happy_path", "tax_exempt", "locale_variation", "high_value_manual_review", "line_item_variation", "long_text"],
+      "target": 6
+    },
+    {
+      "id": "missing_fields",
+      "label": "Missing fields",
+      "categories": ["missing_critical_field", "missing_optional_field"],
+      "target": 5
+    },
+    {
+      "id": "validation_failures",
+      "label": "Validation failures",
+      "categories": ["deterministic_validation_failure"],
+      "target": 5
+    },
+    {
+      "id": "duplicates",
+      "label": "Duplicate cases",
+      "categories": ["business_duplicate_pair"],
+      "target": 4
+    },
+    {
+      "id": "scan_quality",
+      "label": "Low-quality scans",
+      "categories": ["ocr_quality_challenge"],
+      "target": 4
+    },
+    {
+      "id": "layout_variations",
+      "label": "Rotated and multi-page",
+      "categories": ["ocr_layout_challenge", "multi_page_layout"],
+      "target": 4
+    }
+  ]
+}

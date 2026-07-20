@@ -90,6 +90,12 @@ from app.exports.repositories import (
     InMemoryExportBatchRepository,
     SqliteExportBatchRepository,
 )
+from app.evaluation.dashboard import EvaluationDashboardService
+from app.evaluation.history import (
+    EvaluationAttemptRepository,
+    InMemoryEvaluationAttemptRepository,
+    SqliteEvaluationAttemptRepository,
+)
 from app.integrations.adapters import MockAccountingAdapter
 from app.integrations.repositories import (
     InMemoryIntegrationDeliveryRepository,
@@ -125,6 +131,8 @@ class AppContainer:
     reviews: ReviewTaskRepository
     correction_events: CorrectionEventRepository
     benchmark_history: BenchmarkHistoryRepository
+    evaluation_attempts: EvaluationAttemptRepository
+    evaluation_dashboard: EvaluationDashboardService
     workflow: DocumentWorkflowService
     upload_service: DocumentUploadService
     processing_service: DocumentProcessingService
@@ -185,6 +193,7 @@ def build_container(settings: Settings) -> AppContainer:
         reviews = SqliteReviewTaskRepository(store)
         correction_events = SqliteCorrectionEventRepository(store)
         benchmark_history = SqliteBenchmarkHistoryRepository(store)
+        evaluation_attempts = SqliteEvaluationAttemptRepository(store)
         backoffice_work_items = SqliteWorkItemRepository(store)
         backoffice_plans = SqliteTaskPlanRepository(store)
         backoffice_drafts = SqliteActionDraftRepository(store)
@@ -204,6 +213,7 @@ def build_container(settings: Settings) -> AppContainer:
         reviews = InMemoryReviewTaskRepository()
         correction_events = InMemoryCorrectionEventRepository()
         benchmark_history = InMemoryBenchmarkHistoryRepository()
+        evaluation_attempts = InMemoryEvaluationAttemptRepository()
         backoffice_work_items = InMemoryWorkItemRepository()
         backoffice_plans = InMemoryTaskPlanRepository()
         backoffice_drafts = InMemoryActionDraftRepository()
@@ -223,6 +233,8 @@ def build_container(settings: Settings) -> AppContainer:
     upload_service = DocumentUploadService(
         storage, documents, jobs, audits, workflow, upload_scanner
     )
+    parser_provider = build_parser_provider(settings)
+    extractor_provider = build_extractor_provider(settings)
     processing_service = DocumentProcessingService(
         storage,
         documents,
@@ -230,8 +242,8 @@ def build_container(settings: Settings) -> AppContainer:
         audits,
         extractions,
         workflow,
-        build_parser_provider(settings),
-        build_extractor_provider(settings),
+        parser_provider,
+        extractor_provider,
         max_processing_attempts=settings.max_processing_attempts,
     )
     worker_service = DocumentProcessingWorker(jobs, processing_service)
@@ -253,6 +265,13 @@ def build_container(settings: Settings) -> AppContainer:
         audits=audits,
         workflow=workflow,
         invoice_exports=export_service,
+    )
+    evaluation_dashboard = EvaluationDashboardService(
+        settings=settings,
+        history=benchmark_history,
+        attempts=evaluation_attempts,
+        parser=parser_provider,
+        extractor=extractor_provider,
     )
     integration_service = InvoiceIntegrationService(
         documents,
@@ -329,6 +348,8 @@ def build_container(settings: Settings) -> AppContainer:
         reviews=reviews,
         correction_events=correction_events,
         benchmark_history=benchmark_history,
+        evaluation_attempts=evaluation_attempts,
+        evaluation_dashboard=evaluation_dashboard,
         workflow=workflow,
         upload_service=upload_service,
         processing_service=processing_service,

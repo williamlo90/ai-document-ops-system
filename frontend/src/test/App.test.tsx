@@ -5,6 +5,7 @@ import App from '../App'
 import type { InvoiceItem, InvoiceListResponse } from '../features/invoices/types'
 import type { ReviewWorklist } from '../features/review/types'
 import type { ExportBatch, ExportInvoiceItem, ExportWorkspaceResponse } from '../features/exports/types'
+import type { EvaluationDashboard } from '../features/evaluation/types'
 import { queryClient } from '../queryClient'
 
 vi.mock('../components/PdfPreview', () => ({
@@ -253,5 +254,65 @@ describe('exports workspace', () => {
     expect(await screen.findByText('All invoices approved')).toBeInTheDocument()
     const panel = screen.getByRole('complementary', { name: 'Export batch' })
     expect(within(panel).getByRole('button', { name: 'Create export' })).toBeEnabled()
+  })
+})
+
+describe('evaluation workspace', () => {
+  it('keeps synthetic claims bounded and makes comparisons inspectable', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/evaluation')
+    const run = {
+      id: 'run-current', label: 'External holdout', dataset_id: 'invoice_holdout_v2', dataset_version: '2.0', dataset_class: 'synthetic', split: 'external_holdout', provider: 'mistral + openai', source: 'public_evidence', source_document: 'docs/evidence/run.json', observed_at: now,
+      documents: 10, fields_matched: 79, fields_total: 80, field_match: .9875, validation_match: 1, document_exact_match: .9, approval_blocker_accuracy: 1, provider_errors: 0, duration_seconds: 65.8, duration_kind: 'wall_clock' as const, provider_calls: 20, estimated_cost_usd: .0636, cost_status: 'estimated', cost_claim: 'Estimated from recorded usage.', passed: true, verdict_available: true, by_field: { invoice_number: 1, tax: .9 }, failure_taxonomy: { hallucinated_value: 1 }, limitations: ['Synthetic documents only.', 'No production accuracy claim.'], is_current: true,
+    }
+    const dashboard: EvaluationDashboard = {
+      gates: { field_match: .95, validation_match: .95, regression_tolerance_pp: .5 },
+      preflight: { dataset_id: 'invoice_scenarios_v1', dataset_version: '1.0', dataset_label: 'Invoice scenarios', available_documents: 20, documents: 3, limited: true, provider_calls_estimate: 6, estimated_cost_usd: null, cost_note: 'Cost is calculated from observed provider usage after completion.', runnable: true, provider: 'mistral + openai' },
+      runs: [
+        { id: 'run-current', label: 'External holdout', dataset_id: 'invoice_holdout_v2', split: 'external_holdout', observed_at: now, passed: true, verdict_available: true, current: true },
+        { id: 'run-previous', label: 'Comparable baseline', dataset_id: 'invoice_holdout_v2', split: 'external_holdout', observed_at: '2026-06-26T09:41:00+00:00', passed: true, verdict_available: true, current: false },
+      ],
+      selected_run: run,
+      trend: [
+        { id: 'run-previous', observed_at: '2026-06-26T09:41:00+00:00', field_match: .98, validation_match: .98, documents: 10, provider_errors: 0, estimated_cost_usd: .06, selected: false },
+        { id: 'run-current', observed_at: now, field_match: .9875, validation_match: 1, documents: 10, provider_errors: 0, estimated_cost_usd: .0636, selected: true },
+      ],
+      regression: { comparison_run_id: 'run-previous', comparison_observed_at: '2026-06-26T09:41:00+00:00', tolerance_pp: .5, comparable_fields: 2, improved: 1, stable: 0, regressed: 1, new_fields: 0, excluded_fields: 0, new_failures: 0 },
+      fields: [
+        { field: 'invoice_number', label: 'Invoice number', current: 1, previous: .98, delta_pp: 2, status: 'improved', current_matches: 10, current_denominator: 10, previous_matches: 10, previous_denominator: 10 },
+        { field: 'tax', label: 'Tax', current: .9, previous: .92, delta_pp: -2, status: 'regressed', current_matches: 9, current_denominator: 10, previous_matches: 9, previous_denominator: 10 },
+      ],
+      scenario_coverage: { dataset_id: 'invoice_scenarios_v1', dataset_version: '1.0', claim_boundary: 'Coverage is case inventory, not accuracy.', included_in_selected_run: false, groups: [{ id: 'missing', label: 'Missing fields', current: 4, target: 5, coverage: .8, remaining: 1, case_ids: ['missing_vendor', 'missing_date'] }] },
+      attempts: [],
+    }
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'Administrator', user_id: 'admin', workspace_id: 'default', role: 'administrator', is_admin: true })
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path.startsWith('/evaluation/dashboard?')) return json(dashboard)
+      return json({ detail: `Unexpected request: ${path}` }, 404)
+    }))
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Evaluation' })).toBeInTheDocument()
+    expect(screen.getByText('Synthetic evidence')).toBeInTheDocument()
+    expect(screen.getByText(/directional, not production accuracy/i)).toBeInTheDocument()
+    expect((await screen.findAllByText('Estimated cost'))[0].closest('.ops-panel')).toHaveTextContent('$0.0636')
+
+    await user.click(screen.getByText('Regressed').closest('button')!)
+    expect(screen.getByText('Tax')).toBeInTheDocument()
+    expect(screen.queryByText('Invoice number')).not.toBeInTheDocument()
+    await user.click(screen.getByText('Tax').closest('tr')!)
+    expect(await screen.findByRole('dialog', { name: 'Tax' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close details' }))
+
+    await user.click(screen.getByRole('button', { name: /missing fields/i }))
+    expect(await screen.findByRole('dialog', { name: 'Missing fields' })).toHaveTextContent('Coverage is case inventory, not accuracy.')
+    await user.click(screen.getByRole('button', { name: 'Close details' }))
+
+    await user.click(screen.getByRole('button', { name: 'Run evaluation' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Run evaluation?' })
+    expect(within(dialog).getByText('3 of 20 (safety cap)')).toBeInTheDocument()
+    expect(within(dialog).getByText('Calculated after completion')).toBeInTheDocument()
+    expect(within(dialog).getByText('6')).toBeInTheDocument()
   })
 })

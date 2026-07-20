@@ -21,6 +21,7 @@ from app.api.agentops import router as agentops_router
 from app.api.backoffice import router as backoffice_router
 from app.api.documents import router as documents_router
 from app.api.exports import router as exports_router
+from app.api.evaluation import router as evaluation_router
 from app.api.exceptions import router as exceptions_router
 from app.api.integrations import router as integrations_router
 from app.api.invoices import router as invoices_router
@@ -99,6 +100,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(review_router)
     app.include_router(exceptions_router)
     app.include_router(exports_router)
+    app.include_router(evaluation_router)
     app.include_router(integrations_router)
     app.include_router(metrics_router)
     app.include_router(providers_router)
