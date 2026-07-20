@@ -544,6 +544,111 @@ class ApiTests(unittest.TestCase):
         self.assertIn("text/csv", exported.headers["content-type"])
         self.assertIn("Missing invoice number", exported.text)
 
+    def test_export_batch_is_eligible_idempotent_and_downloadable(self) -> None:
+        document_id = self._upload_document()
+        self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        approved = self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
+        self.assertEqual(approved.status_code, 200)
+
+        workspace = self.client.get("/exports/workspace?view=ready", headers=HEADERS)
+        self.assertEqual(workspace.status_code, 200)
+        self.assertEqual(workspace.json()["summary"]["ready"]["count"], 1)
+        self.assertEqual(workspace.json()["capabilities"]["destinations"][0]["id"], "csv_download")
+        self.assertFalse(workspace.json()["capabilities"]["scheduling"])
+
+        created = self.client.post(
+            "/exports/batches",
+            headers=HEADERS,
+            json={"document_ids": [document_id], "mode": "ready"},
+        )
+        self.assertEqual(created.status_code, 200)
+        batch_id = created.json()["batch"]["id"]
+        self.assertTrue(
+            all(
+                check["state"] == "passed"
+                for check in created.json()["batch"]["eligibility"]
+            )
+        )
+
+        execution_headers = {**HEADERS, "Idempotency-Key": "export-batch-test-001"}
+        first = self.client.post(
+            f"/exports/batches/{batch_id}/execute", headers=execution_headers
+        )
+        replay = self.client.post(
+            f"/exports/batches/{batch_id}/execute", headers=execution_headers
+        )
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(first.json()["run"]["id"], replay.json()["run"]["id"])
+        self.assertEqual(first.json()["run"]["status"], "succeeded")
+
+        run_id = first.json()["run"]["id"]
+        downloaded = self.client.get(f"/exports/runs/{run_id}/download", headers=HEADERS)
+        after = self.client.get("/exports/workspace?view=exported", headers=HEADERS)
+        rejected = self.client.post(
+            "/exports/batches",
+            headers=HEADERS,
+            json={"document_ids": [document_id], "mode": "ready"},
+        )
+
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertIn("text/csv", downloaded.headers["content-type"])
+        self.assertIn("document_id,vendor_name", downloaded.text)
+        self.assertEqual(after.json()["summary"]["exported"]["count"], 1)
+        self.assertEqual(rejected.status_code, 409)
+        self.assertIn("already exported", rejected.text)
+
+    def test_export_batch_and_artifact_survive_sqlite_restart(self) -> None:
+        settings = Settings(
+            app_env="test",
+            admin_token=TOKEN,
+            upload_root=Path(self.temp_dir.name) / "export-uploads",
+            max_upload_bytes=1000,
+            storage_backend="sqlite",
+            sqlite_path=Path(self.temp_dir.name) / "export-batches.sqlite3",
+        )
+        first_client = TestClient(create_app(settings))
+        upload = first_client.post(
+            "/documents/upload",
+            headers=HEADERS,
+            files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
+        )
+        document_id = upload.json()["document"]["id"]
+        first_client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        first_client.post(f"/review/{document_id}/approve", headers=HEADERS)
+        created = first_client.post(
+            "/exports/batches",
+            headers=HEADERS,
+            json={"document_ids": [document_id], "mode": "ready"},
+        )
+        batch_id = created.json()["batch"]["id"]
+        first_client.app.state.container.documents.store.connection.close()
+
+        second_client = TestClient(create_app(settings))
+        restored = second_client.get(
+            f"/exports/workspace?view=in_batch&batch_id={batch_id}",
+            headers=HEADERS,
+        )
+        executed = second_client.post(
+            f"/exports/batches/{batch_id}/execute",
+            headers={**HEADERS, "Idempotency-Key": "persistent-export-001"},
+        )
+        run_id = executed.json()["run"]["id"]
+        second_client.app.state.container.documents.store.connection.close()
+
+        third_client = TestClient(create_app(settings))
+        run = third_client.get(f"/exports/runs/{run_id}", headers=HEADERS)
+        downloaded = third_client.get(f"/exports/runs/{run_id}/download", headers=HEADERS)
+        third_client.app.state.container.documents.store.connection.close()
+
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(restored.json()["batch"]["id"], batch_id)
+        self.assertEqual(executed.status_code, 200)
+        self.assertEqual(run.status_code, 200)
+        self.assertEqual(run.json()["run"]["status"], "succeeded")
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertIn("document_id,vendor_name", downloaded.text)
+
     def test_process_unknown_document_is_not_found(self) -> None:
         response = self.client.post(f"/documents/{uuid4()}/process", headers=HEADERS)
 

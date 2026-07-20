@@ -84,6 +84,12 @@ from app.documents.sqlite_repositories import (
 from app.documents.worker import DocumentProcessingWorker
 from app.documents.workflow import DocumentWorkflowService
 from app.exports.services import InvoiceExportService
+from app.exports.batch_service import ExportBatchService
+from app.exports.repositories import (
+    ExportBatchRepository,
+    InMemoryExportBatchRepository,
+    SqliteExportBatchRepository,
+)
 from app.integrations.adapters import MockAccountingAdapter
 from app.integrations.repositories import (
     InMemoryIntegrationDeliveryRepository,
@@ -126,6 +132,8 @@ class AppContainer:
     review_service: ReviewService
     correction_feedback: CorrectionFeedbackService
     export_service: InvoiceExportService
+    export_batches: ExportBatchRepository
+    export_batch_service: ExportBatchService
     integration_deliveries: IntegrationDeliveryRepository
     integration_service: InvoiceIntegrationService
     metrics_service: MetricsService
@@ -187,6 +195,7 @@ def build_container(settings: Settings) -> AppContainer:
         scenario_evaluations = SqliteScenarioEvaluationRepository(store)
         notifications = SqliteNotificationRepository(store)
         integration_deliveries = SqliteIntegrationDeliveryRepository(store)
+        export_batches = SqliteExportBatchRepository(store)
     elif settings.storage_backend.strip().lower() == "memory":
         documents = InMemoryDocumentRepository()
         jobs = InMemoryJobRepository()
@@ -205,6 +214,7 @@ def build_container(settings: Settings) -> AppContainer:
         scenario_evaluations = InMemoryScenarioEvaluationRepository()
         notifications = InMemoryNotificationRepository()
         integration_deliveries = InMemoryIntegrationDeliveryRepository()
+        export_batches = InMemoryExportBatchRepository()
     else:
         raise ValueError(f"Unsupported storage backend: {settings.storage_backend}")
     agentops_service = AgentOpsEvaluationService()
@@ -235,6 +245,15 @@ def build_container(settings: Settings) -> AppContainer:
         correction_feedback,
     )
     export_service = InvoiceExportService(documents, extractions, audits, workflow)
+    export_batch_service = ExportBatchService(
+        settings=settings,
+        repository=export_batches,
+        documents=documents,
+        extractions=extractions,
+        audits=audits,
+        workflow=workflow,
+        invoice_exports=export_service,
+    )
     integration_service = InvoiceIntegrationService(
         documents,
         extractions,
@@ -317,6 +336,8 @@ def build_container(settings: Settings) -> AppContainer:
         review_service=review_service,
         correction_feedback=correction_feedback,
         export_service=export_service,
+        export_batches=export_batches,
+        export_batch_service=export_batch_service,
         integration_deliveries=integration_deliveries,
         integration_service=integration_service,
         metrics_service=metrics_service,

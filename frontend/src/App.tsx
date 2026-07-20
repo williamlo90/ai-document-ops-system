@@ -11,6 +11,7 @@ import { InvoicesPage } from './pages/InvoicesPage'
 import { ReviewQueuePage } from './pages/ReviewQueuePage'
 import { ReviewWorkspacePage } from './pages/ReviewWorkspacePage'
 import { ExceptionsPage } from './pages/ExceptionsPage'
+import { ExportsPage } from './pages/ExportsPage'
 import { Button, ErrorState, LoadingState } from './shared/ui'
 import { queryClient } from './queryClient'
 import './product.css'
@@ -54,7 +55,7 @@ function SessionGate() {
       <Route path="review-queue" element={<ReviewQueuePage />} />
       <Route path="review/:documentId" element={<ReviewWorkspacePage />} />
       <Route path="exceptions" element={<ExceptionsPage />} />
-      <Route path="exports" element={<PlaceholderPage title="Exports" description="Prepare and track approved invoice exports." />} />
+      <Route path="exports" element={<ExportsPage />} />
       <Route path="evaluation" element={<PlaceholderPage title="Evaluation" description="Measure invoice reading quality against labeled cases." />} />
       <Route path="system" element={<PlaceholderPage title="System" description="Monitor invoice processing and connected services." />} />
       <Route path="settings" element={<PlaceholderPage title="Settings" description="Manage supported workspace preferences." />} />

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import type { InvoiceItem, InvoiceListResponse } from '../features/invoices/types'
 import type { ReviewWorklist } from '../features/review/types'
+import type { ExportBatch, ExportInvoiceItem, ExportWorkspaceResponse } from '../features/exports/types'
 import { queryClient } from '../queryClient'
 
 vi.mock('../components/PdfPreview', () => ({
@@ -210,5 +211,47 @@ describe('exceptions workspace', () => {
     await user.type(input, 'Senior Reviewer')
     await user.click(within(dialog).getByRole('button', { name: 'Save assignment' }))
     expect(await screen.findByText('Assigned to Senior Reviewer')).toBeInTheDocument()
+  })
+})
+
+describe('exports workspace', () => {
+  it('builds a server-validated batch and exposes only configured capabilities', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/exports')
+    const exportInvoice: ExportInvoiceItem = {
+      id: 'doc-1', invoice_label: 'INV-001', filename: 'acme.pdf', vendor_name: 'Acme Logistics', approved_by: 'Reviewer', approved_at: now, total: '1250.00', currency: 'USD', status: 'ready', issue: null, batch_id: null, updated_at: now,
+    }
+    const base: ExportWorkspaceResponse = {
+      capabilities: { destinations: [{ id: 'csv_download', label: 'CSV download', formats: ['csv'], mode: 'file_download' }], scheduling: false, drafts: true, retry: true, configured_provider: 'csv_download', destination_available: true },
+      summary: { ready: { count: 1, amount: '1250.00', currency: 'USD' }, in_batch: { count: 0, amount: '0', currency: null }, exported: { count: 0, amount: '0', currency: null }, blocked: { count: 0, amount: '0', currency: null } },
+      items: [exportInvoice], page: 1, page_size: 10, total: 1, total_pages: 1,
+      filters: { vendors: ['Acme Logistics'], currencies: ['USD'], approvers: ['Reviewer'] }, batch: null, recent_runs: [],
+    }
+    const batch: ExportBatch = {
+      id: 'batch-1', name: null, status: 'ready', destination: 'csv_download', destination_label: 'CSV download', format: 'csv', created_by: 'Administrator', invoice_count: 1, total_amount: '1250.00', currency: 'USD', invoices: [{ ...exportInvoice, status: 'in_batch', batch_id: 'batch-1' }], eligibility: [
+        { code: 'all_approved', label: 'All invoices approved', state: 'passed', detail: 'Verified from current records.' },
+        { code: 'destination_available', label: 'Destination is available', state: 'passed', detail: 'Verified from current records.' },
+      ], last_run_id: null, created_at: now, updated_at: now,
+    }
+    let batchCreated = false
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'Administrator', user_id: 'admin', workspace_id: 'default', role: 'administrator', is_admin: true })
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path.startsWith('/exports/workspace?')) return json(batchCreated ? { ...base, items: [{ ...exportInvoice, status: 'in_batch', batch_id: 'batch-1' }], summary: { ...base.summary, ready: { count: 0, amount: '0', currency: null }, in_batch: { count: 1, amount: '1250.00', currency: 'USD' } }, batch } : base)
+      if (path === '/exports/batches' && init?.method === 'POST') { batchCreated = true; return json({ batch, accepted: ['doc-1'], rejected: [] }) }
+      return json({ detail: `Unexpected request: ${path}` }, 404)
+    }))
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Exports' })).toBeInTheDocument()
+    expect(screen.queryByText('NetSuite')).not.toBeInTheDocument()
+    expect(screen.queryByText(/schedule export/i)).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('checkbox', { name: 'Select INV-001' }))
+    await user.click(screen.getByRole('button', { name: /add to export/i }))
+    expect(await screen.findByText('1 invoices added to export batch.')).toBeInTheDocument()
+    expect(await screen.findByText('CSV download')).toBeInTheDocument()
+    expect(await screen.findByText('All invoices approved')).toBeInTheDocument()
+    const panel = screen.getByRole('complementary', { name: 'Export batch' })
+    expect(within(panel).getByRole('button', { name: 'Create export' })).toBeEnabled()
   })
 })

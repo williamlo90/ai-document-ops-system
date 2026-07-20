@@ -50,14 +50,8 @@ class InvoiceExportService:
         approved_documents = self.documents.list_by_workspace_and_status(
             context.workspace_id, DocumentStatus.APPROVED
         )
-        rows = [self._row_for_document(document) for document in approved_documents]
-        output = StringIO()
-        writer = csv.DictWriter(output, fieldnames=INVOICE_CSV_HEADERS, lineterminator="\n")
-        writer.writeheader()
-        for _document, row in rows:
-            writer.writerow({key: escape_spreadsheet_formula(value) for key, value in row.items()})
-        csv_text = output.getvalue()
-        for document, _row in rows:
+        csv_text = self.render_documents_csv(approved_documents)
+        for document in approved_documents:
             self.audits.add(
                 self.workflow.transition(
                     document,
@@ -68,6 +62,15 @@ class InvoiceExportService:
             )
             self.documents.add(document)
         return csv_text
+
+    def render_documents_csv(self, documents: list[DocumentRecord]) -> str:
+        rows = [self._row_for_document(document) for document in documents]
+        output = StringIO()
+        writer = csv.DictWriter(output, fieldnames=INVOICE_CSV_HEADERS, lineterminator="\n")
+        writer.writeheader()
+        for _document, row in rows:
+            writer.writerow({key: escape_spreadsheet_formula(value) for key, value in row.items()})
+        return output.getvalue()
 
     def export_predictions_json(self, context: SecurityContext) -> str:
         require_admin(context)

@@ -519,6 +519,12 @@ Exit criteria:
 
 #### Sprint UI-05: Exports
 
+Status: Complete on 2026-07-20. The page now provides persistent server-owned batches and runs,
+eligibility and duplicate-membership guards, idempotent execution, restart-safe CSV artifacts,
+failure-aware retry contracts, URL-backed views, and responsive batch/run drawers. The only
+advertised destination is the configured `CSV download` capability; unsupported NetSuite and
+scheduling claims were deliberately replaced with Create export and Save draft.
+
 References:
 
 - `docs/assets/ui-reference/modern-operations-exports.png`

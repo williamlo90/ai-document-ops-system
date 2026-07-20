@@ -8,8 +8,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (!contentType.includes('application/json')) {
     throw new Error(`Unexpected response from ${path}. Check the API proxy configuration.`)
   }
-  const payload = await response.json() as { detail?: string }
-  if (!response.ok) throw new Error(payload.detail ?? `Request failed with ${response.status}`)
+  const payload = await response.json() as { detail?: string | { message?: string } }
+  if (!response.ok) {
+    const message = typeof payload.detail === 'string' ? payload.detail : payload.detail?.message
+    throw new Error(message ?? `Request failed with ${response.status}`)
+  }
   return payload as T
 }
 
