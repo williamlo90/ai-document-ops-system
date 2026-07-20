@@ -2,10 +2,14 @@
 
 Status: Working concepts pending external critique and final approval.
 
-The two current visual references establish the product shell:
+The three current visual references establish the product shell:
 
 - [Overview reference](assets/ui-reference/modern-operations-overview.png)
+- [Invoices reference](assets/ui-reference/modern-operations-invoices.png)
 - [Review Queue reference](assets/ui-reference/modern-operations-review-queue.png)
+
+The saved Invoices reference supersedes the original Invoices concept below. The concept remains
+available only as iteration history.
 
 The following concepts extend that direction across the rest of the product. They are not final
 implementation references yet:
@@ -55,4 +59,3 @@ hierarchy, and consistency before discussing colors or visual polish. Proposed r
 
 Return revised pages as individual PNG files with stable names. The revised images replace these
 concepts as final references only after explicit approval.
-

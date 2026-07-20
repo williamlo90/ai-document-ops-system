@@ -9,13 +9,15 @@ frontend remains functional, but it is not the final presentation target.
 
 - Product style: modern finance-operations SaaS
 - Overview reference: [modern-operations-overview.png](assets/ui-reference/modern-operations-overview.png)
+- Invoices reference: [modern-operations-invoices.png](assets/ui-reference/modern-operations-invoices.png)
 - Review Queue reference: [modern-operations-review-queue.png](assets/ui-reference/modern-operations-review-queue.png)
 
 ## Working Concept Batch
 
-Seven remaining desktop page concepts and their handoff instructions are available in
+Seven original desktop page concepts and their handoff instructions are available in
 [`ui-concept-handoff.md`](ui-concept-handoff.md). These files extend the approved direction but
-remain drafts until revised images are explicitly accepted as final references.
+remain drafts until revised images are explicitly accepted as final references. The original
+Invoices concept is superseded by the saved Invoices redesign reference above.
 
 ## Design Contract
 
