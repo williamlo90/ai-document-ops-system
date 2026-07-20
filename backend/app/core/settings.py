@@ -31,9 +31,9 @@ class Settings:
     mistral_ocr_model: str = "mistral-ocr-latest"
     mistral_allowed_hosts: tuple[str, ...] = ("api.mistral.ai",)
     extractor_api_key: str | None = None
-    extractor_endpoint: str = ""
-    extractor_model: str = ""
-    extractor_allowed_hosts: tuple[str, ...] = ("api.groq.com",)
+    extractor_endpoint: str = "https://api.openai.com/v1/chat/completions"
+    extractor_model: str = "gpt-5.4-mini-2026-03-17"
+    extractor_allowed_hosts: tuple[str, ...] = ("api.openai.com",)
     benchmark_real_provider_max_documents: int = 3
     max_processing_attempts: int = 3
     provider_timeout_seconds: int = 60
@@ -102,9 +102,13 @@ def load_settings() -> Settings:
         mistral_ocr_model=_setting(config, "MISTRAL_OCR_MODEL", "mistral-ocr-latest"),
         mistral_allowed_hosts=_csv(_setting(config, "MISTRAL_ALLOWED_HOSTS", "api.mistral.ai")),
         extractor_api_key=_setting(config, "EXTRACTOR_API_KEY"),
-        extractor_endpoint=_setting(config, "EXTRACTOR_ENDPOINT", ""),
-        extractor_model=_setting(config, "EXTRACTOR_MODEL", ""),
-        extractor_allowed_hosts=_csv(_setting(config, "EXTRACTOR_ALLOWED_HOSTS", "api.groq.com")),
+        extractor_endpoint=_setting(
+            config,
+            "EXTRACTOR_ENDPOINT",
+            "https://api.openai.com/v1/chat/completions",
+        ),
+        extractor_model=_setting(config, "EXTRACTOR_MODEL", "gpt-5.4-mini-2026-03-17"),
+        extractor_allowed_hosts=_csv(_setting(config, "EXTRACTOR_ALLOWED_HOSTS", "api.openai.com")),
         benchmark_real_provider_max_documents=int(
             _setting(config, "BENCHMARK_REAL_PROVIDER_MAX_DOCUMENTS", "3")
         ),

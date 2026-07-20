@@ -21,6 +21,8 @@ class SettingsTests(unittest.TestCase):
                 "APP_WORKSPACE_ID",
                 "PARSER_PROVIDER",
                 "EXTRACTOR_PROVIDER",
+                "EXTRACTOR_ENDPOINT",
+                "EXTRACTOR_MODEL",
                 "MISTRAL_API_KEY",
                 "DATABASE_URL",
                 "DOCUMENT_STORAGE_BACKEND",
@@ -74,7 +76,9 @@ class SettingsTests(unittest.TestCase):
                         "DOCUMENT_RETENTION_DAYS=45",
                         "PARSER_CACHE_RETENTION_HOURS=12",
                         "MISTRAL_ALLOWED_HOSTS=api.mistral.ai,ocr.example.test",
-                        "EXTRACTOR_ALLOWED_HOSTS=api.groq.com",
+                        "EXTRACTOR_ENDPOINT=https://api.openai.com/v1/chat/completions",
+                        "EXTRACTOR_MODEL=gpt-5.4-mini-2026-03-17",
+                        "EXTRACTOR_ALLOWED_HOSTS=api.openai.com",
                     ]
                 ),
                 encoding="utf-8",
@@ -110,7 +114,12 @@ class SettingsTests(unittest.TestCase):
             settings.mistral_allowed_hosts,
             ("api.mistral.ai", "ocr.example.test"),
         )
-        self.assertEqual(settings.extractor_allowed_hosts, ("api.groq.com",))
+        self.assertEqual(
+            settings.extractor_endpoint,
+            "https://api.openai.com/v1/chat/completions",
+        )
+        self.assertEqual(settings.extractor_model, "gpt-5.4-mini-2026-03-17")
+        self.assertEqual(settings.extractor_allowed_hosts, ("api.openai.com",))
 
     def test_environment_variable_overrides_env_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

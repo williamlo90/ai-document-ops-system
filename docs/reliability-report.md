@@ -15,7 +15,7 @@ The project separates three questions that should not be collapsed into one scor
 - dataset: `examples/benchmark/datasets/invoice_scenarios_v1`
 - size: 20 deterministic synthetic PDF invoices
 - parser: Mistral OCR (`mistral-ocr-latest`)
-- extractor: Groq OpenAI-compatible endpoint (`llama-3.3-70b-versatile`)
+- extractor: retired OpenAI-compatible provider; current evaluation uses the OpenAI API instead
 
 | Iteration | Field match | Fully matched documents | Validation behavior | Provider errors |
 | --- | ---: | ---: | ---: | ---: |

@@ -48,7 +48,7 @@ not treat the candidate as a clean release commit and did not modify application
 | Architecture: private document storage | generated storage keys, root traversal checks, auth content endpoint | SEC-004 and SEC-006 for cache and lifecycle |
 | Architecture: approval-gated export | review/export and integration tests | SEC-007 for ambiguous outbound replay |
 | Portfolio claim: evidence-bound extraction | exact-source grounding and deterministic validation tests | SEC-008: adversarial prompt-injection evidence missing |
-| Provider-backed workflow | Mistral and Groq adapters and prior provider evidence | SEC-005: egress policy, HTTPS allowlist, ZDR, region, and DPA not bound |
+| Provider-backed workflow | Mistral and OpenAI adapters plus prior provider evidence | SEC-005: egress policy, HTTPS allowlist, ZDR, region, and DPA not bound |
 
 ## Checks Not Run In The Baseline
 
@@ -71,7 +71,7 @@ not treat the candidate as a clean release commit and did not modify application
 - Test uploads used temporary directories and synthetic marker content.
 - Security tools were installed under the OS temporary directory, not into the project environment.
 - No application code, credentials, private invoices, database, or existing user modification was changed.
-- Network access was limited to dependency advisory services and official Mistral, Groq, and Black documentation.
+- Network access was limited to dependency advisory services and official provider and formatter documentation.
 
 ## Baseline Recommendation
 

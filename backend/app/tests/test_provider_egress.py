@@ -17,25 +17,25 @@ from app.providers.http_transport import RejectRedirects, post_json_without_redi
 class ProviderEndpointPolicyTests(unittest.TestCase):
     def test_accepts_exact_allowlisted_https_host(self) -> None:
         validate_provider_endpoint(
-            "https://api.groq.com/openai/v1/chat/completions",
-            ("api.groq.com",),
+            "https://api.openai.com/v1/chat/completions",
+            ("api.openai.com",),
             label="invoice extractor",
         )
 
     def test_rejects_insecure_or_confusing_provider_urls(self) -> None:
         cases = (
-            "http://api.groq.com/openai/v1/chat/completions",
-            "https://api.groq.com.evil.test/openai/v1/chat/completions",
-            "https://api.groq.com:8443/openai/v1/chat/completions",
-            "https://user:pass@api.groq.com/openai/v1/chat/completions",
-            "https://api.groq.com/openai/v1/chat/completions?token=secret",
-            "https://api.groq.com/openai/v1/chat/completions#fragment",
+            "http://api.openai.com/v1/chat/completions",
+            "https://api.openai.com.evil.test/v1/chat/completions",
+            "https://api.openai.com:8443/v1/chat/completions",
+            "https://user:pass@api.openai.com/v1/chat/completions",
+            "https://api.openai.com/v1/chat/completions?token=secret",
+            "https://api.openai.com/v1/chat/completions#fragment",
         )
         for endpoint in cases:
             with self.subTest(endpoint=endpoint), self.assertRaises(ValueError):
                 validate_provider_endpoint(
                     endpoint,
-                    ("api.groq.com",),
+                    ("api.openai.com",),
                     label="invoice extractor",
                 )
 
@@ -57,7 +57,7 @@ class ProviderHttpTransportTests(unittest.TestCase):
     def test_transport_installs_redirect_rejection_and_does_not_retry_redirect(self) -> None:
         with patch("app.providers.http_transport.urllib.request.build_opener") as build_opener:
             build_opener.return_value.open.side_effect = urllib.error.HTTPError(
-                url="https://api.groq.com/start",
+                url="https://api.openai.com/start",
                 code=302,
                 msg="redirect",
                 hdrs={"Location": "https://attacker.test/collect"},
@@ -65,7 +65,7 @@ class ProviderHttpTransportTests(unittest.TestCase):
             )
             with self.assertRaises(ProviderError) as caught:
                 post_json_without_redirects(
-                    "https://api.groq.com/start",
+                    "https://api.openai.com/start",
                     {"document": "private"},
                     {"Authorization": "Bearer secret"},
                     timeout_seconds=10,

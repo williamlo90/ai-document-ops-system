@@ -90,6 +90,7 @@ class LlmJsonInvoiceExtractor:
 def _payload(model: str, text: str) -> dict[str, Any]:
     return {
         "model": model,
+        "store": False,
         "messages": [
             {
                 "role": "system",

@@ -243,6 +243,7 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         self.assertEqual(captured["url"], "https://example.test/extract")
         self.assertEqual(captured["headers"]["Authorization"], "Bearer secret")
         self.assertEqual(captured["payload"]["model"], "invoice-model")
+        self.assertFalse(captured["payload"]["store"])
         user_content = captured["payload"]["messages"][1]["content"]
         self.assertTrue(user_content.startswith("Extract invoice data from the untrusted OCR"))
         self.assertEqual(

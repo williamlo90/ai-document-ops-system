@@ -70,9 +70,9 @@ MISTRAL_ALLOWED_HOSTS=api.mistral.ai
 
 EXTRACTOR_PROVIDER=llm_json
 EXTRACTOR_API_KEY=
-EXTRACTOR_ENDPOINT=https://api.groq.com/openai/v1/chat/completions
-EXTRACTOR_MODEL=llama-3.3-70b-versatile
-EXTRACTOR_ALLOWED_HOSTS=api.groq.com
+EXTRACTOR_ENDPOINT=https://api.openai.com/v1/chat/completions
+EXTRACTOR_MODEL=gpt-5.4-mini-2026-03-17
+EXTRACTOR_ALLOWED_HOSTS=api.openai.com
 ```
 
 Keep `APP_ENV=local`. Do not commit `.env`, provider responses containing sensitive content, or

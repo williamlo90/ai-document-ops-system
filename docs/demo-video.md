@@ -23,7 +23,8 @@ responses are deterministic and stateful so the short product walkthrough is rep
 does not depend on hosted-provider latency or credentials.
 
 The recording is therefore evidence of the UI workflow and decision boundaries, not an independent
-provider benchmark. Real Mistral OCR and Groq extraction results, the 20-PDF scenario evaluation,
+provider benchmark. Historical Mistral OCR and retired-provider extraction results, the 20-PDF
+scenario evaluation,
 backend enforcement, and audit behavior are documented in the reliability report and case study.
 
 ## Regenerate

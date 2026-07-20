@@ -7,7 +7,7 @@ Run date: 15 July 2026
 - Dataset: `examples/benchmark/datasets/invoice_scenarios_v1`
 - Size: 20 deterministic synthetic PDF invoices
 - Parser: Mistral OCR (`mistral-ocr-latest`)
-- Extractor: Groq OpenAI-compatible endpoint (`llama-3.3-70b-versatile`)
+- Extractor: retired OpenAI-compatible provider; not part of the current runtime configuration
 - Environment: local Windows development run
 - Sensitive data: none
 

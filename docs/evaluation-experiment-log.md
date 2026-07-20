@@ -36,6 +36,14 @@ The tracked runs total an estimated **$0.544499** at the dated list prices. This
 checks and provider-backed integration tests. Provider billing dashboards remain authoritative,
 especially for failed calls that return no usage metadata.
 
+## OpenAI-Only Migration Smoke
+
+After removing the retired provider configuration, the committed synthetic sample was processed
+once through Mistral OCR and the OpenAI API. The run completed one OCR page with 813 input tokens,
+383 output tokens, and zero validation errors using `gpt-5.4-mini-2026-03-17`. Its estimated
+list-price cost was $0.006333. This is a configuration smoke check, not an accuracy experiment, and
+is intentionally excluded from the evaluation total above.
+
 ## Interpretation Rules
 
 - The V1 recovery run is a provider comparison on a previously opened holdout, not a new blind
@@ -52,6 +60,10 @@ especially for failed calls that return no usage metadata.
   source byte hash is therefore
   `3efd76e0c2c0d5cbe13439aa2d6d0dcae0dffe9c9140a1d3f903d1bf3b4d54fb`; targeted tests passed,
   but the public record does not pretend that this later byte state was the sealed-holdout state.
+- The subsequent OpenAI-only configuration migration added an explicit `store=false` request and
+  changed the current critical-code hash to
+  `4d1b2695e93a75e7b60e5122ef17c5c42262efedcf3c4781c436b0d7654d1765`. This hardening is
+  regression-tested but is not presented as a fresh sealed-holdout run.
 
 ## Public Evidence
 

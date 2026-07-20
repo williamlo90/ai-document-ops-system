@@ -14,7 +14,7 @@
 ## Implemented Controls
 
 - `MISTRAL_ALLOWED_HOSTS` defaults to `api.mistral.ai`.
-- `EXTRACTOR_ALLOWED_HOSTS` defaults to `api.groq.com`.
+- `EXTRACTOR_ALLOWED_HOSTS` defaults to `api.openai.com` after the current provider migration.
 - Real-provider factories and benchmark provider construction validate endpoints before creating a
   credentialed adapter.
 - Configured real-provider endpoints are validated during application startup.
@@ -35,7 +35,7 @@
 | Repository-wide Black check | Failed on 6 pre-existing files; carried into SEC-009 remediation rather than hidden or mixed into this finding |
 | Frontend unit tests | 13 passed |
 | Frontend lint and production build | Passed |
-| Actual ignored `.env` endpoint policy | Valid for `api.mistral.ai` and `api.groq.com`; credentials not printed |
+| Actual ignored `.env` endpoint policy | Valid for `api.mistral.ai` and `api.openai.com`; credentials not printed |
 | Runtime `/health` and `/ready` smoke | Passed |
 
 ## Residual Limitations

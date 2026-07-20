@@ -67,8 +67,9 @@ showed weaker accuracy than V2 and remains in the experiment log.
 - The dataset is synthetic and has no measured business baseline, time saving, or customer outcome.
 - The recorded runs used a dirty worktree. Matching critical-code and prompt fingerprints preserve
   the evaluated implementation identity. Ruff formatting after the run changed the source byte
-  hash without an intended behavior change; tests were rerun, but a clean-release run cannot
-  retroactively make this holdout blind again.
+  hash without an intended behavior change. A later OpenAI-only configuration migration also added
+  explicit `store=false`; tests were rerun, but a clean-release run cannot retroactively make this
+  holdout blind again.
 - No result here removes the requirement for a human reviewer before consequential execution.
 
 ## Evidence

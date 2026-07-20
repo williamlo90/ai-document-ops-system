@@ -48,7 +48,7 @@ In scope:
 - FastAPI authentication, sessions, authorization, workspace separation, and exposed routes
 - PDF upload, storage, preview, processing, review, correction, approval, export, and audit flows
 - React credential handling and role presentation
-- Mistral OCR and Groq extraction data flows
+- Mistral OCR and OpenAI extraction data flows
 - repository secret hygiene, Python and npm dependencies, GitHub Actions, and container posture
 - safe TestClient checks, existing security-focused tests, static analysis, and dependency advisories
 
@@ -71,7 +71,7 @@ Not run in the original baseline (secret scanning and container scanning were co
 | ID-01 | Browser session | Privileged local administrator session | Opaque process-local cookie |
 | ID-02 | Uploader/reviewer/admin API context | Authorization identity | Derived server-side from purpose-specific access tokens and bound into opaque sessions |
 | TP-01 | Mistral OCR | External subprocessor boundary | Receives the complete PDF as a base64 data URL |
-| TP-02 | Groq-hosted extractor | External subprocessor boundary | Receives OCR text and returns structured fields |
+| TP-02 | OpenAI extractor | External subprocessor boundary | Receives OCR text and returns structured fields |
 | TP-03 | S3-compatible storage | Optional external storage boundary | Private object plus short-lived presigned URL |
 
 ## Data Flow And Trust Boundaries
@@ -83,7 +83,7 @@ flowchart LR
     API -->|"private storage key"| STORE["Local or S3 storage"]
     API -->|"complete PDF"| OCR["Mistral OCR"]
     OCR -->|"OCR text"| API
-    API -->|"OCR text"| LLM["Groq extractor"]
+    API -->|"OCR text"| LLM["OpenAI extractor"]
     LLM -->|"structured proposal"| API
     API -->|"state, corrections, audit"| DB["Memory or SQLite"]
     API -->|"approved invoice only"| OUT["Accounting export boundary"]
@@ -118,9 +118,10 @@ Provider behavior is a configuration and contractual decision, not a code-only g
 - Mistral states that API inputs and outputs may be retained for 30 rolling days for abuse monitoring
   unless zero-data-retention is activated. See the official
   [Mistral privacy policy](https://legal.mistral.ai/terms/privacy-policy).
-- Groq states that inference customer data is not retained by default, but inputs and outputs may be
-  logged for reliability or abuse monitoring for up to 30 days unless ZDR is enabled; retained customer
-  data is located in the United States. See [Your Data in GroqCloud](https://console.groq.com/docs/your-data).
+- OpenAI states that API data is not used to train its models unless the customer explicitly opts
+  in. Default abuse-monitoring logs may contain prompts and responses and are retained for up to
+  30 days; Modified Abuse Monitoring and Zero Data Retention require approval. See
+  [OpenAI data controls](https://platform.openai.com/docs/models/default-usage-policies-by-endpoint).
 
 Before any real invoice is processed, the owner must decide permitted data classes, ZDR settings,
 region/jurisdiction, DPA terms, deletion responsibilities, incident ownership, and whether bank or tax

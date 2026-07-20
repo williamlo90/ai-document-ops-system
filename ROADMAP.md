@@ -76,11 +76,13 @@ Work:
 Observed evidence:
 
 - the committed sample invoice produced one OCR page and non-empty text through Mistral OCR
-- Groq JSON extraction returned nine non-empty invoice fields with no validation issue for the sample
+- the retired JSON extractor returned nine non-empty invoice fields with no validation issue for
+  the sample
 - processing stopped at `needs_review`; it did not auto-approve
 - the reviewer queue contained the invoice and explicit approval changed it to `approved`
 - the completed smoke flow recorded six audit events
-- invalid credentials produced real Mistral and Groq HTTP errors classified as non-retryable
+- invalid credentials produced real OCR and retired-extractor HTTP errors classified as
+  non-retryable
 - configurable provider timeouts now reach both HTTP clients instead of being silently fixed at 60 seconds
 - deterministic tests cover transient `429`/`5xx` classification, requeue, retry limits, and dead-letter behavior
 
