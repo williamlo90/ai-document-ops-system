@@ -11,6 +11,7 @@ frontend remains functional, but it is not the final presentation target.
 - Overview reference: [modern-operations-overview.png](assets/ui-reference/modern-operations-overview.png)
 - Invoices reference: [modern-operations-invoices.png](assets/ui-reference/modern-operations-invoices.png)
 - Review Queue reference: [modern-operations-review-queue.png](assets/ui-reference/modern-operations-review-queue.png)
+- Invoice Review Workspace reference: [modern-operations-invoice-review-workspace.png](assets/ui-reference/modern-operations-invoice-review-workspace.png)
 
 ## Working Concept Batch
 
@@ -27,6 +28,7 @@ their matching visual references:
 - [Overview motion specification](ui-motion-specs/overview-motion-spec.md)
 - [Invoices motion specification](ui-motion-specs/invoices-motion-spec.md)
 - [Review Queue motion specification](ui-motion-specs/review-queue-motion-spec.md)
+- [Invoice Review Workspace motion specification](ui-motion-specs/invoice-review-workspace-motion-spec.md)
 
 These documents describe intended behavior only. They do not indicate that motion has already
 been implemented.
