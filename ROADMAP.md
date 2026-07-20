@@ -256,6 +256,34 @@ Observed evidence:
 - frontend unit tests pass 15 of 15; browser tests pass 22 with 8 capture-only tests skipped across desktop, tablet, and mobile
 - automated accessibility checks report no serious or critical violations on the intake screen across all three viewports
 
+### Client-Deliverable SaaS UI Conversion
+
+Status: Design approval in progress from 20 July 2026. No implementation starts until the
+corresponding page mockup is approved.
+
+Goal: evolve the working invoice application into a cohesive, client-deliverable finance
+operations product with distinct business capabilities and a consistent application shell.
+
+The visual source of truth, page sequence, and design contract are recorded in
+[`docs/ui-redesign-reference.md`](docs/ui-redesign-reference.md). The saved Overview and Review
+Queue references define the active Modern Operations direction. Generated numbers and AI
+findings are presentation examples, not product claims.
+
+Work:
+
+1. Approve each primary page as a mockup before implementation.
+2. Map every approved screen to existing behavior and identify genuine capability gaps.
+3. Implement the shared shell and design tokens before converting individual feature pages.
+4. Preserve role boundaries, approval safeguards, audit evidence, and real application data.
+5. Verify each converted page at desktop, tablet, and mobile sizes before moving to the next.
+
+Exit criteria:
+
+- every primary capability has an approved screen and an obvious user purpose
+- implemented pages match the approved references in structure, density, hierarchy, and state treatment
+- no mock metric, finding, activity, confidence value, or business claim ships as live data
+- existing invoice workflow and security boundaries remain covered by automated tests
+
 ## Phase 4: Release Readiness
 
 Status: Starts after Phase 3.
