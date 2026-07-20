@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.api.backoffice import _work_item_detail
 from app.api.dependencies import AppContainer
@@ -15,7 +15,15 @@ from app.documents.status import InvalidStatusTransition
 
 
 class WorkflowCommandPayload(BaseModel):
-    reason: str = Field(min_length=1, max_length=500)
+    reason: str = Field(min_length=3, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 3:
+            raise ValueError("Reason must contain at least 3 non-whitespace characters")
+        return normalized
 
 
 def retry_document_command(

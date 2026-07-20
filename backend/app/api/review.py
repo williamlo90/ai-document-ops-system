@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.api.dependencies import AppContainer, get_container, require_review_context
 from app.api.document_workflow import current_work_item, extraction_or_none
@@ -13,7 +13,7 @@ from app.api.serializers import document_response, review_task_response
 from app.backoffice.workflow_projection import project_workflow
 from app.core.security import SecurityContext
 from app.documents.repositories import NotFoundError
-from app.documents.status import InvalidStatusTransition
+from app.documents.status import DocumentStatus, InvalidStatusTransition
 from app.extraction.schemas import InvoiceData, InvoiceLineItem
 from app.review.corrections import correction_event_to_dict
 
@@ -46,7 +46,15 @@ class ReviewSavePayload(BaseModel):
 
 
 class RejectPayload(BaseModel):
-    notes: str = ""
+    notes: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("notes")
+    @classmethod
+    def normalize_notes(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 3:
+            raise ValueError("A rejection reason is required")
+        return normalized
 
 
 @router.get("/queue")
@@ -219,7 +227,7 @@ def approve_review(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
     except InvalidStatusTransition as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return {"review_task": review_task_response(task)}
+    return _decision_response(document_id, task, container)
 
 
 @router.post("/{document_id}/reject")
@@ -235,7 +243,7 @@ def reject_review(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
     except InvalidStatusTransition as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    return {"review_task": review_task_response(task)}
+    return _decision_response(document_id, task, container)
 
 
 def _invoice_data(payload: CorrectedInvoicePayload) -> InvoiceData:
@@ -258,3 +266,23 @@ def _invoice_data(payload: CorrectedInvoicePayload) -> InvoiceData:
             for item in payload.line_items
         ),
     )
+
+
+def _decision_response(document_id: UUID, task, container: AppContainer) -> dict[str, object]:
+    document = container.documents.get(document_id)
+    audit_events = container.audits.list_for_document(document_id)
+    export_eligibility = (
+        "eligible" if document.status == DocumentStatus.APPROVED else "not_eligible"
+    )
+    return {
+        "review_task": review_task_response(task),
+        "document": document_response(document),
+        "decision": {
+            "status": task.status,
+            "actor": task.reviewed_by,
+            "recorded_at": task.reviewed_at.isoformat() if task.reviewed_at else None,
+            "note": task.reviewer_notes,
+            "audit_event_count": len(audit_events),
+            "export_eligibility": export_eligibility,
+        },
+    }

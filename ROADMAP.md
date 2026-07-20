@@ -448,6 +448,12 @@ Exit criteria:
 
 #### Sprint UI-03: Invoice Review Workspace
 
+Status: Complete on 2026-07-20. The workspace now uses the saved three-column reference,
+supports authenticated PDF inspection, grounded extracted-data editing and revalidation,
+server-enforced decision notes, confirmation and submission locks, and immediate recorded
+decision evidence. Responsive decision drawers and keyboard-accessible PDF controls were
+verified without fabricating document coordinates or validation totals.
+
 References:
 
 - `docs/assets/ui-reference/modern-operations-invoice-review-workspace.png`

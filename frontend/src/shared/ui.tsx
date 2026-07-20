@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react'
+import { forwardRef, type ButtonHTMLAttributes, type PropsWithChildren, type ReactNode } from 'react'
 import { AlertCircle, Inbox, LoaderCircle, Search, X } from 'lucide-react'
 
 export function PageHeader({ title, description, action, eyebrow }: { title: string; description?: string; action?: ReactNode; eyebrow?: string }) {
@@ -12,9 +12,9 @@ export function Panel({ children, className = '', ariaLabel }: PropsWithChildren
   return <section className={`ops-panel ${className}`.trim()} aria-label={ariaLabel}>{children}</section>
 }
 
-export function Button({ variant = 'secondary', className = '', children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'ghost' }) {
-  return <button className={`ops-button ops-button--${variant} ${className}`.trim()} {...props}>{children}</button>
-}
+export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'ghost' }>(function Button({ variant = 'secondary', className = '', children, ...props }, ref) {
+  return <button ref={ref} className={`ops-button ops-button--${variant} ${className}`.trim()} {...props}>{children}</button>
+})
 
 export function StatusBadge({ tone = 'neutral', children }: PropsWithChildren<{ tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'purple' }>) {
   return <span className={`ops-badge ops-badge--${tone}`}>{children}</span>

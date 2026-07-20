@@ -276,6 +276,12 @@ class ApiTests(unittest.TestCase):
 
         approve_response = self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
         self.assertEqual(approve_response.status_code, 200)
+        decision = approve_response.json()["decision"]
+        self.assertEqual(decision["status"], "approved")
+        self.assertEqual(decision["actor"], "Administrator")
+        self.assertIsNotNone(decision["recorded_at"])
+        self.assertGreaterEqual(decision["audit_event_count"], 1)
+        self.assertEqual(decision["export_eligibility"], "eligible")
 
         export_response = self.client.get("/exports/invoices.csv", headers=HEADERS)
         self.assertEqual(export_response.status_code, 200)
@@ -456,6 +462,19 @@ class ApiTests(unittest.TestCase):
         self.assertIn("can_approve", worklist["items"][0])
         self.assertIsNone(worklist["summary"]["average_review_seconds"])
 
+        blank_reject = self.client.post(
+            f"/review/{document_id}/reject",
+            headers=HEADERS,
+            json={"notes": "   "},
+        )
+        blank_correction = self.client.post(
+            f"/documents/{document_id}/request-correction",
+            headers=HEADERS,
+            json={"reason": "  "},
+        )
+        self.assertEqual(blank_reject.status_code, 422)
+        self.assertEqual(blank_correction.status_code, 422)
+
         save_response = self.client.post(
             f"/review/{document_id}/save",
             headers=HEADERS,
@@ -536,7 +555,11 @@ class ApiTests(unittest.TestCase):
         responses = (
             self.client.post(f"/review/{document_id}/save", headers=HEADERS, json={"notes": ""}),
             self.client.post(f"/review/{document_id}/approve", headers=HEADERS),
-            self.client.post(f"/review/{document_id}/reject", headers=HEADERS, json={"notes": ""}),
+            self.client.post(
+                f"/review/{document_id}/reject",
+                headers=HEADERS,
+                json={"notes": "Invoice is not valid."},
+            ),
         )
 
         for response in responses:

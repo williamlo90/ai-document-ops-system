@@ -137,3 +137,37 @@ describe('review queue', () => {
     expect(within(inspector).queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument()
   })
 })
+
+describe('review workspace', () => {
+  it('keeps blocker decisions explicit and requires a correction note', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/review/doc-1')
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'Reviewer', user_id: 'reviewer', workspace_id: 'default', role: 'reviewer', is_admin: false })
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path === '/documents/doc-1') return json({
+        document: invoice,
+        extraction: {
+          data: { vendor_name: 'Acme Logistics', invoice_number: 'INV-001', invoice_date: '2026-07-18', due_date: '2026-08-18', subtotal: '1200.00', tax: '50.00', total: '1250.00', currency: 'USD', line_items: [] },
+          validation: [{ field_name: 'po_number', severity: 'error', code: 'po_missing', message: 'PO number was not found.' }],
+          confidence: [{ field_name: 'invoice_number', score: .92 }],
+        },
+        audit_events: [],
+      })
+      if (path === '/documents/doc-1/workflow') return json({ current_stage: 'waiting_approval', current_owner: 'Reviewer', waiting_for: 'reviewer', next_action: 'review', attention_reason: null, work_item: { assignee: 'Reviewer' } })
+      return json({ detail: `Unexpected request: ${path}` }, 404)
+    }))
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Review invoice' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Invoice preview' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled()
+    const correction = screen.getByRole('button', { name: 'Request correction' })
+    expect(correction).toBeDisabled()
+    await user.type(screen.getByPlaceholderText('Explain the decision for the audit trail...'), 'Please provide the missing PO number.')
+    expect(correction).toBeEnabled()
+    await user.click(correction)
+    const dialog = await screen.findByRole('dialog', { name: 'Request correction?' })
+    expect(within(dialog).getByText('Please provide the missing PO number.')).toBeInTheDocument()
+  })
+})

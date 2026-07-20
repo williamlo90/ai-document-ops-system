@@ -21,6 +21,10 @@ export function AppShell({ session, signOut, signingOut }: { session: SessionInf
   const items = useMemo(() => navigationItems.filter((item) => item.roles.includes(role)), [role])
 
   useEffect(() => setMobileOpen(false), [location.pathname])
+  useEffect(() => {
+    document.documentElement.scrollTop = 0
+    document.body.scrollTop = 0
+  }, [location.pathname])
 
   if (!canAccessPath(role, location.pathname)) return <Navigate to={defaultRoute(role)} replace />
 

@@ -51,5 +51,6 @@ export type InvoiceExtraction = {
 export type InvoiceDetailResponse = {
   document: InvoiceItem
   extraction: InvoiceExtraction | null
-  audit_events: Array<{ id: string; event_type: string; actor: string; created_at: string }>
+  correction_summary?: { latest_change_count: number; latest_changed_fields: string[]; latest_actor: string; latest_reason: string } | null
+  audit_events: Array<{ id: string; event_type: string; actor: string; old_status?: string | null; new_status?: string | null; payload_summary?: string | null; created_at: string }>
 }
