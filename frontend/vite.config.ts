@@ -19,6 +19,7 @@ export default defineConfig({
       '/backoffice': 'http://127.0.0.1:8000',
       '/documents': 'http://127.0.0.1:8000',
       '/invoices': 'http://127.0.0.1:8000',
+      '/review': 'http://127.0.0.1:8000',
       '/agentops': 'http://127.0.0.1:8000',
       '/agent': 'http://127.0.0.1:8000',
       '/auth': 'http://127.0.0.1:8000',

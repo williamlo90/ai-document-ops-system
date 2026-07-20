@@ -442,6 +442,20 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(queue_response.status_code, 200)
         self.assertEqual(queue_response.json()[0]["id"], document_id)
 
+        worklist_response = self.client.get(
+            "/review/worklist?page=1&page_size=10&sort=risk&direction=desc",
+            headers=HEADERS,
+        )
+        self.assertEqual(worklist_response.status_code, 200)
+        worklist = worklist_response.json()
+        self.assertEqual(worklist["total"], 1)
+        self.assertEqual(worklist["summary"]["in_queue"], 1)
+        self.assertEqual(worklist["items"][0]["id"], document_id)
+        self.assertEqual(worklist["items"][0]["invoice_number"], "INV-REVIEW")
+        self.assertIn(worklist["items"][0]["risk"], {"low", "medium", "high"})
+        self.assertIn("can_approve", worklist["items"][0])
+        self.assertIsNone(worklist["summary"]["average_review_seconds"])
+
         save_response = self.client.post(
             f"/review/{document_id}/save",
             headers=HEADERS,

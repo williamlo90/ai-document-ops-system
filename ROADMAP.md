@@ -416,6 +416,9 @@ Exit criteria:
 
 #### Sprint UI-02: Review Queue
 
+Status: Complete on 2026-07-20. The queue now uses a server-filtered worklist, grounded risk and
+confidence context, URL-backed selection, a responsive inspector, and dedicated decision routing.
+
 References:
 
 - `docs/assets/ui-reference/modern-operations-review-queue.png`

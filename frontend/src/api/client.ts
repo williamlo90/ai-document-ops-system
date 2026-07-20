@@ -4,7 +4,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     headers.set('Content-Type', 'application/json')
   }
   const response = await fetch(path, { ...init, credentials: 'same-origin', headers })
-  const payload = await response.json().catch(() => ({})) as { detail?: string }
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) {
+    throw new Error(`Unexpected response from ${path}. Check the API proxy configuration.`)
+  }
+  const payload = await response.json() as { detail?: string }
   if (!response.ok) throw new Error(payload.detail ?? `Request failed with ${response.status}`)
   return payload as T
 }

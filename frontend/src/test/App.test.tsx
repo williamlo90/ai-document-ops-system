@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import type { InvoiceItem, InvoiceListResponse } from '../features/invoices/types'
+import type { ReviewWorklist } from '../features/review/types'
 import { queryClient } from '../queryClient'
 
 vi.mock('../components/PdfPreview', () => ({
@@ -90,7 +91,7 @@ describe('invoice library', () => {
     render(<App />)
     expect(await screen.findByText('INV-001')).toBeInTheDocument()
     expect(screen.getByText('Invoices flagged').previousSibling).toHaveTextContent('1')
-    await user.click(screen.getByRole('button', { name: 'INV-001' }))
+    await user.click(await screen.findByRole('button', { name: 'INV-001' }))
     const inspector = await screen.findByRole('region', { name: /invoice inspector/i })
     expect(within(inspector).getByText('Acme Logistics')).toBeInTheDocument()
     expect(within(inspector).getByText('PO number was not found.')).toBeInTheDocument()
@@ -104,5 +105,35 @@ describe('invoice library', () => {
     expect(await screen.findByText('Something went wrong')).toBeInTheDocument()
     expect(screen.getByText('Unable to verify the secure session.')).toBeInTheDocument()
     expect(screen.queryByText('stack trace')).not.toBeInTheDocument()
+  })
+})
+
+describe('review queue', () => {
+  it('keeps decision actions in the dedicated review workspace', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/review-queue')
+    const worklist: ReviewWorklist = {
+      items: [{
+        id: 'doc-1', original_filename: 'acme.pdf', invoice_number: 'INV-001', vendor_name: 'Acme Logistics', total: '1250.00', currency: 'USD', invoice_date: '2026-07-18', due_date: '2026-08-18', owner: 'Reviewer', risk: 'high', confidence: .92, finding: 'PO number was not found.', blocker_count: 1, issue_count: 1, can_approve: false, recommended_action: 'request_correction', age_seconds: 900, created_at: now, updated_at: now,
+      }],
+      page: 1, page_size: 10, total: 1, total_pages: 1,
+      summary: { in_queue: 1, high_risk: 1, invoice_due_today: 0, average_review_seconds: null },
+    }
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'Reviewer', user_id: 'reviewer', workspace_id: 'default', role: 'reviewer', is_admin: false })
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path.startsWith('/review/worklist?')) return json(worklist)
+      if (path === '/documents/doc-1') return json({ document: invoice, extraction: { data: { vendor_name: 'Acme Logistics', invoice_number: 'INV-001', total: '1250.00', currency: 'USD' }, validation: [{ field_name: 'po_number', severity: 'error', code: 'po_missing', message: 'PO number was not found.' }], confidence: [] }, audit_events: [] })
+      return json({ detail: `Unexpected request: ${path}` }, 404)
+    }))
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Review Queue' })).toBeInTheDocument()
+    expect(screen.getByText('Not measured')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'INV-001' }))
+    const inspector = await screen.findByRole('region', { name: /selected invoice review summary/i })
+    expect(within(inspector).getByText('Request a correction because validation blockers remain.')).toBeInTheDocument()
+    expect(within(inspector).getByRole('link', { name: /review invoice/i })).toHaveAttribute('href', '/review/doc-1')
+    expect(within(inspector).queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument()
   })
 })

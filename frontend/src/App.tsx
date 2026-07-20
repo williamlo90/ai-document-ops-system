@@ -8,6 +8,7 @@ import { defaultRoute } from './app/routes'
 import { productRole, type SessionInfo } from './app/types'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { InvoicesPage } from './pages/InvoicesPage'
+import { ReviewQueuePage } from './pages/ReviewQueuePage'
 import { Button, ErrorState, LoadingState } from './shared/ui'
 import { queryClient } from './queryClient'
 import './product.css'
@@ -48,7 +49,7 @@ function SessionGate() {
       <Route index element={<Navigate to={defaultRoute(role)} replace />} />
       <Route path="overview" element={<PlaceholderPage title="Overview" description="Monitor invoice work that needs attention." />} />
       <Route path="invoices" element={<InvoicesPage />} />
-      <Route path="review-queue" element={<PlaceholderPage title="Review Queue" description="Review invoices that need a human decision." />} />
+      <Route path="review-queue" element={<ReviewQueuePage />} />
       <Route path="review/:documentId" element={<PlaceholderPage title="Review invoice" description="Compare the invoice, extracted data, and decision evidence." />} />
       <Route path="exceptions" element={<PlaceholderPage title="Exceptions" description="Resolve issues that are blocking invoice processing." />} />
       <Route path="exports" element={<PlaceholderPage title="Exports" description="Prepare and track approved invoice exports." />} />
