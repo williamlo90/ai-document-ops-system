@@ -19,6 +19,18 @@ Seven original desktop page concepts and their handoff instructions are availabl
 remain drafts until revised images are explicitly accepted as final references. The original
 Invoices concept is superseded by the saved Invoices redesign reference above.
 
+## Motion Specifications
+
+The first three page-level motion and interaction handoffs are stored separately and mapped to
+their matching visual references:
+
+- [Overview motion specification](ui-motion-specs/overview-motion-spec.md)
+- [Invoices motion specification](ui-motion-specs/invoices-motion-spec.md)
+- [Review Queue motion specification](ui-motion-specs/review-queue-motion-spec.md)
+
+These documents describe intended behavior only. They do not indicate that motion has already
+been implemented.
+
 ## Design Contract
 
 - Use one persistent application shell with a left navigation rail and a compact top bar.
