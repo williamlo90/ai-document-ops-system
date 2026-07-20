@@ -2,15 +2,16 @@
 
 Status: Working concepts pending external critique and final approval.
 
-The four current visual references establish the product shell:
+The five current visual references establish the product shell:
 
 - [Overview reference](assets/ui-reference/modern-operations-overview.png)
 - [Invoices reference](assets/ui-reference/modern-operations-invoices.png)
 - [Review Queue reference](assets/ui-reference/modern-operations-review-queue.png)
 - [Invoice Review Workspace reference](assets/ui-reference/modern-operations-invoice-review-workspace.png)
+- [Exceptions reference](assets/ui-reference/modern-operations-exceptions.png)
 
-The saved Invoices and Invoice Review Workspace references supersede their original concepts
-below. Those concepts remain available only as iteration history.
+The saved Invoices, Invoice Review Workspace, and Exceptions references supersede their original
+concepts below. Those concepts remain available only as iteration history.
 
 The following concepts extend that direction across the rest of the product. They are not final
 implementation references yet:
