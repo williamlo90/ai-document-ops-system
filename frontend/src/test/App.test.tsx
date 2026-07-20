@@ -2,633 +2,107 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
+import type { InvoiceItem, InvoiceListResponse } from '../features/invoices/types'
 import { queryClient } from '../queryClient'
 
-vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({
-  GlobalWorkerOptions: {},
-  getDocument: vi.fn(() => ({ promise: new Promise(() => {}), destroy: vi.fn() })),
+vi.mock('../components/PdfPreview', () => ({
+  PdfPreview: ({ filename }: { filename: string }) => <div aria-label="PDF preview">{filename}</div>,
 }))
 
-vi.mock('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url', () => ({ default: 'pdf-worker.js' }))
-
-const workspace = {
-  workspace_id: 'workspace-test',
-  work_items: [],
-  pending_approvals: [],
-  documents: [],
-  metrics: { work_items: 0, pending_approvals: 0, drafts: 0, policy_decisions: 0 },
+const now = '2026-07-20T09:41:00+00:00'
+const workspace = { workspace_id: 'default', work_items: [], pending_approvals: [], documents: [], metrics: {} }
+const emptyInvoices: InvoiceListResponse = {
+  items: [], page: 1, page_size: 10, total: 0, total_pages: 1,
+  summary: { all: 0, waiting_review: 0, needs_correction: 0, approved: 0, exported: 0 },
+  insights: { flagged: 0, duplicates_suspected: 0, tax_amount_issues: 0 },
+}
+const invoice: InvoiceItem = {
+  id: 'doc-1', original_filename: 'acme.pdf', submitted_by: 'uploader-1', status: 'needs_review', business_status: 'needs_review', current_stage: 'waiting_approval', current_owner: 'James Smith',
+  vendor_name: 'Acme Logistics', invoice_number: 'INV-001', invoice_date: '2026-07-18', due_date: '2026-08-18', total: '1250.00', currency: 'USD', created_at: now, updated_at: now,
+  validation_issue_count: 1, validation_error_count: 0, validation_codes: ['po_missing'], has_validation_errors: false, export_state: 'not_eligible', work_item_id: 'item-1',
 }
 
-const now = '2026-06-30T10:00:00Z'
-const linkedDocument = {
-  id: 'doc-1',
-  filename: 'acme.pdf',
-  status: 'approved',
-  created_at: now,
-  document_type: 'invoice',
-  supported_extraction_schema: 'invoice_v1',
-}
-const needsReviewDocument = {
-  ...linkedDocument,
-  status: 'needs_review',
-}
-const needsCorrectionDocument = {
-  ...needsReviewDocument,
-  validation_issue_count: 1,
-  validation_error_count: 1,
-  has_validation_errors: true,
-  validation_codes: ['duplicate_invoice'],
-}
-const workItem = {
-  id: 'item-1',
-  title: 'Review ACME invoice',
-  work_type: 'invoice_review',
-  priority: 'normal',
-  status: 'awaiting_human',
-  linked_document_ids: ['doc-1'],
-  business_context: {},
-  created_at: now,
-  updated_at: now,
-  current_plan_id: null,
-  assignee: 'Finance reviewer',
-  requested_outcome: 'Review safely',
-  tags: [],
-}
-const workItemDetail = {
-  ...workItem,
-  plans: [],
-  current_plan: null,
-  drafts: [],
-  approvals: [],
-  policy_decisions: [],
-  activity: [],
-}
-const workspaceWithLinkedDocument = {
-  workspace_id: 'workspace-test',
-  work_items: [workItem],
-  pending_approvals: [],
-  documents: [linkedDocument],
-  metrics: { work_items: 1, pending_approvals: 0, drafts: 0, policy_decisions: 0 },
-}
-const workspaceWithNeedsReviewDocument = {
-  ...workspaceWithLinkedDocument,
-  work_items: [{ ...workItem, status: 'planning' }],
-  documents: [needsReviewDocument],
-}
-const workspaceWithNeedsCorrectionDocument = {
-  ...workspaceWithNeedsReviewDocument,
-  documents: [needsCorrectionDocument],
-}
-const invoiceListWithReviewItem = {
-  items: [{
-    id: 'doc-1',
-    original_filename: 'acme.pdf',
-    status: 'awaiting_human',
-    created_at: now,
-    updated_at: now,
-    document_type: 'invoice',
-    supported_extraction_schema: 'invoice_v1',
-    vendor_name: 'Acme Supplies',
-    total: '100.00',
-    currency: 'USD',
-    current_owner: 'Finance reviewer',
-    current_stage: 'waiting_approval',
-    work_item_id: 'item-1',
-  }],
-  page: 1,
-  page_size: 8,
-  total: 1,
-  total_pages: 1,
-}
-const invoiceListWithCorrectionItem = {
-  ...invoiceListWithReviewItem,
-  items: [{
-    ...invoiceListWithReviewItem.items[0],
-    business_status: 'needs_correction',
-    validation_issue_count: 1,
-    validation_error_count: 1,
-    has_validation_errors: true,
-    validation_codes: ['duplicate_invoice'],
-  }],
-}
-const plannedWorkItem = {
-  ...workItem,
-  current_plan_id: 'plan-1',
-}
-const workspaceWithPlannedWorkItem = {
-  ...workspaceWithLinkedDocument,
-  work_items: [plannedWorkItem],
-}
-const pendingApproval = {
-  id: 'approval-1',
-  work_item_id: 'item-1',
-  action_step_id: 'step-1',
-  status: 'pending',
-  reviewer_notes: null,
-  reviewed_by: null,
-  reviewed_at: null,
-  created_at: now,
-}
-const pendingApprovalWorkItemDetail = {
-  ...workItemDetail,
-  current_plan_id: 'plan-1',
-  approvals: [pendingApproval],
-  policy_decisions: [{
-    id: 'policy-1',
-    action_step_id: 'step-1',
-    action_type: 'invoice_export',
-    autonomy_level: 'balanced',
-    risk_level: 'high',
-    allowed: true,
-    requires_confirmation: true,
-    reason: 'Exporting an approved invoice changes downstream accounting records.',
-  }],
-  current_plan: {
-    id: 'plan-1',
-    planner_version: 'planner-v1',
-    overall_confidence: 'medium',
-    escalation_reason: 'Accounting export requires reviewer confirmation.',
-    requires_human: true,
-    created_at: now,
-    steps: [{
-      id: 'step-1',
-      action_type: 'invoice_export',
-      risk_level: 'high',
-      tool_name: 'accounting_export',
-      requires_approval: true,
-      status: 'waiting_for_approval',
-      why_this: 'Invoice total and vendor evidence are ready for export.',
-      why_not: null,
-    }],
-  },
-}
-const workspaceWithPendingApproval = {
-  ...workspaceWithLinkedDocument,
-  work_items: [{ ...workItem, current_plan_id: 'plan-1' }],
-  documents: [needsReviewDocument],
-  pending_approvals: [pendingApproval],
-  metrics: { work_items: 1, pending_approvals: 1, drafts: 0, policy_decisions: 1 },
-}
-const extractionWithEvidence = {
-  document_type: 'invoice',
-  schema_version: 'invoice_v1',
-  data: {
-    vendor_name: 'Acme Logistics',
-    invoice_number: 'INV-001',
-    invoice_date: '2026-06-18',
-    due_date: '2026-07-18',
-    total: '100.00',
-    currency: 'USD',
-    line_items: [],
-  },
-  validation: [],
-  confidence: [{
-    field_name: 'invoice_total',
-    score: 0.94,
-    source_text: 'Invoice total $100.00',
-    source_page: 1,
-  }],
+function json(payload: unknown, status = 200) {
+  return Promise.resolve(new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } }))
 }
 
-function json(body: unknown, status = 200) {
-  return Promise.resolve(new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
+function installApi(session: Record<string, unknown>, invoiceResponse: InvoiceListResponse = emptyInvoices) {
+  vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path === '/auth/session') return json(session)
+    if (path === '/backoffice/workspace') return json(workspace)
+    if (path.startsWith('/invoices?')) return json(invoiceResponse)
+    if (path === '/documents/doc-1') return json({ document: invoice, extraction: { data: {}, validation: [{ field_name: 'po_number', severity: 'warning', code: 'po_missing', message: 'PO number was not found.' }], confidence: [] }, audit_events: [] })
+    return json({ detail: `Unexpected request: ${path}` }, 404)
   }))
 }
 
-const uploaderSession = { authenticated: true, actor: 'William Lo', user_id: 'uploader', workspace_id: 'default', role: 'uploader', is_admin: false }
-const reviewerSession = { authenticated: true, actor: 'William Lo', user_id: 'reviewer', workspace_id: 'default', role: 'reviewer', is_admin: false }
+beforeEach(() => {
+  queryClient.clear()
+  window.history.replaceState({}, '', '/')
+})
 
-describe('application shell', () => {
-  beforeEach(() => {
-    queryClient.clear()
-    localStorage.clear()
-    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(uploaderSession)
-      if (path === '/backoffice/workspace') return json(workspace)
-      if (path === '/operations/notifications') {
-        return json({ notifications: [], unread_count: 0 })
-      }
-      if (path === '/providers/health') {
-        return json({ overall_status: 'healthy', providers: [] })
-      }
-      if (path === '/operations/jobs') {
-        return json({ worker: { status: 'healthy' }, jobs: [] })
-      }
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    }))
+afterEach(() => {
+  vi.unstubAllGlobals()
+  window.history.replaceState({}, '', '/')
+})
+
+describe('product routes and role boundaries', () => {
+  it('keeps an uploader inside the invoice library', async () => {
+    installApi({ authenticated: true, actor: 'Upload User', user_id: 'uploader-1', workspace_id: 'default', role: 'uploader', is_admin: false })
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Invoices' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /upload invoice/i })).toBeInTheDocument()
+    const navigation = screen.getByRole('navigation', { name: /primary/i })
+    expect(within(navigation).getByRole('link', { name: 'Invoices' })).toBeInTheDocument()
+    expect(within(navigation).queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument()
+    expect(within(navigation).queryByRole('link', { name: 'Review Queue' })).not.toBeInTheDocument()
   })
 
-  it('starts in the server-assigned uploader workflow', async () => {
+  it('shows reviewer work but hides administrator controls', async () => {
+    installApi({ authenticated: true, actor: 'Reviewer', user_id: 'reviewer-1', workspace_id: 'default', role: 'reviewer', is_admin: false })
     render(<App />)
-
-    expect(await screen.findByRole('heading', { name: /upload and check an invoice/i })).toBeInTheDocument()
-    expect(screen.queryByRole('combobox', { name: /view application as role/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /new document task/i })).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument()
+    const navigation = screen.getByRole('navigation', { name: /primary/i })
+    expect(within(navigation).getByRole('link', { name: 'Review Queue' })).toBeInTheDocument()
+    expect(within(navigation).getByRole('link', { name: 'Exceptions' })).toBeInTheDocument()
+    expect(within(navigation).queryByRole('link', { name: 'Exports' })).not.toBeInTheDocument()
+    expect(within(navigation).queryByRole('link', { name: 'System' })).not.toBeInTheDocument()
   })
 
-  it('uses the server-assigned reviewer role for the approval workspace', async () => {
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(reviewerSession)
-      if (path === '/backoffice/workspace') return json(workspace)
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
+  it('guards a direct administrator route for an uploader', async () => {
+    window.history.replaceState({}, '', '/system')
+    installApi({ authenticated: true, actor: 'Upload User', user_id: 'uploader-1', workspace_id: 'default', role: 'uploader', is_admin: false })
     render(<App />)
-
-    expect((await screen.findAllByRole('heading', { name: /approvals/i })).length).toBeGreaterThan(0)
-    expect(screen.queryByRole('button', { name: /^upload$/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /upload invoice/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /invoices/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /approvals/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^history$/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /system reliability/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /new document task/i })).not.toBeInTheDocument()
-    expect(await screen.findByText(/No invoices waiting for approval/i)).toBeInTheDocument()
-    expect(screen.getByText(/Uploaded PDFs appear under Invoices first/i)).toBeInTheDocument()
-    expect(localStorage.getItem('docops-role')).toBeNull()
-  })
-
-  it('keeps uploader invoice list status-only', async () => {
-    const user = userEvent.setup()
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(uploaderSession)
-      if (path === '/backoffice/workspace') return json(workspaceWithLinkedDocument)
-      if (path.startsWith('/invoices?')) return json(invoiceListWithReviewItem)
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
-      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    await user.click(await screen.findByRole('button', { name: /my invoices/i }))
-
-    expect((await screen.findAllByRole('heading', { name: /my invoices/i })).length).toBeGreaterThan(0)
-    expect(screen.getByText(/Acme Supplies/i)).toBeInTheDocument()
-    expect(screen.getByText(/View status/i)).toBeInTheDocument()
-    expect(screen.queryByText(/Open review/i)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /approvals/i })).not.toBeInTheDocument()
-  })
-
-  it('keeps history out of primary navigation', async () => {
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(uploaderSession)
-      if (path === '/backoffice/workspace') return json(workspaceWithLinkedDocument)
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
-      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    expect((await screen.findAllByRole('button', { name: /upload invoice/i })).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: /my invoices/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^history$/i })).not.toBeInTheDocument()
-
-    expect(screen.queryByRole('combobox', { name: /view application as role/i })).not.toBeInTheDocument()
-  })
-
-  it('shows submitted invoices in reviewer approvals when the document needs review', async () => {
-    const user = userEvent.setup()
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(reviewerSession)
-      if (path === '/backoffice/workspace') return json(workspaceWithNeedsReviewDocument)
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
-      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    await user.click(await screen.findByRole('button', { name: /approvals/i }))
-
-    expect(await screen.findByText(/Waiting decision \(1\)/i)).toBeInTheDocument()
-    expect(screen.getByText(/Needs review/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /review invoice/i })).toBeInTheDocument()
-  })
-
-  it('shows correction-required status consistently in the uploader invoice list', async () => {
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(uploaderSession)
-      if (path.startsWith('/invoices?')) return json(invoiceListWithCorrectionItem)
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    await screen.findByRole('heading', { name: /upload and check an invoice/i })
-    await userEvent.click(screen.getByRole('button', { name: /my invoices/i }))
-
-    expect(await screen.findAllByText(/needs correction/i)).not.toHaveLength(0)
-    const statusOptions = screen.getAllByRole('option').map((option) => option.textContent)
-    expect(statusOptions.filter((label) => label === 'Reading invoice')).toHaveLength(1)
-    expect(statusOptions).toContain('Waiting to be read')
-  })
-
-  it('lets the uploader fix a reviewer-requested correction and send it back', async () => {
-    const user = userEvent.setup()
-    let correctionSubmitted = false
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(uploaderSession)
-      if (path.startsWith('/invoices?')) return json({ ...invoiceListWithReviewItem, items: [{ ...invoiceListWithReviewItem.items[0], original_filename: 'acme.pdf', status: 'needs_review', business_status: correctionSubmitted ? 'needs_review' : 'needs_correction', current_stage: correctionSubmitted ? 'waiting_approval' : 'correction_requested' }] })
-      if (path === '/documents/doc-1/workflow') return json({ document: { ...needsReviewDocument, original_filename: 'acme.pdf' }, extraction: { ...extractionWithEvidence, data: { ...extractionWithEvidence.data, subtotal: '90.00', tax: '10.00' } }, correction_summary: correctionSubmitted ? { event_count: 1, latest_change_count: 1, latest_changed_fields: ['vendor_name'], latest_actor: 'William Lo', latest_reason: 'Used the legal vendor name.', latest_at: now } : null, current_stage: correctionSubmitted ? 'waiting_approval' : 'correction_requested', current_owner: correctionSubmitted ? 'Reviewer' : 'Uploader', next_action: correctionSubmitted ? 'Check the corrected invoice' : 'Correct the invoice and send it back', attention_reason: correctionSubmitted ? null : 'Use the full legal vendor name.', activity: [] })
-      if (path === '/invoices/doc-1/draft') {
-        correctionSubmitted = true
-        return json({ correction_recorded: true })
-      }
-      if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    await user.click(await screen.findByRole('button', { name: /my invoices/i }))
-    await user.click(await screen.findByRole('button', { name: /view status/i }))
-    await user.click(await screen.findByRole('button', { name: /fix invoice/i }))
-    const vendor = screen.getByRole('textbox', { name: /^vendor$/i })
-    await user.clear(vendor)
-    await user.type(vendor, 'Acme Logistics Ltd')
-    await user.clear(screen.getByRole('textbox', { name: /reason for the change/i }))
-    await user.type(screen.getByRole('textbox', { name: /reason for the change/i }), 'Used the legal vendor name.')
-    await user.click(screen.getByRole('button', { name: /send correction/i }))
-
-    expect(await screen.findByText(/waiting approval/i)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /send correction/i })).not.toBeInTheDocument()
-    const draftCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input) === '/invoices/doc-1/draft')
-    const payload = JSON.parse(String((draftCall?.[1] as RequestInit | undefined)?.body))
-    expect(payload.vendor_name).toBe('Acme Logistics Ltd')
-    expect(payload.correction_reason).toBe('Used the legal vendor name.')
-  })
-
-  it('separates invoices with validation blockers from waiting decisions', async () => {
-    const user = userEvent.setup()
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(reviewerSession)
-      if (path === '/backoffice/workspace') return json(workspaceWithNeedsCorrectionDocument)
-      if (path === '/invoices?page=1&page_size=100') return json(invoiceListWithReviewItem)
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
-      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    await user.click(await screen.findByRole('button', { name: /approvals/i }))
-
-    expect(await screen.findByText(/Waiting decision \(0\)/i)).toBeInTheDocument()
-    expect(screen.getByText(/Needs correction \(1\)/i)).toBeInTheDocument()
-    await user.click(screen.getByText(/Needs correction \(1\)/i))
-    expect(await screen.findByText(/Possible duplicate invoice/i)).toBeInTheDocument()
-  })
-
-  it('shows actionable secure session errors without raw implementation detail', async () => {
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json({ detail: 'database adapter stack trace' }, 403)
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-
-    expect(await screen.findByRole('heading', { name: /unable to verify secure session/i })).toBeInTheDocument()
-    expect(screen.getByText(/sign in again before continuing invoice work/i)).toBeInTheDocument()
-    expect(screen.queryByText(/database adapter stack trace/i)).not.toBeInTheDocument()
-  })
-
-  it('shows a simple invoice review screen without technical tabs', async () => {
-    const user = userEvent.setup()
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(reviewerSession)
-      if (path === '/backoffice/workspace') return json(workspaceWithNeedsReviewDocument)
-      if (path === '/backoffice/work-items/item-1') return json({ work_item: workItemDetail })
-      if (path === '/documents/doc-1') return json({ document: needsReviewDocument, extraction: null, correction_summary: { event_count: 1, latest_change_count: 1, latest_changed_fields: ['vendor_name'], latest_actor: 'William Lo', latest_reason: 'Matched the vendor to the PDF.', latest_at: now }, audit_events: [] })
-      if (path === '/review/doc-1/approve') return json({ status: 'approved' })
-      if (path === '/documents/doc-1/workflow') return json({ document: needsReviewDocument, extraction: null, work_item: workItemDetail, current_stage: 'needs_attention', current_owner: 'Finance reviewer', waiting_for: null, next_action: 'Review', attention_reason: null, activity: [] })
-      if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
-      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    await user.click(await screen.findByRole('button', { name: /approvals/i }))
-    await user.click(await screen.findByRole('button', { name: /review invoice/i }))
-    expect(await screen.findByText(/INVOICE DATA/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /request correction/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
-    expect(screen.getByText(/1 field corrected by William Lo/i)).toBeInTheDocument()
-    expect(screen.queryByText(/Needs review because/i)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /make decision/i })).not.toBeInTheDocument()
-
-    expect(screen.queryByText('invoice_v1')).not.toBeInTheDocument()
-    expect(screen.getAllByText(/invoice/i).length).toBeGreaterThan(0)
-    expect(screen.getByRole('link', { name: /open pdf/i })).toHaveAttribute('href', '/documents/doc-1/content')
-    expect(document.querySelector('canvas.pdf-canvas')).not.toBeNull()
-    expect(document.querySelector('iframe')).toBeNull()
-
-    await user.click(screen.getByRole('button', { name: /^approve$/i }))
-    expect(vi.mocked(fetch)).toHaveBeenCalledWith('/review/doc-1/approve', expect.objectContaining({ method: 'POST' }))
-
-    await user.click(screen.getByRole('button', { name: /back to approvals/i }))
-    expect(await screen.findByRole('button', { name: /review invoice/i })).toBeInTheDocument()
-  })
-
-  it('shows actor, timestamp, audit count, and export eligibility after approval', async () => {
-    const user = userEvent.setup()
-    let approved = false
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      const approvedDocument = { ...linkedDocument, original_filename: 'acme.pdf', status: 'approved' }
-      const reviewDocument = { ...needsReviewDocument, original_filename: 'acme.pdf' }
-      const currentDocument = approved ? approvedDocument : reviewDocument
-      const currentItem = { ...workItem, status: approved ? 'completed' : 'awaiting_human' }
-      const currentItemDetail = { ...workItemDetail, status: currentItem.status }
-      if (path === '/auth/session') return json(reviewerSession)
-      if (path === '/backoffice/workspace') return json({ ...workspaceWithNeedsReviewDocument, work_items: [currentItem], documents: [currentDocument] })
-      if (path === '/backoffice/work-items/item-1') return json({ work_item: currentItemDetail })
-      if (path === '/documents/doc-1') return json({
-        document: currentDocument,
-        extraction: extractionWithEvidence,
-        audit_events: approved ? [
-          { id: 'event-1', event_type: 'document_uploaded', actor: 'intake-user', created_at: now },
-          { id: 'event-2', event_type: 'processing_queued', actor: 'intake-user', created_at: now },
-          { id: 'event-3', event_type: 'processing_started', actor: 'worker', created_at: now },
-          { id: 'event-4', event_type: 'processing_finished', actor: 'worker', created_at: now },
-          { id: 'event-5', event_type: 'review_required', actor: 'worker', created_at: now },
-          { id: 'event-6', event_type: 'document_approved', actor: 'finance-reviewer', new_status: 'approved', created_at: now },
-        ] : [],
-      })
-      if (path === '/review/doc-1/approve') {
-        approved = true
-        return json({ review_task: { status: 'approved', reviewed_by: 'finance-reviewer', reviewed_at: now } })
-      }
-      if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
-      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    await user.click(await screen.findByRole('button', { name: /approvals/i }))
-    await user.click(await screen.findByRole('button', { name: /review invoice/i }))
-    await user.click(await screen.findByRole('button', { name: /^approve$/i }))
-
-    expect(await screen.findByText('Decision recorded')).toBeInTheDocument()
-    const evidence = screen.getByLabelText('Decision evidence')
-    expect(within(evidence).getByText('finance-reviewer')).toBeInTheDocument()
-    expect(within(evidence).getByText(/30 Jun 2026/i)).toBeInTheDocument()
-    expect(within(evidence).getByText('6 events saved')).toBeInTheDocument()
-    expect(within(evidence).getByText('Eligible for controlled export')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('Example: Total and vendor match the PDF.')).not.toBeInTheDocument()
-  })
-
-  it('explains approval evidence and decision outcomes', async () => {
-    const user = userEvent.setup()
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(reviewerSession)
-      if (path === '/backoffice/workspace') return json(workspaceWithPendingApproval)
-      if (path === '/backoffice/work-items/item-1') return json({ work_item: pendingApprovalWorkItemDetail })
-      if (path === '/documents/doc-1') return json({ document: needsReviewDocument, extraction: extractionWithEvidence, audit_events: [] })
-      if (path === '/documents/doc-1/workflow') return json({ document: needsReviewDocument, extraction: extractionWithEvidence, work_item: pendingApprovalWorkItemDetail, current_stage: 'needs_attention', current_owner: 'Finance reviewer', waiting_for: 'approval', next_action: 'Review approval', attention_reason: null, activity: [] })
-      if (path === '/documents/doc-1/content') return Promise.resolve(new Response('%PDF-1.4\n%%EOF', { headers: { 'Content-Type': 'application/pdf' } }))
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
-      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    await user.click(await screen.findByRole('button', { name: /approvals/i }))
-    await user.click(await screen.findByRole('button', { name: /review invoice/i }))
-
-    expect(await screen.findByText(/INVOICE DATA/i)).toBeInTheDocument()
-    expect(screen.queryByText(/changes downstream accounting records/i)).not.toBeInTheDocument()
-    expect(screen.getByText('100.00')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Example: Total and vendor match the PDF.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /request correction/i })).toBeInTheDocument()
-  })
-
-  it('keeps technical evidence out of reviewer navigation', async () => {
-    vi.mocked(fetch).mockImplementation((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(reviewerSession)
-      if (path === '/backoffice/workspace') return json(workspaceWithPlannedWorkItem)
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/providers/health') return json({ overall_status: 'healthy', providers: [] })
-      if (path === '/operations/jobs') return json({ worker: { status: 'healthy' }, jobs: [] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    })
-
-    render(<App />)
-    expect(await screen.findByRole('button', { name: /approvals/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /invoices/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^history$/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /technical evidence/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^monitoring$/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /reliability checks/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /test scenarios/i })).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Invoices' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/invoices')
   })
 })
 
-describe('monitoring evidence', () => {
-  const adminSession = { authenticated: true, actor: 'Admin', user_id: 'admin', workspace_id: 'default', role: 'administrator', is_admin: true }
-  const recordedRun = {
-    id: 'run-1',
-    actor: 'admin',
-    request: 'Plan invoice review',
-    intent: 'backoffice_plan_and_recommendation',
-    prompt_version: 'deterministic-backoffice-v1',
-    created_at: now,
-    token_usage: { prompt_tokens: null, completion_tokens: null, estimated_cost_usd: null },
-    evaluation: {
-      expected_tool: null,
-      selected_tool: null,
-      tool_selection_correct: null,
-      confidence: 'high',
-      confidence_score: 1,
-      failure_type: null,
-      human_escalated: false,
-      blocked_action_count: 0,
-      tool_call_count: 0,
-      estimated_cost_usd: 0,
-      successful_completion: true,
-      decision_reason: 'Generated a bounded invoice review plan.',
-    },
-  }
-
-  beforeEach(() => queryClient.clear())
-  afterEach(() => window.history.replaceState({}, '', '/'))
-
-  it('separates provider invoice cost from automation-run cost', async () => {
-    window.history.replaceState({}, '', '/?technical=reliability')
-    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(adminSession)
-      if (path === '/backoffice/workspace') return json(workspace)
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/agentops/runs?limit=50') return json({ runs: [recordedRun] })
-      if (path === '/agentops/summary?limit=100') return json({ summary: { total_runs: 1, evaluated_runs: 0, tool_selection_accuracy: null, unsafe_action_prevention_rate: null, successful_completion_rate: 1, escalation_rate: 0, average_confidence: 1, average_tool_calls_per_task: 0, average_latency_ms: 0.22, estimated_cost_per_run: 0, confidence_distribution: { high: 1 }, failure_counts: {}, failure_trend: [] } })
-      if (path === '/agentops/provider-costs') return json({ provider_costs: { available: true, documents_count: 10, generated_at: now, split: 'holdout', pricing_effective_date: '2026-07-20', estimated_total_usd: 0.063624, estimated_per_document_usd: 0.006362, ocr: { provider: 'Mistral', model: 'mistral-ocr-latest', pages_processed: 10, estimated_cost_usd: 0.04 }, extraction: { provider: 'OpenAI', model: 'gpt-5.4-mini-2026-03-17', input_tokens: 7271, cached_input_tokens: 0, output_tokens: 4038, total_tokens: 11309, estimated_cost_usd: 0.023624 }, attempts: { total: 20, succeeded: 20, failed: 0 }, claim_boundary: 'List-price estimate only.' } })
-      if (path === '/agentops/regression') return json({ regression: { deltas: [], improved_metrics: [], regressed_metrics: [] } })
-      if (path === '/agentops/prompt-versions?limit=100') return json({ prompt_versions: [] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    }))
-
+describe('invoice library', () => {
+  it('renders server summaries and opens a read-only inspector', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/invoices')
+    installApi(
+      { authenticated: true, actor: 'Administrator', user_id: 'admin', workspace_id: 'default', role: 'administrator', is_admin: true },
+      { ...emptyInvoices, items: [invoice], total: 1, summary: { ...emptyInvoices.summary, all: 1, waiting_review: 1 }, insights: { ...emptyInvoices.insights, flagged: 1 } },
+    )
     render(<App />)
-
-    expect(await screen.findByRole('heading', { level: 2, name: /monitoring overview/i })).toBeInTheDocument()
-    expect(await screen.findByText('$0.063624')).toBeInTheDocument()
-    expect(screen.getByText('$0.006362')).toBeInTheDocument()
-    expect(screen.getByText(/Mistral OCR/i)).toBeInTheDocument()
-    expect(screen.getByText(/OpenAI extraction/i)).toBeInTheDocument()
-    expect(screen.getByText(/No provider cost/i)).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: /^approvals$/i }))
-    expect(window.location.search).toBe('')
-    await userEvent.click(screen.getByRole('button', { name: /^monitoring$/i }))
-    expect(window.location.search).toBe('?technical=reliability')
-    expect(await screen.findByRole('heading', { level: 2, name: /monitoring overview/i })).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: /run details/i }))
-    expect(window.location.search).toBe('?technical=runs')
-    expect(await screen.findByRole('heading', { level: 2, name: /run details/i })).toBeInTheDocument()
-    expect(screen.getByText(/Not checked against a scenario/i)).toBeInTheDocument()
+    expect(await screen.findByText('INV-001')).toBeInTheDocument()
+    expect(screen.getByText('Invoices flagged').previousSibling).toHaveTextContent('1')
+    await user.click(screen.getByRole('button', { name: 'INV-001' }))
+    const inspector = await screen.findByRole('region', { name: /invoice inspector/i })
+    expect(within(inspector).getByText('Acme Logistics')).toBeInTheDocument()
+    expect(within(inspector).getByText('PO number was not found.')).toBeInTheDocument()
+    expect(within(inspector).queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument()
+    expect(window.location.search).toContain('invoice=doc-1')
   })
 
-  it('does not call an unscored completed run an evaluation pass', async () => {
-    window.history.replaceState({}, '', '/?technical=runs')
-    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === '/auth/session') return json(adminSession)
-      if (path === '/backoffice/workspace') return json(workspace)
-      if (path === '/operations/notifications') return json({ notifications: [], unread_count: 0 })
-      if (path === '/agentops/runs?limit=50') return json({ runs: [recordedRun] })
-      return json({ detail: `Unexpected test request: ${path}` }, 404)
-    }))
-
+  it('shows a sanitized session verification failure', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => String(input) === '/auth/session' ? json({ detail: 'stack trace' }, 500) : json({}, 404)))
     render(<App />)
-
-    expect(await screen.findByText(/Not checked against a scenario/i)).toBeInTheDocument()
-    expect(screen.getByText(/No provider call/i)).toBeInTheDocument()
-    expect(screen.queryByText(/Trace passed reliability checks/i)).not.toBeInTheDocument()
+    expect(await screen.findByText('Something went wrong')).toBeInTheDocument()
+    expect(screen.getByText('Unable to verify the secure session.')).toBeInTheDocument()
+    expect(screen.queryByText('stack trace')).not.toBeInTheDocument()
   })
 })

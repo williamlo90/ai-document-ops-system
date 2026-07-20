@@ -350,6 +350,9 @@ Current structural constraints:
 
 #### Sprint UI-00: Shared Foundation
 
+Status: Complete on 2026-07-20. The route tree, role guards, shared shell, visual tokens,
+responsive states, reduced-motion handling, and shared primitives are active.
+
 Goal: create the stable system needed to reproduce the references without changing business
 behavior.
 
@@ -380,6 +383,9 @@ Exit criteria:
 - existing invoice upload and reviewer-decision flows still pass before the first page migration
 
 #### Sprint UI-01: Invoices
+
+Status: Complete on 2026-07-20. The live invoice library, server-side summary and filters,
+inspection panel, upload action, URL state, and role boundaries replaced the legacy screen.
 
 References:
 

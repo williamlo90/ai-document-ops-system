@@ -56,6 +56,26 @@ class InvoiceWorkflowApiTests(unittest.TestCase):
         timestamps = [event["created_at"] for event in workflow["activity"]]
         self.assertEqual(timestamps, sorted(timestamps))
 
+    def test_invoice_library_returns_extracted_fields_and_unpaged_summary(self) -> None:
+        document_id, _work_item_id = self._approved_invoice_with_plan()
+
+        response = self.client.get(
+            "/invoices?page=1&page_size=1&sort=vendor&direction=asc",
+            headers=HEADERS,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["summary"]["all"], 1)
+        self.assertEqual(payload["summary"]["approved"], 1)
+        self.assertEqual(payload["items"][0]["id"], document_id)
+        self.assertIn("invoice_number", payload["items"][0])
+        self.assertIn("invoice_date", payload["items"][0])
+        self.assertIn("due_date", payload["items"][0])
+        self.assertEqual(payload["items"][0]["export_state"], "eligible")
+        self.assertIn("flagged", payload["insights"])
+
     def test_document_workflow_matches_invoice_alias_for_invoice_documents(self) -> None:
         document_id, _work_item_id = self._approved_invoice_with_plan()
 
