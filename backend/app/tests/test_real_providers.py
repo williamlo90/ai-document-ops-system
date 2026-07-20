@@ -28,9 +28,11 @@ def _settings(**overrides) -> Settings:
         "mistral_api_key": MISTRAL_KEY or None,
         "mistral_ocr_endpoint": CONFIGURED_SETTINGS.mistral_ocr_endpoint,
         "mistral_ocr_model": CONFIGURED_SETTINGS.mistral_ocr_model,
+        "mistral_allowed_hosts": CONFIGURED_SETTINGS.mistral_allowed_hosts,
         "extractor_api_key": EXTRACTOR_KEY or None,
         "extractor_endpoint": EXTRACTOR_ENDPOINT,
         "extractor_model": CONFIGURED_SETTINGS.extractor_model,
+        "extractor_allowed_hosts": CONFIGURED_SETTINGS.extractor_allowed_hosts,
         "provider_timeout_seconds": CONFIGURED_SETTINGS.provider_timeout_seconds,
     }
     values.update(overrides)

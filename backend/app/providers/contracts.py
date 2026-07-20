@@ -8,6 +8,16 @@ from app.extraction.schemas import InvoiceExtraction
 
 
 @dataclass(frozen=True)
+class ProviderUsage:
+    input_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+    pages_processed: int | None = None
+    document_size_bytes: int | None = None
+
+
+@dataclass(frozen=True)
 class ParsedPage:
     page_number: int
     text: str
@@ -19,6 +29,8 @@ class ParsedDocument:
     pages: tuple[ParsedPage, ...] = field(default_factory=tuple)
     provider_name: str = "unknown"
     provider_trace_id: str | None = None
+    provider_model: str | None = None
+    usage: ProviderUsage = field(default_factory=ProviderUsage)
 
 
 @dataclass(frozen=True)
@@ -34,6 +46,8 @@ class ExtractionResult:
     extraction: InvoiceExtraction
     provider_name: str
     provider_trace_id: str | None = None
+    provider_model: str | None = None
+    usage: ProviderUsage = field(default_factory=ProviderUsage)
 
 
 class ProviderError(RuntimeError):

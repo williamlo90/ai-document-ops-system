@@ -3,11 +3,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 import time
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,21 +18,33 @@ BACKEND = ROOT / "backend"
 sys.path.insert(0, str(BACKEND))
 
 from app.benchmark.datasets import load_evaluation_dataset, records_from_dataset  # noqa: E402
+from app.benchmark.models import EvaluationDataset  # noqa: E402
 from app.benchmark.service import invoice_data_to_fields  # noqa: E402
 from app.core.settings import load_settings  # noqa: E402
 from app.evaluation.external_holdout import build_external_evaluation_summary  # noqa: E402
-from app.providers.contracts import DocumentSource, ProviderError  # noqa: E402
+from app.evaluation.provider_costs import build_provider_economics  # noqa: E402
+from app.providers.contracts import DocumentSource, ProviderError, ProviderUsage  # noqa: E402
 from app.providers.factory import build_extractor_provider, build_parser_provider  # noqa: E402
+from app.providers.llm_json import (  # noqa: E402
+    EXTRACTION_PROMPT_VERSION,
+    extraction_prompt_sha256,
+)
 from app.validation.invoice import validate_invoice  # noqa: E402
 
 
 def main() -> None:
     args = _arguments()
+    started_at = datetime.now(timezone.utc)
+    run_id = started_at.strftime("%Y%m%dT%H%M%SZ")
     pack_root = args.pack_root.resolve()
     _ensure_private_pack(pack_root)
     seal_verified = _verify_holdout_seal(pack_root) if args.split == "holdout" else None
     dataset_root = pack_root / args.split
-    dataset = load_evaluation_dataset(dataset_root)
+    dataset = _filter_diagnostic_dataset(
+        load_evaluation_dataset(dataset_root),
+        args.document_ids,
+        args.split,
+    )
     settings = load_settings()
     _validate_real_provider_settings(settings)
     parser = build_parser_provider(settings)
@@ -70,6 +85,20 @@ def main() -> None:
         split=args.split,
         provider=provider_name,
     )
+    summary["experiment"] = _experiment_manifest(
+        run_id=run_id,
+        started_at=started_at,
+        dataset_root=dataset_root,
+        settings=settings,
+        args=args,
+        parser_name=parser.provider_name,
+        extractor_name=extractor.provider_name,
+    )
+    summary["provider_economics"] = build_provider_economics(
+        observations,
+        parser_model=settings.mistral_ocr_model,
+        extractor_model=settings.extractor_model,
+    )
     summary["generated_at"] = datetime.now(timezone.utc).isoformat()
     summary["holdout_seal_verified"] = seal_verified
     summary["execution"] = {
@@ -77,7 +106,6 @@ def main() -> None:
         "reused_successful_diagnostic_documents": reused_count,
     }
 
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     detailed_path = pack_root / "evaluation_runs" / f"{args.split}_{run_id}_private.json"
     _write_json(
         detailed_path,
@@ -88,6 +116,11 @@ def main() -> None:
         },
     )
     _write_json(args.sanitized_output.resolve(), summary)
+    _append_experiment_index(
+        pack_root / "evaluation_runs" / "experiment_index.jsonl",
+        summary,
+        detailed_path,
+    )
     print(f"Private detailed result: {detailed_path}")
     print(f"Sanitized aggregate result: {args.sanitized_output.resolve()}")
     print(
@@ -112,7 +145,37 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--retry-backoff-seconds", type=float, default=10.0)
     parser.add_argument("--resume-private-result", type=Path)
+    parser.add_argument(
+        "--document-id",
+        dest="document_ids",
+        action="append",
+        help="Run only this diagnostic document ID. Repeat to select more than one.",
+    )
     return parser.parse_args()
+
+
+def _filter_diagnostic_dataset(
+    dataset: EvaluationDataset,
+    document_ids: list[str] | None,
+    split: str,
+) -> EvaluationDataset:
+    if not document_ids:
+        return dataset
+    if split == "holdout":
+        raise SystemExit("ERROR: sealed holdout runs cannot select individual documents.")
+    selected_ids = set(document_ids)
+    selected = tuple(
+        document for document in dataset.documents if document.document_id in selected_ids
+    )
+    found_ids = {document.document_id for document in selected}
+    missing = sorted(selected_ids - found_ids)
+    if missing:
+        raise SystemExit(f"ERROR: unknown diagnostic document IDs: {', '.join(missing)}")
+    return EvaluationDataset(
+        name=f"{dataset.name}-subset",
+        documents=selected,
+        root_path=dataset.root_path,
+    )
 
 
 def _ensure_private_pack(pack_root: Path) -> None:
@@ -183,18 +246,36 @@ def _run_document(
     confidence_fields: list[str] = []
     evidence_fields: list[str] = []
     evidence: list[dict[str, Any]] = []
+    provider_attempts: list[dict[str, Any]] = []
     error: str | None = None
     trace_id: str | None = None
 
     for attempt in range(1, max(1, max_attempts) + 1):
+        stage = "parser"
         try:
             parsed = parser.parse(source)
+            provider_attempts.append(
+                _provider_attempt(
+                    attempt, stage, parsed.provider_name, parsed.provider_model, parsed.usage
+                )
+            )
             parsed_text = parsed.text
             trace_id = parsed.provider_trace_id
             if not parsed.text:
                 raise ProviderError("empty_parsed_text", parser.provider_name)
+            stage = "extractor"
             result = extractor.extract_invoice(parsed)
+            provider_attempts.append(
+                _provider_attempt(
+                    attempt,
+                    stage,
+                    result.provider_name,
+                    result.provider_model,
+                    result.usage,
+                )
+            )
             trace_id = result.provider_trace_id or trace_id
+            stage = "postprocess"
             invoice = result.extraction.data
             error = None
             predicted_fields = invoice_data_to_fields(invoice)
@@ -221,11 +302,17 @@ def _run_document(
             break
         except ProviderError as exc:
             error = str(exc)
+            provider_attempts.append(
+                _failed_provider_attempt(attempt, stage, exc.provider_name, error)
+            )
             if not exc.retryable or attempt >= max(1, max_attempts):
                 break
             time.sleep(max(0.0, retry_backoff_seconds) * (2 ** (attempt - 1)))
         except Exception:
             error = f"provider_failed:{parser.provider_name}+{extractor.provider_name}"
+            provider_attempts.append(
+                _failed_provider_attempt(attempt, stage, "evaluation_pipeline", error)
+            )
             break
 
     return {
@@ -237,9 +324,138 @@ def _run_document(
         "field_evidence": evidence,
         "parsed_text": parsed_text,
         "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+        "provider_attempts": provider_attempts,
         "error": error,
         "trace_id": trace_id,
     }
+
+
+def _provider_attempt(
+    attempt: int,
+    stage: str,
+    provider: str,
+    model: str | None,
+    usage: ProviderUsage,
+) -> dict[str, Any]:
+    return {
+        "attempt": attempt,
+        "stage": stage,
+        "status": "succeeded",
+        "provider": provider,
+        "model": model,
+        "usage": asdict(usage),
+    }
+
+
+def _failed_provider_attempt(
+    attempt: int,
+    stage: str,
+    provider: str,
+    error: str,
+) -> dict[str, Any]:
+    return {
+        "attempt": attempt,
+        "stage": stage,
+        "status": "failed",
+        "provider": provider,
+        "error": error,
+    }
+
+
+def _experiment_manifest(
+    *,
+    run_id: str,
+    started_at: datetime,
+    dataset_root: Path,
+    settings: Any,
+    args: argparse.Namespace,
+    parser_name: str,
+    extractor_name: str,
+) -> dict[str, Any]:
+    return {
+        "experiment_id": run_id,
+        "started_at": started_at.isoformat(),
+        "dataset_fingerprint_sha256": _directory_fingerprint(dataset_root),
+        "code": _code_state(),
+        "providers": {
+            "parser": {
+                "name": parser_name,
+                "requested_model": settings.mistral_ocr_model,
+                "endpoint_host": urlparse(settings.mistral_ocr_endpoint).hostname,
+            },
+            "extractor": {
+                "name": extractor_name,
+                "requested_model": settings.extractor_model,
+                "endpoint_host": urlparse(settings.extractor_endpoint).hostname,
+                "prompt_version": EXTRACTION_PROMPT_VERSION,
+                "prompt_sha256": extraction_prompt_sha256(),
+            },
+        },
+        "execution_policy": {
+            "rate_limit_seconds": args.rate_limit_seconds,
+            "max_attempts": args.max_attempts,
+            "retry_backoff_seconds": args.retry_backoff_seconds,
+            "diagnostic_cache_reused": args.resume_private_result is not None,
+            "selected_document_ids": sorted(args.document_ids or []),
+        },
+    }
+
+
+def _code_state() -> dict[str, Any]:
+    revision = _git_output("rev-parse", "HEAD")
+    status = _git_output("status", "--porcelain")
+    critical_paths = (
+        ROOT / "backend" / "app" / "providers" / "llm_json.py",
+        ROOT / "backend" / "app" / "providers" / "mistral.py",
+        ROOT / "backend" / "app" / "evaluation" / "external_holdout.py",
+        ROOT / "backend" / "app" / "evaluation" / "provider_costs.py",
+        Path(__file__),
+    )
+    return {
+        "git_commit": revision or None,
+        "worktree_dirty": bool(status),
+        "critical_code_sha256": _files_fingerprint(critical_paths),
+    }
+
+
+def _git_output(*arguments: str) -> str:
+    completed = subprocess.run(
+        ["git", *arguments],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip() if completed.returncode == 0 else ""
+
+
+def _directory_fingerprint(path: Path) -> str:
+    return _files_fingerprint(tuple(item for item in path.rglob("*") if item.is_file()), root=path)
+
+
+def _files_fingerprint(paths: tuple[Path, ...], root: Path = ROOT) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(paths, key=lambda item: str(item)):
+        digest.update(
+            str(path.relative_to(root) if _is_relative_to(path, root) else path.name).encode()
+        )
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def _append_experiment_index(path: Path, summary: dict[str, Any], detailed_path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "classification": "private experiment index; do not commit",
+        "experiment": summary["experiment"],
+        "split": summary["split"],
+        "provider": summary["provider"],
+        "metrics": summary["metrics"],
+        "provider_economics": summary["provider_economics"],
+        "private_result": detailed_path.name,
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
 def _evidence_exists(parsed: Any, page_number: int, source_text: str) -> bool:

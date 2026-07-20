@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+import json
 from decimal import Decimal
 from pathlib import Path
 
@@ -10,12 +11,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from scripts.prepare_private_external_invoice_pack import _expected_fields  # noqa: E402
+from scripts.prepare_private_external_invoice_pack import (  # noqa: E402
+    _excluded_templates,
+    _expected_fields,
+)
 from scripts.run_private_external_evaluation import (  # noqa: E402
+    _filter_diagnostic_dataset,
     _load_cached_observations,
     _run_document,
 )
 
+from app.benchmark.models import EvaluationDataset, EvaluationDocument  # noqa: E402
 from app.extraction.schemas import InvoiceData, InvoiceExtraction  # noqa: E402
 from app.providers.contracts import (  # noqa: E402
     ExtractionResult,
@@ -25,6 +31,18 @@ from app.providers.contracts import (  # noqa: E402
 
 
 class PrivateExternalPackTests(unittest.TestCase):
+    def test_loads_templates_from_private_exclusion_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "private_manifest.json"
+            manifest.write_text(
+                json.dumps({"cases": [{"template": 3}, {"template": 7}, {"template": 3}]}),
+                encoding="utf-8",
+            )
+
+            templates = _excluded_templates(manifest)
+
+        self.assertEqual(templates, {3, 7})
+
     def test_maps_single_explicit_gst_to_tax(self) -> None:
         fields = _expected_fields(
             {
@@ -101,6 +119,23 @@ class PrivateExternalPackTests(unittest.TestCase):
     def test_holdout_cannot_reuse_cached_diagnostic_observations(self) -> None:
         with self.assertRaisesRegex(SystemExit, "cannot reuse cached"):
             _load_cached_observations(Path("ignored.json"), "holdout")
+
+    def test_diagnostic_subset_is_explicit_and_holdout_forbids_it(self) -> None:
+        dataset = EvaluationDataset(
+            name="private",
+            documents=(
+                EvaluationDocument("doc-1", {}),
+                EvaluationDocument("doc-2", {}),
+            ),
+        )
+
+        selected = _filter_diagnostic_dataset(dataset, ["doc-2"], "diagnostic")
+
+        self.assertEqual([item.document_id for item in selected.documents], ["doc-2"])
+        with self.assertRaisesRegex(SystemExit, "cannot select individual"):
+            _filter_diagnostic_dataset(dataset, ["doc-1"], "holdout")
+        with self.assertRaisesRegex(SystemExit, "unknown diagnostic"):
+            _filter_diagnostic_dataset(dataset, ["missing"], "diagnostic")
 
 
 if __name__ == "__main__":

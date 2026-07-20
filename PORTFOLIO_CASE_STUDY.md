@@ -98,6 +98,13 @@ validation outcomes, with no provider error and 1.09 seconds average observed pr
 These numbers describe one small synthetic golden set. They are not production accuracy,
 throughput, or SLA claims.
 
+Two separate 25-document licensed synthetic FATURA packs were prepared outside Git. The first
+sealed holdout exposed a provider-availability failure: only 1 of 10 documents completed both
+providers. That negative result remains in the evidence record. A second pack used 25 previously
+unseen source layouts and a new sealed holdout. With Mistral OCR and OpenAI extraction, all 10
+holdout documents completed, field accuracy was 98.75%, and validation and approval-blocker
+accuracy were 100%. One unsupported due date was still hallucinated and remains documented.
+
 ## Safety Evidence
 
 - real-provider processing stopped at `needs_review`, including for a clean high-confidence invoice
@@ -107,12 +114,14 @@ throughput, or SLA claims.
 - the duplicate reason was visible beside the source PDF
 - the UI disabled approval and the backend independently refused it
 - approved, rejected, and exported invoice data could not be silently edited through the draft API
+- correction requests returned ownership to the uploader and preserved original AI output,
+  before/after values, actor, reason, timestamp, and field-level diff
 - the tested provider-backed workflow produced six durable audit events
 
 ## Engineering Evidence
 
-- 370 backend tests passed with 2 environment-dependent tests skipped
-- 11 frontend tests passed
+- 432 backend tests passed with 2 environment-dependent tests skipped
+- 13 frontend tests passed
 - frontend lint and production build passed
 - backend Ruff checks passed
 - production dependency audit reported no known npm vulnerability at verification time
@@ -147,6 +156,8 @@ boundary can be demonstrated and tested.
 ## Limitations and Next Evidence
 
 - all benchmark invoices are synthetic
+- the external FATURA packs are licensed synthetic evidence, not customer traffic; V1 preserved a
+  provider failure and V2 still produced one unsupported due date
 - no finance operations user has completed a formal usability study
 - no customer baseline, time saving, cost saving, or error reduction has been measured
 - provider behavior may change as hosted models change

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import shutil
 import sys
 from pathlib import Path
@@ -154,7 +155,23 @@ def _summary(output: Path) -> None:
 
 
 def main() -> None:
-    output = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_OUTPUT
+    parser = argparse.ArgumentParser(
+        description="Create a recruiter-safe public artifact from the local project."
+    )
+    parser.add_argument(
+        "output_path",
+        nargs="?",
+        help="Destination directory. Defaults to dist/public-ai-document-ops-system.",
+    )
+    parser.add_argument(
+        "--output",
+        dest="output_option",
+        help="Destination directory. Equivalent to the positional output_path.",
+    )
+    args = parser.parse_args()
+    if args.output_path and args.output_option:
+        raise SystemExit("Use either positional output_path or --output, not both.")
+    output = Path(args.output_option or args.output_path or DEFAULT_OUTPUT)
 
     if output == ROOT:
         raise SystemExit("Refusing to copy into the project root itself.")

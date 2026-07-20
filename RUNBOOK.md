@@ -164,6 +164,35 @@ public-artifact packager exclude that directory.
 Only aggregate metrics, sanitized failure examples, dataset citations, and license attribution may
 be committed. Check `git status` and inspect the generated public artifact before every release.
 
+### Maintainable Experiment Record
+
+Create a new 25-document pack without reusing layouts from an earlier private manifest:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\prepare_private_external_invoice_pack.py `
+  <FATURA.zip> <private-pack-v2> `
+  --pack-version v2 `
+  --exclude-manifest <private-pack-v1\manifest.json>
+```
+
+Run diagnostic work first. `--document-id` is allowed only for targeted diagnostic debugging and
+is rejected for holdout runs:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_private_external_evaluation.py `
+  <private-pack-v2> <sanitized-diagnostic.json> `
+  --split diagnostic --rate-limit-seconds 2
+
+.\.venv\Scripts\python.exe scripts\run_private_external_evaluation.py `
+  <private-pack-v2> <sanitized-holdout.json> `
+  --split holdout --rate-limit-seconds 2
+```
+
+Every invocation appends a manifest and result reference to the private
+`evaluation_runs/experiment_index.jsonl`. Preserve failed runs. Commit only reviewed aggregate
+JSON, never the private ledger, OCR text, predictions, labels, PDFs, or `.env`. See
+`docs/evaluation-experiment-protocol.md` for the freeze and claim rules.
+
 ## Quality Gates
 
 Backend:

@@ -56,7 +56,7 @@ flowchart LR
 ```
 
 The local profile uses React, TypeScript, FastAPI, SQLite, and private local file storage. Real
-provider verification uses Mistral OCR and a Groq-hosted structured extraction model. Provider
+provider verification uses Mistral OCR and an OpenAI structured extraction model. Provider
 adapters are configured through environment variables and can be replaced by deterministic
 mocks for offline development.
 
@@ -67,16 +67,17 @@ mocks for offline development.
 | Provider-backed workflow | Upload, OCR, extraction, review queue, explicit approval, and six audit events observed locally. |
 | Synthetic invoice set | 20 deterministic PDFs covering normal, missing-field, mismatch, duplicate, low-contrast, rotated, and multi-page cases. |
 | Final controlled regression | 160 / 160 evaluated fields and 20 / 20 expected validation outcomes on that synthetic set. |
-| External licensed holdout | First sealed 10-document FATURA holdout exposed provider availability failure: 1 / 10 documents succeeded, so external robustness is not claimed. |
+| External licensed evaluation | V1 preserved a provider-availability failure. A new non-overlapping V2 pack completed 10 / 10 sealed holdout documents with 98.75% field accuracy, 100% validation match, and one documented due-date hallucination. |
 | Reviewer correction loop | Correction requests route back to the uploader, preserve original AI output, store before/after diffs, and return the invoice to review. |
 | Approval boundary | Duplicate and other error-level cases are blocked in both UI and API tests. |
-| Automated verification | 425 backend tests passed with 2 skipped; 13 frontend tests passed; lint and production build passed. |
+| Automated verification | 432 backend tests passed with 2 skipped; 13 frontend tests passed; lint and production build passed. |
 
 The controlled regression is a small synthetic golden set, not a production accuracy claim.
 See [scenario evidence](docs/invoice-scenarios-v1-evidence.md) for the initial failures, fixes,
 latency observation, and claim boundaries.
-See [external evaluation](docs/external-invoice-evaluation-v1.md) for the failed sealed holdout and
-provider-availability boundary.
+See [V1 external evaluation](docs/external-invoice-evaluation-v1.md) for the preserved provider
+failure and [V2 external evaluation](docs/external-invoice-evaluation-v2.md) for the new sealed
+holdout, experiment history, costs, and remaining limitation.
 
 ## Quick Start
 
@@ -134,7 +135,7 @@ Pop-Location
 ## Honest Limitations
 
 - Invoice is the only complete document workflow.
-- Evaluation uses synthetic fixtures and one external licensed synthetic holdout; no customer
+- Evaluation uses synthetic fixtures and two external licensed synthetic packs; no customer
   dataset, production accuracy, or real-world robustness is claimed.
 - Time savings, cost reduction, and production accuracy have not been measured.
 - The default authentication and persistence profile is intended for a local portfolio demo.
@@ -149,7 +150,10 @@ Pop-Location
 - [Portfolio case study](PORTFOLIO_CASE_STUDY.md)
 - [Recruiter evidence pack](RECRUITER_EVIDENCE_PACK.md)
 - [Scenario coverage matrix](SCENARIO_COVERAGE_MATRIX.md)
-- [External invoice evaluation](docs/external-invoice-evaluation-v1.md)
+- [External invoice evaluation V2](docs/external-invoice-evaluation-v2.md)
+- [Evaluation experiment log](docs/evaluation-experiment-log.md)
+- [Evaluation experiment protocol](docs/evaluation-experiment-protocol.md)
+- [External invoice evaluation V1](docs/external-invoice-evaluation-v1.md)
 - [Reviewer correction feedback](docs/reviewer-correction-feedback.md)
 - [Product requirements](PRD.md)
 - [Architecture](ARCHITECTURE.md)

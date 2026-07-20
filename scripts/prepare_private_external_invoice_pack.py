@@ -42,7 +42,8 @@ def main() -> None:
     _verify_archive(archive)
     _prepare_empty_output(output)
 
-    cases = _select_cases(archive, args.seed)
+    excluded_templates = _excluded_templates(args.exclude_manifest)
+    cases = _select_cases(archive, args.seed, excluded_templates=excluded_templates)
     manifest_cases: list[dict[str, Any]] = []
     expected_by_split: dict[str, list[dict[str, Any]]] = {
         "diagnostic": [],
@@ -60,7 +61,7 @@ def main() -> None:
         _write_json(split_root / "expected.json", records)
 
     manifest = {
-        "pack_version": PACK_VERSION,
+        "pack_version": args.pack_version,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "source": {
             "name": "FATURA",
@@ -75,6 +76,12 @@ def main() -> None:
             "strategy": "one instance from each of 25 deterministically shuffled layouts",
             "diagnostic_count": DIAGNOSTIC_COUNT,
             "holdout_count": HOLDOUT_COUNT,
+            "excluded_templates_count": len(excluded_templates),
+            "exclusion_manifest_sha256": (
+                _digest(args.exclude_manifest.resolve(), "sha256")
+                if args.exclude_manifest is not None
+                else None
+            ),
         },
         "label_source": "FATURA Original_Format annotations normalized to invoice_v1",
         "cases": manifest_cases,
@@ -102,6 +109,12 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("archive", type=Path, help="Downloaded FATURA.zip archive")
     parser.add_argument("output", type=Path, help="Output directory outside the repository")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--pack-version", default=PACK_VERSION)
+    parser.add_argument(
+        "--exclude-manifest",
+        type=Path,
+        help="Private manifest whose source templates must not be selected again.",
+    )
     return parser.parse_args()
 
 
@@ -126,7 +139,12 @@ def _verify_archive(archive: Path) -> None:
         )
 
 
-def _select_cases(archive: Path, seed: int) -> list[dict[str, Any]]:
+def _select_cases(
+    archive: Path,
+    seed: int,
+    *,
+    excluded_templates: set[int] | None = None,
+) -> list[dict[str, Any]]:
     pattern = re.compile(r"/images/Template(?P<template>\d+)_Instance(?P<instance>\d+)\.jpg$")
     by_template: dict[int, list[tuple[int, str]]] = {}
     with zipfile.ZipFile(archive) as source:
@@ -138,11 +156,12 @@ def _select_cases(archive: Path, seed: int) -> list[dict[str, Any]]:
             instance = int(match.group("instance"))
             by_template.setdefault(template, []).append((instance, member))
 
-    if len(by_template) < DIAGNOSTIC_COUNT + HOLDOUT_COUNT:
+    available_templates = set(by_template) - (excluded_templates or set())
+    if len(available_templates) < DIAGNOSTIC_COUNT + HOLDOUT_COUNT:
         raise SystemExit("ERROR: source archive does not contain 25 distinct templates.")
 
     rng = random.Random(seed)
-    templates = sorted(by_template)
+    templates = sorted(available_templates)
     rng.shuffle(templates)
     selected = []
     for index, template in enumerate(templates[: DIAGNOSTIC_COUNT + HOLDOUT_COUNT]):
@@ -165,6 +184,26 @@ def _select_cases(archive: Path, seed: int) -> list[dict[str, Any]]:
             }
         )
     return selected
+
+
+def _excluded_templates(manifest_path: Path | None) -> set[int]:
+    if manifest_path is None:
+        return set()
+    resolved = manifest_path.resolve()
+    if not resolved.is_file():
+        raise SystemExit(f"ERROR: exclusion manifest not found: {resolved}")
+    manifest = json.loads(resolved.read_text(encoding="utf-8"))
+    cases = manifest.get("cases")
+    if not isinstance(cases, list):
+        raise SystemExit("ERROR: exclusion manifest does not contain cases.")
+    templates = {
+        int(case["template"])
+        for case in cases
+        if isinstance(case, dict) and case.get("template") is not None
+    }
+    if not templates:
+        raise SystemExit("ERROR: exclusion manifest does not contain source templates.")
+    return templates
 
 
 def _materialize_case(

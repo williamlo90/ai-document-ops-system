@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 
@@ -49,10 +50,12 @@ def main() -> None:
     parsed = parser.parse(source)
     print(f"  pages={len(parsed.pages)}, text_length={len(parsed.text)}")
     print(f"  trace_id={parsed.provider_trace_id}")
+    print(f"  model={parsed.provider_model}, usage={json.dumps(asdict(parsed.usage))}")
 
     print(f"Extracting with {extractor.provider_name} ...")
     result = extractor.extract_invoice(parsed)
     print(f"  provider={result.provider_name}, trace_id={result.provider_trace_id}")
+    print(f"  model={result.provider_model}, usage={json.dumps(asdict(result.usage))}")
     validation = validate_invoice(result.extraction.data)
     print(f"  validation_errors={len(validation.issues)}")
 

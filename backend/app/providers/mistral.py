@@ -5,7 +5,13 @@ import urllib.error
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from app.providers.contracts import DocumentSource, ParsedDocument, ParsedPage, ProviderError
+from app.providers.contracts import (
+    DocumentSource,
+    ParsedDocument,
+    ParsedPage,
+    ProviderError,
+    ProviderUsage,
+)
 from app.providers.http_transport import post_json_without_redirects
 
 
@@ -58,7 +64,7 @@ class MistralOcrParserProvider:
             )
         except (OSError, urllib.error.URLError) as exc:
             raise ProviderError("ocr_request_failed", self.provider_name, retryable=True) from exc
-        return _parsed_document(data, source.storage_key, self.provider_name)
+        return _parsed_document(data, source.storage_key, self.provider_name, self.model)
 
 
 def _post_json(
@@ -86,6 +92,7 @@ def _parsed_document(
     data: dict[str, Any],
     fallback_trace_id: str,
     provider_name: str,
+    requested_model: str,
 ) -> ParsedDocument:
     pages_data = data.get("pages") or []
     pages = tuple(
@@ -98,9 +105,21 @@ def _parsed_document(
     text = "\n\n".join(page.text for page in pages).strip()
     if not text:
         text = str(data.get("markdown") or data.get("text") or "").strip()
+    usage_info = data.get("usage_info") if isinstance(data.get("usage_info"), dict) else {}
     return ParsedDocument(
         text=text,
         pages=pages,
         provider_name=provider_name,
         provider_trace_id=str(data.get("id") or data.get("trace_id") or fallback_trace_id),
+        provider_model=str(data.get("model") or requested_model),
+        usage=ProviderUsage(
+            pages_processed=_optional_int(usage_info.get("pages_processed")) or len(pages),
+            document_size_bytes=_optional_int(usage_info.get("doc_size_bytes")),
+        ),
     )
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    return int(value)

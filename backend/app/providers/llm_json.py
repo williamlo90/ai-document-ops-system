@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import urllib.error
 from dataclasses import dataclass, replace
@@ -9,11 +10,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Callable
 
 from app.extraction.schemas import FieldConfidence, InvoiceData, InvoiceExtraction, InvoiceLineItem
-from app.providers.contracts import ExtractionResult, ParsedDocument, ProviderError
+from app.providers.contracts import ExtractionResult, ParsedDocument, ProviderError, ProviderUsage
 from app.providers.http_transport import post_json_without_redirects
 
 
 PostJson = Callable[[str, dict[str, Any], dict[str, str]], dict[str, Any]]
+EXTRACTION_PROMPT_VERSION = "invoice-extraction-v3"
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,8 @@ class LlmJsonInvoiceExtractor:
             extraction=extraction,
             provider_name=self.provider_name,
             provider_trace_id=parsed_document.provider_trace_id,
+            provider_model=str(response.get("model") or self.model),
+            usage=_provider_usage(response),
         )
 
 
@@ -133,6 +137,11 @@ def _payload(model: str, text: str) -> dict[str, Any]:
     }
 
 
+def extraction_prompt_sha256() -> str:
+    prompt = _payload("fingerprint-only", "")["messages"][0]["content"]
+    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+
+
 def _post_json(
     url: str,
     payload: dict[str, Any],
@@ -167,6 +176,26 @@ def _extract_json_object(response: dict[str, Any]) -> dict[str, Any]:
     return response
 
 
+def _provider_usage(response: dict[str, Any]) -> ProviderUsage:
+    usage = response.get("usage") if isinstance(response.get("usage"), dict) else {}
+    input_details = usage.get("input_tokens_details")
+    if not isinstance(input_details, dict):
+        input_details = usage.get("prompt_tokens_details")
+    input_details = input_details if isinstance(input_details, dict) else {}
+    return ProviderUsage(
+        input_tokens=_optional_int(usage.get("input_tokens") or usage.get("prompt_tokens")),
+        cached_input_tokens=_optional_int(input_details.get("cached_tokens")),
+        output_tokens=_optional_int(usage.get("output_tokens") or usage.get("completion_tokens")),
+        total_tokens=_optional_int(usage.get("total_tokens")),
+    )
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    return int(value)
+
+
 def _loads_object(text: str) -> dict[str, Any]:
     loaded = json.loads(text)
     if not isinstance(loaded, dict):
@@ -197,13 +226,22 @@ def _ground_vendor(invoice: InvoiceData, source_text: str) -> InvoiceData:
 
 
 def _has_vendor_context(source_text: str, vendor_name: str) -> bool:
+    if _looks_like_postal_address(vendor_name):
+        return False
     lines = [line.strip() for line in source_text.splitlines() if line.strip()]
     normalized_vendor = _searchable_text(vendor_name)
     for index, line in enumerate(lines):
-        if normalized_vendor not in _searchable_text(line):
+        if not _line_matches_vendor_identity(line, normalized_vendor):
             continue
-        before = " ".join(lines[max(0, index - 2) : index + 1])
-        after = " ".join(lines[index : index + 3])
+        identity_context = " ".join(lines[max(0, index - 1) : index + 1])
+        if re.search(
+            r"\b(bill[ _-]*to|buyer|ship[ _-]*to)\b",
+            identity_context,
+            flags=re.IGNORECASE,
+        ):
+            continue
+        before = " ".join(lines[max(0, index - 6) : index + 1])
+        after = " ".join(lines[index : index + 7])
         if re.search(r"\b(from|seller|supplier|vendor)\b", before, flags=re.IGNORECASE):
             return True
         if re.search(
@@ -217,6 +255,28 @@ def _has_vendor_context(source_text: str, vendor_name: str) -> bool:
         ):
             return True
     return False
+
+
+def _line_matches_vendor_identity(line: str, normalized_vendor: str) -> bool:
+    if re.search(r"(?:https?://|www\.|@)", line, flags=re.IGNORECASE):
+        return False
+    without_label = re.sub(
+        r"^\s*(?:from|seller|supplier|vendor)\s*:?\s*",
+        "",
+        line,
+        flags=re.IGNORECASE,
+    )
+    return _searchable_text(without_label) == normalized_vendor
+
+
+def _looks_like_postal_address(value: str) -> bool:
+    return bool(
+        re.search(
+            r",\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?\s+(?:US|USA)\s*$",
+            value,
+            flags=re.IGNORECASE,
+        )
+    )
 
 
 @dataclass(frozen=True)

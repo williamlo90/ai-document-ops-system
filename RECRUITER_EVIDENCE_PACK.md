@@ -20,8 +20,10 @@ finance platform.
 | A reviewer can compare the source PDF with extracted fields. | [Reviewer screenshot](docs/assets/screenshots/reviewer-decision.png) and [3:37 demo](docs/assets/demo/ai-document-ops-demo.mp4) |
 | Extraction confidence cannot approve an invoice. | Approval remains an explicit reviewer action in the UI and backend decision service. |
 | Business-rule failures block approval. | Total, date, currency, required-field, and duplicate cases are covered in the [scenario matrix](SCENARIO_COVERAGE_MATRIX.md) and automated tests. |
+| Reviewer corrections become auditable data, not chat history. | [Reviewer correction feedback](docs/reviewer-correction-feedback.md) records before/after diffs, original AI snapshots, reason lineage, and privacy-filtered aggregate evidence. |
 | A decision leaves inspectable consequences. | The [post-approval screenshot](docs/assets/screenshots/approved-decision.png) shows decision status, actor, timestamp, audit-event count, and export eligibility. |
 | Provider behavior was tested beyond one clean sample. | The [scenario evidence](docs/invoice-scenarios-v1-evidence.md) records three real-provider iterations across 20 committed synthetic PDFs. |
+| External behavior was tested and not overclaimed. | [V1](docs/external-invoice-evaluation-v1.md) preserves a provider failure; the non-overlapping [V2 sealed holdout](docs/external-invoice-evaluation-v2.md) completed 10 / 10 documents with 98.75% field accuracy and one documented hallucination. |
 | The artifact is reproducible and bounded. | The [runbook](RUNBOOK.md), automated quality gates, public-artifact checks, and explicit limitations define the supported local profile. |
 
 ## Responsibility Boundary
@@ -41,10 +43,12 @@ finance platform.
 | Static validation blockers | Seven fixtures correctly required follow-up: three missing critical fields and four deterministic business-rule failures. | These rules cover the committed invoice contract only. |
 | Stateful duplicate control | The first invoice remained clear; the second matching vendor and invoice number received `duplicate_invoice` and approval was blocked. | Duplicate detection is workspace-scoped and depends on stored application state. |
 | Approval audit consequence | A completed local approval recorded actor, timestamp, terminal status, export eligibility, and six audit events. | Export eligibility is not a claim that an ERP delivery occurred. |
-| Automated verification | 370 backend tests passed with 2 skipped; 12 frontend tests passed; Ruff, lint, and production build passed. | Tests support the local repository contract, not hosted production readiness. |
+| Reviewer correction feedback | Six deterministic feedback-lineage checks passed and public summaries exclude document IDs, actors, reasons, and values. | This proves correction capture and privacy filtering, not model improvement or user adoption. |
+| External licensed holdout | The V2 sealed holdout completed 10 / 10 documents with 98.75% field accuracy, 100% validation match, and one unsupported due date. | This is bounded licensed-synthetic evidence, not customer or production accuracy. |
+| Automated verification | 432 backend tests passed with 2 skipped; 13 frontend tests passed; Ruff, lint, production build, and dependency audits passed. | Tests support the local repository contract, not hosted production readiness. |
 | Recruiter demo | A 3:37 captioned video shows a clean approval and a blocked duplicate. | The video uses committed synthetic PDFs and a deterministic UI contract harness. |
 
-The provider-backed regression used Mistral OCR and a Groq-hosted structured extraction model.
+The current provider-backed evaluation used Mistral OCR and an OpenAI structured extraction model.
 The demo harness is intentionally deterministic so the same short narrative can be
 reviewed without credentials or provider drift. These are separate evidence types and are not
 presented as the same run.
@@ -66,12 +70,17 @@ Those claims require external users and representative business data.
 - live accounting or ERP delivery
 - support for document types other than invoices
 - autonomous finance operations
+- production provider availability or an operational SLA
 
 ## Evidence Index
 
 - [Portfolio case study](PORTFOLIO_CASE_STUDY.md)
 - [Scenario coverage matrix](SCENARIO_COVERAGE_MATRIX.md)
 - [Provider-backed scenario evidence](docs/invoice-scenarios-v1-evidence.md)
+- [External invoice evaluation V2](docs/external-invoice-evaluation-v2.md)
+- [Evaluation experiment log](docs/evaluation-experiment-log.md)
+- [External invoice evaluation V1](docs/external-invoice-evaluation-v1.md)
+- [Reviewer correction feedback](docs/reviewer-correction-feedback.md)
 - [Reliability report](docs/reliability-report.md)
 - [Architecture and decision boundaries](ARCHITECTURE.md)
 - [Demo notes and reproduction](docs/demo-video.md)

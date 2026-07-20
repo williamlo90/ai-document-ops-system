@@ -97,3 +97,11 @@ sanitized aggregate metrics after evaluator-only changes without calling provide
 - Do not describe FATURA as real customer data.
 - Do not claim production readiness until provider availability and a new predeclared run are
   measured successfully.
+
+## Follow-Up
+
+The failed V1 result remains part of the evidence record. A non-overlapping V2 pack was later run
+with a paid OpenAI extractor and is reported separately in
+[External Invoice Evaluation V2](external-invoice-evaluation-v2.md). The V1 documents were also
+used for a clearly labeled provider-recovery comparison; that comparison is not treated as a new
+blind holdout.

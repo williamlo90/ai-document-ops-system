@@ -25,6 +25,7 @@ class SqliteStore:
         self.connection = sqlite3.connect(str(path), check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.lock = RLock()
+        self._closed = False
         self._init_schema()
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
@@ -40,6 +41,13 @@ class SqliteStore:
     def query_one(self, sql: str, params: tuple = ()) -> sqlite3.Row | None:
         with self.lock:
             return self.connection.execute(sql, params).fetchone()
+
+    def close(self) -> None:
+        with self.lock:
+            if self._closed:
+                return
+            self.connection.close()
+            self._closed = True
 
     def _init_schema(self) -> None:
         with self.lock:
