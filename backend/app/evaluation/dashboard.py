@@ -291,8 +291,16 @@ class EvaluationDashboardService:
     ) -> dict[str, Any]:
         metrics = report.get("metrics") if isinstance(report.get("metrics"), dict) else report
         experiment = report.get("experiment") if isinstance(report.get("experiment"), dict) else {}
-        economics = report.get("provider_economics") if isinstance(report.get("provider_economics"), dict) else {}
-        cost = economics.get("cost") if isinstance(economics.get("cost"), dict) else report.get("cost_estimate", {})
+        economics = (
+            report.get("provider_economics")
+            if isinstance(report.get("provider_economics"), dict)
+            else {}
+        )
+        cost = (
+            economics.get("cost")
+            if isinstance(economics.get("cost"), dict)
+            else report.get("cost_estimate", {})
+        )
         cost = cost if isinstance(cost, dict) else {}
         attempts = economics.get("attempts") if isinstance(economics.get("attempts"), dict) else {}
         dataset_id = str(report.get("dataset_id") or _slug(dataset_name))
@@ -334,7 +342,9 @@ class EvaluationDashboardService:
             "validation_match": validation_match,
             "document_exact_match": _number(metrics.get("document_exact_match_rate")),
             "approval_blocker_accuracy": _number(metrics.get("approval_blocker_accuracy")),
-            "provider_errors": int(report.get("provider_errors") or metrics.get("documents_failed") or 0),
+            "provider_errors": int(
+                report.get("provider_errors") or metrics.get("documents_failed") or 0
+            ),
             "duration_seconds": duration_seconds,
             "duration_kind": duration_kind,
             "provider_calls": _optional_integer(attempts.get("total")),
@@ -358,7 +368,9 @@ class EvaluationDashboardService:
     def _select_run(runs: list[dict[str, Any]], run_id: str | None) -> dict[str, Any] | None:
         selected = next((run for run in runs if run["id"] == run_id), None) if run_id else None
         if selected is None:
-            selected = next((run for run in runs if run["verdict_available"]), runs[0] if runs else None)
+            selected = next(
+                (run for run in runs if run["verdict_available"]), runs[0] if runs else None
+            )
         if selected is not None:
             selected = {**selected, "is_current": True}
         return selected
@@ -553,11 +565,19 @@ class EvaluationDashboardService:
         attempts: list[dict[str, Any]] = []
         try:
             parsed = self.parser.parse(source)
-            attempts.append(_provider_attempt("parser", parsed.provider_name, parsed.provider_model, parsed.usage))
+            attempts.append(
+                _provider_attempt(
+                    "parser", parsed.provider_name, parsed.provider_model, parsed.usage
+                )
+            )
             if not parsed.text:
                 raise ProviderError("empty_parsed_text", self.parser.provider_name)
             result = self.extractor.extract_invoice(parsed)
-            attempts.append(_provider_attempt("extractor", result.provider_name, result.provider_model, result.usage))
+            attempts.append(
+                _provider_attempt(
+                    "extractor", result.provider_name, result.provider_model, result.usage
+                )
+            )
             invoice = result.extraction.data
             confidence_fields = sorted({item.field_name for item in result.extraction.confidence})
             evidence_fields = sorted(
@@ -647,9 +667,15 @@ def _duration(report: dict[str, Any], metrics: dict[str, Any]) -> tuple[float | 
     started = experiment.get("started_at") or report.get("started_at")
     finished = report.get("finished_at") or report.get("generated_at")
     if started and finished:
-        delta = _observed_datetime({"started_at": finished}) - _observed_datetime({"started_at": started})
+        delta = _observed_datetime({"started_at": finished}) - _observed_datetime(
+            {"started_at": started}
+        )
         return round(max(delta.total_seconds(), 0.0), 2), "wall_clock"
-    latency = metrics.get("latency_ms") if isinstance(metrics.get("latency_ms"), dict) else metrics.get("latency", {})
+    latency = (
+        metrics.get("latency_ms")
+        if isinstance(metrics.get("latency_ms"), dict)
+        else metrics.get("latency", {})
+    )
     average = _number(latency.get("average") if isinstance(latency, dict) else None)
     documents = int(report.get("documents_count") or metrics.get("documents_total") or 0)
     if average is not None and documents:
@@ -673,4 +699,6 @@ def _optional_integer(value: Any) -> int | None:
 
 
 def _slug(value: str) -> str:
-    return "_".join(part for part in "".join(ch if ch.isalnum() else " " for ch in value.casefold()).split())
+    return "_".join(
+        part for part in "".join(ch if ch.isalnum() else " " for ch in value.casefold()).split()
+    )

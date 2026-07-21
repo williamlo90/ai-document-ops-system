@@ -143,7 +143,10 @@ def list_export_runs(
     runs = container.export_batches.list_runs(context.workspace_id)
     start = (page - 1) * page_size
     return {
-        "items": [container.export_batch_service.run_response(run) for run in runs[start : start + page_size]],
+        "items": [
+            container.export_batch_service.run_response(run)
+            for run in runs[start : start + page_size]
+        ],
         "page": page,
         "page_size": page_size,
         "total": len(runs),

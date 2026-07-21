@@ -682,6 +682,12 @@ Exit criteria:
 Status: blocked by design input, not by implementation difficulty. The current Settings image is
 only a concept and has no replacement redesign or motion specification.
 
+Interim product decision on 21 July 2026: Settings is intentionally absent from the primary
+navigation and route tree. The previous placeholder route was removed so the client-facing
+application does not advertise an unsupported capability. Restore it only after the approved
+reference, interaction specification, persisted server contract, authorization rules, and audit
+behavior exist.
+
 Before implementation:
 
 1. Receive and approve the Settings redesign reference.
@@ -700,6 +706,32 @@ Exit criteria follow the same page sprint protocol and require server-side valid
 for every writable setting.
 
 #### Sprint UI-10: Integration, Cleanup, And Release Gate
+
+Status: In progress as of 21 July 2026.
+
+Completed in the current integration pass:
+
+- removed the unreferenced `LegacyApp.tsx`, legacy `index.css`, and Settings placeholder page
+- replaced stale end-to-end suites with the current route, role, accessibility, responsive, and
+  invoice correction-to-approval journeys
+- restored the uploader correction round trip, including the reviewer note, corrected intake
+  draft, before/after evidence, and return to the review queue
+- reconciled invoice row status, status filters, and summary counts against the same projected
+  business state
+- verified the live Overview, Invoices, Review Workspace, Review Queue, Exceptions, Exports,
+  Evaluation, and System pages at the approved desktop viewport with no page overflow, alert, or
+  browser console error
+- passed 452 backend tests (2 skipped), 13 frontend tests, frontend lint and build, Ruff format and
+  lint for 200 Python files, and the 27-case desktop/tablet/mobile browser matrix (25 passed,
+  2 breakpoint-specific skips)
+
+Remaining before this release gate is complete:
+
+- run the final dependency, security, and clean-clone reproducibility gates against the release
+  candidate
+- archive final screenshots for every approved page and material state
+- update the demo video, case study, and release evidence from the final application
+- complete Settings only after Sprint UI-09 receives approved design and backend scope
 
 Work:
 

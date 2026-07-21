@@ -6,7 +6,6 @@ import { api } from './api/client'
 import { AppShell } from './app/AppShell'
 import { defaultRoute } from './app/routes'
 import { productRole, type SessionInfo } from './app/types'
-import { PlaceholderPage } from './pages/PlaceholderPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 import { ReviewQueuePage } from './pages/ReviewQueuePage'
 import { ReviewWorkspacePage } from './pages/ReviewWorkspacePage'
@@ -61,7 +60,6 @@ function SessionGate() {
       <Route path="exports" element={<ExportsPage />} />
       <Route path="evaluation" element={<EvaluationPage />} />
       <Route path="system" element={<SystemPage />} />
-      <Route path="settings" element={<PlaceholderPage title="Settings" description="Manage supported workspace preferences." />} />
     </Route>
     <Route path="*" element={<Navigate to={defaultRoute(role)} replace />} />
   </Routes>

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { BarChart3, FileOutput, FileText, Gauge, House, Settings, TriangleAlert, ClipboardCheck } from 'lucide-react'
+import { BarChart3, FileOutput, FileText, Gauge, House, TriangleAlert, ClipboardCheck } from 'lucide-react'
 import type { AppRoute, ProductRole } from './types'
 
 export type NavigationItem = {
@@ -22,7 +22,6 @@ export const navigationItems: NavigationItem[] = [
   { label: 'Exports', path: '/exports', icon: FileOutput, roles: admins, group: 'work' },
   { label: 'Evaluation', path: '/evaluation', icon: BarChart3, roles: admins, group: 'work' },
   { label: 'System', path: '/system', icon: Gauge, roles: admins, group: 'system' },
-  { label: 'Settings', path: '/settings', icon: Settings, roles: admins, group: 'system' },
 ]
 
 export function defaultRoute(role: ProductRole): AppRoute {

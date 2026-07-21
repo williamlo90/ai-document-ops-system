@@ -89,7 +89,9 @@ class ExportBatchService:
             for document in documents
         ]
         summaries = self._summary(rows)
-        normalized_view = view if view in {"ready", "in_batch", "exported", "blocked", "drafts"} else "ready"
+        normalized_view = (
+            view if view in {"ready", "in_batch", "exported", "blocked", "drafts"} else "ready"
+        )
         filtered = [row for row in rows if self._row_view(row) == normalized_view]
         needle = search.strip().casefold()
         vendor_filter = vendor.strip().casefold()
@@ -102,13 +104,17 @@ class ExportBatchService:
                 not needle
                 or needle
                 in " ".join(
-                    str(row.get(key) or "")
-                    for key in ("invoice_label", "filename", "vendor_name")
+                    str(row.get(key) or "") for key in ("invoice_label", "filename", "vendor_name")
                 ).casefold()
             )
             and (not vendor_filter or vendor_filter in str(row.get("vendor_name") or "").casefold())
-            and (not currency_filter or currency_filter == str(row.get("currency") or "").casefold())
-            and (not approver_filter or approver_filter in str(row.get("approved_by") or "").casefold())
+            and (
+                not currency_filter or currency_filter == str(row.get("currency") or "").casefold()
+            )
+            and (
+                not approver_filter
+                or approver_filter in str(row.get("approved_by") or "").casefold()
+            )
         ]
         filtered.sort(key=lambda row: str(row["updated_at"]), reverse=True)
         total = len(filtered)
@@ -127,9 +133,13 @@ class ExportBatchService:
             "total": total,
             "total_pages": max(1, (total + page_size - 1) // page_size),
             "filters": {
-                "vendors": sorted({str(row["vendor_name"]) for row in rows if row.get("vendor_name")}),
+                "vendors": sorted(
+                    {str(row["vendor_name"]) for row in rows if row.get("vendor_name")}
+                ),
                 "currencies": sorted({str(row["currency"]) for row in rows if row.get("currency")}),
-                "approvers": sorted({str(row["approved_by"]) for row in rows if row.get("approved_by")}),
+                "approvers": sorted(
+                    {str(row["approved_by"]) for row in rows if row.get("approved_by")}
+                ),
             },
             "batch": self.batch_response(selected_batch) if selected_batch else None,
             "recent_runs": [self.run_response(run, document_map) for run in runs[:5]],
@@ -181,7 +191,10 @@ class ExportBatchService:
         if not accepted:
             raise ExportEligibilityError(
                 "None of the selected invoices can be added.",
-                tuple({"code": "invoice_rejected", "state": "failed", "label": item["reason"]} for item in rejected),
+                tuple(
+                    {"code": "invoice_rejected", "state": "failed", "label": item["reason"]}
+                    for item in rejected
+                ),
             )
         now = datetime.now(UTC)
         batch = ExportBatchRecord(
@@ -200,7 +213,9 @@ class ExportBatchService:
             self.audits.add(
                 AuditEvent(
                     document_id=document.id,
-                    event_type="export_draft_saved" if status == ExportBatchStatus.DRAFT else "export_batch_created",
+                    event_type="export_draft_saved"
+                    if status == ExportBatchStatus.DRAFT
+                    else "export_batch_created",
                     actor=context.actor,
                     old_status=document.status,
                     new_status=document.status,
@@ -281,7 +296,13 @@ class ExportBatchService:
             if batch.status not in {ExportBatchStatus.READY, ExportBatchStatus.FAILED}:
                 raise ExportEligibilityError(
                     "Only a ready or failed batch can be executed.",
-                    ({"code": "batch_not_ready", "state": "failed", "label": "Batch is not ready"},),
+                    (
+                        {
+                            "code": "batch_not_ready",
+                            "state": "failed",
+                            "label": "Batch is not ready",
+                        },
+                    ),
                 )
             checks = self.eligibility(context=context, batch=batch)
             if not all(check["state"] == "passed" for check in checks):
@@ -383,7 +404,13 @@ class ExportBatchService:
         if prior.status != ExportRunStatus.FAILED or not prior.retryable:
             raise ExportEligibilityError(
                 "Only a retryable failed export can be retried.",
-                ({"code": "run_not_retryable", "state": "failed", "label": "Run is not retryable"},),
+                (
+                    {
+                        "code": "run_not_retryable",
+                        "state": "failed",
+                        "label": "Run is not retryable",
+                    },
+                ),
             )
         return self.execute(
             context=context,
@@ -426,11 +453,36 @@ class ExportBatchService:
             for item in self.capabilities()["destinations"]
         )
         return [
-            self._check("all_approved", "All invoices approved", all_approved, "Send unapproved invoices to review."),
-            self._check("no_blockers", "No unresolved blockers", no_blockers, "Resolve invoice validation blockers."),
-            self._check("not_exported", "No invoice already exported", not_exported, "Remove previously exported invoices."),
-            self._check("single_active_batch", "No invoice in another batch", no_other_batch, "Remove invoices reserved by another batch."),
-            self._check("destination_available", "Destination is available", destination_available, "Configure a supported export destination."),
+            self._check(
+                "all_approved",
+                "All invoices approved",
+                all_approved,
+                "Send unapproved invoices to review.",
+            ),
+            self._check(
+                "no_blockers",
+                "No unresolved blockers",
+                no_blockers,
+                "Resolve invoice validation blockers.",
+            ),
+            self._check(
+                "not_exported",
+                "No invoice already exported",
+                not_exported,
+                "Remove previously exported invoices.",
+            ),
+            self._check(
+                "single_active_batch",
+                "No invoice in another batch",
+                no_other_batch,
+                "Remove invoices reserved by another batch.",
+            ),
+            self._check(
+                "destination_available",
+                "Destination is available",
+                destination_available,
+                "Configure a supported export destination.",
+            ),
         ]
 
     def batch_response(self, batch: ExportBatchRecord) -> dict[str, object]:
@@ -442,7 +494,8 @@ class ExportBatchService:
             role="admin",
         )
         documents = {
-            document.id: document for document in self.documents.list_by_workspace(batch.workspace_id)
+            document.id: document
+            for document in self.documents.list_by_workspace(batch.workspace_id)
         }
         invoices = [
             self._invoice_row(documents[document_id], active_batch_id=batch.id)
@@ -493,7 +546,8 @@ class ExportBatchService:
             "currency": currency,
             "attempt_count": run.attempt_count,
             "file_name": run.file_name,
-            "download_available": run.status == ExportRunStatus.SUCCEEDED and bool(run.artifact_content),
+            "download_available": run.status == ExportRunStatus.SUCCEEDED
+            and bool(run.artifact_content),
             "error_code": run.error_code,
             "error_message": run.error_message,
             "retryable": run.retryable,
@@ -521,7 +575,11 @@ class ExportBatchService:
     def artifact(self, context: SecurityContext, run_id: UUID) -> tuple[str, str]:
         require_admin(context)
         run = self._run(context.workspace_id, run_id)
-        if run.status != ExportRunStatus.SUCCEEDED or run.artifact_content is None or not run.file_name:
+        if (
+            run.status != ExportRunStatus.SUCCEEDED
+            or run.artifact_content is None
+            or not run.file_name
+        ):
             raise ExportRunNotFound("No confirmed export artifact is available.")
         return run.file_name, run.artifact_content
 
@@ -576,7 +634,9 @@ class ExportBatchService:
             "currency": data.currency if data else None,
             "status": export_state,
             "issue": issue,
-            "batch_id": str(active_batch_id or draft_batch_id) if active_batch_id or draft_batch_id else None,
+            "batch_id": str(active_batch_id or draft_batch_id)
+            if active_batch_id or draft_batch_id
+            else None,
             "updated_at": document.updated_at.isoformat(),
         }
 
@@ -587,7 +647,9 @@ class ExportBatchService:
             if state == "exported":
                 today = datetime.now(UTC).date()
                 state_rows = [
-                    row for row in state_rows if datetime.fromisoformat(str(row["updated_at"])).date() == today
+                    row
+                    for row in state_rows
+                    if datetime.fromisoformat(str(row["updated_at"])).date() == today
                 ]
             total_amount, currency = self._amount_summary(state_rows)
             summary[state] = {
@@ -659,7 +721,9 @@ class ExportBatchService:
         document_ids: tuple[UUID, ...],
         exclude_batch_id: UUID | None = None,
     ) -> tuple[list[DocumentRecord], list[dict[str, str]]]:
-        available = {document.id: document for document in self.documents.list_by_workspace(workspace_id)}
+        available = {
+            document.id: document for document in self.documents.list_by_workspace(workspace_id)
+        }
         active = self._active_membership(
             self.repository.list_batches(workspace_id),
             exclude_batch_id=exclude_batch_id,
@@ -691,7 +755,9 @@ class ExportBatchService:
         document_ids: tuple[UUID, ...],
         exclude_batch_id: UUID | None = None,
     ) -> tuple[list[DocumentRecord], list[dict[str, str]]]:
-        available = {document.id: document for document in self.documents.list_by_workspace(workspace_id)}
+        available = {
+            document.id: document for document in self.documents.list_by_workspace(workspace_id)
+        }
         active = self._active_membership(
             self.repository.list_batches(workspace_id),
             exclude_batch_id=exclude_batch_id,
@@ -746,7 +812,13 @@ class ExportBatchService:
         if not destinations:
             raise ExportEligibilityError(
                 "No supported batch export destination is configured.",
-                ({"code": "destination_unavailable", "state": "failed", "label": "Destination is unavailable"},),
+                (
+                    {
+                        "code": "destination_unavailable",
+                        "state": "failed",
+                        "label": "Destination is unavailable",
+                    },
+                ),
             )
         return destinations[0]
 

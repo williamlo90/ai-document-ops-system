@@ -84,6 +84,26 @@ def list_invoices(
         for document in documents
         if not is_intake_role(context) or document.submitted_by == context.user_id
     ]
+    work_items = {
+        document.id: current_work_item(container, context, document.id)
+        for document in visible_documents
+    }
+    projections = {
+        document.id: project_workflow(
+            document,
+            work_items[document.id],
+            container.backoffice_approvals,
+        )
+        for document in visible_documents
+    }
+    business_statuses = {
+        document.id: _invoice_business_status(
+            document.status,
+            bool(extractions[document.id] and extractions[document.id].validation_report.has_errors)
+            or projections[document.id].current_stage == "correction_requested",
+        )
+        for document in visible_documents
+    }
     needle = search.strip().casefold()
     normalized_status = status_filter.strip().casefold()
     normalized_vendor = vendor.strip().casefold()
@@ -92,14 +112,12 @@ def list_invoices(
         document
         for document in visible_documents
         if _matches_invoice_search(document.original_filename, extractions[document.id], needle)
-        and _matches_invoice_status(document.status, extractions[document.id], normalized_status)
+        and _matches_invoice_status(business_statuses[document.id], normalized_status)
         and _matches_invoice_vendor(extractions[document.id], normalized_vendor)
         and (not normalized_submitter or document.submitted_by.casefold() == normalized_submitter)
         and (created_from is None or document.created_at.date() >= created_from)
         and (created_to is None or document.created_at.date() <= created_to)
-        and _matches_invoice_date(
-            extractions[document.id], invoice_date_from, invoice_date_to
-        )
+        and _matches_invoice_date(extractions[document.id], invoice_date_from, invoice_date_to)
     ]
     filtered.sort(
         key=lambda document: _invoice_sort_key(document, extractions[document.id], sort),
@@ -109,8 +127,8 @@ def list_invoices(
     start = (page - 1) * page_size
     items = []
     for document in filtered[start : start + page_size]:
-        work_item = current_work_item(container, context, document.id)
-        projection = project_workflow(document, work_item, container.backoffice_approvals)
+        work_item = work_items[document.id]
+        projection = projections[document.id]
         extraction = extractions[document.id]
         issues = extraction.validation_report.issues if extraction else ()
         error_issues = tuple(issue for issue in issues if issue.severity.value == "error")
@@ -145,9 +163,12 @@ def list_invoices(
                 ),
                 "current_owner": projection.current_owner,
                 "current_stage": projection.current_stage,
-                "business_status": _invoice_business_status(
-                    document.status,
-                    bool(error_issues) or projection.current_stage == "correction_requested",
+                "business_status": business_statuses[document.id],
+                "correction_reason": (
+                    work_item.business_context.get("correction_reason")
+                    if work_item
+                    and work_item.business_context.get("correction_state") == "requested"
+                    else None
                 ),
                 "validation_issue_count": len(issues),
                 "validation_error_count": len(error_issues),
@@ -164,7 +185,7 @@ def list_invoices(
             }
         )
         items.append(response)
-    summary = _invoice_summary(visible_documents, extractions)
+    summary = _invoice_summary(visible_documents, business_statuses)
     return {
         "items": items,
         "page": page,
@@ -311,15 +332,9 @@ def _matches_invoice_search(
     return needle in searchable
 
 
-def _matches_invoice_status(
-    status_value: DocumentStatus,
-    extraction: StoredExtraction | None,
-    expected: str,
-) -> bool:
+def _matches_invoice_status(business_status: str, expected: str) -> bool:
     if not expected:
         return True
-    has_errors = bool(extraction and extraction.validation_report.has_errors)
-    business_status = _invoice_business_status(status_value, has_errors)
     if expected == "open":
         return business_status not in {"approved", "exported", "rejected", "cancelled"}
     if expected == "completed":
@@ -330,9 +345,7 @@ def _matches_invoice_status(
 def _matches_invoice_vendor(extraction: StoredExtraction | None, expected: str) -> bool:
     if not expected:
         return True
-    vendor_name = (
-        extraction.extraction_result.extraction.data.vendor_name if extraction else None
-    )
+    vendor_name = extraction.extraction_result.extraction.data.vendor_name if extraction else None
     return bool(vendor_name and expected in vendor_name.casefold())
 
 
@@ -343,9 +356,7 @@ def _matches_invoice_date(
 ) -> bool:
     if invoice_date_from is None and invoice_date_to is None:
         return True
-    invoice_date = (
-        extraction.extraction_result.extraction.data.invoice_date if extraction else None
-    )
+    invoice_date = extraction.extraction_result.extraction.data.invoice_date if extraction else None
     if invoice_date is None:
         return False
     return (invoice_date_from is None or invoice_date >= invoice_date_from) and (
@@ -358,15 +369,18 @@ def _invoice_sort_key(document, extraction: StoredExtraction | None, sort: str):
     if sort == "created":
         return document.created_at
     if sort == "invoice_date":
-        return (data.invoice_date is not None if data else False, data.invoice_date if data else None)
+        return (
+            data.invoice_date is not None if data else False,
+            data.invoice_date if data else None,
+        )
     if sort == "vendor":
-        return ((data.vendor_name or "").casefold() if data else "")
+        return (data.vendor_name or "").casefold() if data else ""
     if sort == "amount":
         return (data.total is not None if data else False, data.total if data else Decimal("0"))
     return document.updated_at
 
 
-def _invoice_summary(documents, extractions: dict) -> dict[str, int]:
+def _invoice_summary(documents, business_statuses: dict) -> dict[str, int]:
     counts = {
         "all": len(documents),
         "waiting_review": 0,
@@ -375,9 +389,7 @@ def _invoice_summary(documents, extractions: dict) -> dict[str, int]:
         "exported": 0,
     }
     for document in documents:
-        extraction = extractions[document.id]
-        has_errors = bool(extraction and extraction.validation_report.has_errors)
-        business_status = _invoice_business_status(document.status, has_errors)
+        business_status = business_statuses[document.id]
         if business_status == "needs_review":
             counts["waiting_review"] += 1
         elif business_status == "needs_correction":
@@ -395,7 +407,11 @@ def _invoice_insights(documents, extractions: dict) -> dict[str, int]:
     tax_issues = 0
     for document in documents:
         extraction = extractions[document.id]
-        codes = {issue.code.casefold() for issue in extraction.validation_report.issues} if extraction else set()
+        codes = (
+            {issue.code.casefold() for issue in extraction.validation_report.issues}
+            if extraction
+            else set()
+        )
         flagged += int(bool(codes))
         duplicates += int(any("duplicate" in code for code in codes))
         tax_issues += int(any("tax" in code for code in codes))

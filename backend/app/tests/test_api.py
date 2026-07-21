@@ -533,9 +533,7 @@ class ApiTests(unittest.TestCase):
             headers=HEADERS,
             json={"assignee": "Senior Reviewer"},
         )
-        filtered = self.client.get(
-            "/exceptions?owner=Senior%20Reviewer", headers=HEADERS
-        )
+        filtered = self.client.get("/exceptions?owner=Senior%20Reviewer", headers=HEADERS)
         exported = self.client.get("/exceptions/export", headers=HEADERS)
 
         self.assertEqual(detail.status_code, 200)
@@ -567,19 +565,12 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(created.status_code, 200)
         batch_id = created.json()["batch"]["id"]
         self.assertTrue(
-            all(
-                check["state"] == "passed"
-                for check in created.json()["batch"]["eligibility"]
-            )
+            all(check["state"] == "passed" for check in created.json()["batch"]["eligibility"])
         )
 
         execution_headers = {**HEADERS, "Idempotency-Key": "export-batch-test-001"}
-        first = self.client.post(
-            f"/exports/batches/{batch_id}/execute", headers=execution_headers
-        )
-        replay = self.client.post(
-            f"/exports/batches/{batch_id}/execute", headers=execution_headers
-        )
+        first = self.client.post(f"/exports/batches/{batch_id}/execute", headers=execution_headers)
+        replay = self.client.post(f"/exports/batches/{batch_id}/execute", headers=execution_headers)
         self.assertEqual(first.status_code, 200)
         self.assertEqual(replay.status_code, 200)
         self.assertEqual(first.json()["run"]["id"], replay.json()["run"]["id"])

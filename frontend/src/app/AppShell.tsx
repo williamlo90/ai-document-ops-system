@@ -35,7 +35,7 @@ export function AppShell({ session, signOut, signingOut }: { session: SessionInf
   }
 
   return <div className="ops-app">
-    {mobileOpen ? <button className="ops-sidebar-backdrop" aria-label="Close navigation" onClick={() => setMobileOpen(false)} /> : null}
+    {mobileOpen ? <button className="ops-sidebar-backdrop" aria-label="Dismiss navigation" onClick={() => setMobileOpen(false)} /> : null}
     <aside className={`ops-sidebar ${mobileOpen ? 'is-open' : ''}`}>
       <div className="ops-brand"><span><FileCheck2 size={25} /></span><strong>Invoice Review</strong><button type="button" className="ops-icon-button ops-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
       <nav aria-label="Primary navigation">
@@ -65,7 +65,7 @@ export function AppShell({ session, signOut, signingOut }: { session: SessionInf
 }
 
 function NavItem({ label, path, icon: Icon }: (typeof navigationItems)[number]) {
-  return <NavLink to={path} className={({ isActive }) => `ops-nav-item ${isActive ? 'is-active' : ''}`}><Icon size={19} /><span>{label}</span></NavLink>
+  return <NavLink to={path} aria-label={label} className={({ isActive }) => `ops-nav-item ${isActive ? 'is-active' : ''}`}><Icon size={19} /><span>{label}</span></NavLink>
 }
 
 function initials(value: string): string {

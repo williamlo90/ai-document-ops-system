@@ -48,16 +48,12 @@ class OverviewDashboardService:
         document_map = {document.id: document for document in documents}
         stored = {document.id: self._stored(document.id) for document in documents}
         audit_events = [
-            event
-            for document in documents
-            for event in self.audits.list_for_document(document.id)
+            event for document in documents for event in self.audits.list_for_document(document.id)
         ]
         correction_events = [
             event
             for document in documents
-            for event in self.workflow_events.list_for_document(
-                context.workspace_id, document.id
-            )
+            for event in self.workflow_events.list_for_document(context.workspace_id, document.id)
             if event.event_type == "correction_requested"
         ]
         issue_rows = self._issue_rows(documents, stored)
@@ -76,19 +72,13 @@ class OverviewDashboardService:
             )
             for document in documents
         )
-        approved = sum(
-            document.status == DocumentStatus.APPROVED for document in documents
-        )
+        approved = sum(document.status == DocumentStatus.APPROVED for document in documents)
         export_summary = export_workspace.get("summary", {}) if export_workspace else {}
         ready_export = self._summary_count(export_summary, "ready")
         blocking_documents = {
-            str(issue["document_id"])
-            for issue in issue_rows
-            if issue["severity"] == "error"
+            str(issue["document_id"]) for issue in issue_rows if issue["severity"] == "error"
         }
-        failed_count = sum(
-            document.status == DocumentStatus.FAILED for document in documents
-        )
+        failed_count = sum(document.status == DocumentStatus.FAILED for document in documents)
         findings = self._findings(issue_rows)
         return {
             "observed_at": observed_at.isoformat(),
@@ -499,7 +489,9 @@ class OverviewDashboardService:
             "id": event_id,
             "document_id": str(document.id),
             "title": title,
-            "invoice": data.invoice_number if data and data.invoice_number else document.original_filename,
+            "invoice": data.invoice_number
+            if data and data.invoice_number
+            else document.original_filename,
             "vendor": data.vendor_name if data and data.vendor_name else "Vendor not detected",
             "actor": actor,
             "occurred_at": occurred_at.isoformat(),

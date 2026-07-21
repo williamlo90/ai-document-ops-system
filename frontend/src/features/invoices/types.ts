@@ -20,6 +20,7 @@ export type InvoiceItem = {
   has_validation_errors: boolean
   export_state: 'eligible' | 'exported' | 'not_eligible'
   work_item_id: string | null
+  correction_reason: string | null
 }
 
 export type InvoiceListResponse = {

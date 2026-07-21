@@ -35,7 +35,9 @@ class EvaluationAttemptRecord:
     completed_at: datetime | None = None
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
-    def succeeded(self, *, run_id: UUID, documents_processed: int, provider_calls: int) -> "EvaluationAttemptRecord":
+    def succeeded(
+        self, *, run_id: UUID, documents_processed: int, provider_calls: int
+    ) -> "EvaluationAttemptRecord":
         now = datetime.now(UTC)
         return replace(
             self,
@@ -177,6 +179,10 @@ def _from_dict(value: dict[str, object]) -> EvaluationAttemptRecord:
         error_code=str(value["error_code"]) if value.get("error_code") else None,
         error_message=str(value["error_message"]) if value.get("error_message") else None,
         started_at=datetime.fromisoformat(str(value["started_at"])),
-        completed_at=(datetime.fromisoformat(str(value["completed_at"])) if value.get("completed_at") else None),
+        completed_at=(
+            datetime.fromisoformat(str(value["completed_at"]))
+            if value.get("completed_at")
+            else None
+        ),
         updated_at=datetime.fromisoformat(str(value["updated_at"])),
     )

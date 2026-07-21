@@ -47,9 +47,7 @@ class SystemDashboardService:
         document_map = {document.id: document for document in documents}
         jobs = [job for job in self.jobs.list_all() if job.document_id in document_map]
         events = [
-            event
-            for document in documents
-            for event in self.audits.list_for_document(document.id)
+            event for document in documents for event in self.audits.list_for_document(document.id)
         ]
         export_runs = self.export_batches.list_runs(context.workspace_id)
         services = self._services(
@@ -171,7 +169,10 @@ class SystemDashboardService:
             for job in jobs
             if job.status in FAILED_JOB_STATES
             and job.error_message
-            and (runtime_name in job.error_message.casefold() or provider in job.error_message.casefold())
+            and (
+                runtime_name in job.error_message.casefold()
+                or provider in job.error_message.casefold()
+            )
         ]
         successful = [job for job in jobs if job.status == ProcessingJobStatus.SUCCEEDED]
         latest_failure = max((job.updated_at for job in relevant_failures), default=None)
@@ -180,7 +181,9 @@ class SystemDashboardService:
         if is_mock:
             status = "operational"
             evidence = "The local deterministic provider is available in this process."
-        elif latest_failure is not None and (latest_success is None or latest_failure > latest_success):
+        elif latest_failure is not None and (
+            latest_success is None or latest_failure > latest_success
+        ):
             status = "degraded"
             evidence = "The latest observed provider-specific processing attempt failed."
         elif latest_success is not None:
@@ -196,7 +199,9 @@ class SystemDashboardService:
             "status": status,
             "uptime": None,
             "uptime_label": "Not enough history",
-            "observed_at": latest.isoformat() if latest else (observed_at.isoformat() if is_mock else None),
+            "observed_at": latest.isoformat()
+            if latest
+            else (observed_at.isoformat() if is_mock else None),
             "activity": (
                 f"{len(successful)} completed pipeline runs"
                 if successful
@@ -240,7 +245,9 @@ class SystemDashboardService:
                 else "No recorded export run"
             ),
             "evidence": evidence,
-            "affected_capability": "Creating new accounting exports" if status != "operational" else None,
+            "affected_capability": "Creating new accounting exports"
+            if status != "operational"
+            else None,
             "unaffected_capability": "Invoice review and stored records remain available",
         }
 
@@ -325,7 +332,9 @@ class SystemDashboardService:
                     "id": f"job:{job.id}",
                     "kind": "job",
                     "target_id": str(job.id),
-                    "severity": "critical" if job.status == ProcessingJobStatus.DEAD_LETTER else "warning",
+                    "severity": "critical"
+                    if job.status == ProcessingJobStatus.DEAD_LETTER
+                    else "warning",
                     "title": "Invoice processing needs attention",
                     "detail": f"{document.original_filename}: {self._safe_error(job.error_message)}",
                 }
@@ -397,13 +406,19 @@ class SystemDashboardService:
             ("extract", "Data extracted", len(event_documents.get("processing_finished", set()))),
             ("checks", "Checks completed", len(event_documents.get("review_required", set()))),
             ("export_attempt", "Export attempted", len(attempted_exports)),
-            ("export_success", "Export succeeded", len(event_documents.get("document_exported", set()))),
+            (
+                "export_success",
+                "Export succeeded",
+                len(event_documents.get("document_exported", set())),
+            ),
         ]
         previous: int | None = None
         stages = []
         for stage_id, label, count in counts:
-            conversion = 100.0 if previous is None and count else (
-                round((count / previous) * 100, 1) if previous else None
+            conversion = (
+                100.0
+                if previous is None and count
+                else (round((count / previous) * 100, 1) if previous else None)
             )
             stages.append(
                 {
@@ -480,7 +495,9 @@ class SystemDashboardService:
     def _duration_ms(job: ProcessingJob) -> int | None:
         if job.started_at is None:
             return None
-        end = job.finished_at or (datetime.now(UTC) if job.status == ProcessingJobStatus.RUNNING else None)
+        end = job.finished_at or (
+            datetime.now(UTC) if job.status == ProcessingJobStatus.RUNNING else None
+        )
         if end is None:
             return None
         return max(0, round((end - job.started_at).total_seconds() * 1000))

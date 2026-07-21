@@ -24,7 +24,7 @@ const emptyInvoices: InvoiceListResponse = {
 const invoice: InvoiceItem = {
   id: 'doc-1', original_filename: 'acme.pdf', submitted_by: 'uploader-1', status: 'needs_review', business_status: 'needs_review', current_stage: 'waiting_approval', current_owner: 'James Smith',
   vendor_name: 'Acme Logistics', invoice_number: 'INV-001', invoice_date: '2026-07-18', due_date: '2026-08-18', total: '1250.00', currency: 'USD', created_at: now, updated_at: now,
-  validation_issue_count: 1, validation_error_count: 0, validation_codes: ['po_missing'], has_validation_errors: false, export_state: 'not_eligible', work_item_id: 'item-1',
+  validation_issue_count: 1, validation_error_count: 0, validation_codes: ['po_missing'], has_validation_errors: false, export_state: 'not_eligible', work_item_id: 'item-1', correction_reason: null,
 }
 const emptyOverview: OverviewDashboard = {
   observed_at: now,
@@ -126,6 +126,41 @@ describe('invoice library', () => {
     expect(within(inspector).getByText('PO number was not found.')).toBeInTheDocument()
     expect(within(inspector).queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument()
     expect(window.location.search).toContain('invoice=doc-1')
+  })
+
+  it('lets the uploader answer a reviewer correction request', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/invoices?invoice=doc-1')
+    const correctionInvoice: InvoiceItem = {
+      ...invoice,
+      business_status: 'needs_correction',
+      current_stage: 'correction_requested',
+      current_owner: 'Uploader',
+      correction_reason: 'Use the full legal vendor name shown on the PDF.',
+    }
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'Upload User', user_id: 'uploader-1', workspace_id: 'default', role: 'uploader', is_admin: false })
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path.startsWith('/invoices?')) return json({ ...emptyInvoices, items: [correctionInvoice], total: 1, summary: { ...emptyInvoices.summary, all: 1, needs_correction: 1 } })
+      if (path === '/documents/doc-1') return json({ document: correctionInvoice, extraction: { data: { vendor_name: 'Acme Logistics', invoice_number: 'INV-001', invoice_date: '2026-07-18', due_date: '2026-08-18', subtotal: '1200.00', tax: '50.00', total: '1250.00', currency: 'USD', line_items: [] }, validation: [], confidence: [] }, audit_events: [] })
+      if (path === '/invoices/doc-1/draft' && init?.method === 'POST') return json({ correction_recorded: true })
+      return json({ detail: `Unexpected request: ${path}` }, 404)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+
+    expect(await screen.findByText('Use the full legal vendor name shown on the PDF.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Correct invoice data' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Correct invoice data' })
+    await user.clear(within(dialog).getByRole('textbox', { name: 'Vendor' }))
+    await user.type(within(dialog).getByRole('textbox', { name: 'Vendor' }), 'Acme Logistics Ltd')
+    await user.type(within(dialog).getByRole('textbox', { name: 'What did you change?' }), 'Matched the legal name on the PDF.')
+    await user.click(within(dialog).getByRole('button', { name: 'Send to reviewer' }))
+
+    expect(await screen.findByText('Correction sent back to the reviewer.')).toBeInTheDocument()
+    const request = fetchMock.mock.calls.find(([path, init]) => path === '/invoices/doc-1/draft' && init?.method === 'POST')
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({ vendor_name: 'Acme Logistics Ltd', correction_reason: 'Matched the legal name on the PDF.' })
   })
 
   it('shows a sanitized session verification failure', async () => {

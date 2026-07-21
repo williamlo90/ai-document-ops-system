@@ -58,9 +58,7 @@ def list_exceptions(
     total = len(rows)
     start = (page - 1) * page_size
     categories = Counter(str(row["category"]) for row in rows)
-    top_issues = Counter(
-        (str(row["issue"]), str(row["category"])) for row in rows
-    ).most_common(3)
+    top_issues = Counter((str(row["issue"]), str(row["category"])) for row in rows).most_common(3)
     return {
         "items": [_exception_summary(row) for row in rows[start : start + page_size]],
         "page": page,
@@ -230,7 +228,9 @@ def _open_exception_rows(
                     "detected_at": document.updated_at.isoformat(),
                     "age_seconds": max(0, int((now - document.updated_at).total_seconds())),
                     "required_action": _required_action(issue.code, issue.field_name),
-                    "related_checks": _related_checks(data.vendor_name, issue_title, blocks_approval),
+                    "related_checks": _related_checks(
+                        data.vendor_name, issue_title, blocks_approval
+                    ),
                 }
             )
     return rows
@@ -268,10 +268,7 @@ def _filter_rows(
         and (scope != "warnings" or not row["blocks_approval"])
         and (not category or row["category"] == category)
         and (not risk or row["risk"] == risk)
-        and (
-            not owner_filter
-            or owner_filter in str(row["owner"] or "Unassigned").casefold()
-        )
+        and (not owner_filter or owner_filter in str(row["owner"] or "Unassigned").casefold())
     ]
 
 

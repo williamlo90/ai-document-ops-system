@@ -25,7 +25,6 @@ export type AppRoute =
   | '/exports'
   | '/evaluation'
   | '/system'
-  | '/settings'
 
 export function productRole(session: SessionInfo): ProductRole {
   if (session.is_admin) return 'administrator'

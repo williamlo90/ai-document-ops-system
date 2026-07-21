@@ -146,8 +146,8 @@ function Throughput({ data }: { data: OverviewDashboard }) {
       <ResponsiveContainer width="100%" height={220}>
         <AreaChart data={data.throughput.points} margin={{ top: 16, right: 12, left: -26, bottom: 0 }}>
           <CartesianGrid stroke="#edf1f5" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#667594' }} axisLine={false} tickLine={false} />
-          <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: '#667594' }} axisLine={false} tickLine={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#5c6a84' }} axisLine={false} tickLine={false} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: '#5c6a84' }} axisLine={false} tickLine={false} />
           <Tooltip content={<ThroughputTooltip />} />
           <Area type="monotone" dataKey="processed" name="Processed" stroke="#00879b" fill="#dff3f4" strokeWidth={2.2} isAnimationActive={!reduced} animationDuration={600} />
           <Area type="monotone" dataKey="sent_for_review" name="Sent for review" stroke="#f07b18" fill="#fff0df" strokeWidth={2} isAnimationActive={!reduced} animationBegin={80} animationDuration={600} />
@@ -243,7 +243,8 @@ function decisionIcon(tone: string) {
 }
 
 function throughputLabel(data: OverviewDashboard) {
-  return data.throughput.points.map((point) => `${point.label}: ${point.processed} processed, ${point.sent_for_review} sent for review`).join('. ')
+  const summary = data.throughput.points.map((point) => `${point.label}: ${point.processed} processed, ${point.sent_for_review} sent for review`).join('. ')
+  return summary || `No processing throughput was recorded for ${data.throughput.window_label.toLowerCase()}`
 }
 
 function reducedMotion() {

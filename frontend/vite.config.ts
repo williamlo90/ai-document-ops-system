@@ -11,7 +11,6 @@ const productRoutes = [
   '/exports',
   '/evaluation',
   '/system',
-  '/settings',
 ]
 
 const productHistoryFallback = {

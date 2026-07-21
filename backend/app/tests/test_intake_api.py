@@ -286,6 +286,10 @@ class IntakeApiTests(unittest.TestCase):
             f"/documents/{document_id}/workflow",
             headers=uploader_headers,
         ).json()
+        uploader_invoice = self.client.get(
+            "/invoices?status=needs_correction",
+            headers=uploader_headers,
+        ).json()["items"][0]
         corrected = self.client.post(
             f"/invoices/{document_id}/draft",
             headers=uploader_headers,
@@ -319,6 +323,10 @@ class IntakeApiTests(unittest.TestCase):
         self.assertEqual(uploader_workflow["current_owner"], "Uploader")
         self.assertEqual(
             uploader_workflow["attention_reason"],
+            "Use the full legal vendor name from the PDF.",
+        )
+        self.assertEqual(
+            uploader_invoice["correction_reason"],
             "Use the full legal vendor name from the PDF.",
         )
         self.assertEqual(corrected.status_code, 200)

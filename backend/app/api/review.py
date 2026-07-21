@@ -103,6 +103,7 @@ def review_worklist(
         and (not risk or row["risk"] == risk)
     ]
     risk_order = {"low": 1, "medium": 2, "high": 3}
+
     def sort_value(row: dict[str, object]) -> object:
         if sort == "risk":
             return risk_order[str(row["risk"])]
@@ -131,16 +132,22 @@ def review_worklist(
     }
 
 
-def review_worklist_row(document, context: SecurityContext, container: AppContainer) -> dict[str, object]:
+def review_worklist_row(
+    document, context: SecurityContext, container: AppContainer
+) -> dict[str, object]:
     extraction = extraction_or_none(container, document.id)
     data = extraction.extraction_result.extraction.data if extraction else None
     issues = extraction.validation_report.issues if extraction else ()
     blockers = [issue for issue in issues if issue.severity.value == "error"]
-    confidence_values = [
-        item.score
-        for item in extraction.extraction_result.extraction.confidence
-        if item.score is not None
-    ] if extraction else []
+    confidence_values = (
+        [
+            item.score
+            for item in extraction.extraction_result.extraction.confidence
+            if item.score is not None
+        ]
+        if extraction
+        else []
+    )
     confidence = (
         round(sum(float(value) for value in confidence_values) / len(confidence_values), 4)
         if confidence_values
@@ -162,7 +169,9 @@ def review_worklist_row(document, context: SecurityContext, container: AppContai
         "currency": data.currency if data else None,
         "invoice_date": data.invoice_date.isoformat() if data and data.invoice_date else None,
         "due_date": data.due_date.isoformat() if data and data.due_date else None,
-        "owner": review_task.assigned_to if review_task and review_task.assigned_to else projection.current_owner,
+        "owner": review_task.assigned_to
+        if review_task and review_task.assigned_to
+        else projection.current_owner,
         "risk": risk,
         "confidence": confidence,
         "finding": finding,

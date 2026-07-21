@@ -73,28 +73,16 @@ class OverviewDashboardTests(unittest.TestCase):
         self._upload_and_process("waiting.pdf")
         self._add_missing_invoice_number(blocked_id)
 
-        approved = self.client.post(
-            f"/review/{approved_id}/approve", headers=REVIEWER_HEADERS
-        )
+        approved = self.client.post(f"/review/{approved_id}/approve", headers=REVIEWER_HEADERS)
         self.assertEqual(approved.status_code, 200)
 
-        overview_response = self.client.get(
-            "/overview/dashboard", headers=ADMIN_HEADERS
-        )
+        overview_response = self.client.get("/overview/dashboard", headers=ADMIN_HEADERS)
         self.assertEqual(overview_response.status_code, 200)
         overview = overview_response.json()
-        invoices = self.client.get(
-            "/invoices?page_size=100", headers=ADMIN_HEADERS
-        ).json()
-        worklist = self.client.get(
-            "/review/worklist?page_size=100", headers=ADMIN_HEADERS
-        ).json()
-        exceptions = self.client.get(
-            "/exceptions?page_size=100", headers=ADMIN_HEADERS
-        ).json()
-        exports = self.client.get(
-            "/exports/workspace?page_size=100", headers=ADMIN_HEADERS
-        ).json()
+        invoices = self.client.get("/invoices?page_size=100", headers=ADMIN_HEADERS).json()
+        worklist = self.client.get("/review/worklist?page_size=100", headers=ADMIN_HEADERS).json()
+        exceptions = self.client.get("/exceptions?page_size=100", headers=ADMIN_HEADERS).json()
+        exports = self.client.get("/exports/workspace?page_size=100", headers=ADMIN_HEADERS).json()
         kpis = {item["id"]: item["count"] for item in overview["kpis"]}
 
         self.assertEqual(overview["queue"]["total"], worklist["total"])
@@ -117,9 +105,7 @@ class OverviewDashboardTests(unittest.TestCase):
         approved_id = self._upload_and_process("approved.pdf")
         self.client.post(f"/review/{approved_id}/approve", headers=REVIEWER_HEADERS)
 
-        payload = self.client.get(
-            "/overview/dashboard", headers=REVIEWER_HEADERS
-        ).json()
+        payload = self.client.get("/overview/dashboard", headers=REVIEWER_HEADERS).json()
         kpis = {item["id"]: item for item in payload["kpis"]}
 
         self.assertIn("approved", kpis)
@@ -134,9 +120,7 @@ class OverviewDashboardTests(unittest.TestCase):
         )
         self.assertEqual(uploaded.status_code, 200)
         document_id = uploaded.json()["document"]["id"]
-        processed = self.client.post(
-            f"/documents/{document_id}/process", headers=ADMIN_HEADERS
-        )
+        processed = self.client.post(f"/documents/{document_id}/process", headers=ADMIN_HEADERS)
         self.assertEqual(processed.status_code, 200)
         return document_id
 
