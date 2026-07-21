@@ -59,6 +59,7 @@ export default defineConfig({
       '/exceptions': 'http://127.0.0.1:8000',
       '/evaluation': 'http://127.0.0.1:8000',
       '/system': 'http://127.0.0.1:8000',
+      '/overview': 'http://127.0.0.1:8000',
       '/metrics': 'http://127.0.0.1:8000',
     },
   },

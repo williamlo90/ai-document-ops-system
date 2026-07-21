@@ -641,6 +641,14 @@ Exit criteria:
 
 #### Sprint UI-08: Overview
 
+Status: Complete on 2026-07-21. The placeholder was replaced by a business-facing workspace
+that follows the approved overview reference: urgent-work briefing, role-aware KPI links,
+evidence-based findings, priority alerts, the canonical reviewer queue, seven-day audit trends,
+current exception and pipeline summaries, and recent recorded decisions. Counts are calculated
+server-side from complete workspace records and reconcile with Invoices, Review Queue,
+Exceptions, and administrator-only Exports contracts. Direct refresh, reduced-motion behavior,
+empty and error states, desktop, tablet, compact, and mobile layouts were verified.
+
 References:
 
 - `docs/assets/ui-reference/modern-operations-overview.png`

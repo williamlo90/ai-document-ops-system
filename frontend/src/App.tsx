@@ -14,6 +14,7 @@ import { ExceptionsPage } from './pages/ExceptionsPage'
 import { ExportsPage } from './pages/ExportsPage'
 import { EvaluationPage } from './pages/EvaluationPage'
 import { SystemPage } from './pages/SystemPage'
+import { OverviewPage } from './pages/OverviewPage'
 import { Button, ErrorState, LoadingState } from './shared/ui'
 import { queryClient } from './queryClient'
 import './product.css'
@@ -52,7 +53,7 @@ function SessionGate() {
   return <Routes>
     <Route element={<AppShell session={session.data} signOut={() => logout.mutate()} signingOut={logout.isPending} />}>
       <Route index element={<Navigate to={defaultRoute(role)} replace />} />
-      <Route path="overview" element={<PlaceholderPage title="Overview" description="Monitor invoice work that needs attention." />} />
+      <Route path="overview" element={<OverviewPage />} />
       <Route path="invoices" element={<InvoicesPage />} />
       <Route path="review-queue" element={<ReviewQueuePage />} />
       <Route path="review/:documentId" element={<ReviewWorkspacePage />} />

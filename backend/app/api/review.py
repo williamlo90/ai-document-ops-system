@@ -81,7 +81,7 @@ def review_worklist(
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     rows = [
-        _review_worklist_row(document, context, container)
+        review_worklist_row(document, context, container)
         for document in container.review_service.list_queue(context)
     ]
     needle = search.strip().casefold()
@@ -131,7 +131,7 @@ def review_worklist(
     }
 
 
-def _review_worklist_row(document, context: SecurityContext, container: AppContainer) -> dict[str, object]:
+def review_worklist_row(document, context: SecurityContext, container: AppContainer) -> dict[str, object]:
     extraction = extraction_or_none(container, document.id)
     data = extraction.extraction_result.extraction.data if extraction else None
     issues = extraction.validation_report.issues if extraction else ()

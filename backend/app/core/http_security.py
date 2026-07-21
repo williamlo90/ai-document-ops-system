@@ -146,6 +146,7 @@ def _is_sensitive_response_path(path: str) -> bool:
         "/invoices",
         "/metrics",
         "/operations",
+        "/overview",
         "/providers",
         "/review",
     )
