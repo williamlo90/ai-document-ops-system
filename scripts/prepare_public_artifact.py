@@ -82,7 +82,11 @@ def _should_exclude(name: str) -> bool:
 
 
 def _has_private_parent(path: Path) -> bool:
-    for part in path.parts:
+    try:
+        candidate = path.resolve().relative_to(ROOT.resolve())
+    except ValueError:
+        candidate = path
+    for part in candidate.parts:
         if part in EXCLUDE_ANYWHERE:
             return True
     return False

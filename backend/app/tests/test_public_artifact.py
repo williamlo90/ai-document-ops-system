@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "prepare_public_artifact.py"
@@ -26,6 +28,22 @@ class PublicArtifactTests(unittest.TestCase):
     def _run_script(self, *args: str) -> subprocess.CompletedProcess:
         cmd = [sys.executable, str(SCRIPT), *args]
         return subprocess.run(cmd, capture_output=True, text=True, cwd=SCRIPT.parents[1])
+
+    def test_source_parent_named_dist_does_not_exclude_repository_files(self) -> None:
+        spec = importlib.util.spec_from_file_location("prepare_public_artifact", SCRIPT)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader if spec else None)
+        module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+
+        simulated_root = Path(self.output) / "dist" / "clean-clone"
+        with patch.object(module, "ROOT", simulated_root):
+            self.assertFalse(
+                module._has_private_parent(simulated_root / "backend" / "app" / "main.py")
+            )
+            self.assertTrue(
+                module._has_private_parent(simulated_root / "frontend" / "dist" / "index.html")
+            )
 
     def test_excludes_dot_env(self) -> None:
         result = self._run_script(self.output)
