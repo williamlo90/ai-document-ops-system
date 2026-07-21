@@ -6,6 +6,7 @@ import type { InvoiceItem, InvoiceListResponse } from '../features/invoices/type
 import type { ReviewWorklist } from '../features/review/types'
 import type { ExportBatch, ExportInvoiceItem, ExportWorkspaceResponse } from '../features/exports/types'
 import type { EvaluationDashboard } from '../features/evaluation/types'
+import type { SystemDashboard } from '../features/system/types'
 import { queryClient } from '../queryClient'
 
 vi.mock('../components/PdfPreview', () => ({
@@ -316,3 +317,92 @@ describe('evaluation workspace', () => {
     expect(within(dialog).getByText('6')).toBeInTheDocument()
   })
 })
+
+describe('system workspace', () => {
+  it('keeps operational evidence honest and navigates tabs without a page reload', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/system')
+    const dashboard = systemDashboard()
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'Administrator', user_id: 'admin', workspace_id: 'default', role: 'administrator', is_admin: true })
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path === '/system/dashboard') return json(dashboard)
+      return json({ detail: `Unexpected request: ${path}` }, 404)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'System' })).toBeInTheDocument()
+    expect((await screen.findAllByText('Not enough history')).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/99\.\d+%/)).not.toBeInTheDocument()
+    const readerRow = screen.getAllByText('Document reader').map((item) => item.closest('tr')).find(Boolean)!
+    await user.click(within(readerRow).getByRole('button', { name: /view/i }))
+    expect(await screen.findByRole('dialog', { name: 'Document reader' })).toHaveTextContent('No observed provider run')
+    await user.click(screen.getByRole('button', { name: 'Close details' }))
+
+    await user.click(screen.getByRole('tab', { name: 'Processing' }))
+    expect(window.location.search).toContain('tab=processing')
+    expect(await screen.findByRole('heading', { name: 'Processing activity' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /refresh status/i }))
+    expect(await screen.findByText('System status refreshed.')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter(([input]) => String(input) === '/system/dashboard').length).toBeGreaterThan(1)
+  })
+
+  it('offers retry only for a failed job accepted by the backend contract', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/system?tab=processing&filter=attention')
+    const dashboard = systemDashboard()
+    dashboard.kpis.needs_attention = 1
+    dashboard.alerts = [{ id: 'job:job-1', kind: 'job', target_id: 'job-1', severity: 'warning', title: 'Invoice processing needs attention', detail: 'acme.pdf: Invoice processing did not complete.' }]
+    dashboard.recent_jobs = [{ id: 'job-1', document_id: 'doc-1', invoice: 'INV-001', filename: 'acme.pdf', stage: 'Processing failed', status: 'failed', started_at: now, finished_at: now, duration_ms: 1200, attempt_count: 1, retryable: true, failure_summary: 'Invoice processing did not complete.' }]
+    let retried = false
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      if (path === '/auth/session') return json({ authenticated: true, actor: 'Administrator', user_id: 'admin', workspace_id: 'default', role: 'administrator', is_admin: true })
+      if (path === '/backoffice/workspace') return json(workspace)
+      if (path === '/system/dashboard') return json(dashboard)
+      if (path === '/operations/jobs/job-1/retry' && init?.method === 'POST') { retried = true; return json({ job: { id: 'job-2', status: 'queued' } }) }
+      return json({ detail: `Unexpected request: ${path}` }, 404)
+    }))
+    render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: /retry/i }))
+    expect(retried).toBe(true)
+    expect(await screen.findByText(/retry accepted/i)).toBeInTheDocument()
+  })
+})
+
+function systemDashboard(): SystemDashboard {
+  return {
+    observed_at: now,
+    freshness: { state: 'current', label: 'Observed when this page was refreshed' },
+    overall: { status: 'unknown', title: 'Operational status is partially unverified', detail: 'Core local checks passed, but one provider needs an observed run.' },
+    kpis: { processing_now: 0, waiting: 0, completed_today: 0, needs_attention: 0 },
+    services: [
+      { id: 'uploads', name: 'Invoice uploads', provider: null, status: 'operational', uptime: null, uptime_label: 'Not enough history', observed_at: now, activity: '0 invoices stored', evidence: 'Current checks passed.', affected_capability: null, unaffected_capability: null },
+      { id: 'reader', name: 'Document reader', provider: 'mistral', status: 'unknown', uptime: null, uptime_label: 'Not enough history', observed_at: null, activity: 'No observed pipeline run', evidence: 'Configuration is loaded, but no completed workspace run verifies this provider yet.', affected_capability: null, unaffected_capability: 'Previously processed invoices remain available' },
+      { id: 'extractor', name: 'Data extractor', provider: 'llm_json', status: 'operational', uptime: null, uptime_label: 'Not enough history', observed_at: now, activity: '1 completed pipeline run', evidence: 'A workspace run completed.', affected_capability: null, unaffected_capability: 'Previously processed invoices remain available' },
+      { id: 'storage', name: 'Document storage', provider: null, status: 'operational', uptime: null, uptime_label: 'Not enough history', observed_at: now, activity: 'Private storage check passed', evidence: 'Current storage readiness check.', affected_capability: null, unaffected_capability: null },
+      { id: 'accounting_export', name: 'Accounting export', provider: 'csv_download', status: 'operational', uptime: null, uptime_label: 'Not enough history', observed_at: now, activity: 'No recorded export run', evidence: 'Local export capability is available.', affected_capability: null, unaffected_capability: 'Invoice review remains available' },
+    ],
+    alerts: [],
+    flow: { window_label: 'Invoices uploaded on 2026-07-20 UTC', denominator: 'Unique invoices from the upload cohort; conversion uses the previous stage.', stages: [
+      { id: 'upload', label: 'Upload received', count: 0, previous_count: null, conversion_percent: null },
+      { id: 'read', label: 'PDF read', count: 0, previous_count: 0, conversion_percent: null },
+      { id: 'extract', label: 'Data extracted', count: 0, previous_count: 0, conversion_percent: null },
+      { id: 'checks', label: 'Checks completed', count: 0, previous_count: 0, conversion_percent: null },
+      { id: 'export_attempt', label: 'Export attempted', count: 0, previous_count: 0, conversion_percent: null },
+      { id: 'export_success', label: 'Export succeeded', count: 0, previous_count: 0, conversion_percent: null },
+    ] },
+    recent_jobs: [],
+    integrations: [
+      { id: 'reader', name: 'Document reader', provider: 'mistral', status: 'unknown', observed_at: null, evidence: 'Not observed.' },
+      { id: 'extractor', name: 'Data extractor', provider: 'llm_json', status: 'operational', observed_at: now, evidence: 'Observed.' },
+      { id: 'storage', name: 'File storage', provider: null, status: 'operational', observed_at: now, evidence: 'Observed.' },
+      { id: 'accounting_export', name: 'Accounting export', provider: 'csv_download', status: 'operational', observed_at: now, evidence: 'Available.' },
+    ],
+    audit: [],
+    maintenance: { scheduled: false, title: 'No maintenance scheduled', detail: 'This application does not currently manage a maintenance calendar.' },
+  }
+}

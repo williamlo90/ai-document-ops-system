@@ -115,6 +115,18 @@ class SessionSecurityTests(unittest.TestCase):
 
 
 class HttpMiddlewareTests(unittest.TestCase):
+    def test_product_deep_links_serve_the_spa_without_masking_api_requests(self) -> None:
+        client = TestClient(create_app(settings()))
+
+        for path in ("/overview", "/invoices", "/review/example", "/system"):
+            with self.subTest(path=path):
+                response = client.get(path, headers={"Accept": "text/html"})
+                self.assertEqual(response.status_code, 200)
+                self.assertIn('<div id="root"></div>', response.text)
+
+        self.assertEqual(client.get("/system/dashboard").status_code, 401)
+        self.assertEqual(client.get("/invoices").status_code, 401)
+
     def test_security_headers_are_set(self) -> None:
         client = TestClient(create_app(settings()))
         response = client.get("/health")

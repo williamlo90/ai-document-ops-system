@@ -28,6 +28,7 @@ from app.api.invoices import router as invoices_router
 from app.api.metrics import router as metrics_router
 from app.api.providers import router as providers_router
 from app.api.operations import router as operations_router
+from app.api.system import router as system_router
 from app.api.review import router as review_router
 from app.api.auth import router as auth_router
 from app.core.security import validate_access_token_policy, validate_public_demo_provider_policy
@@ -38,6 +39,7 @@ from app.core.http_security import (
     CsrfOriginMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
+    SpaHistoryFallbackMiddleware,
 )
 from app.core.settings import Settings, is_hosted, load_settings
 from app.api.legacy_redirects import router as legacy_redirect_router
@@ -95,6 +97,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         requests=resolved_settings.rate_limit_requests,
         window_seconds=resolved_settings.rate_limit_window_seconds,
     )
+    app.add_middleware(SpaHistoryFallbackMiddleware)
     app.include_router(documents_router)
     app.include_router(auth_router)
     app.include_router(review_router)
@@ -105,6 +108,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(metrics_router)
     app.include_router(providers_router)
     app.include_router(operations_router)
+    app.include_router(system_router)
     app.include_router(agent_router)
     app.include_router(agentops_router)
     app.include_router(backoffice_router)

@@ -601,6 +601,15 @@ Exit criteria:
 
 #### Sprint UI-07: System
 
+Status: Complete on 2026-07-21. The System workspace now exposes a sanitized, workspace-scoped
+status model for service observations, active and waiting work, recent jobs, alerts, integrations,
+audit events, and one-cohort processing flow. Unobserved providers remain `Unknown`, seven-day
+uptime remains `Not enough history`, failed details are sanitized, and retries preserve prior
+attempt evidence. The frontend implements URL-backed tabs and filters, refresh without page
+navigation, responsive detail drawers, partial and empty states, and the approved desktop-to-mobile
+layout. Direct product routes now survive refresh in both the Vite development server and the
+same-origin FastAPI build without masking JSON API routes.
+
 References:
 
 - `docs/assets/ui-reference/modern-operations-system.png`

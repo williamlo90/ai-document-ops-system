@@ -12,6 +12,26 @@ from starlette.responses import JSONResponse, Response
 from app.core.settings import Settings, is_hosted
 
 
+_PRODUCT_PAGE_PATHS = {
+    "/overview",
+    "/invoices",
+    "/review-queue",
+    "/exceptions",
+    "/exports",
+    "/evaluation",
+    "/system",
+    "/settings",
+}
+
+
+class SpaHistoryFallbackMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if _is_product_page_navigation(request):
+            request.scope["path"] = "/"
+            request.scope["raw_path"] = b"/"
+        return await call_next(request)
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
@@ -89,6 +109,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 def _same_origin(source: str, target: str) -> bool:
     left, right = urlsplit(source), urlsplit(target)
     return (left.scheme, left.hostname, left.port) == (right.scheme, right.hostname, right.port)
+
+
+def _is_product_page_navigation(request: Request) -> bool:
+    if request.method != "GET" or "text/html" not in request.headers.get("accept", ""):
+        return False
+    path = request.url.path.rstrip("/") or "/"
+    return path in _PRODUCT_PAGE_PATHS or (
+        path.startswith("/review/") and len(path.split("/")) == 3
+    )
 
 
 def _is_document_content_path(path: str) -> bool:

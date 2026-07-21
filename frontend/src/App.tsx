@@ -13,6 +13,7 @@ import { ReviewWorkspacePage } from './pages/ReviewWorkspacePage'
 import { ExceptionsPage } from './pages/ExceptionsPage'
 import { ExportsPage } from './pages/ExportsPage'
 import { EvaluationPage } from './pages/EvaluationPage'
+import { SystemPage } from './pages/SystemPage'
 import { Button, ErrorState, LoadingState } from './shared/ui'
 import { queryClient } from './queryClient'
 import './product.css'
@@ -58,7 +59,7 @@ function SessionGate() {
       <Route path="exceptions" element={<ExceptionsPage />} />
       <Route path="exports" element={<ExportsPage />} />
       <Route path="evaluation" element={<EvaluationPage />} />
-      <Route path="system" element={<PlaceholderPage title="System" description="Monitor invoice processing and connected services." />} />
+      <Route path="system" element={<SystemPage />} />
       <Route path="settings" element={<PlaceholderPage title="Settings" description="Manage supported workspace preferences." />} />
     </Route>
     <Route path="*" element={<Navigate to={defaultRoute(role)} replace />} />
