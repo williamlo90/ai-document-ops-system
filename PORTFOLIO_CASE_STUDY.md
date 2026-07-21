@@ -120,8 +120,8 @@ accuracy were 100%. One unsupported due date was still hallucinated and remains 
 
 ## Engineering Evidence
 
-- 435 backend tests passed with 2 environment-dependent tests skipped
-- 15 frontend tests passed
+- 453 backend tests passed with 2 environment-dependent tests skipped
+- 13 frontend tests passed
 - frontend lint and production build passed
 - backend Ruff checks passed
 - production dependency audit reported no known npm vulnerability at verification time

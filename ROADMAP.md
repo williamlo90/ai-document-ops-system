@@ -29,9 +29,10 @@ Delivered:
 
 Latest verified baseline:
 
-- backend suite: 435 tests passed, 2 skipped
-- frontend suite: 15 tests passed
-- browser E2E: 22 tests passed, 8 capture-only tests skipped
+- backend suite: 453 tests passed, 2 skipped
+- frontend suite: 13 tests passed
+- browser E2E: 25 active tests passed, 2 breakpoint-specific tests skipped; 15 opt-in
+  screenshot and video cases are verified through their dedicated commands
 - frontend lint, dependency audit, and production build: passed
 - backend Ruff and dependency audit: passed
 - full-history Gitleaks, actionlint, container runtime smoke, and Trivy HIGH/CRITICAL scan: passed
@@ -126,7 +127,11 @@ Exit criteria:
 
 ## Phase 3: Market Proof And Recruiter Readiness
 
-Status: In progress from 15 July 2026. Workflow hardening, first-impression checks, recruiter evidence, and a captioned demo video are complete. An external licensed synthetic holdout was attempted, but provider availability failed its first sealed run, so external robustness remains open and is not claimed.
+Status: Complete on 21 July 2026 for the bounded recruiter-facing portfolio evidence. Workflow
+hardening, first-impression checks, recruiter evidence, and the captioned demo are complete. The
+first external licensed-synthetic holdout preserved a provider-availability failure; the
+non-overlapping V2 holdout completed 10 of 10 documents with one documented hallucination.
+Customer-data robustness and business impact remain future evidence and are not claimed.
 
 Goal: turn the engineering proof into a credible finance-operations case study without overstating maturity.
 
@@ -149,7 +154,9 @@ Observed evidence so far:
 - desktop and 390 px mobile browser checks cover uploader list, reviewer queue, PDF detail, and blocked approval
 - the mobile reviewer queue was corrected from an overlapping wide table into readable tabs and single-column review cards
 - recruiter-facing README, case study, reliability report, and 3-5 minute demo script now tell one bounded product story
-- a 3:37 captioned MP4 demonstrates clean approval and duplicate blocking with committed synthetic PDFs through a deterministic UI contract harness
+- a 3:53 captioned MP4 walks through the complete client-facing UI, correction and approval
+  boundaries, controlled export, evaluation, and system evidence with a committed synthetic PDF
+  through a deterministic UI contract harness
 - a compact recruiter evidence pack separates observed engineering proof from unmeasured business impact
 - a non-technical matrix maps all 20 scenarios to the business risk, expected safeguard, and observed result
 - the completed-decision UI shows actor, timestamp, audit-event count, and export eligibility next to the invoice
@@ -253,13 +260,14 @@ Observed evidence:
 - monitoring opens with provider calls, evaluated invoices, stored runs, and known weak spots; run-level diagnostics are available through progressive disclosure
 - monitoring tabs use in-app history navigation without full-page refresh and remain directly reachable for administrators
 - browser inspection confirmed rendered PDF content, working monitoring disclosure, no page-level horizontal overflow, and no browser console errors
-- frontend unit tests pass 15 of 15; browser tests pass 22 with 8 capture-only tests skipped across desktop, tablet, and mobile
+- frontend unit tests pass 13 of 13; the active browser regression matrix passes 25 cases with
+  2 breakpoint-specific skips across desktop, tablet, and mobile
 - automated accessibility checks report no serious or critical violations on the intake screen across all three viewports
 
 ### Client-Deliverable SaaS UI Conversion
 
-Status: Per-page implementation planning complete on 20 July 2026. Eight of nine target pages
-have replacement visual references and motion specifications. Settings remains design-gated.
+Status: Complete on 21 July 2026 for all eight pages with approved visual references and motion
+specifications. Settings remains intentionally excluded and design-gated.
 
 Goal: evolve the working invoice application into a cohesive, client-deliverable finance
 operations product with distinct business capabilities and a consistent application shell.
@@ -325,18 +333,20 @@ Current reusable foundations:
 - provider and integration status, operational jobs and retry, notifications, metrics summary,
   evaluation records, and provider-cost evidence
 
-Current structural constraints:
+Planning-time structural constraints and their resolution:
 
-- most frontend behavior remains concentrated in `frontend/src/App.tsx`
-- navigation uses a custom History API screen state rather than a route tree
-- no chart library is installed for accessible interactive charts
-- Exceptions has no dedicated paginated read model
-- Exports supports file download and single-document controlled delivery, not the designed batch,
-  draft, history, or scheduling workflow
-- Evaluation APIs do not yet expose the designed invoice-quality run model
-- System has current status and jobs but no measured seven-day uptime or consistent stage-flow
-  aggregate
-- business Settings are environment-driven and not writable through an audited workspace API
+- `frontend/src/App.tsx` is now a 66-line route and session composition layer; page behavior lives
+  in dedicated page, feature, API, and shared-component modules
+- React Router now owns direct routes, refresh, browser-back, and role-aware navigation
+- Recharts provides the accessible Overview and Evaluation charts
+- Exceptions, Exports, Evaluation, System, and Overview use dedicated authenticated read models
+  rather than paginated client-side guesses or hard-coded product metrics
+- Exports now has persistent server-owned batches, drafts, run history, scheduling, eligibility,
+  idempotency, and retry evidence without bypassing approval
+- System reports current processing and connected-service evidence; unmeasured uptime is not
+  presented as a live claim
+- business Settings remain environment-driven and intentionally absent until an approved design,
+  persisted audited contract, and authorization model exist
 
 #### Role Matrix
 
@@ -707,7 +717,8 @@ for every writable setting.
 
 #### Sprint UI-10: Integration, Cleanup, And Release Gate
 
-Status: In progress as of 21 July 2026.
+Status: Complete on 21 July 2026 for all eight approved pages. Settings remains outside the
+release scope under Sprint UI-09.
 
 Completed in the current integration pass:
 
@@ -721,17 +732,17 @@ Completed in the current integration pass:
 - verified the live Overview, Invoices, Review Workspace, Review Queue, Exceptions, Exports,
   Evaluation, and System pages at the approved desktop viewport with no page overflow, alert, or
   browser console error
-- passed 452 backend tests (2 skipped), 13 frontend tests, frontend lint and build, Ruff format and
-  lint for 200 Python files, and the 27-case desktop/tablet/mobile browser matrix (25 passed,
+- passed 453 backend tests (2 skipped), 13 frontend tests, frontend lint and build, Ruff format and
+  lint for 200 Python files, and the active desktop/tablet/mobile browser matrix (25 passed,
   2 breakpoint-specific skips)
-
-Remaining before this release gate is complete:
-
-- run the final dependency, security, and clean-clone reproducibility gates against the release
-  candidate
-- archive final screenshots for every approved page and material state
-- update the demo video, case study, and release evidence from the final application
-- complete Settings only after Sprint UI-09 receives approved design and backend scope
+- passed Python and npm dependency audits with no known vulnerabilities and passed all 19 public
+  artifact packaging tests
+- archived 35 deterministic screenshots covering eight pages at four viewports plus blocker,
+  approval, and uploader-correction states
+- regenerated the current 3:53 recruiter video and synchronized the README, case study, evidence
+  pack, demo notes, and release summary
+- retained Settings only as a documented future scope; no placeholder route or unsupported control
+  ships in the client-facing application
 
 Work:
 
@@ -763,7 +774,7 @@ Program exit criteria:
 
 ## Phase 4: Release Readiness
 
-Status: Starts after Phase 3.
+Status: Complete on 21 July 2026 for the local recruiter-facing portfolio artifact.
 
 Goal: publish a clean, reproducible portfolio artifact.
 
@@ -774,6 +785,16 @@ Work:
 3. Confirm the documented local run path works from a clean clone.
 4. Freeze the demo script, screenshots, case study, and evidence summary together.
 5. Remove deliberately hidden legacy detail views and split `frontend/src/App.tsx` in an isolated, behavior-preserving refactor covered by end-to-end tests.
+
+Observed evidence:
+
+- `.env`, private invoices, uploads, caches, databases, build output, and runtime artifacts are
+  excluded by Git rules and public-artifact checks
+- the documented setup and run path was exercised from a clean clone
+- the final screenshot matrix, demo video, case study, evidence pack, and release summary describe
+  the same eight-page application and the same evidence boundaries
+- the release commit is verified by the repository's quality, frontend, secret-scan,
+  mock-provider, and container-security GitHub Actions jobs
 
 ## Guardrails
 

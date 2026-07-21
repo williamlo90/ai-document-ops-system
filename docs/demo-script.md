@@ -1,101 +1,70 @@
 # Recruiter Demo Script - 3 to 5 Minutes
 
-Recorded artifact: [3:37 captioned MP4](assets/demo/ai-document-ops-demo.mp4).
+Recorded artifact: [captioned MP4](assets/demo/ai-document-ops-demo.mp4).
 
-The committed recording uses synthetic benchmark PDFs and deterministic route-level API responses
-to keep the UI walkthrough reproducible. Treat the reliability report and provider verification as
-the backend and real-provider evidence; the video itself is a product-flow demonstration.
+The committed recording uses the real React pages, PDF viewer, and a deterministic route-level
+contract harness. Provider-backed accuracy and latency evidence remain separate benchmark claims.
 
-## Demo Goal
-
-Show one business problem, one normal decision, one blocked exception, and the engineering evidence
-behind both. Do not begin with architecture or technical dashboards.
-
-## Preparation
-
-- start the app with the real-provider profile when network access is reliable
-- keep the mock profile available as a deterministic fallback
-- prepare one clean synthetic invoice and the committed duplicate pair
-- confirm the PDF renders before recording
-- reset local demo data so the queue is easy to understand
-- use a 1440 x 900 or similar desktop viewport
-
-## 0:00 - 0:30: Problem and Claim
+## 0:00 - 0:20: Claim Boundary
 
 Say:
 
 > Finance reviewers need to compare the source invoice with extracted data, catch exceptions, and
-> record a decision. This system uses AI to read the invoice, deterministic rules to block unsafe
-> states, and a human for the final decision.
+> record a decision. AI reads the document, deterministic code enforces safety rules, and a human
+> owns approval.
 
-Show the uploader navigation. Keep the explanation in business terms.
+## 0:20 - 0:50: Overview
 
-## 0:30 - 1:20: Upload and Read
+Show urgent work, grounded findings, the decision queue, throughput, and recent decisions. Explain
+that every aggregate links to the workflow that defines it.
 
-1. Upload a clean synthetic invoice.
-2. Show the explicit reading state.
-3. Open the invoice when processing finishes.
-4. Point out the PDF and extracted fields on the same screen.
+## 0:50 - 1:20: Invoices and Review Queue
 
-Say:
+1. Open Invoices and inspect the selected PDF, owner, status, and validation findings.
+2. Open Review Queue and show risk, confidence, age, owner, and the plain-language finding.
+3. Explain that upload and reviewer authority are separate roles.
 
-> The model does not approve the invoice. It only proposes structured evidence. Even a clean result
-> stops for reviewer approval.
+## 1:20 - 2:00: Review and Blocker
 
-## 1:20 - 2:10: Reviewer Decision
+1. Open the Invoice Review workspace.
+2. Compare the real synthetic PDF with extracted fields and line items.
+3. Show the missing-PO validation blocker and disabled approval.
+4. State that the backend refuses the unsafe transition independently of the button.
 
-1. Switch to the reviewer view.
-2. Open the clean invoice from Approvals.
-3. Compare vendor, invoice number, dates, and total with the PDF.
-4. Approve it explicitly.
-5. Show the recorded actor, timestamp, audit-event count, and controlled-export eligibility.
-6. Return to the list and show the updated status.
+## 2:00 - 2:35: Exception and Correction Loop
 
-Point out that approve, reject, and correction are separate actions and that a completed decision
-leaves visible evidence instead of only changing a status label.
+1. Open Exceptions and reconcile the summary, table, and selected issue.
+2. Show what happened, what is required, and the related blocked check.
+3. Switch to the uploader correction state and show the reviewer note, editable fields, and required
+   explanation.
 
-## 2:10 - 3:10: Exception and Blocked Action
+## 2:35 - 3:05: Recorded Decision and Export
 
-1. Process `duplicate_original.pdf` and `duplicate_copy.pdf` from the synthetic scenario set.
-2. Open the duplicate copy in the reviewer queue.
-3. Show the plain-language duplicate reason beside the source PDF.
-4. Show that approval is disabled while correction and rejection remain available.
+1. Return to the corrected, revalidated invoice after approval.
+2. Show actor, timestamp, audit-event count, and export eligibility.
+3. Open Exports and show approved-only membership, eligibility checks, idempotent execution, run
+   history, and retry-safe failure evidence.
 
-Say:
+## 3:05 - 3:35: Evaluation and System
 
-> This is the central safety boundary. The interface explains the blocker, but the backend also
-> refuses approval independently. A hidden or modified button cannot bypass the rule.
+1. Show the synthetic evidence badge, quality gates, field results, scenario coverage, estimated
+   provider cost, and visible limitations.
+2. Show System and explain that one degraded export capability does not make healthy intake,
+   reading, extraction, review, or storage appear unavailable.
 
-## 3:10 - 4:00: Technical Evidence
-
-Show the scenario evidence document or technical evidence view briefly.
-
-Explain:
-
-- 20 deterministic synthetic PDFs cover normal and difficult cases
-- the initial real-provider run exposed three false fills in intentionally missing fields
-- prompt null rules and a deterministic grounding guard corrected those failures
-- the final controlled regression matched 160 of 160 evaluated fields and 20 of 20 validation outcomes
-- this is a small synthetic golden set, not production accuracy
-
-Then show the automated verification summary: backend tests, frontend tests, lint, and build.
-
-## 4:00 - 4:30: Close
+## Close
 
 Say:
 
-> The engineering claim is deliberately bounded: evidence-bound invoice extraction, deterministic
-> validation, approval-gated execution, and an auditable review trail. The next proof needed is a
-> permissioned real-world dataset and observed finance-reviewer usability, not another feature.
+> This proves a production-shaped invoice workflow with explicit safety boundaries and
+> reproducible engineering evidence. It does not prove production accuracy, customer impact, or a
+> hosted finance platform.
 
 ## Recording Checklist
 
-- PDF is visible and readable
-- no API keys, local paths, browser extensions, or private documents appear
-- no console or network error appears
-- clean invoice requires explicit approval
-- exception reason is visible
-- blocked approval is demonstrated
-- technical evidence is shown after the business flow
-- limitations are stated aloud
-- final video is 3 to 5 minutes
+- the PDF is visible and agrees with the displayed invoice fields
+- no API key, private document, local path, or browser extension appears
+- approval remains human-controlled and a validation blocker remains enforced
+- correction lineage and post-decision audit consequence are visible
+- synthetic and customer-validation limitations are stated
+- final video remains between 3 and 5 minutes

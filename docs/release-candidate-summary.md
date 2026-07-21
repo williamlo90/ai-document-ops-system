@@ -18,14 +18,14 @@ Status: local portfolio release candidate.
 - reviewer correction feedback with original AI snapshot, before/after diffs, reason lineage, and
   privacy-filtered aggregate evidence
 - local technical run and reliability evidence
-- responsive desktop and mobile workflow
-- a 3:37 captioned recruiter demo covering clean approval and duplicate blocking
+- eight client-facing product pages with a four-viewport screenshot matrix
+- a captioned recruiter demo covering review, correction, approval, export, evaluation, and system evidence
 - Docker, CI, and public artifact packaging
 
 ## Verification Baseline
 
-- backend suite: 435 passed, 2 skipped
-- frontend suite: 15 passed
+- backend suite: 453 passed, 2 skipped
+- frontend suite: 13 passed
 - backend Ruff check: passed
 - frontend lint and production build: passed
 - Python and npm dependency audits: no known vulnerabilities at verification time
@@ -40,6 +40,8 @@ Status: local portfolio release candidate.
 - local SQLite, file storage, and demo authentication are not a hosted tenancy architecture
 - no measured time saving, cost saving, or business error reduction is claimed
 - live ERP delivery, production monitoring, backups, and secret management remain out of scope
+- Settings is intentionally absent until it has an approved design and an audited persisted
+  server contract; no placeholder route ships in this candidate
 
 ## Release Verdict
 

@@ -156,12 +156,37 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertTrue((output / "docs" / "invoice-scenarios-v1-evidence.md").exists())
         self.assertTrue((output / "docs" / "release-candidate-summary.md").exists())
         self.assertTrue((output / "docs" / "reliability-report.md").exists())
-        self.assertTrue(
-            (output / "docs" / "assets" / "screenshots" / "reviewer-decision.png").exists()
-        )
-        self.assertTrue(
-            (output / "docs" / "assets" / "screenshots" / "approved-decision.png").exists()
-        )
+        self.assertTrue((output / "docs" / "ui-release-evidence.md").exists())
+        screenshot_root = output / "docs" / "assets" / "screenshots"
+        for screenshot in (
+            "overview.png",
+            "invoices.png",
+            "review-queue.png",
+            "review-workspace.png",
+            "exceptions.png",
+            "exports.png",
+            "evaluation.png",
+            "system.png",
+            "reviewer-decision.png",
+            "approved-decision.png",
+            "uploader-correction.png",
+        ):
+            self.assertTrue((screenshot_root / screenshot).exists(), msg=screenshot)
+        for viewport in ("compact", "tablet", "mobile"):
+            for screenshot in (
+                "overview.png",
+                "invoices.png",
+                "review-queue.png",
+                "review-workspace.png",
+                "exceptions.png",
+                "exports.png",
+                "evaluation.png",
+                "system.png",
+            ):
+                self.assertTrue(
+                    (screenshot_root / viewport / screenshot).exists(),
+                    msg=f"{viewport}/{screenshot}",
+                )
         self.assertTrue((output / "docs" / "assets" / "demo" / "ai-document-ops-demo.mp4").exists())
 
     def test_excludes_obsolete_public_plans(self) -> None:

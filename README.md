@@ -9,12 +9,13 @@ The system is designed for a finance operations reviewer who needs to answer thr
 2. Is there a reason this invoice should not be approved?
 3. What decision was made, by whom, and on what evidence?
 
-[![Recorded invoice approval evidence](docs/assets/screenshots/approved-decision.png)](docs/assets/demo/ai-document-ops-demo.mp4)
+[![Invoice operations overview](docs/assets/screenshots/overview.png)](docs/assets/demo/ai-document-ops-demo.mp4)
 
-**[Watch the 3:37 captioned recruiter demo](docs/assets/demo/ai-document-ops-demo.mp4).** It shows
-a clean approval path followed by a duplicate invoice whose approval is blocked. The recording uses
-the committed synthetic PDFs and a deterministic UI contract harness; provider-backed extraction
-evidence is reported separately below.
+**[Watch the captioned recruiter demo](docs/assets/demo/ai-document-ops-demo.mp4).** It follows the
+current client-facing product from Overview and invoice review through correction, recorded
+approval, controlled export, evaluation, and system evidence. The recording uses a committed
+synthetic PDF and deterministic UI contract harness; provider-backed extraction evidence is
+reported separately below.
 
 ## Product Flow
 
@@ -70,7 +71,7 @@ mocks for offline development.
 | External licensed evaluation | V1 preserved a provider-availability failure. A new non-overlapping V2 pack completed 10 / 10 sealed holdout documents with 98.75% field accuracy, 100% validation match, and one documented due-date hallucination. |
 | Reviewer correction loop | Correction requests route back to the uploader, preserve original AI output, store before/after diffs, and return the invoice to review. |
 | Approval boundary | Duplicate and other error-level cases are blocked in both UI and API tests. |
-| Automated verification | 435 backend tests passed with 2 skipped; 15 frontend tests passed; lint and production build passed. |
+| Automated verification | 453 backend tests passed with 2 skipped; 13 frontend tests passed; lint and production build passed. |
 
 The controlled regression is a small synthetic golden set, not a production accuracy claim.
 See [scenario evidence](docs/invoice-scenarios-v1-evidence.md) for the initial failures, fixes,
@@ -149,6 +150,7 @@ Pop-Location
 
 - [Portfolio case study](PORTFOLIO_CASE_STUDY.md)
 - [Recruiter evidence pack](RECRUITER_EVIDENCE_PACK.md)
+- [UI release evidence](docs/ui-release-evidence.md)
 - [Scenario coverage matrix](SCENARIO_COVERAGE_MATRIX.md)
 - [External invoice evaluation V2](docs/external-invoice-evaluation-v2.md)
 - [Evaluation experiment log](docs/evaluation-experiment-log.md)

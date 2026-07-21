@@ -17,7 +17,7 @@ finance platform.
 
 | Claim | Repository evidence |
 | --- | --- |
-| A reviewer can compare the source PDF with extracted fields. | [Reviewer screenshot](docs/assets/screenshots/reviewer-decision.png) and [3:37 demo](docs/assets/demo/ai-document-ops-demo.mp4) |
+| A reviewer can compare the source PDF with extracted fields. | [Reviewer screenshot](docs/assets/screenshots/reviewer-decision.png), [UI evidence matrix](docs/ui-release-evidence.md), and [captioned demo](docs/assets/demo/ai-document-ops-demo.mp4) |
 | Extraction confidence cannot approve an invoice. | Approval remains an explicit reviewer action in the UI and backend decision service. |
 | Business-rule failures block approval. | Total, date, currency, required-field, and duplicate cases are covered in the [scenario matrix](SCENARIO_COVERAGE_MATRIX.md) and automated tests. |
 | Reviewer corrections become auditable data, not chat history. | [Reviewer correction feedback](docs/reviewer-correction-feedback.md) records before/after diffs, original AI snapshots, reason lineage, and privacy-filtered aggregate evidence. |
@@ -45,8 +45,8 @@ finance platform.
 | Approval audit consequence | A completed local approval recorded actor, timestamp, terminal status, export eligibility, and six audit events. | Export eligibility is not a claim that an ERP delivery occurred. |
 | Reviewer correction feedback | Six deterministic feedback-lineage checks passed and public summaries exclude document IDs, actors, reasons, and values. | This proves correction capture and privacy filtering, not model improvement or user adoption. |
 | External licensed holdout | The V2 sealed holdout completed 10 / 10 documents with 98.75% field accuracy, 100% validation match, and one unsupported due date. | This is bounded licensed-synthetic evidence, not customer or production accuracy. |
-| Automated verification | 435 backend tests passed with 2 skipped; 15 frontend tests passed; Ruff, lint, production build, and dependency audits passed. | Tests support the local repository contract, not hosted production readiness. |
-| Recruiter demo | A 3:37 captioned video shows a clean approval and a blocked duplicate. | The video uses committed synthetic PDFs and a deterministic UI contract harness. |
+| Automated verification | 453 backend tests passed with 2 skipped; 13 frontend tests passed; Ruff, lint, production build, and dependency audits passed. | Tests support the local repository contract, not hosted production readiness. |
+| Recruiter demo | A captioned 3:53 walkthrough covers the business UI, blocker, correction loop, recorded decision, export, evaluation, and system evidence. | The video uses a committed synthetic PDF and deterministic UI contract harness. |
 
 The current provider-backed evaluation used Mistral OCR and an OpenAI structured extraction model.
 The demo harness is intentionally deterministic so the same short narrative can be
@@ -84,4 +84,5 @@ Those claims require external users and representative business data.
 - [Reliability report](docs/reliability-report.md)
 - [Architecture and decision boundaries](ARCHITECTURE.md)
 - [Demo notes and reproduction](docs/demo-video.md)
+- [UI release evidence](docs/ui-release-evidence.md)
 - [Roadmap and remaining release work](ROADMAP.md)

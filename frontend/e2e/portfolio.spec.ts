@@ -1,195 +1,93 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
+import { installPortfolioApi } from './portfolio-fixtures'
+
 test.skip(!process.env.CAPTURE_PORTFOLIO, 'Portfolio capture runs only through npm run capture:portfolio.')
-test.setTimeout(90_000)
+test.setTimeout(180_000)
+test.describe.configure({ mode: 'serial' })
 
-const now = '2026-07-15T03:00:00Z'
-const cleanDocument = documentSummary('doc-clean', 'summit-industrial-parts.pdf', false)
-const duplicateDocument = documentSummary('doc-duplicate', 'summit-industrial-parts-copy.pdf', true)
-const cleanItem = workItem('item-clean', cleanDocument, false)
-const duplicateItem = workItem('item-duplicate', duplicateDocument, true)
+const viewports = [
+  { name: 'desktop', width: 1536, height: 1024 },
+  { name: 'compact', width: 1280, height: 800 },
+  { name: 'tablet', width: 1024, height: 768 },
+  { name: 'mobile', width: 390, height: 844 },
+] as const
 
-function documentSummary(id: string, filename: string, blocked: boolean) {
-  return {
-    id,
-    filename,
-    original_filename: filename,
-    status: 'needs_review',
-    created_at: now,
-    document_type: 'invoice',
-    supported_extraction_schema: 'invoice_v1',
-    vendor_name: 'Summit Industrial Parts',
-    total: '704.00',
-    currency: 'USD',
-    validation_issue_count: blocked ? 1 : 0,
-    validation_error_count: blocked ? 1 : 0,
-    has_validation_errors: blocked,
-    validation_codes: blocked ? ['duplicate_invoice'] : [],
-  }
-}
+const pages = [
+  { name: 'overview', route: '/overview', heading: /Good (morning|afternoon|evening), James/ },
+  { name: 'invoices', route: '/invoices?invoice=doc-acme', heading: 'Invoices', pdf: true },
+  { name: 'review-queue', route: '/review-queue?invoice=doc-acme', heading: 'Review Queue', pdf: true },
+  { name: 'review-workspace', route: '/review/doc-acme', heading: 'Review invoice', pdf: true },
+  { name: 'exceptions', route: '/exceptions?exception=exception-doc-acme', heading: 'Exceptions' },
+  { name: 'exports', route: '/exports?status=ready&batch=batch-july', heading: 'Exports' },
+  { name: 'evaluation', route: '/evaluation?run=eval-7&range=10', heading: 'Evaluation' },
+  { name: 'system', route: '/system', heading: 'System' },
+] as const
 
-function workItem(id: string, document: ReturnType<typeof documentSummary>, blocked: boolean) {
-  return {
-    id,
-    title: `Invoice Review - ${document.vendor_name}`,
-    work_type: 'invoice_review',
-    priority: blocked ? 'high' : 'normal',
-    status: blocked ? 'blocked' : 'awaiting_human',
-    linked_document_ids: [document.id],
-    business_context: {
-      vendor_name: document.vendor_name,
-      total: document.total,
-      currency: document.currency,
-      requested_outcome: 'Check invoice data and record a reviewer decision.',
-    },
-    created_at: now,
-    updated_at: now,
-    current_plan_id: null,
-    assignee: 'Finance reviewer',
-    requested_outcome: 'Check invoice data and record a reviewer decision.',
-    tags: blocked ? ['invoice', 'duplicate'] : ['invoice'],
-    plans: [],
-    current_plan: null,
-    drafts: [],
-    approvals: [],
-    policy_decisions: [],
-    activity: [],
-  }
-}
+for (const viewport of viewports) {
+  test(`archive approved pages at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    const fixture = await installPortfolioApi(page)
+    const output = viewport.name === 'desktop'
+      ? path.resolve('../docs/assets/screenshots')
+      : path.resolve(`../docs/assets/screenshots/${viewport.name}`)
 
-function extraction(blocked: boolean) {
-  return {
-    document_type: 'invoice',
-    schema_version: 'invoice_v1',
-    data: {
-      vendor_name: 'Summit Industrial Parts',
-      invoice_number: 'SIP-7788',
-      invoice_date: '2026-07-16',
-      due_date: '2026-08-15',
-      subtotal: '640.00',
-      tax: '64.00',
-      total: '704.00',
-      currency: 'USD',
-      line_items: [{ description: 'Industrial parts', quantity: '4', unit_price: '160.00', amount: '640.00' }],
-    },
-    confidence: [
-      { field_name: 'vendor_name', score: 0.98, source_page: 1, source_text: 'Vendor: Summit Industrial Parts' },
-      { field_name: 'invoice_number', score: 0.97, source_page: 1, source_text: 'Invoice SIP-7788' },
-      { field_name: 'total', score: 0.99, source_page: 1, source_text: 'Total USD 704.00' },
-    ],
-    validation: blocked
-      ? [{ field_name: 'invoice_number', message: 'Possible duplicate invoice for this vendor and invoice number.', severity: 'error', code: 'duplicate_invoice' }]
-      : [],
-  }
-}
+    for (const target of pages) {
+      const route = viewport.width < 1180 ? unselectedRoute(target.name, target.route) : target.route
+      await page.goto(route)
+      await expect(page.getByRole('heading', { name: target.heading, exact: typeof target.heading === 'string' }).first()).toBeVisible()
+      if (target.pdf && route.includes('doc-')) await waitForVisiblePdf(page)
+      await settle(page)
+      await expectNoPageOverflow(page)
+      await page.screenshot({ path: path.join(output, `${target.name}.png`), fullPage: true })
 
-async function mockPortfolioApi(page: Page) {
-  const cleanPdf = readFileSync(path.resolve('../examples/benchmark/datasets/invoice_scenarios_v1/documents/duplicate_original.pdf'))
-  const duplicatePdf = readFileSync(path.resolve('../examples/benchmark/datasets/invoice_scenarios_v1/documents/duplicate_copy.pdf'))
-  let cleanApproved = false
-  await page.route('**/*', async (route) => {
-    const request = route.request()
-    const pathname = new URL(request.url()).pathname
-    const currentCleanDocument = cleanApproved ? { ...cleanDocument, status: 'approved' } : cleanDocument
-    const currentCleanItem = cleanApproved ? { ...cleanItem, status: 'completed' } : cleanItem
-    if (pathname === '/auth/session') return route.fulfill({ json: { authenticated: true, actor: 'portfolio-reviewer' } })
-    if (pathname === '/backoffice/workspace') {
-      return route.fulfill({
-        json: {
-          workspace_id: 'portfolio',
-          work_items: [currentCleanItem, duplicateItem],
-          pending_approvals: [],
-          documents: [currentCleanDocument, duplicateDocument],
-          metrics: { work_items: 2, pending_approvals: 1, drafts: 0, policy_decisions: 0 },
-        },
-      })
+      if (viewport.name === 'desktop' && target.name === 'review-workspace') {
+        await page.screenshot({ path: path.join(output, 'reviewer-decision.png'), fullPage: true })
+      }
     }
-    if (pathname === '/invoices') {
-      return route.fulfill({
-        json: {
-          items: [
-            { ...currentCleanDocument, business_status: cleanApproved ? 'approved' : 'needs_review', current_stage: cleanApproved ? 'completed' : 'needs_review' },
-            { ...duplicateDocument, business_status: 'needs_correction', current_stage: 'needs_attention' },
-          ],
-          page: 1,
-          page_size: 100,
-          total: 2,
-          total_pages: 1,
-        },
-      })
-    }
-    if (pathname === '/operations/notifications') return route.fulfill({ json: { notifications: [], unread_count: 0 } })
-    if (pathname === '/providers/health') return route.fulfill({ json: { overall_status: 'healthy', providers: [] } })
-    if (pathname === '/operations/jobs') return route.fulfill({ json: { worker: { status: 'healthy', queued_jobs: 0, failed_jobs: 0, stalled_jobs: 0, evidence: 'Ready' }, failed_jobs: [] } })
-    if (pathname === `/backoffice/work-items/${cleanItem.id}`) return route.fulfill({ json: { work_item: currentCleanItem } })
-    if (pathname === `/backoffice/work-items/${duplicateItem.id}`) return route.fulfill({ json: { work_item: duplicateItem } })
-    if (pathname === `/documents/${cleanDocument.id}`) return route.fulfill({ json: { document: currentCleanDocument, extraction: extraction(false), audit_events: cleanApproved ? [
-      { id: 'event-1', event_type: 'document_uploaded', actor: 'intake-user', created_at: now },
-      { id: 'event-2', event_type: 'processing_queued', actor: 'intake-user', created_at: now },
-      { id: 'event-3', event_type: 'processing_started', actor: 'worker', created_at: now },
-      { id: 'event-4', event_type: 'processing_finished', actor: 'worker', created_at: now },
-      { id: 'event-5', event_type: 'review_required', actor: 'worker', created_at: now },
-      { id: 'event-6', event_type: 'document_approved', actor: 'portfolio-reviewer', new_status: 'approved', created_at: now },
-    ] : [] } })
-    if (pathname === `/documents/${duplicateDocument.id}`) return route.fulfill({ json: { document: duplicateDocument, extraction: extraction(true), audit_events: [] } })
-    if (pathname === `/documents/${cleanDocument.id}/content`) return route.fulfill({ contentType: 'application/pdf', body: cleanPdf })
-    if (pathname === `/documents/${duplicateDocument.id}/content`) return route.fulfill({ contentType: 'application/pdf', body: duplicatePdf })
-    if (pathname === `/review/${cleanDocument.id}/approve` && request.method() === 'POST') {
-      cleanApproved = true
-      return route.fulfill({ json: { review_task: { status: 'approved', reviewed_by: 'portfolio-reviewer', reviewed_at: now } } })
-    }
-    return route.continue()
+
+    if (viewport.name !== 'desktop') return
+
+    fixture.setApproved(true)
+    await page.goto('/review/doc-acme')
+    await expect(page.getByRole('heading', { name: 'Decision recorded', exact: true })).toBeVisible()
+    await waitForVisiblePdf(page)
+    await settle(page)
+    await page.screenshot({ path: path.join(output, 'approved-decision.png'), fullPage: true })
+
+    fixture.setRole('uploader')
+    await page.goto('/invoices?invoice=doc-northstar-correction')
+    await expect(page.getByRole('heading', { name: 'Invoices', exact: true })).toBeVisible()
+    await waitForVisiblePdf(page)
+    await page.getByRole('button', { name: 'Correct invoice data' }).click()
+    await expect(page.getByRole('dialog', { name: 'Correct invoice data' })).toBeVisible()
+    await settle(page)
+    await page.screenshot({ path: path.join(output, 'uploader-correction.png'), fullPage: true })
   })
 }
 
-async function waitForPdf(page: Page) {
-  const canvas = page.locator('canvas.pdf-canvas')
-  await expect(canvas).toBeVisible()
-  await expect.poll(() => canvas.evaluate((element) => element.width * element.height)).toBeGreaterThan(0)
+async function waitForVisiblePdf(page: Page) {
+  const canvas = page.locator('canvas.pdf-canvas:visible').first()
+  await expect(canvas).toBeVisible({ timeout: 20_000 })
+  await expect.poll(() => canvas.evaluate((element) => element.width * element.height), { timeout: 20_000 }).toBeGreaterThan(0)
   await expect(page.getByText('Loading invoice...')).toHaveCount(0, { timeout: 20_000 })
 }
 
-test('capture current uploader and reviewer workflow', async ({ page }, testInfo) => {
-  const isMobile = testInfo.project.name === 'mobile'
-  if (testInfo.project.name === 'desktop') await page.setViewportSize({ width: 1440, height: 960 })
-  if (isMobile) await page.setViewportSize({ width: 390, height: 844 })
-  await mockPortfolioApi(page)
-  const output = path.resolve('../docs/assets/screenshots')
+async function settle(page: Page) {
+  await page.evaluate(() => document.fonts.ready)
+  await page.waitForTimeout(180)
+}
 
-  await page.addInitScript(() => localStorage.setItem('docops-role', 'intake'))
-  await page.goto('/')
-  if (isMobile) await page.getByRole('button', { name: 'Open navigation' }).click()
-  await page.getByRole('button', { name: 'My Invoices' }).click()
-  await expect(page.getByRole('heading', { name: 'My Invoices', level: 2 })).toBeVisible()
-  await page.screenshot({ path: path.join(output, 'uploader-invoices.png'), fullPage: true })
+async function expectNoPageOverflow(page: Page) {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(1)
+}
 
-  await page.locator('select.role-select').selectOption('administrator')
-  await expect(page.getByRole('heading', { name: 'Approvals' }).first()).toBeVisible()
-  await expect(page.getByText('Waiting decision (1)')).toBeVisible()
-  await page.screenshot({ path: path.join(output, 'reviewer-approvals.png'), fullPage: true })
-
-  await page.getByRole('button', { name: /summit-industrial-parts\.pdf/i }).click()
-  await expect(page.getByText('Choose the outcome for this invoice')).toBeVisible()
-  await waitForPdf(page)
-  await page.getByRole('button', { name: 'Zoom out' }).click()
-  await waitForPdf(page)
-  await page.screenshot({ path: path.join(output, 'reviewer-decision.png') })
-
-  await page.getByPlaceholder('Example: Total and vendor match the PDF.').fill('Vendor, invoice number, and total match the PDF.')
-  await page.getByRole('button', { name: 'Approve' }).click()
-  await expect(page.getByText('Decision recorded')).toBeVisible()
-  await expect(page.getByLabel('Decision evidence')).toContainText('portfolio-reviewer')
-  await expect(page.getByLabel('Decision evidence')).toContainText('Eligible for controlled export')
-  await page.screenshot({ path: path.join(output, 'approved-decision.png') })
-
-  await page.locator('.pager button').last().click()
-  await expect(page.getByText('summit-industrial-parts-copy.pdf').first()).toBeVisible()
-  await expect(page.getByText('must be resolved before approval')).toBeVisible()
-  await waitForPdf(page)
-  await page.getByRole('button', { name: 'Zoom out' }).click()
-  await waitForPdf(page)
-  await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled()
-  await page.screenshot({ path: path.join(output, 'blocked-duplicate.png') })
-})
+function unselectedRoute(name: string, route: string) {
+  if (name === 'invoices') return '/invoices'
+  if (name === 'review-queue') return '/review-queue'
+  if (name === 'exceptions') return '/exceptions'
+  return route
+}
