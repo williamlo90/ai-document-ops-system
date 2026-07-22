@@ -18,13 +18,11 @@ export type WorkspaceSummary = {
 }
 
 export type AppRoute =
-  | '/overview'
+  | '/inbox'
   | '/invoices'
-  | '/review-queue'
-  | '/exceptions'
   | '/exports'
-  | '/evaluation'
-  | '/system'
+  | '/admin/quality'
+  | '/admin/operations'
 
 export function productRole(session: SessionInfo): ProductRole {
   if (session.is_admin) return 'administrator'

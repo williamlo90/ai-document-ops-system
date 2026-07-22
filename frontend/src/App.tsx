@@ -1,5 +1,5 @@
 import { QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AlertTriangle, LoaderCircle, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { api } from './api/client'
@@ -7,13 +7,11 @@ import { AppShell } from './app/AppShell'
 import { defaultRoute } from './app/routes'
 import { productRole, type SessionInfo } from './app/types'
 import { InvoicesPage } from './pages/InvoicesPage'
-import { ReviewQueuePage } from './pages/ReviewQueuePage'
+import { InboxPage } from './pages/InboxPage'
 import { ReviewWorkspacePage } from './pages/ReviewWorkspacePage'
-import { ExceptionsPage } from './pages/ExceptionsPage'
 import { ExportsPage } from './pages/ExportsPage'
 import { EvaluationPage } from './pages/EvaluationPage'
 import { SystemPage } from './pages/SystemPage'
-import { OverviewPage } from './pages/OverviewPage'
 import { Button, ErrorState, LoadingState } from './shared/ui'
 import { queryClient } from './queryClient'
 import './product.css'
@@ -52,17 +50,28 @@ function SessionGate() {
   return <Routes>
     <Route element={<AppShell session={session.data} signOut={() => logout.mutate()} signingOut={logout.isPending} />}>
       <Route index element={<Navigate to={defaultRoute(role)} replace />} />
-      <Route path="overview" element={<OverviewPage />} />
+      <Route path="inbox" element={<InboxPage />} />
       <Route path="invoices" element={<InvoicesPage />} />
-      <Route path="review-queue" element={<ReviewQueuePage />} />
       <Route path="review/:documentId" element={<ReviewWorkspacePage />} />
-      <Route path="exceptions" element={<ExceptionsPage />} />
       <Route path="exports" element={<ExportsPage />} />
-      <Route path="evaluation" element={<EvaluationPage />} />
-      <Route path="system" element={<SystemPage />} />
+      <Route path="admin/quality" element={<EvaluationPage />} />
+      <Route path="admin/operations" element={<SystemPage />} />
+      <Route path="overview" element={<LegacyRedirect to="/inbox" />} />
+      <Route path="review-queue" element={<LegacyRedirect to="/inbox" state="needs-decision" />} />
+      <Route path="exceptions" element={<LegacyRedirect to="/inbox" state="blocked" />} />
+      <Route path="evaluation" element={<LegacyRedirect to="/admin/quality" />} />
+      <Route path="system" element={<LegacyRedirect to="/admin/operations" />} />
     </Route>
     <Route path="*" element={<Navigate to={defaultRoute(role)} replace />} />
   </Routes>
+}
+
+function LegacyRedirect({ to, state }: { to: string; state?: string }) {
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  if (state) params.set('state', state)
+  const query = params.toString()
+  return <Navigate to={`${to}${query ? `?${query}` : ''}`} replace />
 }
 
 function Login({ token, setToken, error, pending, submit }: { token: string; setToken: (value: string) => void; error: string; pending: boolean; submit: () => void }) {

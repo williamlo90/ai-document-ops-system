@@ -34,7 +34,7 @@ export function ReviewQueuePage() {
   const summary = queue.data?.summary
 
   return <div className="ops-page review-queue-page">
-    <PageHeader title="Review Queue" description="Check invoices that need a human decision and resolve the most important issues first." />
+    <PageHeader title="Inbox" description="Review invoices that need a decision or have a blocking validation issue." />
     {queue.error ? <ErrorState message={(queue.error as Error).message} retry={() => void queue.refetch()} /> : <>
       <Panel className="review-kpis" ariaLabel="Review queue summary">
         <QueueMetric icon={<FileSearch size={23} />} value={summary?.in_queue ?? 0} label="In queue" tone="info" />

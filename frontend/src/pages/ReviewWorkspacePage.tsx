@@ -29,7 +29,7 @@ export function ReviewWorkspacePage() {
   const [searchParams] = useSearchParams()
   const returnToExceptions = searchParams.get('from') === 'exceptions'
   const exceptionId = searchParams.get('exception')
-  const returnPath = returnToExceptions ? `/exceptions${exceptionId ? `?exception=${exceptionId}` : ''}` : '/review-queue'
+  const returnPath = returnToExceptions ? `/inbox?state=blocked${exceptionId ? `&exception=${exceptionId}` : ''}` : '/inbox?state=needs-decision'
   const returnLabel = returnToExceptions ? 'Exceptions' : 'Review queue'
   const queryClient = useQueryClient()
   const detail = useQuery({ queryKey: ['invoice-detail', documentId], queryFn: () => api<InvoiceDetailResponse>(`/documents/${documentId}`), enabled: Boolean(documentId) })

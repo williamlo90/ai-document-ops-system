@@ -21,6 +21,10 @@ const emptyInvoices: InvoiceListResponse = {
   summary: { all: 0, waiting_review: 0, needs_correction: 0, approved: 0, exported: 0 },
   insights: { flagged: 0, duplicates_suspected: 0, tax_amount_issues: 0 },
 }
+const emptyWorklist: ReviewWorklist = {
+  items: [], page: 1, page_size: 10, total: 0, total_pages: 1,
+  summary: { in_queue: 0, high_risk: 0, invoice_due_today: 0, average_review_seconds: null },
+}
 const invoice: InvoiceItem = {
   id: 'doc-1', original_filename: 'acme.pdf', submitted_by: 'uploader-1', status: 'needs_review', business_status: 'needs_review', current_stage: 'waiting_approval', current_owner: 'James Smith',
   vendor_name: 'Acme Logistics', invoice_number: 'INV-001', invoice_date: '2026-07-18', due_date: '2026-08-18', total: '1250.00', currency: 'USD', created_at: now, updated_at: now,
@@ -60,6 +64,7 @@ function installApi(session: Record<string, unknown>, invoiceResponse: InvoiceLi
     if (path === '/auth/session') return json(session)
     if (path === '/backoffice/workspace') return json(workspace)
     if (path === '/overview/dashboard') return json(emptyOverview)
+    if (path.startsWith('/review/worklist?')) return json(emptyWorklist)
     if (path.startsWith('/invoices?')) return json(invoiceResponse)
     if (path === '/documents/doc-1') return json({ document: invoice, extraction: { data: {}, validation: [{ field_name: 'po_number', severity: 'warning', code: 'po_missing', message: 'PO number was not found.' }], confidence: [] }, audit_events: [] })
     return json({ detail: `Unexpected request: ${path}` }, 404)
@@ -84,20 +89,18 @@ describe('product routes and role boundaries', () => {
     expect(screen.getByRole('button', { name: /upload invoice/i })).toBeInTheDocument()
     const navigation = screen.getByRole('navigation', { name: /primary/i })
     expect(within(navigation).getByRole('link', { name: 'Invoices' })).toBeInTheDocument()
-    expect(within(navigation).queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument()
-    expect(within(navigation).queryByRole('link', { name: 'Review Queue' })).not.toBeInTheDocument()
+    expect(within(navigation).queryByRole('link', { name: 'Inbox' })).not.toBeInTheDocument()
   })
 
   it('shows reviewer work but hides administrator controls', async () => {
     installApi({ authenticated: true, actor: 'Reviewer', user_id: 'reviewer-1', workspace_id: 'default', role: 'reviewer', is_admin: false })
     render(<App />)
-    expect(await screen.findByRole('heading', { name: /Good (morning|afternoon|evening), Reviewer/i })).toBeInTheDocument()
-    expect(screen.getByText('No invoices need attention')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument()
+    expect(await screen.findByText('No invoices need review')).toBeInTheDocument()
     const navigation = screen.getByRole('navigation', { name: /primary/i })
-    expect(within(navigation).getByRole('link', { name: 'Review Queue' })).toBeInTheDocument()
-    expect(within(navigation).getByRole('link', { name: 'Exceptions' })).toBeInTheDocument()
+    expect(within(navigation).getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
     expect(within(navigation).queryByRole('link', { name: 'Exports' })).not.toBeInTheDocument()
-    expect(within(navigation).queryByRole('link', { name: 'System' })).not.toBeInTheDocument()
+    expect(within(navigation).queryByRole('link', { name: 'Operations' })).not.toBeInTheDocument()
   })
 
   it('guards a direct administrator route for an uploader', async () => {
@@ -191,7 +194,7 @@ describe('review queue', () => {
       return json({ detail: `Unexpected request: ${path}` }, 404)
     }))
     render(<App />)
-    expect(await screen.findByRole('heading', { name: 'Review Queue' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument()
     expect(screen.getByText('Not measured')).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'INV-001' }))
     const inspector = await screen.findByRole('region', { name: /selected invoice review summary/i })

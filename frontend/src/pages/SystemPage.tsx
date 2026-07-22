@@ -171,7 +171,7 @@ function ConnectedServices({ data, open }: { data: SystemIntegration[]; open: (i
 }
 
 function RecentJobs({ jobs, open }: { jobs: SystemJob[]; open: (item: SystemJob) => void }) {
-  return <Panel className="system-recent"><header><div><h2>Recent processing</h2><p>Latest invoice reading jobs.</p></div><Link className="ops-link" to="/system?tab=processing">View all processing <ChevronRight size={13} /></Link></header>{jobs.length ? <JobTable jobs={jobs} open={open} /> : <EmptyState title="No recent processing activity" body="New invoice jobs will appear here once processing begins." />}</Panel>
+  return <Panel className="system-recent"><header><div><h2>Recent processing</h2><p>Latest invoice reading jobs.</p></div><Link className="ops-link" to="/admin/operations?tab=processing">View all processing <ChevronRight size={13} /></Link></header>{jobs.length ? <JobTable jobs={jobs} open={open} /> : <EmptyState title="No recent processing activity" body="New invoice jobs will appear here once processing begins." />}</Panel>
 }
 
 function JobTable({ jobs, open, retry, pending }: { jobs: SystemJob[]; open: (item: SystemJob) => void; retry?: (item: SystemJob) => void; pending?: boolean }) {

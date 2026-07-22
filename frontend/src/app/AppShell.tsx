@@ -41,8 +41,8 @@ export function AppShell({ session, signOut, signingOut }: { session: SessionInf
       <nav aria-label="Primary navigation">
         <span className="ops-nav-label">Invoice work</span>
         {items.filter((item) => item.group === 'work').map((item) => <NavItem key={item.path} {...item} />)}
-        {items.some((item) => item.group === 'system') ? <span className="ops-nav-divider" /> : null}
-        {items.filter((item) => item.group === 'system').map((item) => <NavItem key={item.path} {...item} />)}
+        {items.some((item) => item.group === 'admin') ? <><span className="ops-nav-divider" /><span className="ops-nav-label">Admin</span></> : null}
+        {items.filter((item) => item.group === 'admin').map((item) => <NavItem key={item.path} {...item} />)}
       </nav>
     </aside>
     <div className="ops-workspace">

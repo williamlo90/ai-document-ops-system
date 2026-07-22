@@ -182,7 +182,7 @@ export function ExportsPage() {
           /> : <EmptyState
             title={view === 'ready' ? 'No invoices are ready to export' : `No ${view.replace('_', ' ')} invoices found`}
             body={view === 'ready' ? 'Approved invoices without blockers will appear here.' : 'Try another status or clear the current filters.'}
-            action={view === 'ready' ? <Link className="ops-button ops-button--secondary" to="/review-queue">View review queue</Link> : null}
+            action={view === 'ready' ? <Link className="ops-button ops-button--secondary" to="/inbox?state=needs-decision">View inbox</Link> : null}
           />}
           {workspace.data ? <footer className="ops-pagination"><span>Showing page {workspace.data.page} of {workspace.data.total_pages} / {workspace.data.total} invoices</span><div><Button variant="ghost" disabled={page <= 1} onClick={() => updateParams(params, setParams, { page: String(page - 1) })}>Previous</Button><strong>{page}</strong><Button variant="ghost" disabled={page >= workspace.data.total_pages} onClick={() => updateParams(params, setParams, { page: String(page + 1) })}>Next</Button></div></footer> : null}
         </Panel>
