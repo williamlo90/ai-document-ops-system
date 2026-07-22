@@ -119,7 +119,7 @@ describe('invoice library', () => {
     )
     render(<App />)
     expect(await screen.findByText('INV-001')).toBeInTheDocument()
-    expect(screen.getByText('Invoices flagged').previousSibling).toHaveTextContent('1')
+    expect(screen.getByText('Invoices with issues').previousSibling).toHaveTextContent('1')
     await user.click(await screen.findByRole('button', { name: 'INV-001' }))
     const inspector = await screen.findByRole('region', { name: /invoice inspector/i })
     expect(within(inspector).getByText('Acme Logistics')).toBeInTheDocument()
@@ -166,8 +166,7 @@ describe('invoice library', () => {
   it('shows a sanitized session verification failure', async () => {
     vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => String(input) === '/auth/session' ? json({ detail: 'stack trace' }, 500) : json({}, 404)))
     render(<App />)
-    expect(await screen.findByText('Something went wrong')).toBeInTheDocument()
-    expect(screen.getByText('Unable to verify the secure session.')).toBeInTheDocument()
+    expect(await screen.findByText('Unable to verify the secure session.')).toBeInTheDocument()
     expect(screen.queryByText('stack trace')).not.toBeInTheDocument()
   })
 })

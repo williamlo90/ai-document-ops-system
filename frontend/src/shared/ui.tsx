@@ -25,7 +25,7 @@ export function SearchField({ value, onChange, placeholder = 'Search...', label 
 }
 
 export function LoadingState({ label = 'Loading' }: { label?: string }) {
-  return <div className="ops-state" role="status"><LoaderCircle className="spin" size={24} /><strong>{label}</strong><span>Please wait a moment.</span></div>
+  return <div className="ops-state" role="status"><LoaderCircle className="spin" size={24} /><strong>{label}</strong></div>
 }
 
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
@@ -33,7 +33,7 @@ export function EmptyState({ title, body, action }: { title: string; body: strin
 }
 
 export function ErrorState({ message, retry }: { message: string; retry?: () => void }) {
-  return <div className="ops-state ops-state--error" role="alert"><AlertCircle size={26} /><strong>Something went wrong</strong><span>{message}</span>{retry ? <Button onClick={retry}>Try again</Button> : null}</div>
+  return <div className="ops-state ops-state--error" role="alert"><AlertCircle size={26} /><strong>{message}</strong>{retry ? <Button onClick={retry}>Try again</Button> : null}</div>
 }
 
 export function KpiCard({ label, value, note, icon, tone = 'info' }: { label: string; value: ReactNode; note?: ReactNode; icon: ReactNode; tone?: 'info' | 'success' | 'warning' | 'danger' | 'purple' }) {

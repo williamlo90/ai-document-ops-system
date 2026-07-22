@@ -14,7 +14,6 @@ import {
   FileWarning,
   LoaderCircle,
   Search,
-  Sparkles,
   UserRoundPlus,
   X,
 } from 'lucide-react'
@@ -85,12 +84,6 @@ export function ExceptionsPage() {
     queryFn: () => api<ExceptionDetailResponse>(`/exceptions/${selectedId}`),
     enabled: Boolean(selectedId),
   })
-
-  useEffect(() => {
-    if (!selectedId && items[0] && window.innerWidth >= 1280) {
-      updateParams(params, setParams, { exception: items[0].id })
-    }
-  }, [items, params, selectedId, setParams])
 
   const assign = useMutation({
     mutationFn: (value: string) => api<ExceptionAssignmentResponse>(`/exceptions/${selectedId}/assignment`, {
@@ -193,7 +186,7 @@ export function ExceptionsPage() {
 function ExceptionInsight({ summary, filterCategory }: { summary?: ExceptionListResponse['summary']; filterCategory: (value: string) => void }) {
   const top = summary?.top_issues ?? []
   const highRisk = summary?.high_risk ?? 0
-  return <Panel className="exception-insight" ariaLabel="Exception workload insight"><span className="exception-insight-icon"><Sparkles size={21} /></span><div><strong>{highRisk} high-risk {highRisk === 1 ? 'exception requires' : 'exceptions require'} review</strong><p>{highRisk ? 'These issues block approval until invoice data is corrected and validation passes.' : 'No approval-blocking validation issues are in the current view.'}</p></div><section><span>Top issue types</span><div>{top.length ? top.map((item) => <button key={item.label} onClick={() => filterCategory(item.category)}><i />{item.label}<b>{item.count}</b></button>) : <small>No issue pattern in this view</small>}</div></section></Panel>
+  return <Panel className="exception-insight" ariaLabel="Exception workload summary"><span className="exception-insight-icon"><AlertCircle size={21} /></span><div><strong>{highRisk} high-risk {highRisk === 1 ? 'exception requires' : 'exceptions require'} review</strong><p>{highRisk ? 'These issues block approval until invoice data is corrected and validation passes.' : 'No approval-blocking validation issues are in the current view.'}</p></div><section><span>Top issue types</span><div>{top.length ? top.map((item) => <button key={item.label} onClick={() => filterCategory(item.category)}><i />{item.label}<b>{item.count}</b></button>) : <small>No issue pattern in this view</small>}</div></section></Panel>
 }
 
 function ExceptionMetric({ icon, value, label, tone }: { icon: React.ReactNode; value: number; label: string; tone: 'info'|'danger'|'warning'|'success' }) {

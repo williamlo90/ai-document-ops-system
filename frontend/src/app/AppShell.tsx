@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Bell, ChevronDown, CircleHelp, FileCheck2, LogOut, Menu, Search, X } from 'lucide-react'
+import { FileCheck2, LogOut, Menu, Search, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { canAccessPath, defaultRoute, navigationItems } from './routes'
@@ -37,25 +37,22 @@ export function AppShell({ session, signOut, signingOut }: { session: SessionInf
   return <div className="ops-app">
     {mobileOpen ? <button className="ops-sidebar-backdrop" aria-label="Dismiss navigation" onClick={() => setMobileOpen(false)} /> : null}
     <aside className={`ops-sidebar ${mobileOpen ? 'is-open' : ''}`}>
-      <div className="ops-brand"><span><FileCheck2 size={25} /></span><strong>Invoice Review</strong><button type="button" className="ops-icon-button ops-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
+      <div className="ops-brand"><span><FileCheck2 size={25} /></span><div><strong>Invoice Review</strong><small>Demo workspace</small></div><button type="button" className="ops-icon-button ops-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Close navigation"><X size={20} /></button></div>
       <nav aria-label="Primary navigation">
         <span className="ops-nav-label">Invoice work</span>
         {items.filter((item) => item.group === 'work').map((item) => <NavItem key={item.path} {...item} />)}
         {items.some((item) => item.group === 'system') ? <span className="ops-nav-divider" /> : null}
         {items.filter((item) => item.group === 'system').map((item) => <NavItem key={item.path} {...item} />)}
       </nav>
-      <div className="ops-help"><CircleHelp size={20} /><div><strong>Need help?</strong><span>Review the product guide</span></div></div>
     </aside>
     <div className="ops-workspace">
       <header className="ops-topbar">
         <button type="button" className="ops-icon-button" onClick={() => setMobileOpen(true)} aria-label="Open navigation"><Menu size={22} /></button>
-        <form className="ops-global-search" role="search" onSubmit={submitSearch}><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search invoices, vendors, or invoice numbers" placeholder="Search invoices, vendors, PO numbers..." /></form>
+        <form className="ops-global-search" role="search" onSubmit={submitSearch}><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search invoices, vendors, or invoice numbers" placeholder="Search invoices or vendors" /></form>
         <div className="ops-topbar-actions">
-          <button type="button" className="ops-icon-button" aria-label="Notifications"><Bell size={20} /><i /></button>
-          <button type="button" className="ops-icon-button ops-help-button" aria-label="Help"><CircleHelp size={20} /></button>
+          <span className="ops-demo-label">Demo workspace</span>
           <span className="ops-avatar" aria-hidden="true">{initials(session.actor)}</span>
           <span className="ops-account-name">{session.actor}</span>
-          <ChevronDown size={15} aria-hidden="true" />
           <button type="button" className="ops-icon-button" onClick={signOut} disabled={signingOut} aria-label="Sign out"><LogOut size={18} /></button>
         </div>
       </header>

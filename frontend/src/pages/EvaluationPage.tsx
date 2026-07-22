@@ -134,14 +134,13 @@ function EvaluationKpis({ run, regressions, baselineAvailable }: { run: Evaluati
     { label: run.duration_kind === 'wall_clock' ? 'Duration' : 'Summed latency', value: duration(run.duration_seconds), note: run.duration_kind === 'wall_clock' ? 'Observed wall-clock run time' : 'Sum of per-document provider latency', icon: <Clock3 size={25} />, tone: 'purple' },
     { label: 'Estimated cost', value: cost(run.estimated_cost_usd), note: run.estimated_cost_usd == null ? 'Not recorded for this run' : 'List-price estimate from recorded usage', icon: <DollarSign size={25} />, tone: 'info' },
   ]
-  return <div className="evaluation-kpis" aria-label="Evaluation run summary">{items.map((item, index) => <Panel key={item.label} className={`evaluation-kpi ops-tone-${item.tone}`}><span className="ops-kpi__icon">{item.icon}</span><div><small>{item.label}</small><strong>{item.value}</strong><span>{item.note}</span></div><i style={{ animationDelay: `${index * 45}ms` }} /></Panel>)}</div>
+  return <div className="evaluation-kpis" aria-label="Evaluation run summary">{items.map((item) => <Panel key={item.label} className={`evaluation-kpi ops-tone-${item.tone}`}><span className="ops-kpi__icon">{item.icon}</span><div><small>{item.label}</small><strong>{item.value}</strong><span>{item.note}</span></div><i /></Panel>)}</div>
 }
 
 function QualityTrend({ data, gate, selectRun }: { data: EvaluationTrendPoint[]; gate: number; selectRun: (id: string) => void }) {
   const chartData = data.map((item) => ({ ...item, label: shortDate(item.observed_at), field: item.field_match == null ? null : item.field_match * 100, validation: item.validation_match == null ? null : item.validation_match * 100 }))
   const values = chartData.flatMap((item) => [item.field, item.validation]).filter((value): value is number => value != null)
   const lower = Math.max(0, Math.floor(((Math.min(...values, gate * 100) || 0) - 5) / 5) * 5)
-  const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   return <div className="evaluation-chart-wrap">
     <ResponsiveContainer width="100%" height={285}>
       <LineChart data={chartData} margin={{ top: 18, right: 28, bottom: 8, left: -12 }}>
@@ -151,8 +150,8 @@ function QualityTrend({ data, gate, selectRun }: { data: EvaluationTrendPoint[];
         <Tooltip content={<TrendTooltip gate={gate * 100} />} />
         <Legend iconType="circle" wrapperStyle={{ fontSize: 10 }} />
         <ReferenceLine y={gate * 100} stroke="#94a3b8" strokeDasharray="5 5" label={{ value: `Gate ${percent(gate)}`, fill: '#64748b', fontSize: 9 }} />
-        <Line type="monotone" dataKey="field" name="Field match" stroke="#0f8b94" strokeWidth={2.2} dot={{ r: 4 }} activeDot={{ r: 7 }} connectNulls={false} isAnimationActive={!reduced} animationDuration={650} />
-        <Line type="monotone" dataKey="validation" name="Validation match" stroke="#2563eb" strokeWidth={2.2} dot={{ r: 4 }} activeDot={{ r: 7 }} connectNulls={false} isAnimationActive={!reduced} animationDuration={650} animationBegin={80} />
+        <Line type="monotone" dataKey="field" name="Field match" stroke="#0f8b94" strokeWidth={2.2} dot={{ r: 4 }} activeDot={{ r: 7 }} connectNulls={false} isAnimationActive={false} />
+        <Line type="monotone" dataKey="validation" name="Validation match" stroke="#2563eb" strokeWidth={2.2} dot={{ r: 4 }} activeDot={{ r: 7 }} connectNulls={false} isAnimationActive={false} />
       </LineChart>
     </ResponsiveContainer>
     <div className="evaluation-point-controls" aria-label="Select a trend run">{data.map((point) => <button key={point.id} className={point.selected ? 'is-selected' : ''} onClick={() => selectRun(point.id)} aria-label={`Select run from ${formatDate(point.observed_at)}`}>{shortDate(point.observed_at)}</button>)}</div>
@@ -187,7 +186,7 @@ function FieldStatus({ status }: { status: EvaluationField['status'] }) {
 }
 
 function ScenarioCoverage({ data, open }: { data: EvaluationDashboard['scenario_coverage']; open: (scenario: ScenarioCoverageGroup) => void }) {
-  return <Panel className="evaluation-coverage-panel" ariaLabel="Scenario coverage"><header><div><h2>Scenario coverage</h2><p>Case count versus suite target, not accuracy</p></div><StatusBadge tone={data.included_in_selected_run ? 'success' : 'neutral'}>{data.included_in_selected_run ? 'Selected suite' : 'Suite inventory'}</StatusBadge></header><div>{data.groups.map((group, index) => <button key={group.id} onClick={() => open(group)} style={{ animationDelay: `${index * 50}ms` }}><span><strong>{group.label}</strong><small>{group.current} current / {group.target} target</small></span><span className="evaluation-coverage-track"><i style={{ width: `${(group.coverage ?? 0) * 100}%` }} /></span><b>{percent(group.coverage)}</b></button>)}</div><footer>{data.claim_boundary}</footer></Panel>
+  return <Panel className="evaluation-coverage-panel" ariaLabel="Scenario coverage"><header><div><h2>Scenario coverage</h2><p>Case count versus suite target, not accuracy</p></div><StatusBadge tone={data.included_in_selected_run ? 'success' : 'neutral'}>{data.included_in_selected_run ? 'Selected suite' : 'Suite inventory'}</StatusBadge></header><div>{data.groups.map((group) => <button key={group.id} onClick={() => open(group)}><span><strong>{group.label}</strong><small>{group.current} current / {group.target} target</small></span><span className="evaluation-coverage-track"><i style={{ width: `${(group.coverage ?? 0) * 100}%` }} /></span><b>{percent(group.coverage)}</b></button>)}</div><footer>{data.claim_boundary}</footer></Panel>
 }
 
 function CurrentRun({ run }: { run: EvaluationRun }) {

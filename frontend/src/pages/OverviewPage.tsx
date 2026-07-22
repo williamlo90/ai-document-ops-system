@@ -12,7 +12,6 @@ import {
   FileCheck2,
   FileSearch,
   ListChecks,
-  Sparkles,
   TriangleAlert,
   Upload,
 } from 'lucide-react'
@@ -82,12 +81,12 @@ function Briefing({ data }: { data: OverviewDashboard }) {
       <p>{data.briefing.detail}</p>
       <Link className="ops-button ops-button--primary" to={data.briefing.action_href}>{data.briefing.action_label}<ArrowRight size={15} /></Link>
     </div>
-    <div className="overview-briefing-mark" aria-hidden="true"><Sparkles size={24} /><strong>AI</strong></div>
+    <div className="overview-briefing-mark" aria-hidden="true"><FileCheck2 size={24} /></div>
   </Panel>
 }
 
 function KpiCard({ item, index }: { item: OverviewKpi; index: number }) {
-  return <Link className={`ops-panel overview-kpi is-${item.tone}`} to={item.href} style={{ animationDelay: `${70 + index * 45}ms` }}>
+  return <Link className={`ops-panel overview-kpi is-${item.tone}`} to={item.href}>
     <span className="overview-kpi-icon">{kpiIcon(index, item.id)}</span>
     <strong>{item.count}</strong>
     <b>{item.label}</b>
@@ -98,7 +97,7 @@ function KpiCard({ item, index }: { item: OverviewKpi; index: number }) {
 
 function Findings({ data }: { data: OverviewDashboard }) {
   return <Panel className="overview-findings" ariaLabel="Detected findings">
-    <header><div><Sparkles size={16} /><h2>Detected findings</h2></div><span title="Counts come from stored extraction and validation evidence.">Evidence-based</span></header>
+    <header><div><AlertTriangle size={16} /><h2>Validation issues</h2></div><span title="Counts come from stored validation results.">Stored results</span></header>
     <div>{data.findings.map((item, index) => <Link key={item.id} to={item.href}><span className={`is-${item.tone}`}>{findingIcon(index)}</span><b>{item.count}</b><small>{item.label}</small><ChevronRight size={13} /></Link>)}</div>
     <Link className="ops-link" to="/exceptions">Review all findings <ArrowRight size={13} /></Link>
   </Panel>
@@ -107,7 +106,7 @@ function Findings({ data }: { data: OverviewDashboard }) {
 function Alerts({ alerts }: { alerts: OverviewAlert[] }) {
   return <Panel className="overview-alerts" ariaLabel="Priority alerts">
     <header><div><AlertTriangle size={17} /><h2>Priority alerts</h2></div><span>{alerts.length}</span></header>
-    {alerts.length ? <div>{alerts.map((alert, index) => <Link key={alert.id} to={alert.href} className={`is-${alert.severity}`} style={{ animationDelay: `${110 + index * 55}ms` }}><span>{alert.severity === 'critical' ? <AlertCircle /> : alert.severity === 'warning' ? <TriangleAlert /> : <FileSearch />}</span><div><strong>{alert.title}</strong><small>{alert.detail}</small></div><ChevronRight size={15} /></Link>)}</div> : <div className="overview-healthy"><CheckCircle2 size={22} /><div><strong>No priority alerts</strong><small>Current records do not require immediate action.</small></div></div>}
+    {alerts.length ? <div>{alerts.map((alert) => <Link key={alert.id} to={alert.href} className={`is-${alert.severity}`}><span>{alert.severity === 'critical' ? <AlertCircle /> : alert.severity === 'warning' ? <TriangleAlert /> : <FileSearch />}</span><div><strong>{alert.title}</strong><small>{alert.detail}</small></div><ChevronRight size={15} /></Link>)}</div> : <div className="overview-healthy"><CheckCircle2 size={22} /><div><strong>No priority alerts</strong><small>Current records do not require immediate action.</small></div></div>}
   </Panel>
 }
 
@@ -115,31 +114,25 @@ function DecisionQueue({ data }: { data: OverviewDashboard }) {
   return <Panel className="overview-queue" ariaLabel="Decision queue">
     <header><div><h2>Decision queue</h2><span>{data.queue.total}</span></div><Link className="ops-link" to="/review-queue">View full queue <ChevronRight size={13} /></Link></header>
     {data.queue.items.length ? <>
-      <div className="ops-table-wrap overview-queue-table"><table className="ops-table"><thead><tr><th>Invoice</th><th>Vendor</th><th>Finding</th><th>Risk</th><th>Confidence</th><th>Due</th><th>Next action</th></tr></thead><tbody>{data.queue.items.map((item) => <QueueRow key={item.document_id} item={item} />)}</tbody></table></div>
+      <div className="ops-table-wrap overview-queue-table"><table className="ops-table"><thead><tr><th>Invoice</th><th>Vendor</th><th>Issue</th><th>Risk</th><th>Due</th><th>Next action</th></tr></thead><tbody>{data.queue.items.map((item) => <QueueRow key={item.document_id} item={item} />)}</tbody></table></div>
       <div className="overview-queue-mobile">{data.queue.items.map((item) => <QueueCard key={item.document_id} item={item} />)}</div>
     </> : <EmptyState title="No invoices are waiting for review" body="Newly processed invoices will appear here when a reviewer decision is required." />}
   </Panel>
 }
 
 function QueueRow({ item }: { item: OverviewQueueItem }) {
-  return <tr><td><Link className="ops-link" to={item.href}>{item.invoice_number}</Link><small>{formatMoney(item.total, item.currency)}</small></td><td>{item.vendor_name}</td><td className="overview-finding-cell">{item.risk === 'high' ? <AlertCircle /> : <TriangleAlert />}{item.finding}</td><td><RiskBadge risk={item.risk} /></td><td><Confidence value={item.confidence} /></td><td>{formatDate(item.due_date)}</td><td><Link className="overview-row-action" to={item.href}>{item.recommended_action === 'request_correction' ? 'Resolve' : 'Review'}<ChevronRight size={13} /></Link></td></tr>
+  return <tr><td><Link className="ops-link" to={item.href}>{item.invoice_number}</Link><small>{formatMoney(item.total, item.currency)}</small></td><td>{item.vendor_name}</td><td className="overview-finding-cell">{item.risk === 'high' ? <AlertCircle /> : <TriangleAlert />}{item.finding}</td><td><RiskBadge risk={item.risk} /></td><td>{formatDate(item.due_date)}</td><td><Link className="overview-row-action" to={item.href}>{item.recommended_action === 'request_correction' ? 'Resolve' : 'Review'}<ChevronRight size={13} /></Link></td></tr>
 }
 
 function QueueCard({ item }: { item: OverviewQueueItem }) {
-  return <Link to={item.href}><header><div><strong>{item.invoice_number}</strong><small>{item.vendor_name}</small></div><RiskBadge risk={item.risk} /></header><p>{item.finding}</p><footer><span>{formatMoney(item.total, item.currency)}</span><Confidence value={item.confidence} /><ChevronRight size={15} /></footer></Link>
+  return <Link to={item.href}><header><div><strong>{item.invoice_number}</strong><small>{item.vendor_name}</small></div><RiskBadge risk={item.risk} /></header><p>{item.finding}</p><footer><span>{formatMoney(item.total, item.currency)}</span><ChevronRight size={15} /></footer></Link>
 }
 
 function RiskBadge({ risk }: { risk: OverviewQueueItem['risk'] }) {
   return <StatusBadge tone={risk === 'high' ? 'danger' : risk === 'medium' ? 'warning' : 'info'}>{risk[0].toUpperCase() + risk.slice(1)}</StatusBadge>
 }
 
-function Confidence({ value }: { value: number | null }) {
-  const percent = value == null ? null : Math.round(value * 100)
-  return <span className="overview-confidence" title={percent == null ? 'Confidence was not recorded' : `${percent}% extraction confidence`}><span><i style={{ width: `${percent ?? 0}%` }} /></span><b>{percent == null ? '-' : `${percent}%`}</b></span>
-}
-
 function Throughput({ data }: { data: OverviewDashboard }) {
-  const reduced = reducedMotion()
   return <Panel className="overview-throughput" ariaLabel="Processing throughput">
     <header><div><h2>Throughput</h2><p>{data.throughput.window_label}</p></div><div className="overview-chart-legend"><span className="is-processed">Processed</span><span className="is-review">Sent for review</span></div></header>
     <div className="overview-chart" role="img" aria-label={throughputLabel(data)}>
@@ -149,8 +142,8 @@ function Throughput({ data }: { data: OverviewDashboard }) {
           <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#5c6a84' }} axisLine={false} tickLine={false} />
           <YAxis allowDecimals={false} tick={{ fontSize: 9, fill: '#5c6a84' }} axisLine={false} tickLine={false} />
           <Tooltip content={<ThroughputTooltip />} />
-          <Area type="monotone" dataKey="processed" name="Processed" stroke="#00879b" fill="#dff3f4" strokeWidth={2.2} isAnimationActive={!reduced} animationDuration={600} />
-          <Area type="monotone" dataKey="sent_for_review" name="Sent for review" stroke="#f07b18" fill="#fff0df" strokeWidth={2} isAnimationActive={!reduced} animationBegin={80} animationDuration={600} />
+          <Area type="monotone" dataKey="processed" name="Processed" stroke="#00879b" fill="#dff3f4" strokeWidth={2.2} isAnimationActive={false} />
+          <Area type="monotone" dataKey="sent_for_review" name="Sent for review" stroke="#f07b18" fill="#fff0df" strokeWidth={2} isAnimationActive={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -167,7 +160,7 @@ function ExceptionBreakdown({ data }: { data: OverviewDashboard }) {
   const categories = data.exception_breakdown.categories
   return <Panel className="overview-exceptions" ariaLabel="Exception breakdown">
     <header><h2>Exception breakdown</h2><Link className="ops-link" to="/exceptions">View all <ChevronRight size={13} /></Link></header>
-    {categories.length ? <><div className="overview-donut" role="img" aria-label={`${data.exception_breakdown.total} open validation issues across ${categories.length} categories`}><ResponsiveContainer width="100%" height={150}><PieChart><Pie data={categories} dataKey="count" nameKey="label" innerRadius={43} outerRadius={62} paddingAngle={2} isAnimationActive={!reducedMotion()} animationDuration={550}>{categories.map((item) => <Cell key={item.id} fill={item.color} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer><div><strong>{data.exception_breakdown.total}</strong><span>Open issues</span></div></div><div className="overview-exception-list">{categories.map((item) => <Link key={item.id} to={item.href}><i style={{ background: item.color }} /><span>{item.label}</span><b>{item.count}</b><small>{item.percentage}%</small></Link>)}</div></> : <div className="overview-analytics-empty"><CheckCircle2 size={20} /><span>No open validation issues</span></div>}
+    {categories.length ? <><div className="overview-donut" role="img" aria-label={`${data.exception_breakdown.total} open validation issues across ${categories.length} categories`}><ResponsiveContainer width="100%" height={150}><PieChart><Pie data={categories} dataKey="count" nameKey="label" innerRadius={43} outerRadius={62} paddingAngle={2} isAnimationActive={false}>{categories.map((item) => <Cell key={item.id} fill={item.color} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer><div><strong>{data.exception_breakdown.total}</strong><span>Open issues</span></div></div><div className="overview-exception-list">{categories.map((item) => <Link key={item.id} to={item.href}><i style={{ background: item.color }} /><span>{item.label}</span><b>{item.count}</b><small>{item.percentage}%</small></Link>)}</div></> : <div className="overview-analytics-empty"><CheckCircle2 size={20} /><span>No open validation issues</span></div>}
   </Panel>
 }
 
@@ -182,7 +175,7 @@ function Pipeline({ data }: { data: OverviewDashboard }) {
 function RecentDecisions({ data }: { data: OverviewDashboard }) {
   return <Panel className="overview-decisions" ariaLabel="Recent decisions">
     <header><h2>Recent decisions</h2><Link className="ops-link" to="/invoices?view=completed">View all</Link></header>
-    {data.recent_decisions.length ? <div>{data.recent_decisions.map((item, index) => <Link key={item.id} to={item.href} style={{ animationDelay: `${180 + index * 45}ms` }}><span className={`is-${item.tone}`}>{decisionIcon(item.tone)}</span><div><strong>{item.title}</strong><small>{item.invoice}</small><small>{item.vendor}</small></div><aside><i>{initials(item.actor)}</i><time dateTime={item.occurred_at}>{relativeTime(item.occurred_at)}</time></aside></Link>)}</div> : <div className="overview-healthy"><Clock3 size={21} /><div><strong>No decisions recorded yet</strong><small>Approval, rejection, correction, and export events will appear here.</small></div></div>}
+    {data.recent_decisions.length ? <div>{data.recent_decisions.map((item) => <Link key={item.id} to={item.href}><span className={`is-${item.tone}`}>{decisionIcon(item.tone)}</span><div><strong>{item.title}</strong><small>{item.invoice}</small><small>{item.vendor}</small></div><aside><i>{initials(item.actor)}</i><time dateTime={item.occurred_at}>{relativeTime(item.occurred_at)}</time></aside></Link>)}</div> : <div className="overview-healthy"><Clock3 size={21} /><div><strong>No decisions recorded yet</strong><small>Approval, rejection, correction, and export events will appear here.</small></div></div>}
   </Panel>
 }
 
@@ -245,8 +238,4 @@ function decisionIcon(tone: string) {
 function throughputLabel(data: OverviewDashboard) {
   const summary = data.throughput.points.map((point) => `${point.label}: ${point.processed} processed, ${point.sent_for_review} sent for review`).join('. ')
   return summary || `No processing throughput was recorded for ${data.throughput.window_label.toLowerCase()}`
-}
-
-function reducedMotion() {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }

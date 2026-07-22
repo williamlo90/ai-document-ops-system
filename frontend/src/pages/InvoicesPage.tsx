@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, Clock3, FileCheck2, FileText, LoaderCircle, MoreVertical, Send, Sparkles, Upload, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock3, FileCheck2, FileText, LoaderCircle, Send, Upload, X } from 'lucide-react'
 import { api, upload } from '../api/client'
 import { useShell } from '../app/shell-context'
 import { PdfPreview } from '../components/PdfPreview'
@@ -45,10 +45,6 @@ export function InvoicesPage() {
   const selected = invoices.data?.items.find((invoice) => invoice.id === selectedId) ?? null
   const detail = useQuery({ queryKey: ['invoice-detail', selected?.id], queryFn: () => api<InvoiceDetailResponse>(`/documents/${selected?.id}`), enabled: Boolean(selected?.id) })
 
-  useEffect(() => {
-    if (!selectedId && invoices.data?.items[0] && window.innerWidth >= 1180) updateParams(params, setParams, { invoice: invoices.data.items[0].id })
-  }, [invoices.data, params, selectedId, setParams])
-
   const setFilter = (key: string, value?: string) => updateParams(params, setParams, { [key]: value || null, page: null, ...(key !== 'invoice' ? { invoice: null } : {}) })
   const summary = invoices.data?.summary
 
@@ -63,7 +59,7 @@ export function InvoicesPage() {
         <KpiCard icon={<CheckCircle2 size={22} />} label="Approved" value={summary?.approved ?? 0} tone="success" />
         <KpiCard icon={<Upload size={22} />} label="Exported" value={summary?.exported ?? 0} tone="purple" />
       </div>
-      <Panel className="invoice-insights" ariaLabel="Stored invoice findings"><div className="invoice-insights__title"><Sparkles size={19} /><strong>Invoice findings</strong></div><Insight value={invoices.data?.insights?.flagged ?? 0} label="Invoices flagged" /><Insight value={invoices.data?.insights?.duplicates_suspected ?? 0} label="Possible duplicates" /><Insight value={invoices.data?.insights?.tax_amount_issues ?? 0} label="Tax amount issues" /></Panel>
+      <Panel className="invoice-insights" ariaLabel="Stored validation issues"><div className="invoice-insights__title"><AlertTriangle size={19} /><strong>Validation issues</strong></div><Insight value={invoices.data?.insights?.flagged ?? 0} label="Invoices with issues" /><Insight value={invoices.data?.insights?.duplicates_suspected ?? 0} label="Possible duplicates" /><Insight value={invoices.data?.insights?.tax_amount_issues ?? 0} label="Tax amount issues" /></Panel>
       <div className={`invoice-master-detail ${selected ? 'has-selection' : ''}`}>
         <Panel className="invoice-library">
           <div className="invoice-toolbar">
@@ -87,7 +83,7 @@ export function InvoicesPage() {
 function Insight({ value, label }: { value: number; label: string }) { return <div><strong>{value}</strong><span>{label}</span></div> }
 
 function InvoiceTable({ items, selectedId, select }: { items: InvoiceItem[]; selectedId?: string; select: (id: string) => void }) {
-  return <div className="ops-table-wrap"><table className="ops-table invoice-table"><thead><tr><th aria-label="Selected" /><th>Invoice</th><th>Vendor</th><th>Invoice date</th><th>Amount</th><th>Status</th><th>Owner</th><th>Updated</th><th>Action</th></tr></thead><tbody>{items.map((invoice) => { const status = invoiceStatus(invoice.business_status); return <tr key={invoice.id} className={selectedId === invoice.id ? 'is-selected' : ''} onClick={() => select(invoice.id)}><td><span className="ops-radio" aria-hidden="true">{selectedId === invoice.id ? <i /> : null}</span></td><td><button className="ops-link" onClick={(event) => { event.stopPropagation(); select(invoice.id) }}>{invoiceLabel(invoice)}</button><small className="invoice-source-name">{invoice.original_filename}</small><small className="invoice-mobile-vendor">{invoice.vendor_name || 'Vendor not detected'}</small></td><td>{invoice.vendor_name || '-'}</td><td>{formatDate(invoice.invoice_date)}</td><td>{formatMoney(invoice.total, invoice.currency)}</td><td><StatusBadge tone={status.tone}>{status.label}</StatusBadge></td><td><span className="ops-owner"><i>{initials(invoice.current_owner)}</i>{invoice.current_owner}</span></td><td>{formatDate(invoice.updated_at, true)}</td><td><button className="ops-link" onClick={(event) => { event.stopPropagation(); select(invoice.id) }}>View</button><button className="ops-icon-button" aria-label={`More actions for ${invoiceLabel(invoice)}`}><MoreVertical size={16} /></button></td></tr> })}</tbody></table></div>
+  return <div className="ops-table-wrap"><table className="ops-table invoice-table"><thead><tr><th aria-label="Selected" /><th>Invoice</th><th>Vendor</th><th>Invoice date</th><th>Amount</th><th>Status</th><th>Owner</th><th>Updated</th><th>Action</th></tr></thead><tbody>{items.map((invoice) => { const status = invoiceStatus(invoice.business_status); return <tr key={invoice.id} className={selectedId === invoice.id ? 'is-selected' : ''} onClick={() => select(invoice.id)}><td><span className="ops-radio" aria-hidden="true">{selectedId === invoice.id ? <i /> : null}</span></td><td><button className="ops-link" onClick={(event) => { event.stopPropagation(); select(invoice.id) }}>{invoiceLabel(invoice)}</button><small className="invoice-source-name">{invoice.original_filename}</small><small className="invoice-mobile-vendor">{invoice.vendor_name || 'Vendor not detected'}</small></td><td>{invoice.vendor_name || '-'}</td><td>{formatDate(invoice.invoice_date)}</td><td>{formatMoney(invoice.total, invoice.currency)}</td><td><StatusBadge tone={status.tone}>{status.label}</StatusBadge></td><td><span className="ops-owner"><i>{initials(invoice.current_owner)}</i>{invoice.current_owner}</span></td><td>{formatDate(invoice.updated_at, true)}</td><td><button className="ops-link" onClick={(event) => { event.stopPropagation(); select(invoice.id) }}>View</button></td></tr> })}</tbody></table></div>
 }
 
 function InvoiceInspector({ invoice, detail, loading, error, reviewable, correctable, correct, close }: { invoice: InvoiceItem; detail?: InvoiceDetailResponse; loading: boolean; error: Error | null; reviewable: boolean; correctable: boolean; correct: () => void; close: () => void }) {
@@ -144,4 +140,4 @@ function updateParams(current: URLSearchParams, setter: ReturnType<typeof useSea
   setter(next, { replace: false })
 }
 
-function initials(value: string): string { return value.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').slice(0,2).toUpperCase() || 'AI' }
+function initials(value: string): string { return value.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').slice(0,2).toUpperCase() || '?' }
