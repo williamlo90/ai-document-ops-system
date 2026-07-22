@@ -27,10 +27,10 @@ export function ReviewWorkspacePage() {
   const { documentId = '' } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const returnToExceptions = searchParams.get('from') === 'exceptions'
+  const returnToBlocked = searchParams.get('state') === 'blocked' || searchParams.get('from') === 'exceptions'
   const exceptionId = searchParams.get('exception')
-  const returnPath = returnToExceptions ? `/inbox?state=blocked${exceptionId ? `&exception=${exceptionId}` : ''}` : '/inbox?state=needs-decision'
-  const returnLabel = returnToExceptions ? 'Exceptions' : 'Review queue'
+  const returnPath = returnToBlocked ? `/inbox?state=blocked${exceptionId ? `&exception=${exceptionId}` : ''}` : '/inbox?state=needs-decision'
+  const returnLabel = 'Inbox'
   const queryClient = useQueryClient()
   const detail = useQuery({ queryKey: ['invoice-detail', documentId], queryFn: () => api<InvoiceDetailResponse>(`/documents/${documentId}`), enabled: Boolean(documentId) })
   const workflow = useQuery({ queryKey: ['invoice-workflow', documentId], queryFn: () => api<ReviewWorkflow>(`/documents/${documentId}/workflow`), enabled: Boolean(documentId) })
@@ -105,7 +105,7 @@ export function ReviewWorkspacePage() {
     {toast ? <div className="ops-toast" role="status"><CheckCircle2 size={18} /><span>{toast}</span><button aria-label="Close message" onClick={() => setToast(null)}><X size={15} /></button></div> : null}
     <header className="review-workspace-header">
       <div><nav aria-label="Breadcrumb"><Link to={returnPath}>{returnLabel}</Link><ChevronRight size={13} /><span>{draft.invoice_number || document.original_filename}</span></nav><div className="review-title-row"><h1>Review invoice</h1><StatusBadge tone={statusTone(document.status)}>{statusText(document.status, workflow.data?.current_stage)}</StatusBadge></div><p>{draft.vendor_name || 'Vendor not detected'} / {formatDate(draft.invoice_date)} / {formatMoney(draft.total,draft.currency)}</p></div>
-      <Button onClick={leave}><ArrowLeft size={16} /> Back to {returnToExceptions ? 'exceptions' : 'queue'}</Button>
+      <Button onClick={leave}><ArrowLeft size={16} /> Back to inbox</Button>
     </header>
     <Panel className="review-stepper" ariaLabel="Invoice review progress"><Step done label="Read" detail="Invoice extracted" /><Step done label="Validate" detail={issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'} found` : 'No issues found'} /><Step done={!canDecide} active={canDecide} label="Decision" detail={canDecide ? 'Make your decision' : 'Decision recorded'} /></Panel>
     <Button className="review-decision-trigger" onClick={() => setDecisionPanelOpen(true)}><ShieldCheck size={17} /> Open decision panel</Button>

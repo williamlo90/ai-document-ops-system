@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import type { InvoiceItem, InvoiceListResponse } from '../features/invoices/types'
 import type { ReviewWorklist } from '../features/review/types'
+import type { ExceptionListResponse } from '../features/exceptions/types'
 import type { ExportBatch, ExportInvoiceItem, ExportWorkspaceResponse } from '../features/exports/types'
 import type { EvaluationDashboard } from '../features/evaluation/types'
 import type { SystemDashboard } from '../features/system/types'
@@ -24,6 +25,11 @@ const emptyInvoices: InvoiceListResponse = {
 const emptyWorklist: ReviewWorklist = {
   items: [], page: 1, page_size: 10, total: 0, total_pages: 1,
   summary: { in_queue: 0, high_risk: 0, invoice_due_today: 0, average_review_seconds: null },
+}
+const emptyExceptions: ExceptionListResponse = {
+  items: [], page: 1, page_size: 12, total: 0, total_pages: 1,
+  summary: { open_exceptions: 0, high_risk: 0, warning_issues: 0, invoices_affected: 0, categories: {}, top_issues: [] },
+  assignee_options: [], capabilities: { resolved_history: false, due_policy: false, validated_resolution_only: true },
 }
 const invoice: InvoiceItem = {
   id: 'doc-1', original_filename: 'acme.pdf', submitted_by: 'uploader-1', status: 'needs_review', business_status: 'needs_review', current_stage: 'waiting_approval', current_owner: 'James Smith',
@@ -65,6 +71,7 @@ function installApi(session: Record<string, unknown>, invoiceResponse: InvoiceLi
     if (path === '/backoffice/workspace') return json(workspace)
     if (path === '/overview/dashboard') return json(emptyOverview)
     if (path.startsWith('/review/worklist?')) return json(emptyWorklist)
+    if (path.startsWith('/exceptions?')) return json(emptyExceptions)
     if (path.startsWith('/invoices?')) return json(invoiceResponse)
     if (path === '/documents/doc-1') return json({ document: invoice, extraction: { data: {}, validation: [{ field_name: 'po_number', severity: 'warning', code: 'po_missing', message: 'PO number was not found.' }], confidence: [] }, audit_events: [] })
     return json({ detail: `Unexpected request: ${path}` }, 404)
@@ -96,7 +103,7 @@ describe('product routes and role boundaries', () => {
     installApi({ authenticated: true, actor: 'Reviewer', user_id: 'reviewer-1', workspace_id: 'default', role: 'reviewer', is_admin: false })
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument()
-    expect(await screen.findByText('No invoices need review')).toBeInTheDocument()
+    expect(await screen.findByText('No invoices need a decision')).toBeInTheDocument()
     const navigation = screen.getByRole('navigation', { name: /primary/i })
     expect(within(navigation).getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
     expect(within(navigation).queryByRole('link', { name: 'Exports' })).not.toBeInTheDocument()
@@ -122,7 +129,7 @@ describe('invoice library', () => {
     )
     render(<App />)
     expect(await screen.findByText('INV-001')).toBeInTheDocument()
-    expect(screen.getByText('Invoices with issues').previousSibling).toHaveTextContent('1')
+    expect(screen.getByRole('tab', { name: /All\s*1/ })).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'INV-001' }))
     const inspector = await screen.findByRole('region', { name: /invoice inspector/i })
     expect(within(inspector).getByText('Acme Logistics')).toBeInTheDocument()
@@ -176,7 +183,6 @@ describe('invoice library', () => {
 
 describe('review queue', () => {
   it('keeps decision actions in the dedicated review workspace', async () => {
-    const user = userEvent.setup()
     window.history.replaceState({}, '', '/review-queue')
     const worklist: ReviewWorklist = {
       items: [{
@@ -195,12 +201,9 @@ describe('review queue', () => {
     }))
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument()
-    expect(screen.getByText('Not measured')).toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: 'INV-001' }))
-    const inspector = await screen.findByRole('region', { name: /selected invoice review summary/i })
-    expect(within(inspector).getByText('Request a correction because validation blockers remain.')).toBeInTheDocument()
-    expect(within(inspector).getByRole('link', { name: /review invoice/i })).toHaveAttribute('href', '/review/doc-1')
-    expect(within(inspector).queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument()
+    expect(await screen.findByText('PO number was not found.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^review/i })).toHaveAttribute('href', '/review/doc-1?from=inbox')
+    expect(screen.queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument()
   })
 })
 
@@ -238,44 +241,30 @@ describe('review workspace', () => {
   })
 })
 
-describe('exceptions workspace', () => {
-  it('keeps issue triage grounded and records assignment through the API', async () => {
-    const user = userEvent.setup()
-    window.history.replaceState({}, '', '/exceptions')
+describe('blocked inbox', () => {
+  it('shows grounded blocker context and links to the review workspace', async () => {
+    window.history.replaceState({}, '', '/inbox?state=blocked')
     const exception = {
       id: 'exception-1', document_id: 'doc-1', work_item_id: null, original_filename: 'acme.pdf', invoice_number: 'INV-001', vendor_name: 'Acme Logistics', total: '1250.00', currency: 'USD', issue: 'Missing invoice number', category: 'vendor_invoice', risk: 'high', blocks_approval: true, owner: null, detected_at: now, age_seconds: 900,
-    }
-    const detail = {
-      ...exception, message: 'Invoice number is required.', code: 'missing_critical_field', field_name: 'invoice_number', field_value: null, required_action: 'Add or request a valid invoice number, then save the invoice so validation can run again.', related_checks: [{ label: 'Invoice extracted', status: 'passed' }, { label: 'Invoice number present', status: 'blocked' }],
     }
     const list = {
       items: [exception], page: 1, page_size: 10, total: 1, total_pages: 1,
       summary: { open_exceptions: 1, high_risk: 1, warning_issues: 0, invoices_affected: 1, categories: { vendor_invoice: 1 }, top_issues: [{ label: 'Missing invoice number', category: 'vendor_invoice', count: 1 }] },
       assignee_options: ['Reviewer'], capabilities: { resolved_history: false, due_policy: false, validated_resolution_only: true },
     }
-    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
       const path = String(input)
       if (path === '/auth/session') return json({ authenticated: true, actor: 'Reviewer', user_id: 'reviewer', workspace_id: 'default', role: 'reviewer', is_admin: false })
       if (path === '/backoffice/workspace') return json(workspace)
+      if (path.startsWith('/review/worklist?')) return json(emptyWorklist)
       if (path.startsWith('/exceptions?')) return json(list)
-      if (path === '/exceptions/exception-1' && !init?.method) return json({ exception: detail })
-      if (path === '/exceptions/exception-1/assignment' && init?.method === 'PATCH') return json({ exception: { ...detail, owner: 'Senior Reviewer', work_item_id: 'item-1' }, assignment: { work_item_id: 'item-1', assignee: 'Senior Reviewer', recorded_by: 'Reviewer', recorded_at: now } })
       return json({ detail: `Unexpected request: ${path}` }, 404)
     }))
     render(<App />)
-    expect(await screen.findByRole('heading', { name: 'Exceptions' })).toBeInTheDocument()
-    expect((await screen.findByText('Open exceptions')).previousSibling).toHaveTextContent('1')
-    await user.click(screen.getByRole('button', { name: 'INV-001' }))
-    const inspector = await screen.findByRole('region', { name: 'Exception details' })
-    expect(within(inspector).getByText('Approval is blocked until this issue is resolved.')).toBeInTheDocument()
-    expect(within(inspector).getByRole('link', { name: /open invoice/i })).toHaveAttribute('href', '/review/doc-1?from=exceptions&exception=exception-1')
-    await user.click(within(inspector).getByRole('button', { name: 'Assign' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Assign exception' })
-    const input = within(dialog).getByLabelText('Owner')
-    await user.clear(input)
-    await user.type(input, 'Senior Reviewer')
-    await user.click(within(dialog).getByRole('button', { name: 'Save assignment' }))
-    expect(await screen.findByText('Assigned to Senior Reviewer')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument()
+    expect(await screen.findByText('Missing invoice number')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Blocked\s*1/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('link', { name: /^resolve/i })).toHaveAttribute('href', '/review/doc-1?from=inbox&state=blocked&exception=exception-1')
   })
 })
 
