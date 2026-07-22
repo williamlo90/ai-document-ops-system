@@ -796,6 +796,91 @@ Observed evidence:
 - the release commit is verified by the repository's quality, frontend, secret-scan,
   mock-provider, and container-security GitHub Actions jobs
 
+## Phase 5: Restrained Invoice Review Product
+
+Status: In progress from 22 July 2026. This phase supersedes the screenshot-first information
+architecture at commit `f1539e4` while preserving its tested workflow and security boundaries.
+
+Goal: make the application feel like daily accounts-payable software rather than an AI portfolio
+dashboard. Invoice work is the product. OCR, extraction providers, evaluation, and operational
+evidence remain available only where they help a user decide or an administrator investigate.
+
+Design read:
+
+- audience: non-technical accounts-payable uploaders, reviewers, and administrators
+- language: quiet, utilitarian, table-first, and explicit about consequences
+- design dials: variance 3, motion 2, density 6
+- implementation: current React, TypeScript, TanStack Query, React Router, and native CSS stack;
+  no visual framework migration and no decorative effects pass
+
+Immutable baseline:
+
+- baseline commit and complete before-image matrix: `f1539e4`
+- backend: 453 tests passed, 2 skipped
+- frontend: 13 tests passed; lint and production build passed
+- browser: 25 active tests passed, 2 breakpoint-specific tests skipped
+- provider prompts, evaluation math, security controls, state transitions, and backend business
+  rules are outside the UI refactor scope
+
+Safety invariants that every phase must re-verify:
+
+1. Extraction confidence never approves an invoice.
+2. Error-level validation issues block approval in both UI and API.
+3. Approve, reject, and correction request remain explicit reviewer decisions.
+4. Corrections retain original output, before/after values, actor, reason, and audit lineage.
+5. Terminal evidence remains immutable.
+6. Role and workspace authorization remain server-owned.
+7. Export remains approval-gated, idempotent, and failure-aware.
+
+### Phase 5.1: Remove Template And AI Signals
+
+- remove decorative AI marks, Sparkles, recommendation language, green overall confidence, dead
+  controls, automatic first-row selection, hover lifts, and decorative entrance animation
+- retain model/provider details only in field provenance and administrator quality evidence
+- make login and demo-workspace state honest without presenting shared tokens as enterprise identity
+
+### Phase 5.2: Consolidate Information Architecture
+
+- make Inbox the reviewer and administrator default work surface
+- combine review work and exceptions into state tabs and one table/detail drawer
+- redirect `/review-queue` and `/exceptions` to filtered Inbox views
+- group Quality and Operations under Admin and preserve `/evaluation` and `/system` redirects
+- keep uploader navigation limited to Invoices
+
+### Phase 5.3: Rebuild Work Pages
+
+- remove Overview as a duplicate analytics destination; `/overview` redirects to Inbox
+- make Invoices lifecycle tabs, compact filters, and the table the first visible content
+- simplify Review to source, fields, blocking issues, and a sticky decision region
+- simplify Exports to status tabs, an invoice table, and a conditional batch drawer
+
+### Phase 5.4: Reduce Administrator Evidence
+
+- Quality leads with comparable gate results and failures instead of perfect-looking KPI theater
+- Operations leads with services and jobs requiring action instead of duplicate funnels and cards
+- synthetic limitations and missing telemetry remain explicit but visually quiet
+
+### Phase 5.5: Data, Documentation, And Code Hygiene
+
+- use internally consistent and varied synthetic demo records with a quiet Demo workspace marker
+- make README, case study, architecture, and a concise docs index the public recruiter path
+- consolidate security posture and move detailed evidence behind `docs/evidence`
+- archive superseded visual concept and motion material outside the recruiter path
+- split the monolithic product stylesheet only after page behavior stabilizes
+- regenerate screenshots and a shorter core-workflow demo
+
+Phase exit criteria:
+
+- reviewer primary navigation contains only Inbox and Invoices
+- Review Queue and Exceptions no longer compete as destinations
+- no decorative AI vocabulary, standalone AI mark, Sparkles icon, green overall confidence badge,
+  dead control, or automatic detail opening remains in operational pages
+- work pages use at most three summary numbers and never duplicate the same states as cards and tabs
+- body and table text is at least 13px; metadata is at least 12px except necessary chart ticks
+- old deep links redirect, URL filters remain stable, and all loading, empty, error, keyboard,
+  narrow-screen, and reduced-motion behavior remains covered
+- all safety invariants and complete quality gates pass before the final commit is pushed
+
 ## Guardrails
 
 - Do not add another document type before invoice real-data evaluation is complete.
