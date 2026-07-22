@@ -3,9 +3,9 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $frontendRoot = Join-Path $repoRoot 'frontend'
 $demoRoot = Join-Path $repoRoot 'docs\assets\demo'
-$webmPath = Join-Path $demoRoot 'ai-document-ops-demo.webm'
-$mp4Path = Join-Path $demoRoot 'ai-document-ops-demo.mp4'
-$toolRoot = Join-Path $env:TEMP 'ai-document-ops-video-tools'
+$webmPath = Join-Path $demoRoot 'invoice-review-demo.webm'
+$mp4Path = Join-Path $demoRoot 'invoice-review-demo.mp4'
+$toolRoot = Join-Path $env:TEMP 'invoice-review-video-tools'
 $ffmpegPath = Join-Path $toolRoot 'node_modules\ffmpeg-static\ffmpeg.exe'
 
 Push-Location $frontendRoot

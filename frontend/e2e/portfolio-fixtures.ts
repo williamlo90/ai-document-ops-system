@@ -6,7 +6,6 @@ import type { EvaluationDashboard } from '../src/features/evaluation/types'
 import type { ExceptionDetail, ExceptionItem, ExceptionListResponse } from '../src/features/exceptions/types'
 import type { ExportBatch, ExportInvoiceItem, ExportRun, ExportWorkspaceResponse } from '../src/features/exports/types'
 import type { InvoiceDetailResponse, InvoiceItem, InvoiceListResponse } from '../src/features/invoices/types'
-import type { OverviewDashboard } from '../src/features/overview/types'
 import type { ReviewQueueItem, ReviewWorklist, ReviewWorkflow } from '../src/features/review/types'
 import type { SystemDashboard } from '../src/features/system/types'
 
@@ -219,63 +218,6 @@ const activeBatch: ExportBatch = {
   last_run_id: null, created_at: '2026-07-21T03:02:00Z', updated_at: '2026-07-21T03:05:00Z',
 }
 
-function overviewFixture(): OverviewDashboard {
-  return {
-    observed_at: observedAt,
-    actor: { name: 'James Smith', role: 'administrator' },
-    briefing: { attention_count: 7, title: '7 invoices require attention today', detail: '3 have approval blockers and 4 need a reviewer decision.', action_label: 'Review urgent invoices', action_href: '/review-queue?risk=high' },
-    kpis: [
-      { id: 'waiting_review', label: 'Waiting for review', count: 24, note: '+4 since yesterday', tone: 'blue', href: '/review-queue' },
-      { id: 'needs_correction', label: 'Needs correction', count: 16, note: '+3 since yesterday', tone: 'red', href: '/invoices?status=needs_correction' },
-      { id: 'due_today', label: 'Due today', count: 7, note: '3 at high risk', tone: 'orange', href: '/review-queue?sort=due_date' },
-      { id: 'ready_export', label: 'Ready to export', count: 12, note: '+2 since yesterday', tone: 'teal', href: '/exports' },
-    ],
-    findings: [
-      { id: 'po', label: 'Potential PO mismatches', count: 8, tone: 'blue', href: '/exceptions?category=vendor_invoice' },
-      { id: 'duplicate', label: 'Possible duplicates', count: 3, tone: 'purple', href: '/exceptions?category=duplicate' },
-      { id: 'tax', label: 'Unusual tax amounts', count: 2, tone: 'orange', href: '/exceptions?category=tax_amount' },
-    ],
-    alerts: [
-      { id: 'urgent', title: '3 invoices may miss review today', detail: 'High-risk invoices are still waiting for a decision.', severity: 'critical', href: '/review-queue?risk=high' },
-      { id: 'correction', title: '2 high-risk corrections', detail: 'Uploader changes require reviewer confirmation.', severity: 'warning', href: '/invoices?status=needs_correction' },
-      { id: 'po-alert', title: 'PO issues detected', detail: '8 invoices have vendor or PO validation findings.', severity: 'warning', href: '/exceptions?category=vendor_invoice' },
-    ],
-    queue: { total: 24, items: reviewItems.slice(0, 5).map((item) => ({ document_id: item.id, invoice_number: item.invoice_number ?? item.original_filename, vendor_name: item.vendor_name ?? 'Unknown vendor', total: item.total, currency: item.currency, finding: item.finding ?? 'Review invoice', risk: item.risk, confidence: item.confidence, due_date: item.due_date, owner: item.owner, recommended_action: item.recommended_action, href: `/review/${item.id}` })) },
-    throughput: {
-      window_label: 'Last 7 days', series: [{ id: 'processed', label: 'Processed' }, { id: 'sent_for_review', label: 'Sent for review' }],
-      points: [
-        { date: '2026-07-15', label: 'Jul 15', processed: 38, sent_for_review: 6 }, { date: '2026-07-16', label: 'Jul 16', processed: 52, sent_for_review: 8 },
-        { date: '2026-07-17', label: 'Jul 17', processed: 61, sent_for_review: 7 }, { date: '2026-07-18', label: 'Jul 18', processed: 45, sent_for_review: 5 },
-        { date: '2026-07-19', label: 'Jul 19', processed: 70, sent_for_review: 9 }, { date: '2026-07-20', label: 'Jul 20', processed: 56, sent_for_review: 7 },
-        { date: '2026-07-21', label: 'Jul 21', processed: 48, sent_for_review: 6 },
-      ],
-      method: 'Stored document and review events.',
-    },
-    exception_breakdown: {
-      total: 36,
-      categories: [
-        { id: 'vendor_invoice', label: 'PO / Vendor', count: 12, percentage: 33, color: '#2563eb', href: '/exceptions?category=vendor_invoice' },
-        { id: 'tax_amount', label: 'Tax / Amount', count: 8, percentage: 22, color: '#f59e0b', href: '/exceptions?category=tax_amount' },
-        { id: 'duplicate', label: 'Duplicate', count: 7, percentage: 19, color: '#7c3aed', href: '/exceptions?category=duplicate' },
-        { id: 'dates_details', label: 'Receipt / Docs', count: 5, percentage: 14, color: '#0f8b94', href: '/exceptions?category=dates_details' },
-        { id: 'other', label: 'Other', count: 4, percentage: 11, color: '#94a3b8', href: '/exceptions?category=other' },
-      ],
-    },
-    pipeline: { items: [
-      { id: 'uploaded', label: 'Uploaded', count: 48, href: '/invoices' }, { id: 'reading', label: 'Reading', count: 3, href: '/invoices?status=processing' },
-      { id: 'review', label: 'Waiting for review', count: 24, href: '/review-queue' }, { id: 'approved', label: 'Approved', count: 31, href: '/invoices?status=approved' },
-      { id: 'exported', label: 'Exported', count: 19, href: '/exports?status=exported' },
-    ], excluded_count: 2, note: 'Two rejected invoices are outside the main processing pipeline.' },
-    recent_decisions: [
-      { id: 'decision-1', document_id: 'doc-acme-approved', title: 'Invoice approved', invoice: 'INV-2026-04570', vendor: 'Acme Logistics', actor: 'Alex Davis', occurred_at: '2026-07-21T03:12:00Z', tone: 'success', href: '/review/doc-acme-approved' },
-      { id: 'decision-2', document_id: 'doc-northstar-correction', title: 'Correction requested', invoice: 'INV-2026-04571', vendor: 'Northstar Office', actor: 'James Smith', occurred_at: '2026-07-21T02:57:00Z', tone: 'danger', href: '/review/doc-northstar-correction' },
-      { id: 'decision-3', document_id: 'doc-meridian', title: 'Ready for review', invoice: 'INV-2026-04569', vendor: 'Meridian Freight', actor: 'Kelly Morgan', occurred_at: '2026-07-21T02:15:00Z', tone: 'info', href: '/review/doc-meridian' },
-      { id: 'decision-4', document_id: 'doc-northstar-exported', title: 'Export completed', invoice: 'INV-2026-04574', vendor: 'Northstar Office', actor: 'Alex Davis', occurred_at: '2026-07-21T01:15:00Z', tone: 'success', href: '/exports?status=exported' },
-    ],
-    capabilities: { export_access: true, due_policy: true, sla_policy: false, historical_issue_snapshots: true },
-  }
-}
-
 function invoiceListFixture(): InvoiceListResponse {
   return {
     items: invoices, page: 1, page_size: 10, total: 126, total_pages: 13,
@@ -398,7 +340,6 @@ export async function installPortfolioApi(page: Page, initialRole: PortfolioRole
     }
     if (request.resourceType() === 'document') return route.continue()
     if (pathname === '/backoffice/workspace') return route.fulfill({ json: { workspace_id: 'portfolio', work_items: [], pending_approvals: [], documents: invoices, metrics: {} } })
-    if (pathname === '/overview/dashboard') return route.fulfill({ json: overviewFixture() })
     if (pathname === '/invoices') return route.fulfill({ json: invoiceListFixture() })
     if (pathname === '/review/worklist') return route.fulfill({ json: reviewFixture() })
     if (pathname === '/exceptions') return route.fulfill({ json: exceptionsFixture() })

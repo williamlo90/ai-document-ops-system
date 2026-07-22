@@ -6,7 +6,7 @@ Finance operations reviewers need to compare invoice PDFs with extracted data, c
 and record decisions before approved data can move downstream. The failure cost is asymmetric: a
 missing field should slow the workflow down, while an incorrect approval can propagate bad data.
 
-AI Document Operations System is a local-first portfolio implementation of that control point. It
+Invoice Review is a local-first portfolio implementation of that control point. It
 uses AI for document reading, deterministic code for business safeguards, and a human reviewer for
 consequential decisions.
 

@@ -1,4 +1,4 @@
-# Architecture - AI Document Operations System
+# Architecture - Invoice Review
 
 ## Design Goal
 
@@ -134,16 +134,20 @@ Two evidence layers are deliberately separate:
 
 This separation prevents extraction quality from being confused with workflow safety.
 
-## Internal Naming Boundary
+## Internal Contract Inventory
 
-Some internal modules and technical routes still use the historical names `backoffice` and
-`AgentOps`. They belong to the inherited workflow and run-evidence engine; they are not separate
-products, user-facing concepts, or claims of autonomous finance execution. The public product
-language is **Invoice Review** and **Document Operations**.
+The active application still depends on three historical backend namespaces:
 
-A broad route and module rename is deferred because it would change stable internal contracts
-without improving the reviewer workflow. The names can be replaced later as an isolated,
-behavior-preserving refactor if the product boundary expands.
+| Namespace | Current responsibility | Product exposure |
+| --- | --- | --- |
+| `backoffice` | Workflow state, policy, approvals, audit projection, and the shell workspace contract. | `/backoffice/workspace` supports the signed-in shell; the name is not shown in navigation. |
+| `agent` | Bounded tool contracts and stored run evidence used by workflow services. | No primary product page. |
+| `agentops` | Scenario and run-evidence records retained for technical evaluation. | No primary product page. |
+
+They are active internal contracts, not unused folders. Deleting or broadly renaming them during a
+UI refactor would risk approval, audit, and workspace behavior. A future behavior-preserving rename
+should begin with API aliases and repository contracts, then remove the historical names only after
+all callers and migration tests have moved.
 
 ## Extension Boundary
 

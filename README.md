@@ -1,44 +1,37 @@
-# AI Document Operations System
+# Invoice Review
 
-An invoice-review application that combines OCR and structured extraction with deterministic
-validation, explicit reviewer decisions, and an auditable workflow.
+An accounts-payable workflow for uploading invoices, checking extracted data against the source
+PDF, resolving blockers, recording reviewer decisions, and exporting approved records.
 
-The system is designed for a finance operations reviewer who needs to answer three questions:
+[![Invoice list](docs/assets/screenshots/invoices.png)](docs/assets/demo/invoice-review-demo.mp4)
 
-1. What did the system read from the invoice?
-2. Is there a reason this invoice should not be approved?
-3. What decision was made, by whom, and on what evidence?
-
-[![Invoice operations overview](docs/assets/screenshots/overview.png)](docs/assets/demo/ai-document-ops-demo.mp4)
-
-**[Watch the captioned recruiter demo](docs/assets/demo/ai-document-ops-demo.mp4).** It follows the
-current client-facing product from Overview and invoice review through correction, recorded
-approval, controlled export, evaluation, and system evidence. The recording uses a committed
-synthetic PDF and deterministic UI contract harness; provider-backed extraction evidence is
-reported separately below.
-
-## Product Flow
+## Workflow
 
 ```text
-Upload PDF -> OCR and extract fields -> Validate business rules
-           -> Reviewer checks PDF and data -> Approve, reject, or request correction
-           -> Record the decision and control any export
+Upload PDF -> Read and extract -> Validate -> Review or correct
+           -> Record decision -> Export approved invoice
 ```
 
-The primary UI stays focused on upload and review. Provider diagnostics, run traces, and
-scenario evaluation remain available as technical evidence without entering the daily user
-flow.
+The product UI is organized around three daily tasks:
 
-## Responsibility Boundaries
+- **Inbox**: invoices that need a decision or have a blocking issue.
+- **Invoices**: the complete invoice lifecycle and upload entry point.
+- **Exports**: approved invoices that are eligible for controlled delivery.
+
+Administrators also have **Quality** for labeled-test results and **Operations** for service failures,
+job retries, integrations, and audit events.
+
+## Control Boundaries
 
 | Layer | Responsibility |
 | --- | --- |
-| AI providers | Read the PDF and return structured invoice fields with source evidence. |
-| Deterministic code | Check required fields, arithmetic, duplicates, state transitions, roles, and export gates. |
-| Human reviewer | Compare the PDF with extracted data and make the consequential decision. |
+| Document providers | Read the PDF and propose structured invoice fields with source evidence. |
+| Deterministic application code | Enforce required fields, arithmetic, duplicate checks, state transitions, roles, and export gates. |
+| Human reviewer | Compare the PDF with the proposed data and make the consequential decision. |
 
-A high-confidence extraction never approves an invoice. Error-level validation issues disable
-approval in the UI and are rejected independently by the backend.
+Extraction confidence never approves an invoice. Error-level validation findings block approval in
+both the interface and API. Correction requests preserve the original proposal and append a
+before/after record. Exports require approval and use idempotency controls.
 
 ## Architecture
 
@@ -46,43 +39,35 @@ approval in the UI and are rejected independently by the backend.
 flowchart LR
     PDF["Invoice PDF"] --> API["FastAPI intake"]
     API --> STORE["Private document storage"]
-    API --> OCR["OCR provider"]
-    OCR --> EXT["Structured extractor"]
-    EXT --> RULES["Deterministic validation"]
-    RULES --> REVIEW["React reviewer UI"]
-    REVIEW --> DECISION["Approve / Reject / Correct"]
-    DECISION --> AUDIT["Audit and workflow records"]
-    DECISION --> GATE["Controlled export gate"]
-    EXT --> EVAL["Scenario evaluation"]
+    API --> READ["OCR and structured extraction"]
+    READ --> RULES["Deterministic validation"]
+    RULES --> UI["React review workspace"]
+    UI --> DECISION["Approve, reject, or correct"]
+    DECISION --> AUDIT["Append-only business events"]
+    DECISION --> EXPORT["Approval-gated export"]
+    READ --> QUALITY["Labeled scenario evaluation"]
 ```
 
-The local profile uses React, TypeScript, FastAPI, SQLite, and private local file storage. Real
-provider verification uses Mistral OCR and an OpenAI structured extraction model. Provider
-adapters are configured through environment variables and can be replaced by deterministic
-mocks for offline development.
+The local stack is React, TypeScript, FastAPI, SQLite, and private local file storage. Mock providers
+support credential-free development. The verified provider configuration uses Mistral OCR and an
+OpenAI structured extraction model.
 
-## Observed Evidence
+## Results And Limits
 
-| Evidence | Current result |
+| Observed result | Boundary |
 | --- | --- |
-| Provider-backed workflow | Upload, OCR, extraction, review queue, explicit approval, and six audit events observed locally. |
-| Synthetic invoice set | 20 deterministic PDFs covering normal, missing-field, mismatch, duplicate, low-contrast, rotated, and multi-page cases. |
-| Final controlled regression | 160 / 160 evaluated fields and 20 / 20 expected validation outcomes on that synthetic set. |
-| External licensed evaluation | V1 preserved a provider-availability failure. A new non-overlapping V2 pack completed 10 / 10 sealed holdout documents with 98.75% field accuracy, 100% validation match, and one documented due-date hallucination. |
-| Reviewer correction loop | Correction requests route back to the uploader, preserve original AI output, store before/after diffs, and return the invoice to review. |
-| Approval boundary | Duplicate and other error-level cases are blocked in both UI and API tests. |
-| Automated verification | 453 backend tests passed with 2 skipped; 13 frontend tests passed; lint and production build passed. |
+| 20 deterministic invoice scenarios cover clean, missing-field, mismatch, duplicate, low-contrast, rotated, and multi-page cases. | A small synthetic golden set, not production accuracy. |
+| The controlled synthetic regression reached 160/160 evaluated fields and 20/20 expected validation outcomes. | Results apply only to the committed scenario version and configuration. |
+| A sealed 10-document external synthetic holdout reached 98.75% field match and 100% validation match. | One due-date hallucination was documented; the pack is not customer data or statistically representative. |
+| Review corrections retain the original extraction, actor, reason, timestamp, and field diff. | No learning or automatic model update is claimed. |
+| 453 backend tests passed with 2 skipped; 13 frontend tests, lint, and production build passed at the last full baseline. | Hosted infrastructure, live scanner, and independent security testing remain external gates. |
 
-The controlled regression is a small synthetic golden set, not a production accuracy claim.
-See [scenario evidence](docs/invoice-scenarios-v1-evidence.md) for the initial failures, fixes,
-latency observation, and claim boundaries.
-See [V1 external evaluation](docs/external-invoice-evaluation-v1.md) for the preserved provider
-failure and [V2 external evaluation](docs/external-invoice-evaluation-v2.md) for the new sealed
-holdout, experiment history, costs, and remaining limitation.
+No time saving, cost reduction, customer outcome, or production robustness claim is made. Invoice is
+the only complete document workflow, and human approval remains mandatory for consequential actions.
 
 ## Quick Start
 
-Prerequisites: Python 3.11+, Node.js, and npm.
+Prerequisites: Python 3.11+, Node.js 22, and npm 10 or 11.
 
 ```powershell
 .\scripts\setup_local_venv.ps1
@@ -95,25 +80,22 @@ Pop-Location
 .\scripts\start_dev.ps1
 ```
 
-Open `http://127.0.0.1:8000`. The local credentials in `.env.example` are `uploader-123` for
-invoice intake, `reviewer-123` for review, and `123` for local administration. Each credential is
-exchanged for a server-owned role session. The default profile uses deterministic mock providers
-and requires no AI-provider credential.
+Open `http://127.0.0.1:8000`.
 
-For real providers, copy `.env.example` to the ignored `.env`, set
-`PARSER_PROVIDER=mistral_ocr`, `EXTRACTOR_PROVIDER=llm_json`, and provide the documented
-provider variables. Never commit `.env` or real invoices. Full instructions are in
-[RUNBOOK.md](RUNBOOK.md).
+Local demo credentials from `.env.example`:
 
-Production mode also requires a reachable ClamAV service. Private API responses are marked
-`no-store`, and administrators can inspect or execute the configured retention policy through the
-document-retention API. These controls are implemented and tested locally; hosted scanner,
-object-store lifecycle, backup deletion, and independent security verification remain deployment
-gates.
+| Role | Token |
+| --- | --- |
+| Uploader | `uploader-123` |
+| Reviewer | `reviewer-123` |
+| Administrator | `123` |
 
-Real-provider endpoints are restricted to exact HTTPS host allowlists and redirects are rejected.
-The complete provider data boundary and the still-unverified contractual gates are documented in
-[Provider Data Boundary](docs/security/provider-data-boundary.md).
+Each token is exchanged for a server-owned role session. The default mock-provider profile requires
+no external credential.
+
+For provider-backed runs, copy `.env.example` to the ignored `.env`, configure
+`PARSER_PROVIDER=mistral_ocr` and `EXTRACTOR_PROVIDER=llm_json`, then add the documented provider
+credentials. Never commit `.env` or real invoices. See [RUNBOOK.md](RUNBOOK.md).
 
 ## Quality Gates
 
@@ -123,44 +105,22 @@ $env:PYTHONPATH = "backend"
 .\.venv\Scripts\python.exe -m unittest discover -s backend/app/tests -t backend
 .\.venv\Scripts\python.exe -m ruff format --check backend scripts run_tests.py
 .\.venv\Scripts\python.exe -m ruff check backend scripts run_tests.py
-.\.venv\Scripts\python.exe -m pip_audit --requirement requirements.txt --disable-pip --strict
 
 Push-Location frontend
-npm audit --audit-level=high
 npm test
 npm run lint
 npm run build
+npm run test:e2e
 Pop-Location
 ```
 
-## Honest Limitations
-
-- Invoice is the only complete document workflow.
-- Evaluation uses synthetic fixtures and two external licensed synthetic packs; no customer
-  dataset, production accuracy, or real-world robustness is claimed.
-- Time savings, cost reduction, and production accuracy have not been measured.
-- The default authentication and persistence profile is intended for a local portfolio demo.
-- Hosted tenancy, production monitoring, backups, secret management, and live ERP delivery are
-  not implemented.
-- The ClamAV production adapter is test-covered but has not been verified against an authorized
-  hosted scanner in this repository's evidence record.
-- Human approval remains mandatory for consequential actions.
-
-## Read Next
+## Documentation
 
 - [Portfolio case study](PORTFOLIO_CASE_STUDY.md)
-- [Recruiter evidence pack](RECRUITER_EVIDENCE_PACK.md)
-- [UI release evidence](docs/ui-release-evidence.md)
-- [Scenario coverage matrix](SCENARIO_COVERAGE_MATRIX.md)
-- [External invoice evaluation V2](docs/external-invoice-evaluation-v2.md)
-- [Evaluation experiment log](docs/evaluation-experiment-log.md)
-- [Evaluation experiment protocol](docs/evaluation-experiment-protocol.md)
-- [External invoice evaluation V1](docs/external-invoice-evaluation-v1.md)
-- [Reviewer correction feedback](docs/reviewer-correction-feedback.md)
 - [Product requirements](PRD.md)
 - [Architecture](ARCHITECTURE.md)
 - [Runbook](RUNBOOK.md)
 - [Roadmap](ROADMAP.md)
-- [Demo video notes and reproduction](docs/demo-video.md)
-- [Demo script](docs/demo-script.md)
-- [Reliability report](docs/reliability-report.md)
+- [Scenario coverage matrix](SCENARIO_COVERAGE_MATRIX.md)
+- [Evidence index](docs/INDEX.md)
+- [Security posture](docs/security/SECURITY_POSTURE.md)

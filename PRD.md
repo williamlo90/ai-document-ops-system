@@ -1,4 +1,4 @@
-# Product Requirements - AI Document Operations System
+# Product Requirements - Invoice Review
 
 ## Problem
 
@@ -107,5 +107,5 @@ Upload invoice
 
 ## Product Claim
 
-> An invoice-first AI document operations system with evidence-bound extraction,
-> deterministic validation, approval-gated execution, and an auditable review trail.
+> An invoice-review workflow with evidence-bound extraction, deterministic validation,
+> explicit human decisions, and approval-gated export.

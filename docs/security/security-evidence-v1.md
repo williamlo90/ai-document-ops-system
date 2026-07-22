@@ -3,15 +3,10 @@
 - Evidence cutoff: 15 July 2026, 13:03:23 UTC+07:00
 - Repository: `main` at `b519f4150a01483b6112aa94416d69cf3733069a` plus inspected working-tree changes
 - Mode: `SELF_VERIFICATION`
-- Primary report: [Security And Privacy Assurance V1](security-assurance-v1.md)
-- Current completion evidence: [Security Hardening Completion Audit](security-completion-audit.md)
-- Post-audit remediation: [V1](security-remediation-v1.md),
-  [V2](security-remediation-v2.md), [V3](security-remediation-v3.md),
-  [V4](security-remediation-v4.md), [V5](security-remediation-v5.md),
-  [V6](security-remediation-v6.md), and [V7](security-remediation-v7.md)
+- Current decision: [Security Posture](SECURITY_POSTURE.md)
 
 This file preserves the original 15 July baseline evidence. Findings and checks below are historical;
-use the completion audit for the current decision and executed post-remediation gates.
+use the linked security posture for the current decision and residual acceptance gates.
 
 ## Candidate Binding
 
@@ -76,6 +71,6 @@ not treat the candidate as a clean release commit and did not modify application
 ## Baseline Recommendation
 
 This recommendation has been superseded by the
-[Security Hardening Completion Audit](security-completion-audit.md). The original two high
+[Security Posture](SECURITY_POSTURE.md). The original two high
 application findings were remediated for the controlled single-workspace demo boundary; untrusted
 uploads and real-data use remain blocked by the external acceptance gates in the completion audit.

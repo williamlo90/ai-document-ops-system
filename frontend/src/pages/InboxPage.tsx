@@ -48,7 +48,7 @@ export function InboxPage() {
 
   return <div className="ops-page inbox-page">
     <PageHeader title="Inbox" description="Resolve the invoices that are waiting on a reviewer or blocked by validation." />
-    <div className="inbox-summary" aria-label="Inbox summary">
+    <div className="inbox-summary" aria-label="Inbox summary" tabIndex={0}>
       <Summary icon={<InboxIcon size={19} />} value={review.data?.summary.in_queue ?? 0} label="Needs decision" />
       <Summary icon={<AlertCircle size={19} />} value={blocked.data?.summary.open_exceptions ?? 0} label="Blocking issues" tone="danger" />
       <Summary icon={<CalendarDays size={19} />} value={review.data?.summary.invoice_due_today ?? 0} label="Due today" tone="warning" />

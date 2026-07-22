@@ -1,6 +1,6 @@
 # Reliability Report
 
-Status: verified local portfolio evidence as of 15 July 2026.
+Status: verified local portfolio evidence as of 22 July 2026.
 
 ## Evidence Layers
 
@@ -55,8 +55,10 @@ system.
 
 ## Automated Verification
 
-- backend: 370 passed, 2 skipped
-- frontend: 11 passed
+- backend: 453 passed, 2 skipped
+- frontend: 13 passed
+- browser: 25 active product and workflow tests passed across desktop, tablet, and mobile; 17
+  capture-only or viewport-specific cases skipped in the standard run
 - backend Ruff check: passed
 - frontend lint: passed
 - frontend production build: passed

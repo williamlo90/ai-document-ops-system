@@ -14,7 +14,7 @@ import { EvaluationPage } from './pages/EvaluationPage'
 import { SystemPage } from './pages/SystemPage'
 import { Button, ErrorState, LoadingState } from './shared/ui'
 import { queryClient } from './queryClient'
-import './product.css'
+import './styles/index.css'
 
 export default function App() {
   return <QueryClientProvider client={queryClient}><BrowserRouter><SessionGate /></BrowserRouter></QueryClientProvider>

@@ -15,14 +15,12 @@ const viewports = [
 ] as const
 
 const pages = [
-  { name: 'overview', route: '/overview', heading: /Good (morning|afternoon|evening), James/ },
+  { name: 'inbox', route: '/inbox?state=needs-decision', heading: 'Inbox' },
   { name: 'invoices', route: '/invoices?invoice=doc-acme', heading: 'Invoices', pdf: true },
-  { name: 'review-queue', route: '/review-queue?invoice=doc-acme', heading: 'Review Queue', pdf: true },
-  { name: 'review-workspace', route: '/review/doc-acme', heading: 'Review invoice', pdf: true },
-  { name: 'exceptions', route: '/exceptions?exception=exception-doc-acme', heading: 'Exceptions' },
+  { name: 'review', route: '/review/doc-acme', heading: 'Review invoice', pdf: true },
   { name: 'exports', route: '/exports?status=ready&batch=batch-july', heading: 'Exports' },
-  { name: 'evaluation', route: '/evaluation?run=eval-7&range=10', heading: 'Evaluation' },
-  { name: 'system', route: '/system', heading: 'System' },
+  { name: 'quality', route: '/admin/quality?run=eval-7', heading: 'Quality' },
+  { name: 'operations', route: '/admin/operations', heading: 'Operations' },
 ] as const
 
 for (const viewport of viewports) {
@@ -43,7 +41,7 @@ for (const viewport of viewports) {
       await expectNoPageOverflow(page)
       await page.screenshot({ path: path.join(output, `${target.name}.png`), fullPage: true })
 
-      if (viewport.name === 'desktop' && target.name === 'review-workspace') {
+      if (viewport.name === 'desktop' && target.name === 'review') {
         await page.screenshot({ path: path.join(output, 'reviewer-decision.png'), fullPage: true })
       }
     }
@@ -87,7 +85,5 @@ async function expectNoPageOverflow(page: Page) {
 
 function unselectedRoute(name: string, route: string) {
   if (name === 'invoices') return '/invoices'
-  if (name === 'review-queue') return '/review-queue'
-  if (name === 'exceptions') return '/exceptions'
   return route
 }

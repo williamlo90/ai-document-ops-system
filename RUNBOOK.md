@@ -1,4 +1,4 @@
-# Runbook - AI Document Operations System
+# Runbook - Invoice Review
 
 This runbook covers the local portfolio profile, optional real-provider verification, quality
 gates, and safe cleanup.

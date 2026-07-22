@@ -8,7 +8,6 @@ import type { ExceptionListResponse } from '../features/exceptions/types'
 import type { ExportBatch, ExportInvoiceItem, ExportWorkspaceResponse } from '../features/exports/types'
 import type { EvaluationDashboard } from '../features/evaluation/types'
 import type { SystemDashboard } from '../features/system/types'
-import type { OverviewDashboard } from '../features/overview/types'
 import { queryClient } from '../queryClient'
 
 vi.mock('../components/PdfPreview', () => ({
@@ -36,30 +35,6 @@ const invoice: InvoiceItem = {
   vendor_name: 'Acme Logistics', invoice_number: 'INV-001', invoice_date: '2026-07-18', due_date: '2026-08-18', total: '1250.00', currency: 'USD', created_at: now, updated_at: now,
   validation_issue_count: 1, validation_error_count: 0, validation_codes: ['po_missing'], has_validation_errors: false, export_state: 'not_eligible', work_item_id: 'item-1', correction_reason: null,
 }
-const emptyOverview: OverviewDashboard = {
-  observed_at: now,
-  actor: { name: 'Reviewer', role: 'Reviewer' },
-  briefing: { attention_count: 0, title: 'No invoices need attention', detail: 'The review queue and failed-processing list are clear.', action_label: 'View all invoices', action_href: '/invoices' },
-  kpis: [
-    { id: 'waiting_review', label: 'Waiting for review', count: 0, note: 'Ready for a decision', tone: 'blue', href: '/invoices?status=needs_review' },
-    { id: 'needs_correction', label: 'Needs correction', count: 0, note: 'Validation or processing issue', tone: 'red', href: '/invoices?status=needs_correction' },
-    { id: 'due_today', label: 'Invoice due today', count: 0, note: 'Based on the invoice due date', tone: 'orange', href: '/review-queue?sort=due_date' },
-    { id: 'approved', label: 'Approved', count: 0, note: 'Reviewer decisions recorded', tone: 'teal', href: '/invoices?status=approved' },
-  ],
-  findings: [
-    { id: 'missing_fields', label: 'Missing required fields', count: 0, tone: 'blue', href: '/exceptions?category=vendor_invoice' },
-    { id: 'duplicates', label: 'Possible duplicates', count: 0, tone: 'purple', href: '/exceptions?category=duplicate' },
-    { id: 'amounts', label: 'Tax or amount issues', count: 0, tone: 'orange', href: '/exceptions?category=tax_amount' },
-  ],
-  alerts: [],
-  queue: { total: 0, items: [] },
-  throughput: { window_label: 'Last 7 days (UTC)', series: [{ id: 'processed', label: 'Processed' }, { id: 'sent_for_review', label: 'Sent for review' }], points: Array.from({ length: 7 }, (_, index) => ({ date: `2026-07-${14 + index}`, label: `Jul ${14 + index}`, processed: 0, sent_for_review: 0 })), method: 'Unique invoices recorded by audit events.' },
-  exception_breakdown: { total: 0, categories: [] },
-  pipeline: { items: [], excluded_count: 0, note: 'Rejected, failed, and cancelled invoices are excluded.' },
-  recent_decisions: [],
-  capabilities: { export_access: false, due_policy: false, sla_policy: false, historical_issue_snapshots: false },
-}
-
 function json(payload: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } }))
 }
@@ -69,7 +44,6 @@ function installApi(session: Record<string, unknown>, invoiceResponse: InvoiceLi
     const path = String(input)
     if (path === '/auth/session') return json(session)
     if (path === '/backoffice/workspace') return json(workspace)
-    if (path === '/overview/dashboard') return json(emptyOverview)
     if (path.startsWith('/review/worklist?')) return json(emptyWorklist)
     if (path.startsWith('/exceptions?')) return json(emptyExceptions)
     if (path.startsWith('/invoices?')) return json(invoiceResponse)

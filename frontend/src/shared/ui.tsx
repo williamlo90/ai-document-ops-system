@@ -36,10 +36,6 @@ export function ErrorState({ message, retry }: { message: string; retry?: () => 
   return <div className="ops-state ops-state--error" role="alert"><AlertCircle size={26} /><strong>{message}</strong>{retry ? <Button onClick={retry}>Try again</Button> : null}</div>
 }
 
-export function KpiCard({ label, value, note, icon, tone = 'info' }: { label: string; value: ReactNode; note?: ReactNode; icon: ReactNode; tone?: 'info' | 'success' | 'warning' | 'danger' | 'purple' }) {
-  return <Panel className="ops-kpi"><span className={`ops-kpi__icon ops-tone-${tone}`}>{icon}</span><div><span>{label}</span><strong>{value}</strong>{note ? <small>{note}</small> : null}</div></Panel>
-}
-
 export function SkeletonRows({ count = 5 }: { count?: number }) {
   return <div className="ops-skeleton-list" aria-label="Loading data">{Array.from({ length: count }, (_, index) => <span key={index} />)}</div>
 }

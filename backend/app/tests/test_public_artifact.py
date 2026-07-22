@@ -90,7 +90,6 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         output = Path(self.output)
         self.assertTrue((output / "PORTFOLIO_CASE_STUDY.md").exists())
-        self.assertTrue((output / "RECRUITER_EVIDENCE_PACK.md").exists())
         self.assertTrue((output / "SCENARIO_COVERAGE_MATRIX.md").exists())
 
     def test_excludes_local_only_planning_documents(self) -> None:
@@ -153,20 +152,18 @@ class PublicArtifactTests(unittest.TestCase):
         output = Path(self.output)
         self.assertTrue((output / "docs" / "demo-script.md").exists())
         self.assertTrue((output / "docs" / "demo-video.md").exists())
+        self.assertTrue((output / "docs" / "INDEX.md").exists())
+        self.assertTrue((output / "docs" / "security" / "SECURITY_POSTURE.md").exists())
         self.assertTrue((output / "docs" / "invoice-scenarios-v1-evidence.md").exists())
-        self.assertTrue((output / "docs" / "release-candidate-summary.md").exists())
         self.assertTrue((output / "docs" / "reliability-report.md").exists())
-        self.assertTrue((output / "docs" / "ui-release-evidence.md").exists())
         screenshot_root = output / "docs" / "assets" / "screenshots"
         for screenshot in (
-            "overview.png",
+            "inbox.png",
             "invoices.png",
-            "review-queue.png",
-            "review-workspace.png",
-            "exceptions.png",
+            "review.png",
             "exports.png",
-            "evaluation.png",
-            "system.png",
+            "quality.png",
+            "operations.png",
             "reviewer-decision.png",
             "approved-decision.png",
             "uploader-correction.png",
@@ -174,20 +171,18 @@ class PublicArtifactTests(unittest.TestCase):
             self.assertTrue((screenshot_root / screenshot).exists(), msg=screenshot)
         for viewport in ("compact", "tablet", "mobile"):
             for screenshot in (
-                "overview.png",
+                "inbox.png",
                 "invoices.png",
-                "review-queue.png",
-                "review-workspace.png",
-                "exceptions.png",
+                "review.png",
                 "exports.png",
-                "evaluation.png",
-                "system.png",
+                "quality.png",
+                "operations.png",
             ):
                 self.assertTrue(
                     (screenshot_root / viewport / screenshot).exists(),
                     msg=f"{viewport}/{screenshot}",
                 )
-        self.assertTrue((output / "docs" / "assets" / "demo" / "ai-document-ops-demo.mp4").exists())
+        self.assertTrue((output / "docs" / "assets" / "demo" / "invoice-review-demo.mp4").exists())
 
     def test_excludes_obsolete_public_plans(self) -> None:
         result = self._run_script(self.output)

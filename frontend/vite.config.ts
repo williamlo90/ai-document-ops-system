@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
 
 const productRoutes = [
+  '/inbox',
   '/overview',
   '/invoices',
   '/review-queue',
@@ -11,6 +11,8 @@ const productRoutes = [
   '/exports',
   '/evaluation',
   '/system',
+  '/admin/quality',
+  '/admin/operations',
 ]
 
 const productHistoryFallback = {
@@ -32,7 +34,7 @@ const productHistoryFallback = {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [productHistoryFallback, react(), tailwindcss()],
+  plugins: [productHistoryFallback, react()],
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',

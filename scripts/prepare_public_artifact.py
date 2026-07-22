@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT = ROOT / "dist" / "public-ai-document-ops-system"
+DEFAULT_OUTPUT = ROOT / "dist" / "public-invoice-review"
 
 ALLOWLIST_TOP_LEVEL = {
     "README.md",
@@ -15,7 +15,6 @@ ALLOWLIST_TOP_LEVEL = {
     "PRD.md",
     "ARCHITECTURE.md",
     "PORTFOLIO_CASE_STUDY.md",
-    "RECRUITER_EVIDENCE_PACK.md",
     "SCENARIO_COVERAGE_MATRIX.md",
     "RUNBOOK.md",
     ".env.example",
@@ -165,7 +164,7 @@ def main() -> None:
     parser.add_argument(
         "output_path",
         nargs="?",
-        help="Destination directory. Defaults to dist/public-ai-document-ops-system.",
+        help="Destination directory. Defaults to dist/public-invoice-review.",
     )
     parser.add_argument(
         "--output",
