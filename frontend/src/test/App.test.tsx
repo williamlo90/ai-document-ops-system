@@ -346,14 +346,14 @@ describe('evaluation workspace', () => {
       return json({ detail: `Unexpected request: ${path}` }, 404)
     }))
     render(<App />)
-    expect(await screen.findByRole('heading', { name: 'Evaluation' })).toBeInTheDocument()
-    expect(screen.getByText('Synthetic evidence')).toBeInTheDocument()
-    expect(screen.getByText(/directional, not production accuracy/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Quality' })).toBeInTheDocument()
+    expect(screen.getByText('Synthetic test set')).toBeInTheDocument()
+    expect(screen.getByTitle(/do not represent production accuracy/i)).toBeInTheDocument()
     expect((await screen.findAllByText('Estimated cost'))[0].closest('.ops-panel')).toHaveTextContent('$0.0636')
+    expect(screen.queryByText('Quality trend over time')).not.toBeInTheDocument()
 
-    await user.click(screen.getByText('Regressed').closest('button')!)
     expect(screen.getByText('Tax')).toBeInTheDocument()
-    expect(screen.queryByText('Invoice number')).not.toBeInTheDocument()
+    expect(screen.getByText('Invoice number')).toBeInTheDocument()
     await user.click(screen.getByText('Tax').closest('tr')!)
     expect(await screen.findByRole('dialog', { name: 'Tax' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Close details' }))
@@ -385,7 +385,7 @@ describe('system workspace', () => {
     vi.stubGlobal('fetch', fetchMock)
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'System' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Operations' })).toBeInTheDocument()
     expect((await screen.findAllByText('Not enough history')).length).toBeGreaterThan(0)
     expect(screen.queryByText(/99\.\d+%/)).not.toBeInTheDocument()
     const readerRow = screen.getAllByText('Document reader').map((item) => item.closest('tr')).find(Boolean)!
@@ -397,7 +397,7 @@ describe('system workspace', () => {
     expect(window.location.search).toContain('tab=processing')
     expect(await screen.findByRole('heading', { name: 'Processing activity' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /refresh status/i }))
-    expect(await screen.findByText('System status refreshed.')).toBeInTheDocument()
+    expect(await screen.findByText('Operations status refreshed.')).toBeInTheDocument()
     expect(fetchMock.mock.calls.filter(([input]) => String(input) === '/system/dashboard').length).toBeGreaterThan(1)
   })
 

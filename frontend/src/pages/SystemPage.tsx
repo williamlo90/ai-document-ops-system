@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -7,13 +7,11 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleHelp,
-  Clock3,
   CloudUpload,
   Database,
   FileCheck2,
   FileSearch,
   FolderLock,
-  History,
   LoaderCircle,
   RefreshCw,
   RotateCcw,
@@ -24,7 +22,6 @@ import { api } from '../api/client'
 import type {
   SystemAudit,
   SystemDashboard,
-  SystemFlowStage,
   SystemIntegration,
   SystemJob,
   SystemService,
@@ -46,7 +43,6 @@ export function SystemPage() {
   const [job, setJob] = useState<SystemJob | null>(null)
   const [audit, setAudit] = useState<SystemAudit | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const attentionRef = useRef<HTMLElement>(null)
 
   const dashboard = useQuery({
     queryKey: ['system-dashboard'],
@@ -73,11 +69,7 @@ export function SystemPage() {
   }
   const refresh = async () => {
     const result = await dashboard.refetch()
-    if (!result.error) setToast('System status refreshed.')
-  }
-  const showAttention = () => {
-    setTab('status')
-    window.setTimeout(() => attentionRef.current?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'center' }), 30)
+    if (!result.error) setToast('Operations status refreshed.')
   }
   const openAlert = (targetId: string, kind: string) => {
     if (kind === 'service') setService(dashboard.data?.services.find((item) => item.id === targetId) ?? null)
@@ -86,28 +78,18 @@ export function SystemPage() {
 
   return <div className="ops-page system-page">
     <header className="system-header">
-      <div><h1>System</h1><p>Monitor invoice processing and connected services.</p></div>
+      <div><h1>Operations</h1><p>Find processing failures, retry eligible jobs, and verify service status.</p></div>
       <div><Button disabled={dashboard.isFetching} onClick={() => void refresh()}>{dashboard.isFetching ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />} {dashboard.isFetching ? 'Refreshing...' : 'Refresh status'}</Button><span>{dashboard.data ? `Observed ${formatDate(dashboard.data.observed_at, true)}` : 'Waiting for status'}</span></div>
     </header>
 
     {dashboard.isLoading ? <SystemSkeleton /> : dashboard.error ? <ErrorState message={(dashboard.error as Error).message} retry={() => void dashboard.refetch()} /> : dashboard.data ? <>
       <OverallBanner data={dashboard.data} open={() => setService(dashboard.data!.services.find((item) => item.status !== 'operational') ?? dashboard.data!.services[0])} />
-      <SystemKpis data={dashboard.data} setTab={setTab} showAttention={showAttention} />
-      <div className="system-page-layout">
-        <div className="system-primary">
-          <SystemTabs active={tab} select={setTab} />
-          {tab === 'status' ? <StatusView data={dashboard.data} openService={setService} openJob={setJob} /> : null}
-          {tab === 'processing' ? <ProcessingView data={dashboard.data} filter={filter} stage={stage} clear={() => setTab('processing')} openJob={setJob} retry={(item) => retry.mutate(item.id)} pending={retry.isPending} /> : null}
-          {tab === 'integrations' ? <IntegrationsView data={dashboard.data.integrations} open={(item) => setService(dashboard.data!.services.find((serviceItem) => serviceItem.id === item.id) ?? null)} /> : null}
-          {tab === 'audit' ? <AuditView data={dashboard.data.audit} open={setAudit} /> : null}
-        </div>
-        <aside className="system-rail">
-          <AttentionPanel ref={attentionRef} data={dashboard.data} open={openAlert} />
-          <FlowPanel data={dashboard.data} open={(item) => setTab('processing', null, item.id)} />
-          <ConnectedServices data={dashboard.data.integrations} open={(item) => setService(dashboard.data!.services.find((serviceItem) => serviceItem.id === item.id) ?? null)} />
-          <Panel className="system-maintenance"><header><h2>Maintenance &amp; status</h2><History size={17} /></header><strong>{dashboard.data.maintenance.title}</strong><p>{dashboard.data.maintenance.detail}</p></Panel>
-        </aside>
-      </div>
+      <OperationsSummary data={dashboard.data} setTab={setTab} />
+      <SystemTabs active={tab} select={setTab} />
+      {tab === 'status' ? <div className="system-status-stack"><AttentionPanel data={dashboard.data} open={openAlert} /><StatusView data={dashboard.data} openService={setService} openJob={setJob} /></div> : null}
+      {tab === 'processing' ? <ProcessingView data={dashboard.data} filter={filter} stage={stage} clear={() => setTab('processing')} openJob={setJob} retry={(item) => retry.mutate(item.id)} pending={retry.isPending} /> : null}
+      {tab === 'integrations' ? <IntegrationsView data={dashboard.data.integrations} open={(item) => setService(dashboard.data!.services.find((serviceItem) => serviceItem.id === item.id) ?? null)} /> : null}
+      {tab === 'audit' ? <AuditView data={dashboard.data.audit} open={setAudit} /> : null}
     </> : null}
 
     {service ? <ServiceDrawer service={service} close={() => setService(null)} /> : null}
@@ -122,14 +104,13 @@ function OverallBanner({ data, open }: { data: SystemDashboard; open: () => void
   return <Panel className={`system-overall is-${data.overall.status}`}><span>{icon}</span><div><strong>{data.overall.title}</strong><p>{data.overall.detail}</p></div><Button onClick={open}>View status details</Button></Panel>
 }
 
-function SystemKpis({ data, setTab, showAttention }: { data: SystemDashboard; setTab: (tab: SystemTab, filter?: string | null) => void; showAttention: () => void }) {
+function OperationsSummary({ data, setTab }: { data: SystemDashboard; setTab: (tab: SystemTab, filter?: string | null) => void }) {
   const items = [
-    { label: 'Processing now', value: data.kpis.processing_now, icon: <RefreshCw />, tone: 'info', action: () => setTab('processing', 'active') },
-    { label: 'Waiting', value: data.kpis.waiting, icon: <Clock3 />, tone: 'warning', action: () => setTab('processing', 'waiting') },
-    { label: 'Completed today', value: data.kpis.completed_today, icon: <CheckCircle2 />, tone: 'success', action: () => setTab('processing', 'completed') },
-    { label: 'Needs attention', value: data.kpis.needs_attention, icon: <AlertCircle />, tone: 'danger', action: showAttention },
+    { label: 'Processing now', value: data.kpis.processing_now, action: () => setTab('processing', 'active') },
+    { label: 'Waiting', value: data.kpis.waiting, action: () => setTab('processing', 'waiting') },
+    { label: 'Needs attention', value: data.kpis.needs_attention, action: () => setTab('processing', 'attention') },
   ]
-  return <div className="system-kpis" aria-label="System workload summary">{items.map((item) => <button key={item.label} onClick={item.action}><span className={`ops-kpi__icon ops-tone-${item.tone}`}>{item.icon}</span><span><strong>{item.value}</strong><small>{item.label}</small></span></button>)}</div>
+  return <Panel className="operations-summary" ariaLabel="Processing summary">{items.map((item) => <button key={item.label} onClick={item.action}><small>{item.label}</small><strong>{item.value}</strong></button>)}</Panel>
 }
 
 function SystemTabs({ active, select }: { active: SystemTab; select: (value: SystemTab) => void }) {
@@ -160,15 +141,7 @@ function AuditView({ data, open }: { data: SystemAudit[]; open: (item: SystemAud
   return <Panel className="system-audit-panel"><header><div><h2>Audit activity</h2><p>Immutable business events; raw payloads and secrets are not shown.</p></div><a className="ops-button ops-button--secondary" href="/operations/audit.csv">Download CSV</a></header>{data.length ? <div className="ops-table-wrap"><table className="ops-table"><thead><tr><th>Timestamp</th><th>Actor</th><th>Action</th><th>Target</th><th>Result</th><th /></tr></thead><tbody>{data.map((item) => <tr key={item.id}><td>{formatDate(item.timestamp, true)}</td><td>{item.actor}</td><td>{item.action}</td><td>{item.target}</td><td><StatusBadge tone="neutral">{humanize(item.result)}</StatusBadge></td><td><button className="ops-link" onClick={() => open(item)}>View</button></td></tr>)}</tbody></table></div> : <EmptyState title="No audit activity yet" body="Upload and review events will appear here." />}</Panel>
 }
 
-const AttentionPanel = ({ data, open, ref }: { data: SystemDashboard; open: (target: string, kind: string) => void; ref: React.Ref<HTMLElement> }) => <Panel className="system-attention" ariaLabel="Needs attention"><section ref={ref}><header><h2>Needs attention</h2><span>{data.alerts.length}</span></header>{data.alerts.length ? data.alerts.slice(0, 4).map((alert) => <button key={alert.id} onClick={() => open(alert.target_id, alert.kind)}><AlertTriangle size={17} /><span><strong>{alert.title}</strong><small>{alert.detail}</small></span><ChevronRight size={15} /></button>) : <div className="system-healthy"><CheckCircle2 size={21} /><span><strong>No unresolved alerts</strong><small>Current observed checks do not require action.</small></span></div>}</section></Panel>
-
-function FlowPanel({ data, open }: { data: SystemDashboard; open: (item: SystemFlowStage) => void }) {
-  return <Panel className="system-flow" ariaLabel="Processing flow"><header><div><h2>Processing flow</h2><p>{data.flow.window_label}</p></div></header><div>{data.flow.stages.map((stage, index) => <button key={stage.id} onClick={() => open(stage)}><span className="system-flow-icon">{index === 0 ? <CloudUpload /> : index < 4 ? <FileSearch /> : <FileCheck2 />}</span><span>{stage.label}</span><strong>{stage.count}</strong><b>{stage.conversion_percent == null ? '-' : `${stage.conversion_percent}%`}</b></button>)}</div><footer>{data.flow.denominator}</footer></Panel>
-}
-
-function ConnectedServices({ data, open }: { data: SystemIntegration[]; open: (item: SystemIntegration) => void }) {
-  return <Panel className="system-connected"><header><h2>Connected services</h2></header>{data.map((item) => <button key={item.id} onClick={() => open(item)}><ServiceIcon id={item.id} /><span>{item.name}</span><ServiceBadge status={item.status} /></button>)}</Panel>
-}
+const AttentionPanel = ({ data, open }: { data: SystemDashboard; open: (target: string, kind: string) => void }) => <Panel className="system-attention" ariaLabel="Needs attention"><section><header><h2>Needs attention</h2><span>{data.alerts.length}</span></header>{data.alerts.length ? data.alerts.slice(0, 4).map((alert) => <button key={alert.id} onClick={() => open(alert.target_id, alert.kind)}><AlertTriangle size={17} /><span><strong>{alert.title}</strong><small>{alert.detail}</small></span><ChevronRight size={15} /></button>) : <div className="system-healthy"><CheckCircle2 size={21} /><span><strong>No unresolved alerts</strong><small>Current observed checks do not require action.</small></span></div>}</section></Panel>
 
 function RecentJobs({ jobs, open }: { jobs: SystemJob[]; open: (item: SystemJob) => void }) {
   return <Panel className="system-recent"><header><div><h2>Recent processing</h2><p>Latest invoice reading jobs.</p></div><Link className="ops-link" to="/admin/operations?tab=processing">View all processing <ChevronRight size={13} /></Link></header>{jobs.length ? <JobTable jobs={jobs} open={open} /> : <EmptyState title="No recent processing activity" body="New invoice jobs will appear here once processing begins." />}</Panel>
@@ -215,7 +188,7 @@ function ServiceIcon({ id }: { id: string }) {
 }
 
 function SystemSkeleton() {
-  return <div className="system-skeleton"><Panel><SkeletonRows count={2} /></Panel><div className="system-kpis">{Array.from({ length: 4 }, (_, index) => <Panel key={index}><SkeletonRows count={2} /></Panel>)}</div><div className="system-page-layout"><Panel><SkeletonRows count={9} /></Panel><Panel><SkeletonRows count={8} /></Panel></div></div>
+  return <div className="system-skeleton"><Panel><SkeletonRows count={2} /></Panel><Panel><SkeletonRows count={2} /></Panel><Panel><SkeletonRows count={9} /></Panel></div>
 }
 
 function stageMatches(stage: string, job: SystemJob) {
@@ -230,10 +203,6 @@ function formatDuration(value: number | null) {
   if (value < 1000) return `${value}ms`
   const seconds = value / 1000
   return seconds < 60 ? `${seconds.toFixed(seconds < 10 ? 1 : 0)}s` : `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`
-}
-
-function reducedMotion() {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
 
 function updateParams(current: URLSearchParams, setter: ReturnType<typeof useSearchParams>[1], values: Record<string, string | null>) {
