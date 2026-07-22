@@ -38,7 +38,6 @@ export function ReviewWorkspacePage() {
   const [savedDraft, setSavedDraft] = useState<InvoiceDraft>({})
   const [editing, setEditing] = useState<keyof InvoiceDraft | null>(null)
   const [note, setNote] = useState('')
-  const [expandedIssue, setExpandedIssue] = useState<string | null>(null)
   const [decision, setDecision] = useState<DecisionKind | null>(null)
   const [decisionPanelOpen, setDecisionPanelOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -107,25 +106,24 @@ export function ReviewWorkspacePage() {
       <div><nav aria-label="Breadcrumb"><Link to={returnPath}>{returnLabel}</Link><ChevronRight size={13} /><span>{draft.invoice_number || document.original_filename}</span></nav><div className="review-title-row"><h1>Review invoice</h1><StatusBadge tone={statusTone(document.status)}>{statusText(document.status, workflow.data?.current_stage)}</StatusBadge></div><p>{draft.vendor_name || 'Vendor not detected'} / {formatDate(draft.invoice_date)} / {formatMoney(draft.total,draft.currency)}</p></div>
       <Button onClick={leave}><ArrowLeft size={16} /> Back to inbox</Button>
     </header>
-    <Panel className="review-stepper" ariaLabel="Invoice review progress"><Step done label="Read" detail="Invoice extracted" /><Step done label="Validate" detail={issues.length ? `${issues.length} issue${issues.length === 1 ? '' : 's'} found` : 'No issues found'} /><Step done={!canDecide} active={canDecide} label="Decision" detail={canDecide ? 'Make your decision' : 'Decision recorded'} /></Panel>
     <Button className="review-decision-trigger" onClick={() => setDecisionPanelOpen(true)}><ShieldCheck size={17} /> Open decision panel</Button>
     <div className="review-workspace-grid">
       <Panel className="review-document-panel" ariaLabel="Invoice preview"><h2>Invoice preview</h2><PdfPreview url={`/documents/${document.id}/content`} filename={document.original_filename} /></Panel>
-      <Panel className="review-data-panel" ariaLabel="Extracted invoice data">
-        <header><h2>Invoice data</h2></header>
-        {data.correction_summary ? <section className="review-correction-summary"><CheckCircle2 size={17} /><div><strong>{data.correction_summary.latest_change_count} field{data.correction_summary.latest_change_count === 1 ? '' : 's'} corrected by {data.correction_summary.latest_actor}</strong><p>{data.correction_summary.latest_changed_fields.map((field) => field.replaceAll('_', ' ')).join(', ')}. {data.correction_summary.latest_reason}</p></div></section> : null}
-        <div className="review-edit-fields">{fields.map((field) => <EditableField key={field.key} field={field} value={draft[field.key]} editing={editing === field.key} disabled={!canDecide || save.isPending} onEdit={() => setEditing(field.key)} onCancel={() => { setDraft((current) => ({ ...current, [field.key]: savedDraft[field.key] })); setEditing(null) }} onChange={(value) => setDraft((current) => ({ ...current, [field.key]: value }))} onSave={() => save.mutate()} />)}</div>
-        {save.error ? <p className="review-inline-error"><AlertCircle size={14} />{(save.error as Error).message}</p> : null}
-        <section className="review-evidence"><h3>Evidence & checks <StatusBadge tone={blockers.length ? 'danger' : 'success'}>{blockers.length ? `${blockers.length} blocker${blockers.length === 1 ? '' : 's'}` : 'Passed'}</StatusBadge></h3>{issues.length ? issues.map((issue) => <button key={issue.code} className="review-evidence-row" onClick={() => setExpandedIssue(expandedIssue === issue.code ? null : issue.code)}><span><AlertCircle size={15} />{issue.message}</span><StatusBadge tone={issue.severity === 'error' ? 'danger' : 'warning'}>{issue.severity === 'error' ? 'Blocker' : 'Check'}</StatusBadge>{expandedIssue === issue.code ? <small>Observed field: {issue.field_name || 'invoice'} / Rule: {issue.code}. This stored validation result determines whether approval is allowed.</small> : null}</button>) : <p className="review-check-clear"><Check size={15} /> No validation blockers were found.</p>}</section>
-        <LineItems items={draft.line_items ?? []} currency={draft.currency} total={draft.total} />
-      </Panel>
-      <DecisionPanel open={decisionPanelOpen} close={() => setDecisionPanelOpen(false)} canDecide={canDecide} blockers={blockers.length} note={note} setNote={setNote} select={setDecision} pending={submit.isPending} error={submit.error as Error | null} latestDecision={latestDecision} latestAudit={latestAudit} auditCount={data.audit_events.length} status={document.status} />
+      <div className="review-side-column">
+        <Panel className="review-data-panel" ariaLabel="Extracted invoice data">
+          <header><h2>Invoice data</h2></header>
+          {data.correction_summary ? <section className="review-correction-summary"><CheckCircle2 size={17} /><div><strong>{data.correction_summary.latest_change_count} field{data.correction_summary.latest_change_count === 1 ? '' : 's'} corrected by {data.correction_summary.latest_actor}</strong><p>{data.correction_summary.latest_changed_fields.map((field) => field.replaceAll('_', ' ')).join(', ')}. {data.correction_summary.latest_reason}</p></div></section> : null}
+          <div className="review-edit-fields">{fields.map((field) => <EditableField key={field.key} field={field} value={draft[field.key]} editing={editing === field.key} disabled={!canDecide || save.isPending} onEdit={() => setEditing(field.key)} onCancel={() => { setDraft((current) => ({ ...current, [field.key]: savedDraft[field.key] })); setEditing(null) }} onChange={(value) => setDraft((current) => ({ ...current, [field.key]: value }))} onSave={() => save.mutate()} />)}</div>
+          {save.error ? <p className="review-inline-error"><AlertCircle size={14} />{(save.error as Error).message}</p> : null}
+          <section className="review-evidence"><h3>Validation checks <StatusBadge tone={blockers.length ? 'danger' : 'success'}>{blockers.length ? `${blockers.length} blocker${blockers.length === 1 ? '' : 's'}` : 'Passed'}</StatusBadge></h3>{issues.length ? issues.map((issue) => <div key={issue.code} className="review-evidence-row"><span><AlertCircle size={15} />{issue.message}</span><StatusBadge tone={issue.severity === 'error' ? 'danger' : 'warning'}>{issue.severity === 'error' ? 'Blocker' : 'Check'}</StatusBadge></div>) : <p className="review-check-clear"><Check size={15} /> No validation blockers were found.</p>}</section>
+          <LineItems items={draft.line_items ?? []} currency={draft.currency} total={draft.total} />
+        </Panel>
+        <DecisionPanel open={decisionPanelOpen} close={() => setDecisionPanelOpen(false)} canDecide={canDecide} blockers={blockers.length} note={note} setNote={setNote} select={setDecision} pending={submit.isPending} error={submit.error as Error | null} latestDecision={latestDecision} latestAudit={latestAudit} auditCount={data.audit_events.length} status={document.status} />
+      </div>
     </div>
     {decision ? <DecisionModal kind={decision} invoice={draft.invoice_number || document.original_filename} issue={blockers[0]?.message} note={note} pending={submit.isPending} error={submit.error as Error | null} cancel={() => setDecision(null)} confirm={() => submit.mutate(decision)} confirmRef={confirmRef} /> : null}
   </div>
 }
-
-function Step({ done, active, label, detail }: { done?: boolean; active?: boolean; label: string; detail: string }) { return <div className={active ? 'is-active' : done ? 'is-done' : ''}><span>{done ? <Check size={16} /> : label === 'Decision' ? '3' : '2'}</span><p><strong>{label}</strong><small>{detail}</small></p></div> }
 
 function EditableField({ field, value, editing, disabled, onEdit, onCancel, onChange, onSave }: { field: (typeof fields)[number]; value: unknown; editing: boolean; disabled: boolean; onEdit: () => void; onCancel: () => void; onChange: (value: string) => void; onSave: () => void }) {
   const text = typeof value === 'string' ? value : ''

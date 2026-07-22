@@ -138,19 +138,10 @@ export function ExportsPage() {
   const allSelected = selectable.length > 0 && selectable.every((item) => selectedIds.has(item.id))
 
   return <div className="ops-page exports-page">
-    <PageHeader
-      title="Exports"
-      description="Prepare and track approved invoice exports."
-      action={<Button variant="primary" onClick={() => {
-        if (batch?.status === 'ready') setConfirmOpen(true)
-        else if (selectedIds.size) createBatch.mutate('ready')
-        else { setView('ready'); setToast('Select approved invoices to create an export.') }
-      }}><FileDown size={17} /> Create export</Button>}
-    />
-    {workspace.error ? <ErrorState message={(workspace.error as Error).message} retry={() => void workspace.refetch()} /> : <div className="export-page-layout has-batch">
+    <PageHeader title="Exports" description="Select approved invoices, verify eligibility, and create a controlled export." />
+    {workspace.error ? <ErrorState message={(workspace.error as Error).message} retry={() => void workspace.refetch()} /> : <div className={`export-page-layout ${batch || selectedIds.size ? 'has-batch' : ''}`}>
       <div className="export-primary">
-        <ExportKpis data={workspace.data} active={view} setView={setView} />
-        <ExportTabs active={view} setView={setView} />
+        <ExportTabs data={workspace.data} active={view} setView={setView} />
         <Panel className="export-library">
           <div className="export-toolbar">
             <SearchField value={searchValue} onChange={setSearchValue} placeholder={`Search ${view.replace('_', ' ')} invoices...`} label="Search export invoices" />
@@ -187,7 +178,7 @@ export function ExportsPage() {
           {workspace.data ? <footer className="ops-pagination"><span>Showing page {workspace.data.page} of {workspace.data.total_pages} / {workspace.data.total} invoices</span><div><Button variant="ghost" disabled={page <= 1} onClick={() => updateParams(params, setParams, { page: String(page - 1) })}>Previous</Button><strong>{page}</strong><Button variant="ghost" disabled={page >= workspace.data.total_pages} onClick={() => updateParams(params, setParams, { page: String(page + 1) })}>Next</Button></div></footer> : null}
         </Panel>
       </div>
-      <ExportBatchPanel
+      {batch || selectedIds.size ? <ExportBatchPanel
         batch={batch}
         selectedItems={selectedItems}
         selectedAmount={selectedAmount}
@@ -203,7 +194,7 @@ export function ExportsPage() {
         canExecute={Boolean(allChecksPassed && batch?.status === 'ready')}
         recentRuns={workspace.data?.recent_runs ?? []}
         openRun={setRunId}
-      />
+      /> : null}
     </div>}
     {confirmOpen && batch ? <ConfirmExport batch={batch} pending={executeBatch.isPending} close={() => setConfirmOpen(false)} confirm={() => executeBatch.mutate(batch)} /> : null}
     {runId ? <RunDrawer runId={runId} close={() => setRunId(null)} refresh={() => void queryClient.invalidateQueries({ queryKey: ['export-workspace'] })} /> : null}
@@ -211,25 +202,9 @@ export function ExportsPage() {
   </div>
 }
 
-function ExportKpis({ data, active, setView }: { data?: ExportWorkspaceResponse; active: string; setView: (view: string) => void }) {
-  const cards = [
-    { key: 'ready', label: 'Ready to export', icon: <FileDown size={23} />, tone: 'info' },
-    { key: 'in_batch', label: 'In batch', icon: <Clock3 size={23} />, tone: 'warning' },
-    { key: 'exported', label: 'Exported today', icon: <CheckCircle2 size={23} />, tone: 'success' },
-    { key: 'blocked', label: 'Blocked', icon: <AlertCircle size={23} />, tone: 'danger' },
-  ] as const
-  return <div className="export-kpis" aria-label="Export workload summary">{cards.map((card) => {
-    const metric = data?.summary[card.key]
-    return <button key={card.key} className={`export-kpi ${active === card.key ? 'is-active' : ''}`} onClick={() => setView(card.key)}>
-      <span className={`ops-kpi__icon ops-tone-${card.tone}`}>{card.icon}</span>
-      <span><small>{card.label}</small><strong>{metric?.count ?? 0}</strong><b>{metric?.amount == null ? 'Multiple currencies' : formatMoney(metric.amount, metric.currency)}</b></span>
-    </button>
-  })}</div>
-}
-
-function ExportTabs({ active, setView }: { active: string; setView: (view: string) => void }) {
+function ExportTabs({ data, active, setView }: { data?: ExportWorkspaceResponse; active: string; setView: (view: string) => void }) {
   const tabs = [['ready', 'Ready'], ['in_batch', 'In batch'], ['exported', 'Exported'], ['blocked', 'Blocked'], ['drafts', 'Drafts']]
-  return <div className="export-tabs" role="tablist" aria-label="Export status">{tabs.map(([key, label]) => <button key={key} role="tab" aria-selected={active === key} className={active === key ? 'is-active' : ''} onClick={() => setView(key)}>{label}</button>)}</div>
+  return <div className="export-tabs" role="tablist" aria-label="Export status">{tabs.map(([key, label]) => { const count = key === 'drafts' ? (active === 'drafts' ? data?.total : null) : data?.summary[key as keyof ExportWorkspaceResponse['summary']]?.count; return <button key={key} role="tab" aria-selected={active === key} className={active === key ? 'is-active' : ''} onClick={() => setView(key)}>{label}{count == null ? null : <span>{count}</span>}</button> })}</div>
 }
 
 function ExportTable({ items, selectable, selectedIds, allSelected, toggle, toggleAll, openBatch }: {
