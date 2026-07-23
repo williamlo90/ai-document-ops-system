@@ -211,6 +211,7 @@ Frontend:
 ```powershell
 Push-Location frontend
 npm audit --audit-level=high
+npm run format:check
 npm test
 npm run lint
 npm run build

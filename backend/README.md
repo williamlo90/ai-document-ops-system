@@ -1,11 +1,12 @@
 # Backend
 
-Backend service for the AI Document Operations System.
+Backend for Invoice Review, an approval-gated invoice intake, validation, correction, and export
+workflow.
 
-The API supports local-first document intake, invoice evidence validation, review queues,
-approval-gated document operations, AgentOps evaluation, and bounded back-office workflows.
-Invoice is the first complete document workflow; generic document contracts are additive and
-must preserve compatibility aliases.
+The API supports local-first document intake, deterministic invoice validation, reviewer
+decisions, audit evidence, controlled exports, and bounded reliability evaluation. Some internal
+`backoffice` and `agentops` namespaces are compatibility boundaries inherited from the workflow
+engine; they are not public product vocabulary.
 
 Run tests from this directory:
 

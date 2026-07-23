@@ -1,1 +1,1 @@
-"""AI Document Operations System backend package."""
+"""Invoice Review backend package."""

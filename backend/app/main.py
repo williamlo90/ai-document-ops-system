@@ -69,11 +69,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             logging.getLogger("docintel.lifecycle").info("application_stopping")
 
     app = FastAPI(
-        title="AI Document Operations System",
+        title="Invoice Review API",
         description=(
-            "Local-first document intake, evidence validation, human review, "
-            "controlled execution, and reliability evaluation. Invoice is the first "
-            "fully supported document workflow."
+            "Invoice intake, extraction, deterministic validation, human review, correction, "
+            "approval-gated export, audit evidence, and bounded reliability evaluation."
         ),
         version="0.1.0",
         lifespan=lifespan,

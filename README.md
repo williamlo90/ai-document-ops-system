@@ -107,6 +107,7 @@ $env:PYTHONPATH = "backend"
 .\.venv\Scripts\python.exe -m ruff check backend scripts run_tests.py
 
 Push-Location frontend
+npm run format:check
 npm test
 npm run lint
 npm run build

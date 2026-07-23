@@ -31,11 +31,11 @@ class OpenApiContractTests(unittest.TestCase):
                 operation_ids.append(operation["operationId"])
         self.assertEqual(len(operation_ids), len(set(operation_ids)))
 
-    def test_product_metadata_describes_the_supported_document_operations_scope(self) -> None:
+    def test_product_metadata_describes_the_supported_invoice_workflow(self) -> None:
         info = self.schema["info"]
-        self.assertEqual(info["title"], "AI Document Operations System")
+        self.assertEqual(info["title"], "Invoice Review API")
         self.assertEqual(info["version"], "0.1.0")
-        self.assertIn("Invoice is the first fully supported document workflow", info["description"])
+        self.assertIn("approval-gated export", info["description"])
 
     def test_critical_aggregate_and_mutation_contracts_are_published(self) -> None:
         expected = {
