@@ -119,3 +119,45 @@ test('mobile navigation opens and closes without shifting the document', async (
   const after = await page.evaluate(() => document.documentElement.scrollWidth)
   expect(after).toBe(before)
 })
+
+test('invoice and export drawers preserve the full desktop worklist', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'Desktop width regression test.')
+  await installPortfolioApi(page)
+
+  for (const width of [1536, 1366]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/invoices?status=waiting_review&vendor=Acme&page=1')
+    const invoiceLibrary = page.locator('.invoice-library')
+    const invoiceWidth = await invoiceLibrary.evaluate((node) => node.getBoundingClientRect().width)
+    const invoiceTrigger = page
+      .locator('.invoice-table tbody tr')
+      .first()
+      .getByRole('button')
+      .first()
+    await invoiceTrigger.click()
+    await expect(page.locator('.invoice-inspector')).toBeVisible()
+    await expect
+      .poll(() => invoiceLibrary.evaluate((node) => node.getBoundingClientRect().width))
+      .toBeCloseTo(invoiceWidth, 0)
+    await page.getByRole('button', { name: 'Close invoice inspector' }).click()
+    await expect(page).toHaveURL(/status=waiting_review/)
+    await expect(page).toHaveURL(/vendor=Acme/)
+    await expect(page).toHaveURL(/page=1/)
+    await expect(invoiceTrigger).toBeFocused()
+
+    await page.goto('/exports?status=in_batch&batch=batch-july')
+    const exportLibrary = page.locator('.export-library')
+    const exportWidth = await exportLibrary.evaluate((node) => node.getBoundingClientRect().width)
+    const exportDialog = page.getByRole('dialog', { name: 'Export batch' })
+    await expect(exportDialog).toBeVisible()
+    await expect
+      .poll(() => exportLibrary.evaluate((node) => node.getBoundingClientRect().width))
+      .toBeCloseTo(exportWidth, 0)
+    await page.getByRole('button', { name: 'Close export batch' }).click()
+    await expect(exportDialog).toHaveCount(0)
+    await expect(page).toHaveURL(/batch=batch-july/)
+    await expect(page.getByRole('tab', { name: /In batch/ })).toBeFocused()
+  }
+})

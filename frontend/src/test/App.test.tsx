@@ -195,7 +195,7 @@ describe('product routes and role boundaries', () => {
 describe('invoice library', () => {
   it('renders server summaries and opens a read-only inspector', async () => {
     const user = userEvent.setup()
-    window.history.replaceState({}, '', '/invoices')
+    window.history.replaceState({}, '', '/invoices?status=waiting_review&page=2')
     installApi(
       {
         authenticated: true,
@@ -216,12 +216,21 @@ describe('invoice library', () => {
     render(<App />)
     expect(await screen.findByText('INV-001')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /All\s*1/ })).toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: 'INV-001' }))
-    const inspector = await screen.findByRole('region', { name: /invoice inspector/i })
+    const trigger = await screen.findByRole('button', { name: 'INV-001' })
+    await user.click(trigger)
+    const inspector = await screen.findByRole('dialog', { name: 'INV-001' })
     expect(within(inspector).getByText('Acme Logistics')).toBeInTheDocument()
     expect(within(inspector).getByText('PO number was not found.')).toBeInTheDocument()
     expect(within(inspector).queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument()
     expect(window.location.search).toContain('invoice=doc-1')
+    expect(window.location.search).toContain('status=waiting_review')
+    expect(window.location.search).toContain('page=2')
+    await user.click(within(inspector).getByRole('button', { name: 'Close invoice inspector' }))
+    expect(screen.queryByRole('dialog', { name: 'INV-001' })).not.toBeInTheDocument()
+    expect(window.location.search).not.toContain('invoice=')
+    expect(window.location.search).toContain('status=waiting_review')
+    expect(window.location.search).toContain('page=2')
+    expect(trigger).toHaveFocus()
   })
 
   it('lets the uploader answer a reviewer correction request', async () => {
@@ -671,11 +680,12 @@ describe('exports workspace', () => {
     expect(screen.queryByText('NetSuite')).not.toBeInTheDocument()
     expect(screen.queryByText(/schedule export/i)).not.toBeInTheDocument()
     await user.click(await screen.findByRole('checkbox', { name: 'Select INV-001' }))
+    expect(screen.queryByRole('dialog', { name: 'Export batch' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /add to export/i }))
     expect(await screen.findByText('1 invoices added to export batch.')).toBeInTheDocument()
     expect(await screen.findByText('CSV download')).toBeInTheDocument()
     expect(await screen.findByText('All invoices approved')).toBeInTheDocument()
-    const panel = screen.getByRole('complementary', { name: 'Export batch' })
+    const panel = screen.getByRole('dialog', { name: 'Export batch' })
     expect(within(panel).getByRole('button', { name: 'Create export' })).toBeEnabled()
   })
 })
@@ -904,7 +914,11 @@ describe('system workspace', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Operations' })).toBeInTheDocument()
-    expect((await screen.findAllByText('Not enough history')).length).toBeGreaterThan(0)
+    expect(
+      await screen.findByText('Current checks only. Uptime history is not available yet.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Not enough history')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Recent processing' })).not.toBeInTheDocument()
     expect(screen.queryByText(/99\.\d+%/)).not.toBeInTheDocument()
     const readerRow = screen
       .getAllByText('Document reader')

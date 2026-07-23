@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -52,12 +52,14 @@ export function ExportsPage() {
   const batchId = params.get('batch')
   const [searchValue, setSearchValue] = useState(search)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [batchOpen, setBatchOpen] = useState(false)
+  const [batchOpen, setBatchOpen] = useState(Boolean(batchId))
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [expandedInvoices, setExpandedInvoices] = useState(false)
   const [runId, setRunId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [localBatch, setLocalBatch] = useState<ExportBatch | null>(null)
+  const batchReturnFocus = useRef<HTMLElement | null>(null)
+  const batchTriggers = useRef(new Map<string, HTMLButtonElement>())
 
   useEffect(() => setSearchValue(search), [search])
   useEffect(() => {
@@ -154,13 +156,31 @@ export function ExportsPage() {
     setSelectedIds(new Set())
     updateParams(params, setParams, { status: next, page: null })
   }
-  const toggleSelection = (id: string) =>
+  const closeBatch = useCallback(() => {
+    setBatchOpen(false)
+    const trigger =
+      batchReturnFocus.current ??
+      document.querySelector<HTMLElement>('.export-tabs [aria-selected="true"]')
+    queueMicrotask(() => {
+      if (trigger?.isConnected) trigger.focus()
+    })
+  }, [])
+  const openExistingBatch = useCallback(
+    (id: string, trigger?: HTMLElement) => {
+      batchReturnFocus.current = trigger ?? batchTriggers.current.get(id) ?? null
+      updateParams(params, setParams, { batch: id, status: 'in_batch' })
+      setBatchOpen(true)
+    },
+    [params, setParams],
+  )
+  const toggleSelection = (id: string) => {
     setSelectedIds((current) => {
       const next = new Set(current)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
+  }
   const selectable = workspace.data?.items.filter((item) => item.status === 'ready') ?? []
   const allSelected = selectable.length > 0 && selectable.every((item) => selectedIds.has(item.id))
 
@@ -243,7 +263,19 @@ export function ExportsPage() {
                     Clear selection
                   </button>
                   <Button
-                    onClick={() => createBatch.mutate('ready')}
+                    onClick={(event) => {
+                      batchReturnFocus.current = event.currentTarget
+                      createBatch.mutate('draft')
+                    }}
+                    disabled={createBatch.isPending}
+                  >
+                    <Save size={16} /> Save draft
+                  </Button>
+                  <Button
+                    onClick={(event) => {
+                      batchReturnFocus.current = event.currentTarget
+                      createBatch.mutate('ready')
+                    }}
                     disabled={createBatch.isPending}
                   >
                     {createBatch.isPending ? (
@@ -264,14 +296,16 @@ export function ExportsPage() {
                   selectedIds={selectedIds}
                   allSelected={allSelected}
                   toggle={toggleSelection}
-                  toggleAll={() =>
-                    setSelectedIds(
-                      allSelected ? new Set() : new Set(selectable.map((item) => item.id)),
-                    )
-                  }
-                  openBatch={(id) => {
-                    updateParams(params, setParams, { batch: id, status: 'in_batch' })
-                    setBatchOpen(true)
+                  toggleAll={() => {
+                    const next = allSelected
+                      ? new Set<string>()
+                      : new Set(selectable.map((item) => item.id))
+                    setSelectedIds(next)
+                  }}
+                  openBatch={openExistingBatch}
+                  registerBatchTrigger={(id, node) => {
+                    if (node) batchTriggers.current.set(id, node)
+                    else batchTriggers.current.delete(id)
                   }}
                 />
               ) : (
@@ -325,7 +359,7 @@ export function ExportsPage() {
               ) : null}
             </Panel>
           </div>
-          {batch || selectedIds.size ? (
+          {batch ? (
             <ExportBatchPanel
               batch={batch}
               selectedItems={selectedItems}
@@ -338,7 +372,7 @@ export function ExportsPage() {
               }
               expanded={expandedInvoices}
               setExpanded={setExpandedInvoices}
-              close={() => setBatchOpen(false)}
+              close={closeBatch}
               saveDraft={() => (batch ? saveBatch.mutate(batch) : createBatch.mutate('draft'))}
               execute={() => setConfirmOpen(true)}
               canExecute={Boolean(allChecksPassed && batch?.status === 'ready')}
@@ -405,6 +439,9 @@ function ExportTabs({
             aria-selected={active === key}
             className={active === key ? 'is-active' : ''}
             onClick={() => setView(key)}
+            onFocus={(event) =>
+              event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'center' })
+            }
           >
             {label}
             {count == null ? null : <span>{count}</span>}
@@ -423,6 +460,7 @@ function ExportTable({
   toggle,
   toggleAll,
   openBatch,
+  registerBatchTrigger,
 }: {
   items: ExportInvoiceItem[]
   selectable: boolean
@@ -430,7 +468,8 @@ function ExportTable({
   allSelected: boolean
   toggle: (id: string) => void
   toggleAll: () => void
-  openBatch: (id: string) => void
+  openBatch: (id: string, trigger?: HTMLElement) => void
+  registerBatchTrigger: (id: string, node: HTMLButtonElement | null) => void
 }) {
   return (
     <div className="ops-table-wrap">
@@ -487,7 +526,11 @@ function ExportTable({
               <td className={item.issue ? 'is-issue' : ''}>{item.issue || '-'}</td>
               <td>
                 {item.batch_id ? (
-                  <button className="ops-link" onClick={() => openBatch(item.batch_id!)}>
+                  <button
+                    ref={(node) => registerBatchTrigger(item.batch_id!, node)}
+                    className="ops-link"
+                    onClick={(event) => openBatch(item.batch_id!, event.currentTarget)}
+                  >
                     View
                   </button>
                 ) : (
@@ -560,6 +603,8 @@ function ExportBatchPanel({
   recentRuns: ExportRun[]
   openRun: (id: string) => void
 }) {
+  const panelRef = useRef<HTMLElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
   const invoices = batch?.invoices ?? selectedItems
   const count = batch?.invoice_count ?? selectedItems.length
   const amount = batch ? batch.total_amount : selectedCurrency ? String(selectedAmount) : null
@@ -567,163 +612,218 @@ function ExportBatchPanel({
   const completedRun = batch?.last_run_id
     ? recentRuns.find((run) => run.id === batch.last_run_id)
     : undefined
+
+  useEffect(() => {
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        close()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled])',
+      )
+      if (!focusable?.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [close, open])
+
+  if (!open) return null
+
   return (
-    <aside className={`export-batch-panel ${open ? 'is-open' : ''}`} aria-label="Export batch">
-      <header>
-        <h2>Export batch</h2>
-        <button
-          className="ops-icon-button export-batch-close"
-          aria-label="Close export batch"
-          onClick={close}
-        >
-          <X size={19} />
-        </button>
-      </header>
-      {loading ? (
-        <SkeletonRows count={6} />
-      ) : count ? (
-        <>
-          <section className="export-batch-summary">
-            <div>
-              <strong>
-                {count} {count === 1 ? 'invoice' : 'invoices'}{' '}
-                {batch?.status === 'completed' ? 'exported' : batch ? 'in batch' : 'selected'}
-              </strong>
-              {!batch ? (
-                <button className="ops-link" onClick={close}>
-                  Change selection
-                </button>
-              ) : null}
-            </div>
-            <span>Total amount</span>
-            <b>{amount == null ? 'Multiple currencies' : formatMoney(amount, currency)}</b>
-            <button className="ops-link" onClick={() => setExpanded(!expanded)}>
-              View invoices <ChevronDown size={14} className={expanded ? 'is-rotated' : ''} />
-            </button>
-            {expanded ? (
-              <ul>
-                {invoices.map((item) => (
-                  <li key={item.id}>
-                    <span>{item.invoice_label}</span>
-                    <strong>{formatMoney(item.total, item.currency)}</strong>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
-          <dl className="export-configuration">
-            <div>
-              <dt>Destination</dt>
-              <dd>{batch?.destination_label ?? 'CSV download'}</dd>
-            </div>
-            <div>
-              <dt>Export format</dt>
-              <dd>{(batch?.format ?? 'csv').toUpperCase()}</dd>
-            </div>
-            <div>
-              <dt>File name</dt>
-              <dd>{completedRun?.file_name ?? 'Generated securely at export'}</dd>
-            </div>
-          </dl>
-          {batch?.status === 'completed' ? (
-            <section className="export-checks export-completion">
-              <h3>Export completed</h3>
-              <div className="is-passed">
-                <CheckCircle2 size={16} />
-                <span>File generated and run recorded</span>
-              </div>
-              <p>Invoice status changed only after the export file was created successfully.</p>
-            </section>
-          ) : (
-            <section className="export-checks">
-              <h3>Eligibility checks</h3>
-              {batch ? (
-                batch.eligibility.map((check) => (
-                  <div
-                    key={check.code}
-                    title={check.detail}
-                    className={check.state === 'passed' ? 'is-passed' : 'is-failed'}
-                  >
-                    {check.state === 'passed' ? (
-                      <CheckCircle2 size={16} />
-                    ) : (
-                      <AlertCircle size={16} />
-                    )}
-                    <span>{check.label}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="is-pending">
-                  <ListChecks size={16} />
-                  <span>Server checks run when invoices are added</span>
-                </div>
-              )}
-            </section>
-          )}
-          {mutationError ? (
-            <p className="export-panel-error">
-              <AlertTriangle size={16} />
-              {mutationError.message}
-            </p>
-          ) : null}
-          <div className="export-panel-actions">
-            {batch?.status === 'completed' && batch.last_run_id ? (
-              <a
-                className="ops-button ops-button--primary"
-                href={`/exports/runs/${batch.last_run_id}/download`}
-              >
-                <Download size={16} /> Download export
-              </a>
-            ) : batch ? (
-              <Button variant="primary" disabled={!canExecute} onClick={execute}>
-                <Play size={16} /> Create export
-              </Button>
-            ) : null}
-            {batch?.status !== 'completed' ? (
-              <Button onClick={saveDraft}>
-                <Save size={16} /> Save selection as draft
-              </Button>
-            ) : null}
-            {!canExecute && batch?.status === 'ready' ? (
-              <small>Resolve the failed eligibility check before exporting.</small>
-            ) : null}
-          </div>
-        </>
-      ) : (
-        <EmptyState
-          title="No export batch yet"
-          body="Select approved invoices from the Ready tab to prepare an export."
-        />
-      )}
-      <section className="export-recent-runs">
+    <div
+      className="export-batch-backdrop"
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) close()
+      }}
+    >
+      <aside
+        ref={panelRef}
+        className="export-batch-panel is-open"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-batch-title"
+      >
         <header>
-          <h3>Recent export runs</h3>
+          <h2 id="export-batch-title">Export batch</h2>
+          <button
+            ref={closeRef}
+            className="ops-icon-button export-batch-close"
+            aria-label="Close export batch"
+            onClick={close}
+          >
+            <X size={19} />
+          </button>
         </header>
-        {recentRuns.length ? (
-          recentRuns.map((run) => (
-            <button key={run.id} onClick={() => openRun(run.id)}>
-              <span>
-                <b>{run.file_name || `Run ${run.id.slice(0, 8)}`}</b>
-                <small>{formatDate(run.created_at, true)}</small>
-              </span>
-              <StatusBadge
-                tone={
-                  run.status === 'succeeded'
-                    ? 'success'
-                    : run.status === 'failed'
-                      ? 'danger'
-                      : 'warning'
-                }
-              >
-                {run.status}
-              </StatusBadge>
-            </button>
-          ))
-        ) : (
-          <p>No exports have been run yet.</p>
-        )}
-      </section>
-    </aside>
+        <div className="export-batch-content">
+          {loading ? (
+            <SkeletonRows count={6} />
+          ) : count ? (
+            <>
+              <section className="export-batch-summary">
+                <div>
+                  <strong>
+                    {count} {count === 1 ? 'invoice' : 'invoices'}{' '}
+                    {batch?.status === 'completed' ? 'exported' : batch ? 'in batch' : 'selected'}
+                  </strong>
+                  {!batch ? (
+                    <button className="ops-link" onClick={close}>
+                      Change selection
+                    </button>
+                  ) : null}
+                </div>
+                <span>Total amount</span>
+                <b>{amount == null ? 'Multiple currencies' : formatMoney(amount, currency)}</b>
+                <button className="ops-link" onClick={() => setExpanded(!expanded)}>
+                  View invoices <ChevronDown size={14} className={expanded ? 'is-rotated' : ''} />
+                </button>
+                {expanded ? (
+                  <ul>
+                    {invoices.map((item) => (
+                      <li key={item.id}>
+                        <span>{item.invoice_label}</span>
+                        <strong>{formatMoney(item.total, item.currency)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </section>
+              <dl className="export-configuration">
+                <div>
+                  <dt>Destination</dt>
+                  <dd>{batch?.destination_label ?? 'CSV download'}</dd>
+                </div>
+                <div>
+                  <dt>Export format</dt>
+                  <dd>{(batch?.format ?? 'csv').toUpperCase()}</dd>
+                </div>
+                <div>
+                  <dt>File name</dt>
+                  <dd>{completedRun?.file_name ?? 'Generated securely at export'}</dd>
+                </div>
+              </dl>
+              {batch?.status === 'completed' ? (
+                <section className="export-checks export-completion">
+                  <h3>Export completed</h3>
+                  <div className="is-passed">
+                    <CheckCircle2 size={16} />
+                    <span>File generated and run recorded</span>
+                  </div>
+                  <p>Invoice status changed only after the export file was created successfully.</p>
+                </section>
+              ) : (
+                <section className="export-checks">
+                  <h3>Eligibility checks</h3>
+                  {batch ? (
+                    batch.eligibility.map((check) => (
+                      <div
+                        key={check.code}
+                        title={check.detail}
+                        className={check.state === 'passed' ? 'is-passed' : 'is-failed'}
+                      >
+                        {check.state === 'passed' ? (
+                          <CheckCircle2 size={16} />
+                        ) : (
+                          <AlertCircle size={16} />
+                        )}
+                        <span>{check.label}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="is-pending">
+                      <ListChecks size={16} />
+                      <span>Server checks run when invoices are added</span>
+                    </div>
+                  )}
+                </section>
+              )}
+              {mutationError ? (
+                <p className="export-panel-error">
+                  <AlertTriangle size={16} />
+                  {mutationError.message}
+                </p>
+              ) : null}
+              <div className="export-panel-actions">
+                {batch?.status === 'completed' && batch.last_run_id ? (
+                  <a
+                    className="ops-button ops-button--primary"
+                    href={`/exports/runs/${batch.last_run_id}/download`}
+                  >
+                    <Download size={16} /> Download export
+                  </a>
+                ) : batch ? (
+                  <Button variant="primary" disabled={!canExecute} onClick={execute}>
+                    <Play size={16} /> Create export
+                  </Button>
+                ) : null}
+                {batch?.status !== 'completed' ? (
+                  <Button onClick={saveDraft}>
+                    <Save size={16} /> Save selection as draft
+                  </Button>
+                ) : null}
+                {!canExecute && batch?.status === 'ready' ? (
+                  <small>Resolve the failed eligibility check before exporting.</small>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <EmptyState
+              title="No export batch yet"
+              body="Select approved invoices from the Ready tab to prepare an export."
+            />
+          )}
+          <section className="export-recent-runs">
+            <header>
+              <h3>Recent export runs</h3>
+            </header>
+            {recentRuns.length ? (
+              recentRuns.map((run) => (
+                <button key={run.id} onClick={() => openRun(run.id)}>
+                  <span>
+                    <b>{run.file_name || `Run ${run.id.slice(0, 8)}`}</b>
+                    <small>{formatDate(run.created_at, true)}</small>
+                  </span>
+                  <StatusBadge
+                    tone={
+                      run.status === 'succeeded'
+                        ? 'success'
+                        : run.status === 'failed'
+                          ? 'danger'
+                          : 'warning'
+                    }
+                  >
+                    {run.status}
+                  </StatusBadge>
+                </button>
+              ))
+            ) : (
+              <p>No exports have been run yet.</p>
+            )}
+          </section>
+        </div>
+      </aside>
+    </div>
   )
 }
 

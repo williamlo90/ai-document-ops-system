@@ -109,7 +109,6 @@ export function AppShell({
             />
           </form>
           <div className="ops-topbar-actions">
-            <span className="ops-demo-label">Demo workspace</span>
             <span className="ops-avatar" aria-hidden="true">
               {initials(session.actor)}
             </span>

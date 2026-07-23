@@ -281,7 +281,11 @@ test('reviewer requests a correction with a durable note', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: 'Reviewer decision' })).toBeHidden()
   await expect(page.getByRole('button', { name: 'Open decision panel' })).toBeFocused()
   await openDecisionPanel(page)
-  await page.locator('.review-decision-backdrop').click({ position: { x: 8, y: 8 } })
+  if ((page.viewportSize()?.width ?? 1280) <= 480) {
+    await page.getByRole('button', { name: 'Close decision panel' }).click()
+  } else {
+    await page.locator('.review-decision-backdrop').click({ position: { x: 8, y: 8 } })
+  }
   await expect(page.getByRole('dialog', { name: 'Reviewer decision' })).toBeHidden()
   await expect(page.getByRole('button', { name: 'Open decision panel' })).toBeFocused()
   await openDecisionPanel(page)

@@ -129,6 +129,9 @@ export function InboxPage() {
             aria-selected={state === 'needs-decision'}
             className={state === 'needs-decision' ? 'is-active' : ''}
             onClick={() => selectState('needs-decision')}
+            onFocus={(event) =>
+              event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'center' })
+            }
           >
             Needs decision <span>{review.data?.total ?? 0}</span>
           </button>
@@ -137,6 +140,9 @@ export function InboxPage() {
             aria-selected={state === 'blocked'}
             className={state === 'blocked' ? 'is-active' : ''}
             onClick={() => selectState('blocked')}
+            onFocus={(event) =>
+              event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'center' })
+            }
           >
             Blocked <span>{blocked.data?.total ?? 0}</span>
           </button>

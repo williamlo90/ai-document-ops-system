@@ -154,11 +154,6 @@
   align-items: center;
   gap: 5px;
 }
-.ops-demo-label {
-  margin-right: 8px;
-  color: var(--ops-muted);
-  font-size: 12px;
-}
 .ops-avatar {
   display: grid;
   width: 36px;

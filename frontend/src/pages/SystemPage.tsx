@@ -130,7 +130,7 @@ export function SystemPage() {
           {tab === 'status' ? (
             <div className="system-status-stack">
               <AttentionPanel data={dashboard.data} open={openAlert} />
-              <StatusView data={dashboard.data} openService={setService} openJob={setJob} />
+              <StatusView data={dashboard.data} openService={setService} />
             </div>
           ) : null}
           {tab === 'processing' ? (
@@ -257,19 +257,22 @@ function SystemTabs({ active, select }: { active: SystemTab; select: (value: Sys
 function StatusView({
   data,
   openService,
-  openJob,
 }: {
   data: SystemDashboard
   openService: (item: SystemService) => void
-  openJob: (item: SystemJob) => void
 }) {
+  const hasUptimeHistory = data.services.some((service) => service.uptime !== null)
   return (
     <div className="system-status-view">
       <Panel className="system-service-panel">
         <header>
           <div>
             <h2>Core service status</h2>
-            <p>Current checks and observed workspace activity.</p>
+            <p>
+              {hasUptimeHistory
+                ? 'Current checks and observed workspace activity.'
+                : 'Current checks only. Uptime history is not available yet.'}
+            </p>
           </div>
         </header>
         <div className="ops-table-wrap">
@@ -278,7 +281,7 @@ function StatusView({
               <tr>
                 <th>Service</th>
                 <th>Status</th>
-                <th>Uptime</th>
+                {hasUptimeHistory ? <th>Uptime</th> : null}
                 <th>Last observation</th>
                 <th>Recent activity</th>
                 <th>Action</th>
@@ -301,9 +304,7 @@ function StatusView({
                   <td>
                     <ServiceBadge status={service.status} />
                   </td>
-                  <td title="Historical health snapshots are not persisted yet.">
-                    {service.uptime_label}
-                  </td>
+                  {hasUptimeHistory ? <td>{service.uptime_label}</td> : null}
                   <td>
                     {service.observed_at ? formatDate(service.observed_at, true) : 'Not observed'}
                   </td>
@@ -321,9 +322,7 @@ function StatusView({
             </tbody>
           </table>
         </div>
-        <footer>Uptime remains unavailable until enough persisted health history exists.</footer>
       </Panel>
-      <RecentJobs jobs={data.recent_jobs.slice(0, 5)} open={openJob} />
     </div>
   )
 }
@@ -508,30 +507,6 @@ const AttentionPanel = ({
     </section>
   </Panel>
 )
-
-function RecentJobs({ jobs, open }: { jobs: SystemJob[]; open: (item: SystemJob) => void }) {
-  return (
-    <Panel className="system-recent">
-      <header>
-        <div>
-          <h2>Recent processing</h2>
-          <p>Latest invoice reading jobs.</p>
-        </div>
-        <Link className="ops-link" to="/admin/operations?tab=processing">
-          View all processing <ChevronRight size={13} />
-        </Link>
-      </header>
-      {jobs.length ? (
-        <JobTable jobs={jobs} open={open} />
-      ) : (
-        <EmptyState
-          title="No recent processing activity"
-          body="New invoice jobs will appear here once processing begins."
-        />
-      )}
-    </Panel>
-  )
-}
 
 function JobTable({
   jobs,

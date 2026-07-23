@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -12,7 +12,6 @@ import {
 } from 'lucide-react'
 import { api, upload } from '../api/client'
 import { useShell } from '../app/shell-context'
-import { PdfPreview } from '../components/PdfPreview'
 import { formatDate, formatMoney, invoiceLabel, invoiceStatus } from '../features/invoices/format'
 import type {
   InvoiceDetailResponse,
@@ -54,6 +53,8 @@ export function InvoicesPage() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [correctionOpen, setCorrectionOpen] = useState(false)
   const [notice, setNotice] = useState('')
+  const invoiceTriggers = useRef(new Map<string, HTMLButtonElement>())
+  const returnFocusId = useRef<string | null>(null)
   const search = params.get('search') ?? ''
   const page = Math.max(1, Number(params.get('page') ?? 1))
   const status = params.get('status') ?? ''
@@ -88,6 +89,20 @@ export function InvoicesPage() {
       page: null,
       ...(key !== 'invoice' ? { invoice: null } : {}),
     })
+  const openInspector = useCallback(
+    (id: string) => {
+      returnFocusId.current = id
+      updateParams(params, setParams, { invoice: id })
+    },
+    [params, setParams],
+  )
+  const closeInspector = useCallback(() => {
+    updateParams(params, setParams, { invoice: null })
+    const trigger = returnFocusId.current
+      ? invoiceTriggers.current.get(returnFocusId.current)
+      : null
+    queueMicrotask(() => trigger?.focus())
+  }, [params, setParams])
   const summary = invoices.data?.summary
 
   return (
@@ -129,6 +144,9 @@ export function InvoicesPage() {
                     key={item.label}
                     className={status === item.value ? 'is-active' : ''}
                     onClick={() => setFilter('status', item.value)}
+                    onFocus={(event) =>
+                      event.currentTarget.scrollIntoView({ block: 'nearest', inline: 'center' })
+                    }
                   >
                     {item.label}
                     <span>{item.count}</span>
@@ -173,7 +191,11 @@ export function InvoicesPage() {
                 <InvoiceTable
                   items={invoices.data.items}
                   selectedId={selected?.id}
-                  select={(id) => setFilter('invoice', id)}
+                  select={openInspector}
+                  registerTrigger={(id, node) => {
+                    if (node) invoiceTriggers.current.set(id, node)
+                    else invoiceTriggers.current.delete(id)
+                  }}
                 />
               ) : (
                 <EmptyState
@@ -203,7 +225,7 @@ export function InvoicesPage() {
                   Boolean(detail.data?.extraction)
                 }
                 correct={() => setCorrectionOpen(true)}
-                close={() => setFilter('invoice')}
+                close={closeInspector}
               />
             ) : null}
           </div>
@@ -242,10 +264,12 @@ function InvoiceTable({
   items,
   selectedId,
   select,
+  registerTrigger,
 }: {
   items: InvoiceItem[]
   selectedId?: string
   select: (id: string) => void
+  registerTrigger: (id: string, node: HTMLButtonElement | null) => void
 }) {
   return (
     <div className="ops-table-wrap">
@@ -279,6 +303,7 @@ function InvoiceTable({
                 </td>
                 <td>
                   <button
+                    ref={(node) => registerTrigger(invoice.id, node)}
                     className="ops-link"
                     onClick={(event) => {
                       event.stopPropagation()
@@ -346,96 +371,163 @@ function InvoiceInspector({
 }) {
   const status = invoiceStatus(invoice.business_status)
   const issues = detail?.extraction?.validation ?? []
+  const panelRef = useRef<HTMLElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        close()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled])',
+      )
+      if (!focusable?.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [close])
+
   return (
-    <Panel className="invoice-inspector" ariaLabel="Invoice inspector">
-      <header>
-        <div>
-          <span>{invoiceLabel(invoice)}</span>
-          <strong>{invoice.vendor_name || 'Vendor not detected'}</strong>
-          <b>{formatMoney(invoice.total, invoice.currency)}</b>
-        </div>
-        <button className="ops-icon-button" onClick={close} aria-label="Close invoice inspector">
-          <X size={19} />
-        </button>
-      </header>
-      {error ? (
-        <ErrorState message={error.message} />
-      ) : loading ? (
-        <SkeletonRows count={5} />
-      ) : (
-        <>
-          <dl className="invoice-meta">
-            <div>
-              <dt>Invoice date</dt>
-              <dd>{formatDate(invoice.invoice_date)}</dd>
-            </div>
-            <div>
-              <dt>Due date</dt>
-              <dd>{formatDate(invoice.due_date)}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>
-                <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-              </dd>
-            </div>
-            <div>
-              <dt>Owner</dt>
-              <dd>{invoice.current_owner}</dd>
-            </div>
-            <div>
-              <dt>Updated</dt>
-              <dd>{formatDate(invoice.updated_at, true)}</dd>
-            </div>
-          </dl>
-          {invoice.correction_reason ? (
-            <section className="invoice-correction-request">
-              <AlertTriangle size={16} />
-              <div>
-                <strong>Reviewer requested a correction</strong>
-                <p>{invoice.correction_reason}</p>
-              </div>
-            </section>
-          ) : null}
-          <section className="invoice-validation">
-            <h3>Validation findings</h3>
-            <div>
-              <span>Issues found</span>
-              <strong>{issues.length}</strong>
-            </div>
-            <div>
-              <span>Warnings</span>
-              <strong className="is-warning">
-                {issues.filter((issue) => issue.severity !== 'error').length}
-              </strong>
-            </div>
-            <div>
-              <span>Blockers</span>
-              <strong className="is-danger">
-                {issues.filter((issue) => issue.severity === 'error').length}
-              </strong>
-            </div>
-            {issues.length === 0 ? (
-              <p className="is-good">
-                <CheckCircle2 size={13} />
-                No validation issues are stored.
-              </p>
-            ) : (
-              issues.slice(0, 2).map((issue) => (
-                <p key={issue.code}>
-                  <AlertTriangle size={13} />
-                  {issue.message}
-                </p>
-              ))
-            )}
-          </section>
-          <div className="invoice-mini-preview">
-            <PdfPreview
-              url={`/documents/${invoice.id}/content`}
-              filename={invoice.original_filename}
-            />
+    <div
+      className="invoice-inspector-backdrop"
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) close()
+      }}
+    >
+      <aside
+        ref={panelRef}
+        className="ops-panel invoice-inspector"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="invoice-inspector-title"
+      >
+        <header>
+          <div>
+            <span id="invoice-inspector-title">{invoiceLabel(invoice)}</span>
+            <strong>{invoice.vendor_name || 'Vendor not detected'}</strong>
+            <b>{formatMoney(invoice.total, invoice.currency)}</b>
           </div>
-          <div className="invoice-inspector-actions">
+          <button
+            ref={closeRef}
+            className="ops-icon-button"
+            onClick={close}
+            aria-label="Close invoice inspector"
+          >
+            <X size={19} />
+          </button>
+        </header>
+        <div className="invoice-inspector-content">
+          {error ? (
+            <ErrorState message={error.message} />
+          ) : loading ? (
+            <SkeletonRows count={5} />
+          ) : (
+            <>
+              <dl className="invoice-meta">
+                <div>
+                  <dt>Invoice date</dt>
+                  <dd>{formatDate(invoice.invoice_date)}</dd>
+                </div>
+                <div>
+                  <dt>Due date</dt>
+                  <dd>{formatDate(invoice.due_date)}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd>
+                    <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Owner</dt>
+                  <dd>{invoice.current_owner}</dd>
+                </div>
+                <div>
+                  <dt>Updated</dt>
+                  <dd>{formatDate(invoice.updated_at, true)}</dd>
+                </div>
+              </dl>
+              {invoice.correction_reason ? (
+                <section className="invoice-correction-request">
+                  <AlertTriangle size={16} />
+                  <div>
+                    <strong>Reviewer requested a correction</strong>
+                    <p>{invoice.correction_reason}</p>
+                  </div>
+                </section>
+              ) : null}
+              <section className="invoice-validation">
+                <h3>Validation findings</h3>
+                <div>
+                  <span>Issues found</span>
+                  <strong>{issues.length}</strong>
+                </div>
+                <div>
+                  <span>Warnings</span>
+                  <strong className="is-warning">
+                    {issues.filter((issue) => issue.severity !== 'error').length}
+                  </strong>
+                </div>
+                <div>
+                  <span>Blockers</span>
+                  <strong className="is-danger">
+                    {issues.filter((issue) => issue.severity === 'error').length}
+                  </strong>
+                </div>
+                {issues.length === 0 ? (
+                  <p className="is-good">
+                    <CheckCircle2 size={13} />
+                    No validation issues are stored.
+                  </p>
+                ) : (
+                  issues.slice(0, 2).map((issue) => (
+                    <p key={issue.code}>
+                      <AlertTriangle size={13} />
+                      {issue.message}
+                    </p>
+                  ))
+                )}
+              </section>
+              <a
+                className="invoice-document-link"
+                href={`/documents/${invoice.id}/content`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <FileCheck2 size={19} />
+                <span>
+                  <strong>Invoice PDF</strong>
+                  <small>{invoice.original_filename}</small>
+                </span>
+                <b>Open PDF</b>
+              </a>
+            </>
+          )}
+        </div>
+        {!error && !loading ? (
+          <footer className="invoice-inspector-actions">
             {correctable ? (
               <Button variant="primary" onClick={correct}>
                 <Send size={16} /> Correct invoice data
@@ -445,20 +537,11 @@ function InvoiceInspector({
               <Link className="ops-button ops-button--secondary" to={`/review/${invoice.id}`}>
                 <FileCheck2 size={16} /> Open invoice workspace
               </Link>
-            ) : (
-              <a
-                className="ops-button ops-button--secondary"
-                href={`/documents/${invoice.id}/content`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <FileCheck2 size={16} /> Open invoice PDF
-              </a>
-            )}
-          </div>
-        </>
-      )}
-    </Panel>
+            ) : null}
+          </footer>
+        ) : null}
+      </aside>
+    </div>
   )
 }
 

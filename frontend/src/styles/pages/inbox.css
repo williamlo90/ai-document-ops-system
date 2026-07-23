@@ -44,7 +44,11 @@
   align-items: stretch;
   gap: 24px;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
   padding: 0 16px;
+  scroll-padding-inline: 16px;
+  scroll-snap-type: inline proximity;
+  scrollbar-width: thin;
   border-bottom: 1px solid var(--ops-border);
 }
 .inbox-tabs button,
@@ -60,6 +64,7 @@
   background: transparent;
   cursor: pointer;
   font-size: 13px;
+  scroll-snap-align: start;
 }
 .inbox-tabs button::after,
 .invoice-lifecycle-tabs button::after {

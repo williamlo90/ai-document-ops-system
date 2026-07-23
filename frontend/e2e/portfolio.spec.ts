@@ -19,7 +19,7 @@ const viewports = [
 
 const pages = [
   { name: 'inbox', route: '/inbox?state=needs-decision', heading: 'Inbox' },
-  { name: 'invoices', route: '/invoices?invoice=doc-acme', heading: 'Invoices', pdf: true },
+  { name: 'invoices', route: '/invoices?invoice=doc-acme', heading: 'Invoices' },
   { name: 'review', route: '/review/doc-acme', heading: 'Review invoice', pdf: true },
   { name: 'exports', route: '/exports?status=ready&batch=batch-july', heading: 'Exports' },
   { name: 'quality', route: '/admin/quality?run=eval-7', heading: 'Quality' },
@@ -73,7 +73,6 @@ for (const viewport of viewports) {
     fixture.setRole('uploader')
     await page.goto('/invoices?invoice=doc-northstar-correction')
     await expect(page.getByRole('heading', { name: 'Invoices', exact: true })).toBeVisible()
-    await waitForVisiblePdf(page)
     await page.getByRole('button', { name: 'Correct invoice data' }).click()
     await expect(page.getByRole('dialog', { name: 'Correct invoice data' })).toBeVisible()
     await settle(page)

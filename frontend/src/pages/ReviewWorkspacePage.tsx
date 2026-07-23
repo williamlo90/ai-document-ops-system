@@ -69,7 +69,7 @@ export function ReviewWorkspacePage() {
 
   const closeDecisionPanel = useCallback(() => {
     setDecisionPanelOpen(false)
-    requestAnimationFrame(() => decisionTriggerRef.current?.focus())
+    queueMicrotask(() => decisionTriggerRef.current?.focus())
   }, [])
 
   useEffect(() => {
@@ -516,7 +516,7 @@ function DecisionPanel({
     <div
       className="review-decision-backdrop"
       role="presentation"
-      onMouseDown={(event) => {
+      onClick={(event) => {
         if (event.target === event.currentTarget) close()
       }}
     >

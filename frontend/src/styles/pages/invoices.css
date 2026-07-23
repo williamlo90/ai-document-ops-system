@@ -4,9 +4,6 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
-.invoice-master-detail.has-selection {
-  grid-template-columns: minmax(650px, 1fr) 310px;
-}
 .invoice-library {
   min-width: 0;
   overflow: hidden;
@@ -202,11 +199,22 @@
   background: var(--ops-teal);
 }
 .invoice-inspector {
-  position: sticky;
-  top: 82px;
-  align-self: start;
-  max-height: calc(100vh - 100px);
-  overflow: auto;
+  display: flex;
+  width: min(430px, 100%);
+  height: 100dvh;
+  flex-direction: column;
+  border-radius: 0;
+  box-shadow: -16px 0 40px rgb(11 23 51 / 18%);
+  animation: invoice-inspector-enter 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.invoice-inspector-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(11 23 51 / 34%);
+  animation: modal-fade 160ms ease;
 }
 .invoice-inspector > header {
   display: flex;
@@ -230,6 +238,12 @@
 .invoice-inspector > header b {
   color: var(--ops-navy);
   font-size: 18px;
+}
+.invoice-inspector-content {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .invoice-meta {
   display: grid;
@@ -297,35 +311,42 @@
   flex: 0 0 auto;
   color: var(--ops-orange);
 }
-.invoice-mini-preview {
-  margin: 12px;
-  overflow: hidden;
-  border: 1px solid var(--ops-border);
-  border-radius: 5px;
-}
-.invoice-mini-preview .pdf-preview {
+.invoice-document-link {
   display: grid;
   min-width: 0;
-  grid-template-rows: auto auto auto 280px;
-  margin: 0;
-  border: 0;
-  border-radius: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 12px;
+  padding: 12px;
+  border: 1px solid var(--ops-border);
+  border-radius: 5px;
+  color: var(--ops-text);
+  background: #f8fafc;
+  text-decoration: none;
 }
-.invoice-mini-preview .pdf-preview-title {
-  display: none;
+.invoice-document-link > svg {
+  color: var(--ops-teal);
 }
-.invoice-mini-preview .pdf-toolbar {
-  padding: 7px;
+.invoice-document-link > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
 }
-.invoice-mini-preview .pdf-page-controls span,
-.invoice-mini-preview .pdf-open-link {
-  display: none;
+.invoice-document-link strong {
+  color: var(--ops-navy);
+  font-size: 12px;
 }
-.invoice-mini-preview .pdf-canvas-stage {
-  min-height: 280px;
+.invoice-document-link small {
+  overflow: hidden;
+  color: var(--ops-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.invoice-mini-preview .pdf-canvas {
-  max-width: 100%;
+.invoice-document-link > b {
+  color: var(--ops-blue);
+  font-size: 12px;
 }
 .invoice-open {
   display: flex;
@@ -359,11 +380,19 @@
 .invoice-inspector-actions {
   display: grid;
   gap: 8px;
-  padding: 0 12px 12px;
+  padding: 12px;
+  border-top: 1px solid var(--ops-border);
+  background: #fff;
 }
 .invoice-inspector-actions .ops-button {
   width: 100%;
   text-decoration: none;
+}
+@keyframes invoice-inspector-enter {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
 }
 .ops-modal-backdrop {
   position: fixed;

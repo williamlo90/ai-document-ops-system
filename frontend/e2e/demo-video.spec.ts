@@ -109,7 +109,6 @@ async function record(browser: Browser) {
 
     await visit(page, '/invoices?invoice=doc-northstar-correction', 'Invoices')
     await installOverlay(page)
-    await waitForPdf(page)
     await caption(
       page,
       '3. One invoice lifecycle',

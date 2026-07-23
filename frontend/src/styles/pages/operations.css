@@ -168,7 +168,6 @@
   transform: scaleX(1);
 }
 .system-service-panel,
-.system-recent,
 .system-processing-panel,
 .system-integrations-panel,
 .system-audit-panel {
@@ -176,7 +175,6 @@
   overflow: hidden;
 }
 .system-service-panel > header,
-.system-recent > header,
 .system-processing-panel > header,
 .system-integrations-panel > header,
 .system-audit-panel > header,
@@ -221,11 +219,6 @@
 }
 .system-service-table .ops-link,
 .system-job-table .ops-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-.system-recent > header > .ops-link {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -569,7 +562,6 @@
 @media (prefers-reduced-motion: reduce) {
   .system-overall,
   .system-service-panel,
-  .system-recent,
   .system-processing-panel,
   .system-integrations-panel,
   .system-audit-panel,
