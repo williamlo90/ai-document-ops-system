@@ -19,6 +19,28 @@ except ImportError as exc:
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET_ROOT = ROOT / "examples" / "benchmark" / "datasets" / "invoice_scenarios_v1"
 PAGE_WIDTH, PAGE_HEIGHT = A4
+FICTIONAL_VENDOR_ADDRESSES = {
+    "Acme Logistics": "48 Harborline Avenue, Port Mason, CA 90814",
+    "Northwind Freight": "12 Cedar Quay, Lakehurst, IL 60045",
+    "Rhein Handel GmbH": "Hafenstrasse 27, 40213 Rheinstadt, DE",
+    "Nusantara Infrastruktur": "Jl. Cendana Raya 18, Bandung 40115, ID",
+    "Thames Cargo Ltd": "7 Foundry Wharf, London E14 6AB, GB",
+    "Southeast Asia Integrated Supply Chain Services Pte Ltd": (
+        "81 Meridian Loop, Singapore 578221"
+    ),
+    "Blue Harbor Supplies": "204 Tidemill Road, Fairhaven, WA 98225",
+    "Atlas Office Goods": "16 Registry Lane, Brookfield, CO 80020",
+    "Cedar Facilities": "73 Meadowgate Drive, Ashford, OR 97520",
+    "Evergreen Repairs": "9 Workshop Row, Pinehaven, VT 05482",
+    "Keystone Manufacturing": "315 Ironworks Boulevard, Millbrook, PA 17041",
+    "Meridian Consulting": "44 Compass Court, Bellmont, NY 10018",
+    "Digital Asset Services": "28 Circuit Park, Redwood Bay, CA 94063",
+    "Correction Note Demo": "62 Revision Street, Clearview, AZ 85014",
+    "Summit Industrial Parts": "190 Foundry Peak Road, Highridge, CO 80401",
+    "Faded Paper Services": "11 Archive Lane, Greyford, ME 04103",
+    "Sideways Shipping Co": "5 Turntable Dock, Eastport, FL 32226",
+    "Continental Equipment Rental": "420 Quarry Exchange, Ridgefield, TX 75001",
+}
 
 
 def main() -> None:
@@ -71,7 +93,7 @@ def _render_invoice(record: dict[str, Any], output_path: Path) -> None:
         invariant=1,
     )
     pdf.setTitle(f"Synthetic invoice scenario: {record['document_id']}")
-    pdf.setAuthor("AI Document Operations System")
+    pdf.setAuthor("Invoice Review")
     variant = str(record.get("render_variant") or "standard")
 
     if variant == "rotated":
@@ -129,7 +151,14 @@ def _draw_invoice_page(
         pdf.setFont("Helvetica-Bold", 11 if len(vendor) < 55 else 9)
         pdf.drawString(margin, y - 18, vendor)
         pdf.setFont("Helvetica", 8)
-        pdf.drawString(margin, y - 32, "100 Example Street, Test City")
+        pdf.drawString(
+            margin,
+            y - 32,
+            FICTIONAL_VENDOR_ADDRESSES.get(
+                vendor,
+                "24 Ledger Lane, Northbridge, CA 90017",
+            ),
+        )
 
     info_x = width * (0.55 if not compact else 0.5)
     info_width = right - info_x
