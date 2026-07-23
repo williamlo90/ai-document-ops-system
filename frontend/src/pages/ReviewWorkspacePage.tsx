@@ -1,38 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import {
-  AlertCircle,
-  ArrowLeft,
-  Check,
-  CheckCircle2,
-  ChevronRight,
-  LoaderCircle,
-  Pencil,
-  Save,
-  ShieldCheck,
-  X,
-} from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronRight, ShieldCheck, X } from 'lucide-react'
 import { api } from '../api/client'
 import { PdfPreview } from '../components/PdfPreview'
+import { DecisionModal } from '../features/review/components/DecisionModal'
+import { DecisionPanel } from '../features/review/components/DecisionPanel'
+import {
+  InvoiceFieldsPanel,
+  type InvoiceDraft,
+} from '../features/review/components/InvoiceFieldsPanel'
+import {
+  canRecordDecision,
+  isApprovalBlocked,
+  reviewStatusText,
+  reviewStatusTone,
+  type DecisionKind,
+} from '../features/review/selectors'
 import { formatDate, formatMoney } from '../features/invoices/format'
-import type { InvoiceDetailResponse, InvoiceExtraction } from '../features/invoices/types'
+import type { InvoiceDetailResponse } from '../features/invoices/types'
 import type { DecisionResult, ReviewWorkflow } from '../features/review/types'
 import { Button, ErrorState, LoadingState, Panel, StatusBadge } from '../shared/ui'
-
-type InvoiceDraft = InvoiceExtraction['data']
-type DecisionKind = 'correction' | 'approve' | 'reject'
-
-const fields: Array<{ key: keyof InvoiceDraft; label: string; type?: string }> = [
-  { key: 'invoice_number', label: 'Invoice number' },
-  { key: 'vendor_name', label: 'Vendor' },
-  { key: 'invoice_date', label: 'Invoice date', type: 'date' },
-  { key: 'due_date', label: 'Due date', type: 'date' },
-  { key: 'subtotal', label: 'Subtotal' },
-  { key: 'tax', label: 'Tax' },
-  { key: 'total', label: 'Total amount' },
-  { key: 'currency', label: 'Currency' },
-]
 
 export function ReviewWorkspacePage() {
   const { documentId = '' } = useParams()
@@ -44,7 +32,6 @@ export function ReviewWorkspacePage() {
   const returnPath = returnToBlocked
     ? `/inbox?state=blocked${exceptionId ? `&exception=${exceptionId}` : ''}`
     : '/inbox?state=needs-decision'
-  const returnLabel = 'Inbox'
   const queryClient = useQueryClient()
   const detail = useQuery({
     queryKey: ['invoice-detail', documentId],
@@ -146,10 +133,8 @@ export function ReviewWorkspacePage() {
   const extraction = data?.extraction
   if (!document || !extraction)
     return <ErrorState message="This invoice does not have extracted data to review." />
-  const issues = extraction.validation
-  const blockers = issues.filter((issue) => issue.severity === 'error')
-  const canDecide =
-    document.status === 'needs_review' && workflow.data?.current_stage !== 'correction_requested'
+  const blockers = extraction.validation.filter((issue) => isApprovalBlocked(issue.severity))
+  const canDecide = canRecordDecision(document.status, workflow.data?.current_stage)
   const latestAudit = [...data.audit_events]
     .reverse()
     .find((event) => ['document_approved', 'document_rejected'].includes(event.event_type))
@@ -173,14 +158,14 @@ export function ReviewWorkspacePage() {
       <header className="review-workspace-header">
         <div>
           <nav aria-label="Breadcrumb">
-            <Link to={returnPath}>{returnLabel}</Link>
+            <Link to={returnPath}>Inbox</Link>
             <ChevronRight size={13} />
             <span>{draft.invoice_number || document.original_filename}</span>
           </nav>
           <div className="review-title-row">
             <h1>Review invoice</h1>
-            <StatusBadge tone={statusTone(document.status)}>
-              {statusText(document.status, workflow.data?.current_stage)}
+            <StatusBadge tone={reviewStatusTone(document.status)}>
+              {reviewStatusText(document.status, workflow.data?.current_stage)}
             </StatusBadge>
           </div>
           <p>
@@ -213,98 +198,18 @@ export function ReviewWorkspacePage() {
           />
         </Panel>
         <div className="review-side-column">
-          <Panel className="review-data-panel" ariaLabel="Extracted invoice data">
-            <header>
-              <h2>Invoice data</h2>
-            </header>
-            <section
-              className={`review-inline-decision-summary ${blockers.length ? 'is-blocked' : ''}`}
-            >
-              {blockers.length ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
-              <div>
-                <strong>{blockers.length ? 'Approval blocked' : 'Ready for decision'}</strong>
-                <span>
-                  {blockers.length
-                    ? blockers[0].message
-                    : 'No validation blockers. Compare the values with the PDF before deciding.'}
-                </span>
-              </div>
-            </section>
-            {data.correction_summary ? (
-              <section className="review-correction-summary">
-                <CheckCircle2 size={17} />
-                <div>
-                  <strong>
-                    {data.correction_summary.latest_change_count} field
-                    {data.correction_summary.latest_change_count === 1 ? '' : 's'} corrected by{' '}
-                    {data.correction_summary.latest_actor}
-                  </strong>
-                  <p>
-                    {data.correction_summary.latest_changed_fields
-                      .map((field) => field.replaceAll('_', ' '))
-                      .join(', ')}
-                    . {data.correction_summary.latest_reason}
-                  </p>
-                </div>
-              </section>
-            ) : null}
-            <div className="review-edit-fields">
-              {fields.map((field) => (
-                <EditableField
-                  key={field.key}
-                  field={field}
-                  value={draft[field.key]}
-                  editing={editing === field.key}
-                  disabled={!canDecide || save.isPending}
-                  onEdit={() => setEditing(field.key)}
-                  onCancel={() => {
-                    setDraft((current) => ({ ...current, [field.key]: savedDraft[field.key] }))
-                    setEditing(null)
-                  }}
-                  onChange={(value) => setDraft((current) => ({ ...current, [field.key]: value }))}
-                  onSave={() => save.mutate()}
-                />
-              ))}
-            </div>
-            {save.error ? (
-              <p className="review-inline-error">
-                <AlertCircle size={14} />
-                {(save.error as Error).message}
-              </p>
-            ) : null}
-            <section className="review-evidence">
-              <h3>
-                Validation checks{' '}
-                <StatusBadge tone={blockers.length ? 'danger' : 'success'}>
-                  {blockers.length
-                    ? `${blockers.length} blocker${blockers.length === 1 ? '' : 's'}`
-                    : 'Passed'}
-                </StatusBadge>
-              </h3>
-              {issues.length ? (
-                issues.map((issue) => (
-                  <div key={issue.code} className="review-evidence-row">
-                    <span>
-                      <AlertCircle size={15} />
-                      {issue.message}
-                    </span>
-                    <StatusBadge tone={issue.severity === 'error' ? 'danger' : 'warning'}>
-                      {issue.severity === 'error' ? 'Blocker' : 'Check'}
-                    </StatusBadge>
-                  </div>
-                ))
-              ) : (
-                <p className="review-check-clear">
-                  <Check size={15} /> No validation blockers were found.
-                </p>
-              )}
-            </section>
-            <LineItems
-              items={draft.line_items ?? []}
-              currency={draft.currency}
-              total={draft.total}
-            />
-          </Panel>
+          <InvoiceFieldsPanel
+            draft={draft}
+            savedDraft={savedDraft}
+            editing={editing}
+            canDecide={canDecide}
+            saving={save.isPending}
+            saveError={save.error as Error | null}
+            detail={data}
+            setEditing={setEditing}
+            setDraft={setDraft}
+            save={() => save.mutate()}
+          />
         </div>
       </div>
       <DecisionPanel
@@ -339,456 +244,6 @@ export function ReviewWorkspacePage() {
   )
 }
 
-function EditableField({
-  field,
-  value,
-  editing,
-  disabled,
-  onEdit,
-  onCancel,
-  onChange,
-  onSave,
-}: {
-  field: (typeof fields)[number]
-  value: unknown
-  editing: boolean
-  disabled: boolean
-  onEdit: () => void
-  onCancel: () => void
-  onChange: (value: string) => void
-  onSave: () => void
-}) {
-  const text = typeof value === 'string' ? value : ''
-  return (
-    <div className={!text ? 'is-missing' : ''}>
-      <span>{field.label}</span>
-      {editing ? (
-        <div className="review-field-editor">
-          <input
-            autoFocus
-            type={field.type || 'text'}
-            value={text}
-            onChange={(event) => onChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') onSave()
-              if (event.key === 'Escape') onCancel()
-            }}
-          />
-          <button aria-label={`Save ${field.label}`} onClick={onSave}>
-            <Save size={14} />
-          </button>
-          <button aria-label={`Cancel ${field.label}`} onClick={onCancel}>
-            <X size={14} />
-          </button>
-        </div>
-      ) : (
-        <>
-          <strong>{text || 'Missing'}</strong>
-          <button aria-label={`Edit ${field.label}`} disabled={disabled} onClick={onEdit}>
-            <Pencil size={14} />
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
-
-function LineItems({
-  items,
-  currency,
-  total,
-}: {
-  items: Array<Record<string, string | null>>
-  currency?: string | null
-  total?: string | null
-}) {
-  return (
-    <section className="review-line-items">
-      <h3>
-        Line items <span>{items.length} items</span>
-      </h3>
-      {items.length ? (
-        <div className="ops-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Qty</th>
-                <th>Rate</th>
-                <th>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, index) => (
-                <tr key={`${item.description}-${index}`}>
-                  <td>{item.description || '-'}</td>
-                  <td>{item.quantity || '-'}</td>
-                  <td>{formatMoney(item.unit_price, currency)}</td>
-                  <td>{formatMoney(item.amount, currency)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={3}>Total</td>
-                <td>{formatMoney(total, currency)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      ) : (
-        <p>No line items were extracted.</p>
-      )}
-    </section>
-  )
-}
-
-function DecisionPanel({
-  open,
-  close,
-  canDecide,
-  blockers,
-  note,
-  setNote,
-  select,
-  pending,
-  error,
-  latestDecision,
-  latestAudit,
-  auditCount,
-  status,
-}: {
-  open: boolean
-  close: () => void
-  canDecide: boolean
-  blockers: number
-  note: string
-  setNote: (value: string) => void
-  select: (kind: DecisionKind) => void
-  pending: boolean
-  error: Error | null
-  latestDecision: DecisionResult['decision'] | null
-  latestAudit: InvoiceDetailResponse['audit_events'][number] | undefined
-  auditCount: number
-  status: string
-}) {
-  const panelRef = useRef<HTMLElement>(null)
-  const closeRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    closeRef.current?.focus()
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        close()
-        return
-      }
-      if (event.key !== 'Tab') return
-      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), a[href]',
-      )
-      if (!focusable?.length) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.body.style.overflow = previousOverflow
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [close, open])
-
-  if (!open) return null
-
-  return (
-    <div
-      className="review-decision-backdrop"
-      role="presentation"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) close()
-      }}
-    >
-      <aside
-        ref={panelRef}
-        className="ops-panel review-decision-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="review-decision-title"
-      >
-        <header>
-          <h2 id="review-decision-title">Reviewer decision</h2>
-          <button
-            ref={closeRef}
-            className="ops-icon-button review-decision-close"
-            aria-label="Close decision panel"
-            onClick={close}
-          >
-            <X size={18} />
-          </button>
-        </header>
-        {canDecide ? (
-          <>
-            <div className="review-decision-content">
-              <section
-                className={
-                  blockers ? 'review-recommendation-card is-blocked' : 'review-recommendation-card'
-                }
-              >
-                <header>
-                  <ShieldCheck size={17} />
-                  <strong>{blockers ? 'Approval blocked' : 'Ready for a decision'}</strong>
-                </header>
-                <h3>
-                  {blockers
-                    ? `${blockers} validation blocker${blockers === 1 ? '' : 's'}`
-                    : 'No validation blockers'}
-                </h3>
-                <p>
-                  {blockers
-                    ? 'Request a correction or reject this invoice. Approval remains unavailable until validation passes.'
-                    : 'Compare the invoice data with the PDF before approving.'}
-                </p>
-              </section>
-              <label className="review-note">
-                <span>Decision note {blockers ? <b>*</b> : '(optional for approval)'}</span>
-                <textarea
-                  maxLength={1000}
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  placeholder="Explain the decision for the audit trail..."
-                />
-                <small>{note.length} / 1000</small>
-              </label>
-              {error ? (
-                <p className="review-inline-error">
-                  <AlertCircle size={14} />
-                  {error.message}
-                </p>
-              ) : null}
-            </div>
-            <footer className="review-decision-actions">
-              <Button
-                variant="primary"
-                disabled={pending || note.trim().length < 3}
-                onClick={() => select('correction')}
-              >
-                <AlertCircle size={16} /> Request correction
-              </Button>
-              <Button
-                disabled={pending || blockers > 0}
-                title={blockers ? 'Resolve validation blockers before approval' : undefined}
-                onClick={() => select('approve')}
-              >
-                <CheckCircle2 size={16} /> Approve
-              </Button>
-              <Button
-                variant="danger"
-                disabled={pending || note.trim().length < 3}
-                onClick={() => select('reject')}
-              >
-                <X size={16} /> Reject
-              </Button>
-            </footer>
-          </>
-        ) : (
-          <div className="review-decision-content">
-            <DecisionEvidence
-              decision={latestDecision}
-              latestAudit={latestAudit}
-              auditCount={auditCount}
-              status={status}
-            />
-          </div>
-        )}
-      </aside>
-    </div>
-  )
-}
-
-function DecisionEvidence({
-  decision,
-  latestAudit,
-  auditCount,
-  status,
-}: {
-  decision: DecisionResult['decision'] | null
-  latestAudit: InvoiceDetailResponse['audit_events'][number] | undefined
-  auditCount: number
-  status: string
-}) {
-  const actor = decision?.actor || latestAudit?.actor || 'Recorded reviewer'
-  const time = decision?.recorded_at || latestAudit?.created_at
-  return (
-    <section className="review-recorded">
-      <CheckCircle2 size={30} />
-      <h3>Decision recorded</h3>
-      <p>
-        This invoice is {status.replaceAll('_', ' ')}. The recorded outcome cannot be submitted
-        again.
-      </p>
-      <dl>
-        <div>
-          <dt>Recorded by</dt>
-          <dd>{actor}</dd>
-        </div>
-        <div>
-          <dt>Recorded at</dt>
-          <dd>{time ? new Date(time).toLocaleString() : 'Not available'}</dd>
-        </div>
-        <div>
-          <dt>Audit trail</dt>
-          <dd>{decision?.audit_event_count ?? auditCount} events</dd>
-        </div>
-        <div>
-          <dt>Export</dt>
-          <dd>
-            {decision?.export_eligibility === 'eligible' || status === 'approved'
-              ? 'Eligible after approval'
-              : 'Not eligible'}
-          </dd>
-        </div>
-      </dl>
-    </section>
-  )
-}
-
-function DecisionModal({
-  kind,
-  invoice,
-  issue,
-  note,
-  pending,
-  error,
-  cancel,
-  confirm,
-  confirmRef,
-}: {
-  kind: DecisionKind
-  invoice: string
-  issue?: string
-  note: string
-  pending: boolean
-  error: Error | null
-  cancel: () => void
-  confirm: () => void
-  confirmRef: React.RefObject<HTMLButtonElement | null>
-}) {
-  const title =
-    kind === 'approve'
-      ? 'Approve invoice?'
-      : kind === 'reject'
-        ? 'Reject invoice?'
-        : 'Request correction?'
-  useEffect(() => {
-    confirmRef.current?.focus()
-    const close = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !pending) cancel()
-    }
-    window.addEventListener('keydown', close)
-    return () => window.removeEventListener('keydown', close)
-  }, [cancel, confirmRef, pending])
-  return (
-    <div
-      className="ops-modal-backdrop"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !pending) cancel()
-      }}
-    >
-      <section
-        className="ops-modal review-confirm-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="decision-confirm-title"
-      >
-        <header>
-          <div>
-            <h2 id="decision-confirm-title">{title}</h2>
-            <p>This action will be recorded in the audit trail.</p>
-          </div>
-        </header>
-        <dl>
-          <div>
-            <dt>Invoice</dt>
-            <dd>{invoice}</dd>
-          </div>
-          {issue ? (
-            <div>
-              <dt>Issue</dt>
-              <dd>{issue}</dd>
-            </div>
-          ) : null}
-          {note ? (
-            <div>
-              <dt>Decision note</dt>
-              <dd>{note}</dd>
-            </div>
-          ) : null}
-        </dl>
-        {error ? (
-          <p className="review-inline-error">
-            <AlertCircle size={14} />
-            {error.message} Your note has been preserved.
-          </p>
-        ) : null}
-        <footer>
-          <Button disabled={pending} onClick={cancel}>
-            Cancel
-          </Button>
-          <Button
-            ref={confirmRef}
-            variant={kind === 'approve' ? 'primary' : 'danger'}
-            disabled={pending}
-            onClick={confirm}
-          >
-            {pending ? (
-              <LoaderCircle className="spin" size={16} />
-            ) : kind === 'approve' ? (
-              <Check size={16} />
-            ) : (
-              <AlertCircle size={16} />
-            )}{' '}
-            {pending
-              ? 'Saving decision...'
-              : kind === 'approve'
-                ? 'Approve'
-                : kind === 'reject'
-                  ? 'Reject'
-                  : 'Request correction'}
-          </Button>
-        </footer>
-      </section>
-    </div>
-  )
-}
-
-function statusTone(status: string): 'success' | 'danger' | 'warning' | 'info' {
-  return status === 'approved'
-    ? 'success'
-    : status === 'rejected'
-      ? 'danger'
-      : status === 'needs_review'
-        ? 'warning'
-        : 'info'
-}
-function statusText(status: string, stage?: string): string {
-  if (['approved', 'rejected', 'exported'].includes(status))
-    return status.replace(/\b\w/g, (value) => value.toUpperCase())
-  if (stage === 'correction_requested') return 'Correction requested'
-  return status.replaceAll('_', ' ').replace(/\b\w/g, (value) => value.toUpperCase())
-}
 async function refreshReview(queryClient: ReturnType<typeof useQueryClient>, documentId: string) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['invoice-detail', documentId] }),
