@@ -115,7 +115,7 @@ async function record(browser: Browser) {
       'Invoices provides upload, status, correction context, and document inspection without duplicating the review queue.',
     )
 
-    await visit(page, '/exports?status=ready&batch=batch-july', 'Exports')
+    await visit(page, '/exports?status=in_batch&batch=batch-july', 'Exports')
     await installOverlay(page)
     await caption(
       page,

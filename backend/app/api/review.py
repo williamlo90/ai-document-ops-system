@@ -73,6 +73,7 @@ def review_worklist(
     vendor: str = Query(default="", max_length=120),
     owner: str = Query(default="", max_length=120),
     risk: str = Query(default="", pattern="^(|high|medium|low)$"),
+    scope: str = Query(default="all", pattern="^(all|decision|blocked)$"),
     sort: str = Query(default="updated", pattern="^(updated|risk|confidence|due_date)$"),
     direction: str = Query(default="desc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
@@ -101,6 +102,7 @@ def review_worklist(
         and (not vendor_filter or vendor_filter in str(row["vendor_name"] or "").casefold())
         and (not owner_filter or owner_filter in str(row["owner"] or "").casefold())
         and (not risk or row["risk"] == risk)
+        and (scope == "all" or review_worklist_state(row) == scope)
     ]
     risk_order = {"low": 1, "medium": 2, "high": 3}
 
@@ -130,6 +132,11 @@ def review_worklist(
             "average_review_seconds": None,
         },
     }
+
+
+def review_worklist_state(row: dict[str, object]) -> str:
+    """Project validation state into mutually exclusive operational inbox tabs."""
+    return "blocked" if int(row["blocker_count"]) > 0 else "decision"
 
 
 def review_worklist_row(

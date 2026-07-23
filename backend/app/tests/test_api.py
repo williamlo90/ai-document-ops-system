@@ -527,6 +527,23 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(payload["capabilities"]["resolved_history"])
         exception_id = payload["items"][0]["id"]
 
+        decision_worklist = self.client.get("/review/worklist?scope=decision", headers=HEADERS)
+        blocked_worklist = self.client.get("/review/worklist?scope=blocked", headers=HEADERS)
+        self.assertEqual(decision_worklist.status_code, 200)
+        self.assertEqual(decision_worklist.json()["total"], 0)
+        self.assertEqual(blocked_worklist.status_code, 200)
+        self.assertEqual(blocked_worklist.json()["total"], 1)
+        self.assertEqual(blocked_worklist.json()["items"][0]["id"], document_id)
+
+        ready_exports = self.client.get("/exports/workspace?view=ready", headers=HEADERS)
+        blocked_exports = self.client.get("/exports/workspace?view=blocked", headers=HEADERS)
+        self.assertEqual(ready_exports.status_code, 200)
+        self.assertEqual(ready_exports.json()["total"], 0)
+        self.assertEqual(blocked_exports.status_code, 200)
+        self.assertEqual(blocked_exports.json()["total"], 1)
+        self.assertEqual(blocked_exports.json()["items"][0]["id"], document_id)
+        self.assertEqual(blocked_exports.json()["summary"]["blocked"]["count"], 1)
+
         detail = self.client.get(f"/exceptions/{exception_id}", headers=HEADERS)
         assignment = self.client.patch(
             f"/exceptions/{exception_id}/assignment",

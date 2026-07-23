@@ -21,7 +21,7 @@ const pages = [
   { name: 'inbox', route: '/inbox?state=needs-decision', heading: 'Inbox' },
   { name: 'invoices', route: '/invoices?invoice=doc-acme', heading: 'Invoices' },
   { name: 'review', route: '/review/doc-acme', heading: 'Review invoice', pdf: true },
-  { name: 'exports', route: '/exports?status=ready&batch=batch-july', heading: 'Exports' },
+  { name: 'exports', route: '/exports?status=in_batch&batch=batch-july', heading: 'Exports' },
   { name: 'quality', route: '/admin/quality?run=eval-7', heading: 'Quality' },
   { name: 'operations', route: '/admin/operations', heading: 'Operations' },
 ] as const

@@ -14,11 +14,21 @@ import type {
   ExportRun,
   ExportWorkspaceResponse,
 } from '../src/features/exports/types'
+import {
+  belongsToExportView,
+  isExportView,
+  type ExportView,
+} from '../src/features/exports/selectors'
+import { isDecisionQueueItem } from '../src/features/inbox/selectors'
 import type {
   InvoiceDetailResponse,
   InvoiceItem,
   InvoiceListResponse,
 } from '../src/features/invoices/types'
+import {
+  belongsToInvoiceLifecycle,
+  isInvoiceLifecycleFilter,
+} from '../src/features/invoices/selectors'
 import type { ReviewQueueItem, ReviewWorklist, ReviewWorkflow } from '../src/features/review/types'
 import type { SystemDashboard } from '../src/features/system/types'
 
@@ -64,6 +74,16 @@ const invoiceSeeds = [
     'Kelly Morgan',
     '2026-07-21',
     'duplicate_invoice',
+  ],
+  [
+    'doc-cobalt-review',
+    'INV-2026-04575',
+    'Cobalt Facilities',
+    '1280.00',
+    'needs_review',
+    'James Smith',
+    '2026-07-23',
+    '',
   ],
   [
     'doc-acme-approved',
@@ -291,27 +311,29 @@ function detailFor(invoice: InvoiceItem, approved = false): InvoiceDetailRespons
   }
 }
 
-const reviewItems: ReviewQueueItem[] = invoices.slice(0, 6).map((invoice, index) => ({
-  id: invoice.id,
-  original_filename: invoice.original_filename,
-  invoice_number: invoice.invoice_number,
-  vendor_name: invoice.vendor_name,
-  total: invoice.total,
-  currency: invoice.currency,
-  invoice_date: invoice.invoice_date,
-  due_date: invoice.due_date,
-  owner: invoice.current_owner,
-  risk: index === 0 || index === 3 ? 'high' : index === 1 || index === 4 ? 'medium' : 'low',
-  confidence: [0.92, 0.86, 0.78, 0.91, 0.88, 0.8][index],
-  finding: findingLabels[invoice.validation_codes[0]] ?? 'Review extracted invoice data',
-  blocker_count: invoice.validation_error_count,
-  issue_count: invoice.validation_issue_count,
-  can_approve: !invoice.has_validation_errors,
-  recommended_action: invoice.has_validation_errors ? 'request_correction' : 'review',
-  age_seconds: [1080, 7200, 18000, 21600, 86400, 172800][index],
-  created_at: invoice.created_at,
-  updated_at: invoice.updated_at,
-}))
+const reviewItems: ReviewQueueItem[] = invoices
+  .filter((invoice) => ['needs_review', 'needs_correction'].includes(invoice.business_status))
+  .map((invoice, index) => ({
+    id: invoice.id,
+    original_filename: invoice.original_filename,
+    invoice_number: invoice.invoice_number,
+    vendor_name: invoice.vendor_name,
+    total: invoice.total,
+    currency: invoice.currency,
+    invoice_date: invoice.invoice_date,
+    due_date: invoice.due_date,
+    owner: invoice.current_owner,
+    risk: invoice.has_validation_errors ? (index % 2 ? 'medium' : 'high') : 'low',
+    confidence: [0.92, 0.86, 0.78, 0.97, 0.88, 0.8][index] ?? 0.9,
+    finding: findingLabels[invoice.validation_codes[0]] ?? 'Review extracted invoice data',
+    blocker_count: invoice.validation_error_count,
+    issue_count: invoice.validation_issue_count,
+    can_approve: !invoice.has_validation_errors,
+    recommended_action: invoice.has_validation_errors ? 'request_correction' : 'review',
+    age_seconds: [1080, 7200, 18000, 21600, 86400, 172800][index] ?? 3600,
+    created_at: invoice.created_at,
+    updated_at: invoice.updated_at,
+  }))
 
 const exceptionItems: ExceptionItem[] = reviewItems
   .filter((item) => item.issue_count)
@@ -367,20 +389,37 @@ function exceptionDetail(item: ExceptionItem): ExceptionDetail {
   }
 }
 
-const exportItems: ExportInvoiceItem[] = invoices.slice(3).map((invoice, index) => ({
-  id: invoice.id,
-  invoice_label: invoice.invoice_number ?? invoice.original_filename,
-  filename: invoice.original_filename,
-  vendor_name: invoice.vendor_name,
-  approved_by: index % 2 ? 'Alex Davis' : 'James Smith',
-  approved_at: '2026-07-21T02:50:00Z',
-  total: invoice.total,
-  currency: invoice.currency,
-  status: index === 0 || index === 2 ? 'ready' : index === 1 ? 'blocked' : 'exported',
-  issue: index === 1 ? 'Correction is still required' : null,
-  batch_id: index === 3 ? 'batch-completed' : null,
-  updated_at: invoice.updated_at,
-}))
+const activeBatchDocumentIds = new Set(['doc-acme-approved'])
+
+function exportStateForInvoice(invoice: InvoiceItem): ExportView {
+  if (invoice.business_status === 'exported') return 'exported'
+  if (activeBatchDocumentIds.has(invoice.id)) return 'in_batch'
+  if (invoice.business_status === 'approved' && !invoice.has_validation_errors) return 'ready'
+  return 'blocked'
+}
+
+const exportItems: ExportInvoiceItem[] = invoices.map((invoice, index) => {
+  const status = exportStateForInvoice(invoice)
+  const approved = ['ready', 'in_batch', 'exported'].includes(status)
+  return {
+    id: invoice.id,
+    invoice_label: invoice.invoice_number ?? invoice.original_filename,
+    filename: invoice.original_filename,
+    vendor_name: invoice.vendor_name,
+    approved_by: approved ? (index % 2 ? 'Alex Davis' : 'James Smith') : null,
+    approved_at: approved ? '2026-07-21T02:50:00Z' : null,
+    total: invoice.total,
+    currency: invoice.currency,
+    status,
+    issue:
+      status === 'blocked'
+        ? (findingLabels[invoice.validation_codes[0]] ?? 'Waiting for reviewer approval')
+        : null,
+    batch_id:
+      status === 'in_batch' ? 'batch-july' : status === 'exported' ? 'batch-completed' : null,
+    updated_at: invoice.updated_at,
+  }
+})
 
 const recentRuns: ExportRun[] = [
   {
@@ -443,10 +482,10 @@ const activeBatch: ExportBatch = {
   destination_label: 'CSV download',
   format: 'csv',
   created_by: 'James Smith',
-  invoice_count: 2,
-  total_amount: '8435.50',
+  invoice_count: exportItems.filter((item) => item.status === 'in_batch').length,
+  total_amount: exportMetric('in_batch').amount,
   currency: 'USD',
-  invoices: exportItems.filter((item) => item.status === 'ready'),
+  invoices: exportItems.filter((item) => item.status === 'in_batch'),
   eligibility: [
     {
       code: 'approved',
@@ -472,54 +511,171 @@ const activeBatch: ExportBatch = {
   updated_at: '2026-07-21T03:05:00Z',
 }
 
-function invoiceListFixture(): InvoiceListResponse {
+function exportMetric(status: Exclude<ExportView, 'drafts'>) {
+  const items = exportItems.filter((item) => item.status === status)
+  const currencies = new Set(items.map((item) => item.currency).filter(Boolean))
+  const amount = items.reduce((sum, item) => sum + Number(item.total ?? 0), 0)
   return {
-    items: invoices,
-    page: 1,
-    page_size: 10,
-    total: 126,
-    total_pages: 13,
-    summary: { all: 126, waiting_review: 24, needs_correction: 16, approved: 67, exported: 19 },
+    count: items.length,
+    amount: amount.toFixed(2),
+    currency: currencies.size === 1 ? ([...currencies][0] ?? null) : null,
+  }
+}
+
+function invoiceListFixture(params = new URLSearchParams()): InvoiceListResponse {
+  const requestedStatus = params.get('status')
+  const status = isInvoiceLifecycleFilter(requestedStatus) ? requestedStatus : ''
+  const search = (params.get('search') ?? '').trim().toLowerCase()
+  const vendor = (params.get('vendor') ?? '').trim().toLowerCase()
+  const page = Math.max(1, Number(params.get('page') ?? 1))
+  const pageSize = Math.max(1, Number(params.get('page_size') ?? 10))
+  const filtered = invoices.filter(
+    (invoice) =>
+      belongsToInvoiceLifecycle(invoice, status) &&
+      (!search ||
+        [invoice.invoice_number, invoice.vendor_name, invoice.original_filename]
+          .join(' ')
+          .toLowerCase()
+          .includes(search)) &&
+      (!vendor || (invoice.vendor_name ?? '').toLowerCase().includes(vendor)),
+  )
+  const lifecycleCount = (value: Parameters<typeof belongsToInvoiceLifecycle>[1]) =>
+    invoices.filter((invoice) => belongsToInvoiceLifecycle(invoice, value)).length
+  return {
+    items: filtered.slice((page - 1) * pageSize, page * pageSize),
+    page,
+    page_size: pageSize,
+    total: filtered.length,
+    total_pages: Math.max(1, Math.ceil(filtered.length / pageSize)),
+    summary: {
+      all: invoices.length,
+      waiting_review: lifecycleCount('needs_review'),
+      needs_correction: lifecycleCount('needs_correction'),
+      approved: lifecycleCount('approved'),
+      exported: lifecycleCount('exported'),
+    },
     insights: { flagged: 8, duplicates_suspected: 3, tax_amount_issues: 2 },
   }
 }
 
-function reviewFixture(): ReviewWorklist {
+function reviewFixture(params = new URLSearchParams()): ReviewWorklist {
+  const scope = params.get('scope') ?? 'all'
+  const search = (params.get('search') ?? '').trim().toLowerCase()
+  const risk = params.get('risk') ?? ''
+  const owner = (params.get('owner') ?? '').trim().toLowerCase()
+  const vendor = (params.get('vendor') ?? '').trim().toLowerCase()
+  const page = Math.max(1, Number(params.get('page') ?? 1))
+  const pageSize = Math.max(1, Number(params.get('page_size') ?? 10))
+  const filtered = reviewItems.filter(
+    (item) =>
+      (scope === 'all' ||
+        (scope === 'decision' ? isDecisionQueueItem(item) : !isDecisionQueueItem(item))) &&
+      (!search ||
+        [item.invoice_number, item.vendor_name, item.original_filename]
+          .join(' ')
+          .toLowerCase()
+          .includes(search)) &&
+      (!risk || item.risk === risk) &&
+      (!owner || (item.owner ?? '').toLowerCase().includes(owner)) &&
+      (!vendor || (item.vendor_name ?? '').toLowerCase().includes(vendor)),
+  )
   return {
-    items: reviewItems,
-    page: 1,
-    page_size: 10,
-    total: 24,
-    total_pages: 3,
-    summary: { in_queue: 24, high_risk: 8, invoice_due_today: 3, average_review_seconds: 360 },
+    items: filtered.slice((page - 1) * pageSize, page * pageSize),
+    page,
+    page_size: pageSize,
+    total: filtered.length,
+    total_pages: Math.max(1, Math.ceil(filtered.length / pageSize)),
+    summary: {
+      in_queue: filtered.length,
+      high_risk: filtered.filter((item) => item.risk === 'high').length,
+      invoice_due_today: filtered.filter((item) => item.due_date === '2026-07-23').length,
+      average_review_seconds: filtered.length
+        ? Math.round(filtered.reduce((sum, item) => sum + item.age_seconds, 0) / filtered.length)
+        : 0,
+    },
   }
 }
 
-function exceptionsFixture(): ExceptionListResponse {
+function exceptionsFixture(params = new URLSearchParams()): ExceptionListResponse {
+  const search = (params.get('search') ?? '').trim().toLowerCase()
+  const risk = params.get('risk') ?? ''
+  const owner = (params.get('owner') ?? '').trim().toLowerCase()
+  const category = params.get('category') ?? ''
+  const page = Math.max(1, Number(params.get('page') ?? 1))
+  const pageSize = Math.max(1, Number(params.get('page_size') ?? 10))
+  const filtered = exceptionItems.filter(
+    (item) =>
+      item.blocks_approval &&
+      (!search ||
+        [item.invoice_number, item.vendor_name, item.issue]
+          .join(' ')
+          .toLowerCase()
+          .includes(search)) &&
+      (!risk || item.risk === risk) &&
+      (!owner || (item.owner ?? '').toLowerCase().includes(owner)) &&
+      (!category || item.category === category),
+  )
+  const categories = exceptionItems.reduce<Record<string, number>>((counts, item) => {
+    counts[item.category] = (counts[item.category] ?? 0) + 1
+    return counts
+  }, {})
+  const issueCounts = exceptionItems.reduce<Record<string, number>>((counts, item) => {
+    counts[item.issue] = (counts[item.issue] ?? 0) + 1
+    return counts
+  }, {})
   return {
-    items: exceptionItems,
-    page: 1,
-    page_size: 10,
-    total: 36,
-    total_pages: 5,
+    items: filtered.slice((page - 1) * pageSize, page * pageSize),
+    page,
+    page_size: pageSize,
+    total: filtered.length,
+    total_pages: Math.max(1, Math.ceil(filtered.length / pageSize)),
     summary: {
-      open_exceptions: 36,
-      high_risk: 8,
-      warning_issues: 28,
-      invoices_affected: 31,
-      categories: { vendor_invoice: 12, tax_amount: 8, duplicate: 7, dates_details: 5, other: 4 },
-      top_issues: [
-        { label: 'PO number missing', category: 'vendor_invoice', count: 12 },
-        { label: 'Receipt required', category: 'dates_details', count: 7 },
-        { label: 'Tax amount mismatch', category: 'tax_amount', count: 4 },
-      ],
+      open_exceptions: exceptionItems.length,
+      high_risk: exceptionItems.filter((item) => item.risk === 'high').length,
+      warning_issues: exceptionItems.filter((item) => item.risk !== 'high').length,
+      invoices_affected: new Set(exceptionItems.map((item) => item.document_id)).size,
+      categories: {
+        vendor_invoice: categories.vendor_invoice ?? 0,
+        tax_amount: categories.tax_amount ?? 0,
+        duplicate: categories.duplicate ?? 0,
+        dates_details: categories.dates_details ?? 0,
+        other: categories.other ?? 0,
+      },
+      top_issues: Object.entries(issueCounts)
+        .sort((left, right) => right[1] - left[1])
+        .slice(0, 3)
+        .map(([label, count]) => ({
+          label,
+          category: exceptionItems.find((item) => item.issue === label)?.category ?? 'other',
+          count,
+        })),
     },
     assignee_options: ['James Smith', 'Alex Davis', 'Kelly Morgan'],
     capabilities: { resolved_history: false, due_policy: false, validated_resolution_only: true },
   }
 }
 
-function exportFixture(): ExportWorkspaceResponse {
+function exportFixture(params = new URLSearchParams()): ExportWorkspaceResponse {
+  const requestedView = params.get('view')
+  const view = isExportView(requestedView) ? requestedView : 'ready'
+  const search = (params.get('search') ?? '').trim().toLowerCase()
+  const vendor = (params.get('vendor') ?? '').trim().toLowerCase()
+  const currency = (params.get('currency') ?? '').trim().toLowerCase()
+  const approvedBy = (params.get('approved_by') ?? '').trim().toLowerCase()
+  const page = Math.max(1, Number(params.get('page') ?? 1))
+  const pageSize = Math.max(1, Number(params.get('page_size') ?? 10))
+  const filtered = exportItems.filter(
+    (item) =>
+      belongsToExportView(item, view) &&
+      (!search ||
+        [item.invoice_label, item.filename, item.vendor_name]
+          .join(' ')
+          .toLowerCase()
+          .includes(search)) &&
+      (!vendor || (item.vendor_name ?? '').toLowerCase().includes(vendor)) &&
+      (!currency || (item.currency ?? '').toLowerCase() === currency) &&
+      (!approvedBy || (item.approved_by ?? '').toLowerCase().includes(approvedBy)),
+  )
   return {
     capabilities: {
       destinations: [{ id: 'csv', label: 'CSV download', formats: ['csv'], mode: 'download' }],
@@ -530,20 +686,20 @@ function exportFixture(): ExportWorkspaceResponse {
       destination_available: true,
     },
     summary: {
-      ready: { count: 12, amount: '45320.75', currency: 'USD' },
-      in_batch: { count: 4, amount: '7235.40', currency: 'USD' },
-      exported: { count: 19, amount: '98450.10', currency: 'USD' },
-      blocked: { count: 2, amount: '4835.20', currency: 'USD' },
+      ready: exportMetric('ready'),
+      in_batch: exportMetric('in_batch'),
+      exported: exportMetric('exported'),
+      blocked: exportMetric('blocked'),
     },
-    items: exportItems,
-    page: 1,
-    page_size: 10,
-    total: 12,
-    total_pages: 2,
+    items: filtered.slice((page - 1) * pageSize, page * pageSize),
+    page,
+    page_size: pageSize,
+    total: filtered.length,
+    total_pages: Math.max(1, Math.ceil(filtered.length / pageSize)),
     filters: {
-      vendors: ['Acme Logistics', 'Northstar Office', 'Meridian Freight', 'Greenline Supply'],
-      currencies: ['USD'],
-      approvers: ['James Smith', 'Alex Davis'],
+      vendors: [...new Set(exportItems.map((item) => item.vendor_name).filter(Boolean))].sort(),
+      currencies: [...new Set(exportItems.map((item) => item.currency).filter(Boolean))].sort(),
+      approvers: [...new Set(exportItems.map((item) => item.approved_by).filter(Boolean))].sort(),
     },
     batch: activeBatch,
     recent_runs: recentRuns,
@@ -985,7 +1141,7 @@ export async function installPortfolioApi(
   let cleanApproved = false
   await page.route('**/*', async (route) => {
     const request = route.request()
-    const { pathname } = new URL(request.url())
+    const { pathname, searchParams } = new URL(request.url())
     if (pathname === '/auth/session') {
       const actor =
         role === 'administrator'
@@ -1015,10 +1171,11 @@ export async function installPortfolioApi(
           metrics: {},
         },
       })
-    if (pathname === '/invoices') return route.fulfill({ json: invoiceListFixture() })
-    if (pathname === '/review/worklist') return route.fulfill({ json: reviewFixture() })
-    if (pathname === '/exceptions') return route.fulfill({ json: exceptionsFixture() })
-    if (pathname === '/exports/workspace') return route.fulfill({ json: exportFixture() })
+    if (pathname === '/invoices') return route.fulfill({ json: invoiceListFixture(searchParams) })
+    if (pathname === '/review/worklist') return route.fulfill({ json: reviewFixture(searchParams) })
+    if (pathname === '/exceptions') return route.fulfill({ json: exceptionsFixture(searchParams) })
+    if (pathname === '/exports/workspace')
+      return route.fulfill({ json: exportFixture(searchParams) })
     if (pathname === '/evaluation/dashboard') return route.fulfill({ json: evaluationFixture() })
     if (pathname === '/system/dashboard') return route.fulfill({ json: systemFixture() })
     if (pathname === '/operations/notifications')

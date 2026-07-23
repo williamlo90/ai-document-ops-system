@@ -75,6 +75,37 @@ test('legacy product URLs redirect to the corresponding current view', async ({ 
   await expect(page).toHaveURL(/\/admin\/operations$/)
 })
 
+test('one invoice keeps a coherent blocked journey across operational views', async ({ page }) => {
+  await installPortfolioApi(page)
+
+  await page.goto('/inbox?state=needs-decision')
+  await expect(page.getByRole('cell', { name: 'INV-2026-04575' })).toBeVisible()
+  await expect(page.getByText('SIP-7788')).toHaveCount(0)
+
+  await page.getByRole('tab', { name: /Blocked/ }).click()
+  await expect(page.getByRole('cell', { name: 'SIP-7788' })).toBeVisible()
+
+  await page.goto('/invoices?status=needs_review&invoice=doc-acme')
+  await expect(page.getByRole('dialog', { name: 'SIP-7788' })).toBeVisible()
+  await expect(page.getByText('Waiting for review', { exact: true }).first()).toBeVisible()
+
+  await page.goto('/review/doc-acme')
+  await expect(page.getByText('Approval blocked', { exact: true }).first()).toBeVisible()
+
+  await page.goto('/exports?status=ready')
+  await expect(page.getByText('SIP-7788')).toHaveCount(0)
+  await expect(page.getByRole('row').filter({ hasText: 'INV-2026-04573' })).toBeVisible()
+
+  await page.goto('/exports?status=blocked')
+  const blockedExport = page.getByRole('row').filter({ hasText: 'SIP-7788' })
+  await expect(blockedExport).toBeVisible()
+  await expect(blockedExport.getByText('Blocked', { exact: true })).toBeVisible()
+  await expect(blockedExport.getByRole('link', { name: 'SIP-7788' })).toHaveAttribute(
+    'href',
+    '/review/doc-acme',
+  )
+})
+
 test('active product pages have no serious accessibility violations or page overflow', async ({
   page,
 }) => {
@@ -128,7 +159,7 @@ test('invoice and export drawers preserve the full desktop worklist', async ({
 
   for (const width of [1536, 1366]) {
     await page.setViewportSize({ width, height: 900 })
-    await page.goto('/invoices?status=waiting_review&vendor=Acme&page=1')
+    await page.goto('/invoices?status=needs_review&vendor=Cobalt&page=1')
     const invoiceLibrary = page.locator('.invoice-library')
     const invoiceWidth = await invoiceLibrary.evaluate((node) => node.getBoundingClientRect().width)
     const invoiceTrigger = page
@@ -142,8 +173,8 @@ test('invoice and export drawers preserve the full desktop worklist', async ({
       .poll(() => invoiceLibrary.evaluate((node) => node.getBoundingClientRect().width))
       .toBeCloseTo(invoiceWidth, 0)
     await page.getByRole('button', { name: 'Close invoice inspector' }).click()
-    await expect(page).toHaveURL(/status=waiting_review/)
-    await expect(page).toHaveURL(/vendor=Acme/)
+    await expect(page).toHaveURL(/status=needs_review/)
+    await expect(page).toHaveURL(/vendor=Cobalt/)
     await expect(page).toHaveURL(/page=1/)
     await expect(invoiceTrigger).toBeFocused()
 
