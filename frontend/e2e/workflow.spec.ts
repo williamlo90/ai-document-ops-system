@@ -251,12 +251,15 @@ async function mockWorkflow(
 
 async function openDecisionPanel(page: Page) {
   const trigger = page.getByRole('button', { name: 'Open decision panel' })
-  if (await trigger.isVisible()) await trigger.click()
-  await expect(page.getByLabel('Reviewer decision')).toBeVisible()
+  await expect(trigger).toBeVisible()
+  await trigger.click()
+  await expect(page.getByRole('dialog', { name: 'Reviewer decision' })).toBeVisible()
 }
 
 async function confirmDialog(page: Page, name: 'Request correction' | 'Approve') {
-  const dialog = page.getByRole('dialog')
+  const dialog = page.getByRole('dialog', {
+    name: name === 'Approve' ? 'Approve invoice?' : 'Request correction?',
+  })
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name, exact: true }).click()
 }
@@ -272,6 +275,15 @@ test('reviewer requests a correction with a durable note', async ({ page }) => {
   await mockWorkflow(page, state, calls, 'reviewer')
   await page.goto(`/review/${documentId}`)
   await expect(page.getByRole('heading', { name: 'Review invoice', exact: true })).toBeVisible()
+  await openDecisionPanel(page)
+  await expect(page.getByRole('button', { name: 'Close decision panel' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Reviewer decision' })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Open decision panel' })).toBeFocused()
+  await openDecisionPanel(page)
+  await page.locator('.review-decision-backdrop').click({ position: { x: 8, y: 8 } })
+  await expect(page.getByRole('dialog', { name: 'Reviewer decision' })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Open decision panel' })).toBeFocused()
   await openDecisionPanel(page)
 
   await page

@@ -2,27 +2,6 @@
   .review-workspace-grid {
     grid-template-columns: minmax(420px, 1.15fr) minmax(320px, 0.85fr);
   }
-  .review-decision-trigger {
-    display: inline-flex;
-    justify-self: end;
-  }
-  .review-decision-panel {
-    position: fixed;
-    inset: 66px 0 0 auto;
-    z-index: 60;
-    width: min(420px, 100%);
-    max-height: none;
-    border-radius: 0;
-    box-shadow: -16px 0 40px rgb(11 23 51 / 18%);
-    transform: translateX(103%);
-    transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .review-decision-panel.is-open {
-    transform: translateX(0);
-  }
-  .review-decision-close {
-    display: grid;
-  }
 }
 
 @media (max-width: 1024px) {
@@ -244,7 +223,13 @@
   .review-workspace-header {
     flex-direction: column;
   }
-  .review-workspace-header > .ops-button {
+  .review-header-actions {
+    width: 100%;
+  }
+  .review-header-actions > .ops-button {
+    flex: 1;
+  }
+  .review-header-actions > .ops-button:last-child {
     width: 100%;
   }
   .review-stepper {
@@ -267,16 +252,19 @@
   .review-data-panel {
     min-width: 0;
   }
-  .review-decision-panel {
-    inset: 60px 0 0 0;
-    width: 100%;
-  }
-  .review-decision-trigger {
-    width: 100%;
-  }
   .ops-toast {
     top: 70px;
     right: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .review-header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .review-decision-panel {
+    width: 100%;
   }
 }
 

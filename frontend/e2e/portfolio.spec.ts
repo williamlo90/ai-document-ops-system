@@ -51,6 +51,9 @@ for (const viewport of viewports) {
       await page.screenshot({ path: path.join(output, `${target.name}.png`), fullPage: true })
 
       if (viewport.name === 'desktop' && target.name === 'review') {
+        await page.getByRole('button', { name: 'Open decision panel' }).click()
+        await expect(page.getByRole('dialog', { name: 'Reviewer decision' })).toBeVisible()
+        await settle(page)
         await page.screenshot({ path: path.join(output, 'reviewer-decision.png'), fullPage: true })
       }
     }
@@ -59,6 +62,7 @@ for (const viewport of viewports) {
 
     fixture.setApproved(true)
     await page.goto('/review/doc-acme')
+    await page.getByRole('button', { name: 'View decision record' }).click()
     await expect(
       page.getByRole('heading', { name: 'Decision recorded', exact: true }),
     ).toBeVisible()

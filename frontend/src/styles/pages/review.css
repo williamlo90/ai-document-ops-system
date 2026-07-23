@@ -35,6 +35,11 @@
   color: var(--ops-muted);
   font-size: 12px;
 }
+.review-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .review-workspace-grid {
   display: grid;
   min-width: 0;
@@ -172,6 +177,38 @@
   font-size: 12px;
   line-height: 1.45;
 }
+.review-inline-decision-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 12px 15px 4px;
+  padding: 10px 11px;
+  border-left: 3px solid var(--ops-green);
+  color: var(--ops-green);
+  background: var(--ops-green-soft);
+}
+.review-inline-decision-summary.is-blocked {
+  border-left-color: var(--ops-red);
+  color: var(--ops-red);
+  background: var(--ops-red-soft);
+}
+.review-inline-decision-summary > svg {
+  flex: none;
+  margin-top: 1px;
+}
+.review-inline-decision-summary > div {
+  display: grid;
+  gap: 3px;
+}
+.review-inline-decision-summary strong {
+  color: var(--ops-navy);
+  font-size: 12px;
+}
+.review-inline-decision-summary span {
+  color: var(--ops-text);
+  font-size: 12px;
+  line-height: 1.45;
+}
 .review-evidence {
   border-top: 1px solid var(--ops-border);
 }
@@ -250,16 +287,37 @@
   color: var(--ops-muted);
   font-size: 12px;
 }
+.review-decision-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  justify-items: end;
+  background: rgb(11 23 51 / 38%);
+  animation: modal-fade 160ms ease;
+}
 .review-decision-panel {
-  position: sticky;
-  top: 82px;
-  max-height: calc(100vh - 100px);
-  overflow-y: auto;
+  display: flex;
+  width: min(440px, 100%);
+  height: 100dvh;
+  max-height: 100dvh;
+  flex-direction: column;
+  overflow: hidden;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
   border-color: #efc8cb;
   background: #fffdfd;
+  box-shadow: -16px 0 40px rgb(11 23 51 / 18%);
+  animation: review-drawer-enter 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .review-decision-close {
-  display: none;
+  display: grid;
+}
+.review-decision-content {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .review-recommendation-card {
   margin: 12px;
@@ -336,7 +394,10 @@
 .review-decision-actions {
   display: grid;
   gap: 8px;
-  padding: 0 12px 14px;
+  padding: 12px;
+  border-top: 1px solid var(--ops-border);
+  background: #fff;
+  box-shadow: 0 -8px 20px rgb(11 23 51 / 5%);
 }
 .review-inline-error {
   display: flex;
@@ -391,7 +452,7 @@
   font-size: 12px;
 }
 .review-decision-trigger {
-  display: none;
+  display: inline-flex;
 }
 .review-confirm-modal dl {
   display: grid;
@@ -448,5 +509,10 @@
   from {
     opacity: 0;
     transform: translateX(20px);
+  }
+}
+@keyframes review-drawer-enter {
+  from {
+    transform: translateX(24px);
   }
 }

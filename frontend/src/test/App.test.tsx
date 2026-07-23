@@ -460,11 +460,22 @@ describe('review workspace', () => {
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Review invoice' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Invoice preview' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled()
-    const correction = screen.getByRole('button', { name: 'Request correction' })
+    expect(screen.getByText('Approval blocked')).toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: 'Open decision panel' })
+    expect(screen.queryByRole('dialog', { name: 'Reviewer decision' })).not.toBeInTheDocument()
+    await user.click(trigger)
+    const panel = screen.getByRole('dialog', { name: 'Reviewer decision' })
+    expect(within(panel).getByRole('button', { name: 'Close decision panel' })).toHaveFocus()
+    expect(within(panel).getByRole('button', { name: 'Approve' })).toBeDisabled()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Reviewer decision' })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    await user.click(trigger)
+    const reopenedPanel = screen.getByRole('dialog', { name: 'Reviewer decision' })
+    const correction = within(reopenedPanel).getByRole('button', { name: 'Request correction' })
     expect(correction).toBeDisabled()
     await user.type(
-      screen.getByPlaceholderText('Explain the decision for the audit trail...'),
+      within(reopenedPanel).getByPlaceholderText('Explain the decision for the audit trail...'),
       'Please provide the missing PO number.',
     )
     expect(correction).toBeEnabled()
