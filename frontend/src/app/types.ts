@@ -17,12 +17,7 @@ export type WorkspaceSummary = {
   metrics: Record<string, number>
 }
 
-export type AppRoute =
-  | '/inbox'
-  | '/invoices'
-  | '/exports'
-  | '/admin/quality'
-  | '/admin/operations'
+export type AppRoute = '/inbox' | '/invoices' | '/exports' | '/admin/quality' | '/admin/operations'
 
 export function productRole(session: SessionInfo): ProductRole {
   if (session.is_admin) return 'administrator'

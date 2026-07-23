@@ -51,7 +51,10 @@ export type EvaluationRun = {
   is_current: boolean
 }
 
-export type EvaluationSelectorRun = Pick<EvaluationRun, 'id' | 'label' | 'dataset_id' | 'split' | 'observed_at' | 'passed' | 'verdict_available'> & { current: boolean }
+export type EvaluationSelectorRun = Pick<
+  EvaluationRun,
+  'id' | 'label' | 'dataset_id' | 'split' | 'observed_at' | 'passed' | 'verdict_available'
+> & { current: boolean }
 
 export type EvaluationTrendPoint = {
   id: string

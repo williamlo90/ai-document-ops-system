@@ -138,11 +138,11 @@ This separation prevents extraction quality from being confused with workflow sa
 
 The active application still depends on three historical backend namespaces:
 
-| Namespace | Current responsibility | Product exposure |
-| --- | --- | --- |
+| Namespace    | Current responsibility                                                                 | Product exposure                                                                           |
+| ------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `backoffice` | Workflow state, policy, approvals, audit projection, and the shell workspace contract. | `/backoffice/workspace` supports the signed-in shell; the name is not shown in navigation. |
-| `agent` | Bounded tool contracts and stored run evidence used by workflow services. | No primary product page. |
-| `agentops` | Scenario and run-evidence records retained for technical evaluation. | No primary product page. |
+| `agent`      | Bounded tool contracts and stored run evidence used by workflow services.              | No primary product page.                                                                   |
+| `agentops`   | Scenario and run-evidence records retained for technical evaluation.                   | No primary product page.                                                                   |
 
 They are active internal contracts, not unused folders. Deleting or broadly renaming them during a
 UI refactor would risk approval, audit, and workspace behavior. A future behavior-preserving rename

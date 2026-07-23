@@ -25,8 +25,16 @@ function invoice(state: FlowState) {
     original_filename: 'acme-logistics.pdf',
     submitted_by: 'e2e-uploader',
     status: state.approved ? 'approved' : 'needs_review',
-    business_status: state.approved ? 'approved' : needsCorrection ? 'needs_correction' : 'needs_review',
-    current_stage: state.approved ? 'completed' : needsCorrection ? 'correction_requested' : 'waiting_approval',
+    business_status: state.approved
+      ? 'approved'
+      : needsCorrection
+        ? 'needs_correction'
+        : 'needs_review',
+    current_stage: state.approved
+      ? 'completed'
+      : needsCorrection
+        ? 'correction_requested'
+        : 'waiting_approval',
     current_owner: needsCorrection ? 'Uploader' : 'Reviewer',
     vendor_name: state.vendorName,
     invoice_number: 'INV-001',
@@ -67,8 +75,17 @@ function extraction(state: FlowState) {
   }
 }
 
-async function mockWorkflow(page: Page, state: FlowState, calls: RecordedCall[], role: 'reviewer' | 'uploader') {
-  const pdf = readFileSync(path.resolve('../examples/benchmark/datasets/invoice_scenarios_v1/documents/duplicate_original.pdf'))
+async function mockWorkflow(
+  page: Page,
+  state: FlowState,
+  calls: RecordedCall[],
+  role: 'reviewer' | 'uploader',
+) {
+  const pdf = readFileSync(
+    path.resolve(
+      '../examples/benchmark/datasets/invoice_scenarios_v1/documents/duplicate_original.pdf',
+    ),
+  )
 
   await page.route('**/*', async (route) => {
     const request = route.request()
@@ -76,14 +93,16 @@ async function mockWorkflow(page: Page, state: FlowState, calls: RecordedCall[],
     const method = request.method()
 
     if (pathname === '/auth/session') {
-      await route.fulfill({ json: {
-        authenticated: true,
-        actor: role === 'uploader' ? 'E2E Uploader' : 'E2E Reviewer',
-        user_id: role === 'uploader' ? 'e2e-uploader' : 'e2e-reviewer',
-        workspace_id: 'e2e',
-        role,
-        is_admin: false,
-      } })
+      await route.fulfill({
+        json: {
+          authenticated: true,
+          actor: role === 'uploader' ? 'E2E Uploader' : 'E2E Reviewer',
+          user_id: role === 'uploader' ? 'e2e-uploader' : 'e2e-reviewer',
+          workspace_id: 'e2e',
+          role,
+          is_admin: false,
+        },
+      })
       return
     }
     if (request.resourceType() === 'document') {
@@ -91,51 +110,96 @@ async function mockWorkflow(page: Page, state: FlowState, calls: RecordedCall[],
       return
     }
     if (pathname === '/backoffice/workspace') {
-      await route.fulfill({ json: { workspace_id: 'e2e', work_items: [], pending_approvals: [], documents: [invoice(state)], metrics: {} } })
+      await route.fulfill({
+        json: {
+          workspace_id: 'e2e',
+          work_items: [],
+          pending_approvals: [],
+          documents: [invoice(state)],
+          metrics: {},
+        },
+      })
       return
     }
     if (pathname === '/invoices' && method === 'GET') {
       const item = invoice(state)
-      await route.fulfill({ json: {
-        items: [item], page: 1, page_size: 10, total: 1, total_pages: 1,
-        summary: {
-          all: 1,
-          waiting_review: item.business_status === 'needs_review' ? 1 : 0,
-          needs_correction: item.business_status === 'needs_correction' ? 1 : 0,
-          approved: item.business_status === 'approved' ? 1 : 0,
-          exported: 0,
+      await route.fulfill({
+        json: {
+          items: [item],
+          page: 1,
+          page_size: 10,
+          total: 1,
+          total_pages: 1,
+          summary: {
+            all: 1,
+            waiting_review: item.business_status === 'needs_review' ? 1 : 0,
+            needs_correction: item.business_status === 'needs_correction' ? 1 : 0,
+            approved: item.business_status === 'approved' ? 1 : 0,
+            exported: 0,
+          },
+          insights: { flagged: 0, duplicates_suspected: 0, tax_amount_issues: 0 },
         },
-        insights: { flagged: 0, duplicates_suspected: 0, tax_amount_issues: 0 },
-      } })
+      })
       return
     }
     if (pathname === `/documents/${documentId}` && method === 'GET') {
-      await route.fulfill({ json: {
-        document: invoice(state),
-        extraction: extraction(state),
-        correction_summary: state.correctionSubmitted ? {
-          latest_change_count: 1,
-          latest_changed_fields: ['vendor_name'],
-          latest_actor: 'E2E Uploader',
-          latest_reason: 'Matched the legal name on the PDF.',
-        } : null,
-        audit_events: state.approved ? [{
-          id: 'audit-approved', event_type: 'document_approved', actor: 'E2E Reviewer',
-          old_status: 'needs_review', new_status: 'approved', created_at: now,
-        }] : [],
-      } })
+      await route.fulfill({
+        json: {
+          document: invoice(state),
+          extraction: extraction(state),
+          correction_summary: state.correctionSubmitted
+            ? {
+                latest_change_count: 1,
+                latest_changed_fields: ['vendor_name'],
+                latest_actor: 'E2E Uploader',
+                latest_reason: 'Matched the legal name on the PDF.',
+              }
+            : null,
+          audit_events: state.approved
+            ? [
+                {
+                  id: 'audit-approved',
+                  event_type: 'document_approved',
+                  actor: 'E2E Reviewer',
+                  old_status: 'needs_review',
+                  new_status: 'approved',
+                  created_at: now,
+                },
+              ]
+            : [],
+        },
+      })
       return
     }
     if (pathname === `/documents/${documentId}/workflow` && method === 'GET') {
       const needsCorrection = state.correctionRequested && !state.correctionSubmitted
-      await route.fulfill({ json: {
-        current_stage: state.approved ? 'completed' : needsCorrection ? 'correction_requested' : 'waiting_approval',
-        current_owner: needsCorrection ? 'Uploader' : 'Reviewer',
-        waiting_for: state.approved ? null : needsCorrection ? 'Uploader correction' : 'Reviewer decision',
-        next_action: state.approved ? 'No action needed' : needsCorrection ? 'Correct invoice data' : 'Review invoice',
-        attention_reason: needsCorrection ? 'Use the full legal vendor name shown on the PDF.' : null,
-        work_item: { assignee: needsCorrection ? 'Uploader' : 'Finance reviewer', business_context: {} },
-      } })
+      await route.fulfill({
+        json: {
+          current_stage: state.approved
+            ? 'completed'
+            : needsCorrection
+              ? 'correction_requested'
+              : 'waiting_approval',
+          current_owner: needsCorrection ? 'Uploader' : 'Reviewer',
+          waiting_for: state.approved
+            ? null
+            : needsCorrection
+              ? 'Uploader correction'
+              : 'Reviewer decision',
+          next_action: state.approved
+            ? 'No action needed'
+            : needsCorrection
+              ? 'Correct invoice data'
+              : 'Review invoice',
+          attention_reason: needsCorrection
+            ? 'Use the full legal vendor name shown on the PDF.'
+            : null,
+          work_item: {
+            assignee: needsCorrection ? 'Uploader' : 'Finance reviewer',
+            business_context: {},
+          },
+        },
+      })
       return
     }
     if (pathname === `/documents/${documentId}/content`) {
@@ -159,11 +223,25 @@ async function mockWorkflow(page: Page, state: FlowState, calls: RecordedCall[],
     if (pathname === `/review/${documentId}/approve` && method === 'POST') {
       state.approved = true
       calls.push({ method, path: pathname, body: {} })
-      await route.fulfill({ json: {
-        document: { id: documentId, status: 'approved', updated_at: now },
-        review_task: { status: 'approved', reviewer_notes: '', reviewed_by: 'E2E Reviewer', reviewed_at: now },
-        decision: { status: 'approved', actor: 'E2E Reviewer', recorded_at: now, note: '', audit_event_count: 1, export_eligibility: 'eligible' },
-      } })
+      await route.fulfill({
+        json: {
+          document: { id: documentId, status: 'approved', updated_at: now },
+          review_task: {
+            status: 'approved',
+            reviewer_notes: '',
+            reviewed_by: 'E2E Reviewer',
+            reviewed_at: now,
+          },
+          decision: {
+            status: 'approved',
+            actor: 'E2E Reviewer',
+            recorded_at: now,
+            note: '',
+            audit_event_count: 1,
+            export_eligibility: 'eligible',
+          },
+        },
+      })
       return
     }
 
@@ -184,15 +262,25 @@ async function confirmDialog(page: Page, name: 'Request correction' | 'Approve')
 }
 
 test('reviewer requests a correction with a durable note', async ({ page }) => {
-  const state: FlowState = { correctionRequested: false, correctionSubmitted: false, approved: false, vendorName: 'Acme Logistics' }
+  const state: FlowState = {
+    correctionRequested: false,
+    correctionSubmitted: false,
+    approved: false,
+    vendorName: 'Acme Logistics',
+  }
   const calls: RecordedCall[] = []
   await mockWorkflow(page, state, calls, 'reviewer')
   await page.goto(`/review/${documentId}`)
   await expect(page.getByRole('heading', { name: 'Review invoice', exact: true })).toBeVisible()
   await openDecisionPanel(page)
 
-  await page.getByPlaceholder('Explain the decision for the audit trail...').fill('Use the full legal vendor name shown on the PDF.')
-  await page.getByLabel('Reviewer decision').getByRole('button', { name: 'Request correction', exact: true }).click()
+  await page
+    .getByPlaceholder('Explain the decision for the audit trail...')
+    .fill('Use the full legal vendor name shown on the PDF.')
+  await page
+    .getByLabel('Reviewer decision')
+    .getByRole('button', { name: 'Request correction', exact: true })
+    .click()
   await confirmDialog(page, 'Request correction')
 
   await expect(page.getByRole('status')).toContainText('Correction requested and recorded.')
@@ -205,7 +293,12 @@ test('reviewer requests a correction with a durable note', async ({ page }) => {
 })
 
 test('uploader sees the reviewer note, corrects the data, and sends it back', async ({ page }) => {
-  const state: FlowState = { correctionRequested: true, correctionSubmitted: false, approved: false, vendorName: 'Acme Logistics' }
+  const state: FlowState = {
+    correctionRequested: true,
+    correctionSubmitted: false,
+    approved: false,
+    vendorName: 'Acme Logistics',
+  }
   const calls: RecordedCall[] = []
   await mockWorkflow(page, state, calls, 'uploader')
   await page.goto(`/invoices?invoice=${documentId}`)
@@ -215,7 +308,9 @@ test('uploader sees the reviewer note, corrects the data, and sends it back', as
   await page.getByRole('button', { name: 'Correct invoice data' }).click()
   const dialog = page.getByRole('dialog', { name: 'Correct invoice data' })
   await dialog.getByRole('textbox', { name: 'Vendor', exact: true }).fill('Acme Logistics Ltd')
-  await dialog.getByRole('textbox', { name: 'What did you change?' }).fill('Matched the legal name on the PDF.')
+  await dialog
+    .getByRole('textbox', { name: 'What did you change?' })
+    .fill('Matched the legal name on the PDF.')
   await dialog.getByRole('button', { name: 'Send to reviewer' }).click()
 
   await expect(page.getByRole('status')).toContainText('Correction sent back to the reviewer.')
@@ -225,7 +320,12 @@ test('uploader sees the reviewer note, corrects the data, and sends it back', as
 })
 
 test('reviewer sees correction evidence before approving', async ({ page }) => {
-  const state: FlowState = { correctionRequested: true, correctionSubmitted: true, approved: false, vendorName: 'Acme Logistics Ltd' }
+  const state: FlowState = {
+    correctionRequested: true,
+    correctionSubmitted: true,
+    approved: false,
+    vendorName: 'Acme Logistics Ltd',
+  }
   const calls: RecordedCall[] = []
   await mockWorkflow(page, state, calls, 'reviewer')
   await page.goto(`/review/${documentId}`)
@@ -233,10 +333,15 @@ test('reviewer sees correction evidence before approving', async ({ page }) => {
   await expect(page.getByText('1 field corrected by E2E Uploader')).toBeVisible()
   await expect(page.getByText(/vendor name\. Matched the legal name on the PDF\./i)).toBeVisible()
   await openDecisionPanel(page)
-  await page.getByLabel('Reviewer decision').getByRole('button', { name: 'Approve', exact: true }).click()
+  await page
+    .getByLabel('Reviewer decision')
+    .getByRole('button', { name: 'Approve', exact: true })
+    .click()
   await confirmDialog(page, 'Approve')
 
   await expect(page.getByRole('status')).toContainText('Invoice approved and recorded.')
   await expect(page.getByRole('heading', { name: 'Decision recorded' })).toBeVisible()
-  await expect.poll(() => calls.some((call) => call.path === `/review/${documentId}/approve`)).toBe(true)
+  await expect
+    .poll(() => calls.some((call) => call.path === `/review/${documentId}/approve`))
+    .toBe(true)
 })

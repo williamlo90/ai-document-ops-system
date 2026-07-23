@@ -21,16 +21,16 @@ files in `docs/evidence/` contain no document text or credentials.
 
 ## Tracked Runs On 20 July 2026
 
-| Experiment | Purpose | Docs | Field | Exact doc | Validation | Blocker | Estimated USD | Observed failure |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| `20260720T041427Z` | V1 OpenAI diagnostic | 15 | 100% | 100% | 100% | 100% | $0.098391 | None |
-| `20260720T041657Z` | V1 provider-recovery comparison | 10 | 95% | 60% | 90% | 90% | $0.066425 | Four hallucinated values; one evidence and validation mismatch |
-| `20260720T042050Z` | V2 initial diagnostic | 15 | 97.50% | 80% | 80% | 86.67% | $0.097302 | One hallucinated and two missing values; three validation mismatches |
-| `20260720T042510Z` | Three-case vendor fix check | 3 | 100% | 100% | 100% | 100% | $0.018555 | None |
-| `20260720T042532Z` | V2 diagnostic after first fix | 15 | 99.17% | 93.33% | 93.33% | 100% | $0.097365 | One vendor hallucination from a URL domain |
-| `20260720T042812Z` | One-case domain-grounding check | 1 | 100% | 100% | 100% | 100% | $0.006043 | None |
-| `20260720T042832Z` | V2 final diagnostic | 15 | 100% | 100% | 100% | 100% | $0.096794 | None |
-| `20260720T043136Z` | V2 sealed holdout | 10 | 98.75% | 90% | 100% | 100% | $0.063624 | One hallucinated due date; no approval consequence |
+| Experiment         | Purpose                         | Docs |  Field | Exact doc | Validation | Blocker | Estimated USD | Observed failure                                                     |
+| ------------------ | ------------------------------- | ---: | -----: | --------: | ---------: | ------: | ------------: | -------------------------------------------------------------------- |
+| `20260720T041427Z` | V1 OpenAI diagnostic            |   15 |   100% |      100% |       100% |    100% |     $0.098391 | None                                                                 |
+| `20260720T041657Z` | V1 provider-recovery comparison |   10 |    95% |       60% |        90% |     90% |     $0.066425 | Four hallucinated values; one evidence and validation mismatch       |
+| `20260720T042050Z` | V2 initial diagnostic           |   15 | 97.50% |       80% |        80% |  86.67% |     $0.097302 | One hallucinated and two missing values; three validation mismatches |
+| `20260720T042510Z` | Three-case vendor fix check     |    3 |   100% |      100% |       100% |    100% |     $0.018555 | None                                                                 |
+| `20260720T042532Z` | V2 diagnostic after first fix   |   15 | 99.17% |    93.33% |     93.33% |    100% |     $0.097365 | One vendor hallucination from a URL domain                           |
+| `20260720T042812Z` | One-case domain-grounding check |    1 |   100% |      100% |       100% |    100% |     $0.006043 | None                                                                 |
+| `20260720T042832Z` | V2 final diagnostic             |   15 |   100% |      100% |       100% |    100% |     $0.096794 | None                                                                 |
+| `20260720T043136Z` | V2 sealed holdout               |   10 | 98.75% |       90% |       100% |    100% |     $0.063624 | One hallucinated due date; no approval consequence                   |
 
 The tracked runs total an estimated **$0.544499** at the dated list prices. This excludes smoke
 checks and provider-backed integration tests. Provider billing dashboards remain authoritative,

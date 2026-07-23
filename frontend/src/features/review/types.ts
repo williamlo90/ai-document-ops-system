@@ -26,7 +26,12 @@ export type ReviewWorklist = {
   page_size: number
   total: number
   total_pages: number
-  summary: { in_queue: number; high_risk: number; invoice_due_today: number; average_review_seconds: number | null }
+  summary: {
+    in_queue: number
+    high_risk: number
+    invoice_due_today: number
+    average_review_seconds: number | null
+  }
 }
 
 export type ReviewWorkflow = {
@@ -40,7 +45,12 @@ export type ReviewWorkflow = {
 
 export type DecisionResult = {
   document: { id: string; status: string; updated_at: string }
-  review_task: { status: string; reviewer_notes: string; reviewed_by: string | null; reviewed_at: string | null }
+  review_task: {
+    status: string
+    reviewer_notes: string
+    reviewed_by: string | null
+    reviewed_at: string | null
+  }
   decision: {
     status: string
     actor: string | null

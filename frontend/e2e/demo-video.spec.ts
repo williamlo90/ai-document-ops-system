@@ -7,7 +7,8 @@ import { installPortfolioApi } from './portfolio-fixtures'
 test.skip(!process.env.CAPTURE_DEMO, 'Demo recording runs only through npm run capture:demo.')
 test.setTimeout(240_000)
 
-const hold = (milliseconds: number) => process.env.DEMO_FAST ? Math.max(100, Math.round(milliseconds * 0.02)) : milliseconds
+const hold = (milliseconds: number) =>
+  process.env.DEMO_FAST ? Math.max(100, Math.round(milliseconds * 0.02)) : milliseconds
 
 async function installOverlay(page: Page) {
   await page.evaluate(() => {
@@ -30,13 +31,16 @@ async function installOverlay(page: Page) {
 }
 
 async function caption(page: Page, label: string, body: string, milliseconds = 10_000) {
-  await page.evaluate(({ label, body }) => {
-    const element = document.getElementById('demo-caption')
-    if (!element) return
-    element.querySelector('strong')!.textContent = label
-    element.querySelector('span')!.textContent = body
-    element.style.display = 'block'
-  }, { label, body })
+  await page.evaluate(
+    ({ label, body }) => {
+      const element = document.getElementById('demo-caption')
+      if (!element) return
+      element.querySelector('strong')!.textContent = label
+      element.querySelector('span')!.textContent = body
+      element.style.display = 'block'
+    },
+    { label, body },
+  )
   await page.waitForTimeout(hold(milliseconds))
 }
 
@@ -44,7 +48,8 @@ async function title(page: Page) {
   await page.evaluate(() => {
     const overlay = document.createElement('section')
     overlay.id = 'demo-title'
-    overlay.innerHTML = '<div><small>Accounts payable workflow</small><h1>Invoice Review</h1><p>Source comparison, deterministic validation, explicit human decisions, and controlled export.</p></div>'
+    overlay.innerHTML =
+      '<div><small>Accounts payable workflow</small><h1>Invoice Review</h1><p>Source comparison, deterministic validation, explicit human decisions, and controlled export.</p></div>'
     document.body.appendChild(overlay)
   })
   await page.waitForTimeout(hold(9_000))
@@ -61,7 +66,9 @@ async function visit(page: Page, route: string, heading: string) {
 async function waitForPdf(page: Page) {
   const canvas = page.locator('canvas.pdf-canvas:visible').first()
   await expect(canvas).toBeVisible({ timeout: 20_000 })
-  await expect.poll(() => canvas.evaluate((element) => element.width * element.height), { timeout: 20_000 }).toBeGreaterThan(0)
+  await expect
+    .poll(() => canvas.evaluate((element) => element.width * element.height), { timeout: 20_000 })
+    .toBeGreaterThan(0)
 }
 
 async function record(browser: Browser) {
@@ -85,36 +92,61 @@ async function record(browser: Browser) {
     await visit(page, '/inbox?state=needs-decision', 'Inbox')
     await installOverlay(page)
     await title(page)
-    await caption(page, '1. Work that needs attention', 'Inbox separates reviewer decisions from blocking issues. It does not select or change an invoice until the user opens it.')
+    await caption(
+      page,
+      '1. Work that needs attention',
+      'Inbox separates reviewer decisions from blocking issues. It does not select or change an invoice until the user opens it.',
+    )
 
     await visit(page, '/review/doc-acme', 'Review invoice')
     await installOverlay(page)
     await waitForPdf(page)
-    await caption(page, '2. Source, fields, and checks together', 'The reviewer compares the PDF with extracted fields. A missing purchase-order number is visible as a deterministic blocker, so approval is unavailable.')
+    await caption(
+      page,
+      '2. Source, fields, and checks together',
+      'The reviewer compares the PDF with extracted fields. A missing purchase-order number is visible as a deterministic blocker, so approval is unavailable.',
+    )
 
     await visit(page, '/invoices?invoice=doc-northstar-correction', 'Invoices')
     await installOverlay(page)
     await waitForPdf(page)
-    await caption(page, '3. One invoice lifecycle', 'Invoices provides upload, status, correction context, and document inspection without duplicating the review queue.')
+    await caption(
+      page,
+      '3. One invoice lifecycle',
+      'Invoices provides upload, status, correction context, and document inspection without duplicating the review queue.',
+    )
 
     await visit(page, '/exports?status=ready&batch=batch-july', 'Exports')
     await installOverlay(page)
-    await caption(page, '4. Controlled export', 'Only approved and eligible invoices enter an export batch. Eligibility and idempotency remain enforced by the server.')
+    await caption(
+      page,
+      '4. Controlled export',
+      'Only approved and eligible invoices enter an export batch. Eligibility and idempotency remain enforced by the server.',
+    )
 
     await visit(page, '/admin/quality?run=eval-7', 'Quality')
     await installOverlay(page)
-    await caption(page, '5. Bounded quality evidence', 'Labeled synthetic results show field and validation match together with dataset limits. They are engineering evidence, not a production-accuracy claim.')
+    await caption(
+      page,
+      '5. Bounded quality evidence',
+      'Labeled synthetic results show field and validation match together with dataset limits. They are engineering evidence, not a production-accuracy claim.',
+    )
 
     await visit(page, '/admin/operations', 'Operations')
     await installOverlay(page)
-    await caption(page, '6. Actionable operations', 'Administrators see unresolved alerts, failed jobs, retry eligibility, service state, and audit records without exposing credentials or raw provider responses.')
+    await caption(
+      page,
+      '6. Actionable operations',
+      'Administrators see unresolved alerts, failed jobs, retry eligibility, service state, and audit records without exposing credentials or raw provider responses.',
+    )
 
     await page.evaluate(() => {
       const element = document.getElementById('demo-caption')
       if (element) element.style.display = 'none'
       const overlay = document.createElement('section')
       overlay.id = 'demo-title'
-      overlay.innerHTML = '<div><small>Evidence boundary</small><h1>Human-controlled invoice review</h1><p>This demo proves the workflow and safeguards. It does not claim customer impact, production accuracy, or readiness for real client data.</p></div>'
+      overlay.innerHTML =
+        '<div><small>Evidence boundary</small><h1>Human-controlled invoice review</h1><p>This demo proves the workflow and safeguards. It does not claim customer impact, production accuracy, or readiness for real client data.</p></div>'
       document.body.appendChild(overlay)
     })
     await page.waitForTimeout(hold(9_000))

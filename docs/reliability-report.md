@@ -17,11 +17,11 @@ The project separates three questions that should not be collapsed into one scor
 - parser: Mistral OCR (`mistral-ocr-latest`)
 - extractor: retired OpenAI-compatible provider; current evaluation uses the OpenAI API instead
 
-| Iteration | Field match | Fully matched documents | Validation behavior | Provider errors |
-| --- | ---: | ---: | ---: | ---: |
-| Initial | 157 / 160 | 17 / 20 | 18 / 20 | 0 / 20 |
-| Anti-inference prompt | 159 / 160 | 19 / 20 | 19 / 20 | 0 / 20 |
-| Vendor grounding guard | 160 / 160 | 20 / 20 | 20 / 20 | 0 / 20 |
+| Iteration              | Field match | Fully matched documents | Validation behavior | Provider errors |
+| ---------------------- | ----------: | ----------------------: | ------------------: | --------------: |
+| Initial                |   157 / 160 |                 17 / 20 |             18 / 20 |          0 / 20 |
+| Anti-inference prompt  |   159 / 160 |                 19 / 20 |             19 / 20 |          0 / 20 |
+| Vendor grounding guard |   160 / 160 |                 20 / 20 |             20 / 20 |          0 / 20 |
 
 The initial failures were preserved as evidence. The model incorrectly filled three intentionally
 missing fields. Null-handling instructions corrected date and tax. A deterministic seller-context

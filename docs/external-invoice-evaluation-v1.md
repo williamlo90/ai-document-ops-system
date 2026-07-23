@@ -28,16 +28,16 @@ Only aggregate reports are committed:
 
 ## Observed Results
 
-| Metric | Diagnostic (15) | Sealed holdout (10) |
-| --- | ---: | ---: |
-| Provider success rate | 93.33% (14/15) | 10.00% (1/10) |
-| End-to-end field accuracy | 93.33% | 10.00% |
-| End-to-end exact-document rate | 93.33% | 10.00% |
-| End-to-end validation-code exact match | 93.33% | 40.00% |
-| End-to-end approval-blocker accuracy | 93.33% | 40.00% |
-| Field accuracy when both providers succeeded | 100% (14 documents) | 100% (1 document) |
-| Source-evidence coverage on correct non-null fields | 87.50% | 85.71% |
-| Provider errors | 1 | 9 |
+| Metric                                              |     Diagnostic (15) | Sealed holdout (10) |
+| --------------------------------------------------- | ------------------: | ------------------: |
+| Provider success rate                               |      93.33% (14/15) |       10.00% (1/10) |
+| End-to-end field accuracy                           |              93.33% |              10.00% |
+| End-to-end exact-document rate                      |              93.33% |              10.00% |
+| End-to-end validation-code exact match              |              93.33% |              40.00% |
+| End-to-end approval-blocker accuracy                |              93.33% |              40.00% |
+| Field accuracy when both providers succeeded        | 100% (14 documents) |   100% (1 document) |
+| Source-evidence coverage on correct non-null fields |              87.50% |              85.71% |
+| Provider errors                                     |                   1 |                   9 |
 
 The holdout validation and blocker percentages are not evidence of usable workflow quality because
 nine documents never produced an extraction. Some expected no-error outcomes can coincide with an

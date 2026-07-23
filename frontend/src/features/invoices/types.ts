@@ -29,7 +29,13 @@ export type InvoiceListResponse = {
   page_size: number
   total: number
   total_pages: number
-  summary: { all: number; waiting_review: number; needs_correction: number; approved: number; exported: number }
+  summary: {
+    all: number
+    waiting_review: number
+    needs_correction: number
+    approved: number
+    exported: number
+  }
   insights: { flagged: number; duplicates_suspected: number; tax_amount_issues: number }
 }
 
@@ -46,12 +52,30 @@ export type InvoiceExtraction = {
     line_items?: Array<Record<string, string | null>>
   }
   validation: Array<{ field_name: string; severity: string; code: string; message: string }>
-  confidence: Array<{ field_name: string; score: number | null; source_page?: number | null; source_text?: string | null }>
+  confidence: Array<{
+    field_name: string
+    score: number | null
+    source_page?: number | null
+    source_text?: string | null
+  }>
 }
 
 export type InvoiceDetailResponse = {
   document: InvoiceItem
   extraction: InvoiceExtraction | null
-  correction_summary?: { latest_change_count: number; latest_changed_fields: string[]; latest_actor: string; latest_reason: string } | null
-  audit_events: Array<{ id: string; event_type: string; actor: string; old_status?: string | null; new_status?: string | null; payload_summary?: string | null; created_at: string }>
+  correction_summary?: {
+    latest_change_count: number
+    latest_changed_fields: string[]
+    latest_actor: string
+    latest_reason: string
+  } | null
+  audit_events: Array<{
+    id: string
+    event_type: string
+    actor: string
+    old_status?: string | null
+    new_status?: string | null
+    payload_summary?: string | null
+    created_at: string
+  }>
 }

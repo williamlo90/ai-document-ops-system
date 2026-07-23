@@ -17,14 +17,28 @@ const productRoutes = [
 
 const productHistoryFallback = {
   name: 'product-history-fallback',
-  configureServer(server: { middlewares: { use: (handler: (request: { method?: string; url?: string; headers: { accept?: string } }, response: unknown, next: () => void) => void) => void } }) {
+  configureServer(server: {
+    middlewares: {
+      use: (
+        handler: (
+          request: { method?: string; url?: string; headers: { accept?: string } },
+          response: unknown,
+          next: () => void,
+        ) => void,
+      ) => void
+    }
+  }) {
     server.middlewares.use((request, _response, next) => {
       const pathname = new URL(request.url ?? '/', 'http://localhost').pathname
-      const isProductNavigation = productRoutes.some((route) => (
-        route.endsWith('/') ? pathname.startsWith(route) : pathname === route
-      ))
+      const isProductNavigation = productRoutes.some((route) =>
+        route.endsWith('/') ? pathname.startsWith(route) : pathname === route,
+      )
 
-      if (request.method === 'GET' && request.headers.accept?.includes('text/html') && isProductNavigation) {
+      if (
+        request.method === 'GET' &&
+        request.headers.accept?.includes('text/html') &&
+        isProductNavigation
+      ) {
         request.url = '/index.html'
       }
       next()

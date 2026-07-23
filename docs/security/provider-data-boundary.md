@@ -7,10 +7,10 @@
 
 ## Data Flow
 
-| Destination | Data sent | Data not intentionally sent | Credential |
-| --- | --- | --- | --- |
-| Mistral OCR | Complete PDF encoded as a `data:application/pdf;base64` document plus OCR model name | Local storage key, application user token, audit history, reviewer notes | Mistral bearer token |
-| OpenAI extractor | OCR text, extraction-only system instructions, model name, and JSON response-format request | Original PDF bytes, application user token, audit history, reviewer identity | OpenAI bearer token |
+| Destination      | Data sent                                                                                   | Data not intentionally sent                                                  | Credential           |
+| ---------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------- |
+| Mistral OCR      | Complete PDF encoded as a `data:application/pdf;base64` document plus OCR model name        | Local storage key, application user token, audit history, reviewer notes     | Mistral bearer token |
+| OpenAI extractor | OCR text, extraction-only system instructions, model name, and JSON response-format request | Original PDF bytes, application user token, audit history, reviewer identity | OpenAI bearer token  |
 
 Provider responses are reduced to parsed pages, bounded trace identifiers, invoice fields, confidence
 evidence, and sanitized error codes. Raw provider error bodies are not returned by the API.

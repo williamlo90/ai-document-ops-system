@@ -1,11 +1,135 @@
-.ops-panel { border: 1px solid var(--ops-border); border-radius: var(--ops-radius); background: var(--ops-panel); box-shadow: 0 1px 2px rgb(20 45 80 / 2%); }
-.ops-button { display: inline-flex; min-height: 38px; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border: 1px solid var(--ops-border-strong); border-radius: 5px; color: var(--ops-navy); background: #fff; cursor: pointer; font-size: 12px; font-weight: 700; transition: border-color 150ms ease, background 150ms ease; }
-.ops-button:hover { border-color: #9aaabd; background: #f9fbfd; }.ops-button:disabled { opacity: .45; cursor: not-allowed; }
-.ops-button--primary { border-color: var(--ops-teal); color: #fff; background: var(--ops-teal); }.ops-button--primary:hover { border-color: var(--ops-teal-dark); background: var(--ops-teal-dark); }
-.ops-button--danger { border-color: var(--ops-red); color: #fff; background: var(--ops-red); }.ops-button--danger:hover { border-color: #c91823; background: #c91823; }
-.ops-button--ghost { border-color: transparent; background: transparent; }
-.ops-badge { display: inline-flex; min-height: 23px; align-items: center; padding: 2px 8px; border-radius: 4px; color: #506079; background: #eef2f6; font-size: 12px; font-weight: 700; white-space: nowrap; }
-.ops-badge--info { color: #155bd7; background: var(--ops-blue-soft); }.ops-badge--success { color: var(--ops-green); background: var(--ops-green-soft); }.ops-badge--warning { color: #b75209; background: var(--ops-orange-soft); }.ops-badge--danger { color: #bd1822; background: var(--ops-red-soft); }.ops-badge--purple { color: var(--ops-purple); background: var(--ops-purple-soft); }
-.ops-search { display: flex; min-width: 220px; height: 38px; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--ops-border); border-radius: 5px; background: #fff; }
-.ops-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; font-size: 12px; }.ops-search button { display: grid; padding: 3px; border: 0; background: transparent; cursor: pointer; }
-.ops-state { display: flex; min-height: 280px; align-items: center; justify-content: center; flex-direction: column; gap: 9px; padding: 30px; color: var(--ops-muted); text-align: center; }.ops-state strong { color: var(--ops-navy); font-size: 14px; }.ops-state span { max-width: 440px; font-size: 12px; line-height: 1.5; }.ops-state--error svg { color: var(--ops-red); }
+.ops-panel {
+  border: 1px solid var(--ops-border);
+  border-radius: var(--ops-radius);
+  background: var(--ops-panel);
+  box-shadow: 0 1px 2px rgb(20 45 80 / 2%);
+}
+.ops-button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--ops-border-strong);
+  border-radius: 5px;
+  color: var(--ops-navy);
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+}
+.ops-button:hover {
+  border-color: #9aaabd;
+  background: #f9fbfd;
+}
+.ops-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ops-button--primary {
+  border-color: var(--ops-teal);
+  color: #fff;
+  background: var(--ops-teal);
+}
+.ops-button--primary:hover {
+  border-color: var(--ops-teal-dark);
+  background: var(--ops-teal-dark);
+}
+.ops-button--danger {
+  border-color: var(--ops-red);
+  color: #fff;
+  background: var(--ops-red);
+}
+.ops-button--danger:hover {
+  border-color: #c91823;
+  background: #c91823;
+}
+.ops-button--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.ops-badge {
+  display: inline-flex;
+  min-height: 23px;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #506079;
+  background: #eef2f6;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ops-badge--info {
+  color: #155bd7;
+  background: var(--ops-blue-soft);
+}
+.ops-badge--success {
+  color: var(--ops-green);
+  background: var(--ops-green-soft);
+}
+.ops-badge--warning {
+  color: #b75209;
+  background: var(--ops-orange-soft);
+}
+.ops-badge--danger {
+  color: #bd1822;
+  background: var(--ops-red-soft);
+}
+.ops-badge--purple {
+  color: var(--ops-purple);
+  background: var(--ops-purple-soft);
+}
+.ops-search {
+  display: flex;
+  min-width: 220px;
+  height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--ops-border);
+  border-radius: 5px;
+  background: #fff;
+}
+.ops-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 12px;
+}
+.ops-search button {
+  display: grid;
+  padding: 3px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.ops-state {
+  display: flex;
+  min-height: 280px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 9px;
+  padding: 30px;
+  color: var(--ops-muted);
+  text-align: center;
+}
+.ops-state strong {
+  color: var(--ops-navy);
+  font-size: 14px;
+}
+.ops-state span {
+  max-width: 440px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.ops-state--error svg {
+  color: var(--ops-red);
+}

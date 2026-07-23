@@ -11,6 +11,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"e2e/**/*.ts\" \"*.{ts,json,md}\" \"../*.md\" \"../docs/**/*.md\" \"../backend/README.md\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"e2e/**/*.ts\" \"*.{ts,json,md}\" \"../*.md\" \"../docs/**/*.md\" \"../backend/README.md\"",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
@@ -41,6 +43,7 @@
     "axe-core": "4.12.1",
     "jsdom": "29.1.1",
     "oxlint": "1.69.0",
+    "prettier": "3.6.2",
     "typescript": "6.0.2",
     "vite": "8.1.0",
     "vitest": "4.1.9"

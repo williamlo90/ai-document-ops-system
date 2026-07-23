@@ -3,7 +3,10 @@ import path from 'node:path'
 
 import { installPortfolioApi } from './portfolio-fixtures'
 
-test.skip(!process.env.CAPTURE_PORTFOLIO, 'Portfolio capture runs only through npm run capture:portfolio.')
+test.skip(
+  !process.env.CAPTURE_PORTFOLIO,
+  'Portfolio capture runs only through npm run capture:portfolio.',
+)
 test.setTimeout(180_000)
 test.describe.configure({ mode: 'serial' })
 
@@ -28,14 +31,20 @@ for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await page.emulateMedia({ reducedMotion: 'reduce' })
     const fixture = await installPortfolioApi(page)
-    const output = viewport.name === 'desktop'
-      ? path.resolve('../docs/assets/screenshots')
-      : path.resolve(`../docs/assets/screenshots/${viewport.name}`)
+    const output =
+      viewport.name === 'desktop'
+        ? path.resolve('../docs/assets/screenshots')
+        : path.resolve(`../docs/assets/screenshots/${viewport.name}`)
 
     for (const target of pages) {
-      const route = viewport.width < 1180 ? unselectedRoute(target.name, target.route) : target.route
+      const route =
+        viewport.width < 1180 ? unselectedRoute(target.name, target.route) : target.route
       await page.goto(route)
-      await expect(page.getByRole('heading', { name: target.heading, exact: typeof target.heading === 'string' }).first()).toBeVisible()
+      await expect(
+        page
+          .getByRole('heading', { name: target.heading, exact: typeof target.heading === 'string' })
+          .first(),
+      ).toBeVisible()
       if (target.pdf && route.includes('doc-')) await waitForVisiblePdf(page)
       await settle(page)
       await expectNoPageOverflow(page)
@@ -50,7 +59,9 @@ for (const viewport of viewports) {
 
     fixture.setApproved(true)
     await page.goto('/review/doc-acme')
-    await expect(page.getByRole('heading', { name: 'Decision recorded', exact: true })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Decision recorded', exact: true }),
+    ).toBeVisible()
     await waitForVisiblePdf(page)
     await settle(page)
     await page.screenshot({ path: path.join(output, 'approved-decision.png'), fullPage: true })
@@ -69,7 +80,9 @@ for (const viewport of viewports) {
 async function waitForVisiblePdf(page: Page) {
   const canvas = page.locator('canvas.pdf-canvas:visible').first()
   await expect(canvas).toBeVisible({ timeout: 20_000 })
-  await expect.poll(() => canvas.evaluate((element) => element.width * element.height), { timeout: 20_000 }).toBeGreaterThan(0)
+  await expect
+    .poll(() => canvas.evaluate((element) => element.width * element.height), { timeout: 20_000 })
+    .toBeGreaterThan(0)
   await expect(page.getByText('Loading invoice...')).toHaveCount(0, { timeout: 20_000 })
 }
 
@@ -79,7 +92,9 @@ async function settle(page: Page) {
 }
 
 async function expectNoPageOverflow(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
   expect(overflow).toBeLessThanOrEqual(1)
 }
 

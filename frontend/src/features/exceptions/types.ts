@@ -1,5 +1,10 @@
 export type ExceptionRisk = 'high' | 'medium'
-export type ExceptionCategory = 'vendor_invoice' | 'tax_amount' | 'duplicate' | 'dates_details' | 'other'
+export type ExceptionCategory =
+  | 'vendor_invoice'
+  | 'tax_amount'
+  | 'duplicate'
+  | 'dates_details'
+  | 'other'
 
 export type ExceptionItem = {
   id: string
@@ -53,5 +58,10 @@ export type ExceptionListResponse = {
 export type ExceptionDetailResponse = { exception: ExceptionDetail }
 export type ExceptionAssignmentResponse = {
   exception: ExceptionDetail
-  assignment: { work_item_id: string; assignee: string | null; recorded_by: string; recorded_at: string }
+  assignment: {
+    work_item_id: string
+    assignee: string | null
+    recorded_by: string
+    recorded_at: string
+  }
 }

@@ -130,15 +130,15 @@ accuracy were 100%. One unsupported due date was still hallucinated and remains 
 
 ## Failure Modes and Product Response
 
-| Failure mode | Product response |
-| --- | --- |
-| Missing or ambiguous field | Preserve null or route to correction; do not silently guess. |
-| Arithmetic mismatch | Show a validation reason and block approval. |
-| Duplicate invoice | Mark the copy for correction and keep the original reviewable. |
-| Invalid provider credential | Fail as non-retryable and expose provider health. |
-| Rate limit or supported server failure | Use bounded retry and dead-letter behavior. |
-| Export delivery failure | Keep the approved state and record the failed attempt for safe retry. |
-| Cross-workspace or invalid-role action | Refuse at the API boundary. |
+| Failure mode                           | Product response                                                      |
+| -------------------------------------- | --------------------------------------------------------------------- |
+| Missing or ambiguous field             | Preserve null or route to correction; do not silently guess.          |
+| Arithmetic mismatch                    | Show a validation reason and block approval.                          |
+| Duplicate invoice                      | Mark the copy for correction and keep the original reviewable.        |
+| Invalid provider credential            | Fail as non-retryable and expose provider health.                     |
+| Rate limit or supported server failure | Use bounded retry and dead-letter behavior.                           |
+| Export delivery failure                | Keep the approved state and record the failed attempt for safe retry. |
+| Cross-workspace or invalid-role action | Refuse at the API boundary.                                           |
 
 ## Architecture Decision
 

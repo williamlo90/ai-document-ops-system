@@ -15,11 +15,11 @@ The set includes ordinary invoices, missing fields, deterministic validation fai
 
 ## Observed Iterations
 
-| Run | Field match | Fully matched documents | Validation behavior | Provider errors | Average latency |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Initial | 157 / 160 (98.12%) | 17 / 20 (85%) | 18 / 20 | 0 / 20 | 1.99 s |
-| Anti-inference prompt | 159 / 160 (99.38%) | 19 / 20 (95%) | 19 / 20 | 0 / 20 | 1.13 s |
-| Vendor grounding guard | 160 / 160 (100%) | 20 / 20 (100%) | 20 / 20 | 0 / 20 | 1.09 s |
+| Run                    |        Field match | Fully matched documents | Validation behavior | Provider errors | Average latency |
+| ---------------------- | -----------------: | ----------------------: | ------------------: | --------------: | --------------: |
+| Initial                | 157 / 160 (98.12%) |           17 / 20 (85%) |             18 / 20 |          0 / 20 |          1.99 s |
+| Anti-inference prompt  | 159 / 160 (99.38%) |           19 / 20 (95%) |             19 / 20 |          0 / 20 |          1.13 s |
+| Vendor grounding guard |   160 / 160 (100%) |          20 / 20 (100%) |             20 / 20 |          0 / 20 |          1.09 s |
 
 The initial run incorrectly filled three intentionally missing fields: vendor, invoice date, and tax. Stronger null-handling instructions corrected date and tax. A deterministic seller-context guard then rejected a platform header that the model had mistaken for the missing vendor.
 

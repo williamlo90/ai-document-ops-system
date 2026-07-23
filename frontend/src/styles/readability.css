@@ -24,7 +24,9 @@
 .system-service-panel > footer,
 .system-attention button small,
 .system-healthy small,
-.system-drawer section p { font-size: 14px; }
+.system-drawer section p {
+  font-size: 14px;
+}
 
 .ops-nav-label,
 .ops-brand small,
@@ -72,7 +74,9 @@
 .system-tabs button,
 .system-integration-list small,
 .system-drawer dt,
-.system-drawer dd { font-size: 12px; }
+.system-drawer dd {
+  font-size: 12px;
+}
 
 .ops-table th,
 .ops-table td,
@@ -83,7 +87,9 @@
 .review-field-editor input,
 .review-note textarea,
 .export-toolbar select,
-.export-toolbar input { font-size: 13px; }
+.export-toolbar input {
+  font-size: 13px;
+}
 
 .evaluation-table-panel h2,
 .evaluation-coverage-panel h2,
@@ -93,4 +99,6 @@
 .system-page h2,
 .export-page h2,
 .review-data-panel h2,
-.review-decision-panel h2 { font-size: 15px; }
+.review-decision-panel h2 {
+  font-size: 15px;
+}

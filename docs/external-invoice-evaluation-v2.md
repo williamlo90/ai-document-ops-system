@@ -24,15 +24,15 @@ of production accuracy, customer value, or robustness across the invoice market.
 
 ## Predeclared Holdout Gates
 
-| Gate | Threshold | Result |
-| --- | ---: | ---: |
-| Provider success | 100% | 100% (10/10) |
-| Field accuracy | At least 95% | 98.75% (79/80) |
-| Exact-document rate | At least 80% | 90% (9/10) |
-| Validation-code exact match | At least 90% | 100% |
-| Approval-blocker accuracy | 100% | 100% |
-| Source-evidence coverage | At least 95% | 100% |
-| Risky false negative | Zero | Zero |
+| Gate                        |    Threshold |         Result |
+| --------------------------- | -----------: | -------------: |
+| Provider success            |         100% |   100% (10/10) |
+| Field accuracy              | At least 95% | 98.75% (79/80) |
+| Exact-document rate         | At least 80% |     90% (9/10) |
+| Validation-code exact match | At least 90% |           100% |
+| Approval-blocker accuracy   |         100% |           100% |
+| Source-evidence coverage    | At least 95% |           100% |
+| Risky false negative        |         Zero |           Zero |
 
 Average end-to-end provider latency was 4.76 seconds per document during this local run. The
 estimated list-price cost was $0.063624 for 10 OCR pages, 7,271 input tokens, and 4,038 output

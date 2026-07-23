@@ -30,6 +30,8 @@ export function canAccessPath(role: ProductRole, path: string): boolean {
   if (path.startsWith('/review/')) return role !== 'uploader'
   if (['/overview', '/review-queue', '/exceptions'].includes(path)) return role !== 'uploader'
   if (['/evaluation', '/system'].includes(path)) return role === 'administrator'
-  const item = navigationItems.find((candidate) => path === candidate.path || path.startsWith(`${candidate.path}/`))
+  const item = navigationItems.find(
+    (candidate) => path === candidate.path || path.startsWith(`${candidate.path}/`),
+  )
   return item ? item.roles.includes(role) : false
 }

@@ -7,12 +7,12 @@ test, compliance certification, privacy opinion, or authorization to process rea
 
 ## Release Decision
 
-| Intended use | Decision | Remaining boundary |
-| --- | --- | --- |
-| Loopback-only demo with synthetic data | `PASS_WITH_LIMITATIONS` | Keep credentials and generated files local and ignored. |
-| Controlled single-workspace hosted demo with seeded data and mock providers | `PASS_WITH_LIMITATIONS` | Deployment controls still require independent verification. |
-| Hosted service accepting untrusted uploads | `BLOCKED` | A live private malware scanner, signature policy, network boundary, and EICAR evidence are not bound. |
-| Real client data or production use | `BLOCKED` | Production identity, tenancy, provider contracts, retention, backups, TLS/DAST, and independent review are incomplete. |
+| Intended use                                                                | Decision                | Remaining boundary                                                                                                     |
+| --------------------------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Loopback-only demo with synthetic data                                      | `PASS_WITH_LIMITATIONS` | Keep credentials and generated files local and ignored.                                                                |
+| Controlled single-workspace hosted demo with seeded data and mock providers | `PASS_WITH_LIMITATIONS` | Deployment controls still require independent verification.                                                            |
+| Hosted service accepting untrusted uploads                                  | `BLOCKED`               | A live private malware scanner, signature policy, network boundary, and EICAR evidence are not bound.                  |
+| Real client data or production use                                          | `BLOCKED`               | Production identity, tenancy, provider contracts, retention, backups, TLS/DAST, and independent review are incomplete. |
 
 ## Implemented Application Controls
 

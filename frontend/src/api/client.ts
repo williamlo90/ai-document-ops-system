@@ -8,7 +8,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (!contentType.includes('application/json')) {
     throw new Error(`Unexpected response from ${path}. Check the API proxy configuration.`)
   }
-  const payload = await response.json() as { detail?: string | { message?: string } }
+  const payload = (await response.json()) as { detail?: string | { message?: string } }
   if (!response.ok) {
     const message = typeof payload.detail === 'string' ? payload.detail : payload.detail?.message
     throw new Error(message ?? `Request failed with ${response.status}`)
@@ -16,7 +16,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T
 }
 
-export function upload<T>(path: string, body: FormData, onProgress?: (value: number) => void): Promise<T> {
+export function upload<T>(
+  path: string,
+  body: FormData,
+  onProgress?: (value: number) => void,
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest()
     request.open('POST', path)
@@ -24,7 +28,8 @@ export function upload<T>(path: string, body: FormData, onProgress?: (value: num
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100))
     }
-    request.onerror = () => reject(new Error('Upload failed because the server could not be reached.'))
+    request.onerror = () =>
+      reject(new Error('Upload failed because the server could not be reached.'))
     request.onload = () => {
       const payload = safeJson(request.responseText)
       if (request.status < 200 || request.status >= 300) {
