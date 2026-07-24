@@ -9,7 +9,7 @@ import {
   ServerCog,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { formatDate, humanize } from '../../invoices/format'
+import { formatDate, humanize } from '../../../shared/format'
 import { StatusBadge } from '../../../shared/ui'
 import { formatDuration, jobTone, serviceTone } from '../selectors'
 import type { SystemJob, SystemStatus } from '../types'

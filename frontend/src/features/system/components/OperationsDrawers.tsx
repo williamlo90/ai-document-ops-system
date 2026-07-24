@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { AlertCircle, LoaderCircle, RotateCcw, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { formatDate, humanize } from '../../invoices/format'
+import { formatDate, humanize } from '../../../shared/format'
 import { Button, StatusBadge } from '../../../shared/ui'
 import { formatDuration } from '../selectors'
 import type { SystemAudit, SystemJob, SystemService } from '../types'

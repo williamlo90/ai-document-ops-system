@@ -1,3 +1,4 @@
+import { humanize } from '../../shared/format'
 import type { InvoiceItem, InvoiceListResponse } from './types'
 
 export const invoiceLifecycleFilters = [
@@ -63,8 +64,4 @@ export function invoiceTabs(summary?: InvoiceListResponse['summary']) {
     { label: 'Approved', value: 'approved' as const, count: summary?.approved ?? 0 },
     { label: 'Exported', value: 'exported' as const, count: summary?.exported ?? 0 },
   ]
-}
-
-function humanize(value: string): string {
-  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 }

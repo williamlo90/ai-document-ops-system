@@ -26,6 +26,7 @@ import type {
   EvaluationField,
   ScenarioCoverageGroup,
 } from '../features/evaluation/types'
+import { updateSearchParams } from '../shared/searchParams'
 import { Button, EmptyState, ErrorState } from '../shared/ui'
 
 export function EvaluationPage() {
@@ -60,7 +61,7 @@ export function EvaluationPage() {
       void queryClient.invalidateQueries({ queryKey: ['evaluation-dashboard'] })
     },
   })
-  const setRun = (id: string) => updateParams(params, setParams, { run: id || null })
+  const setRun = (id: string) => updateSearchParams(params, setParams, { run: id || null })
   const selected = dashboard.data?.selected_run
 
   return (
@@ -200,16 +201,4 @@ export function EvaluationPage() {
       ) : null}
     </div>
   )
-}
-
-function updateParams(
-  current: URLSearchParams,
-  setter: ReturnType<typeof useSearchParams>[1],
-  values: Record<string, string | null>,
-) {
-  const next = new URLSearchParams(current)
-  Object.entries(values).forEach(([key, value]) =>
-    value ? next.set(key, value) : next.delete(key),
-  )
-  setter(next)
 }

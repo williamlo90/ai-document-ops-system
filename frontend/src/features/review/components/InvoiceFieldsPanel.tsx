@@ -1,5 +1,5 @@
 import { AlertCircle, Check, CheckCircle2, Pencil, Save, X } from 'lucide-react'
-import { formatMoney } from '../../invoices/format'
+import { formatMoney } from '../../../shared/format'
 import type { InvoiceDetailResponse, InvoiceExtraction } from '../../invoices/types'
 import { Panel, StatusBadge } from '../../../shared/ui'
 

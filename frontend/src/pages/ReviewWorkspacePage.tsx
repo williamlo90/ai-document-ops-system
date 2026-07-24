@@ -17,9 +17,9 @@ import {
   reviewStatusTone,
   type DecisionKind,
 } from '../features/review/selectors'
-import { formatDate, formatMoney } from '../features/invoices/format'
 import type { InvoiceDetailResponse } from '../features/invoices/types'
 import type { DecisionResult, ReviewWorkflow } from '../features/review/types'
+import { formatDate, formatMoney } from '../shared/format'
 import { Button, ErrorState, LoadingState, Panel, StatusBadge } from '../shared/ui'
 
 export function ReviewWorkspacePage() {

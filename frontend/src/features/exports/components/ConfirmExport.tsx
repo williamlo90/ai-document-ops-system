@@ -1,5 +1,5 @@
 import { CheckCircle2, FileDown, LoaderCircle, X } from 'lucide-react'
-import { formatMoney } from '../../invoices/format'
+import { formatMoney } from '../../../shared/format'
 import { Button } from '../../../shared/ui'
 import type { ExportBatch } from '../types'
 

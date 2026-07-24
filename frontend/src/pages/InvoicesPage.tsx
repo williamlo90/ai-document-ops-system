@@ -13,6 +13,7 @@ import {
   type InvoiceLifecycleFilter,
 } from '../features/invoices/selectors'
 import type { InvoiceDetailResponse, InvoiceListResponse } from '../features/invoices/types'
+import { updateSearchParams } from '../shared/searchParams'
 import { Button, ErrorState, PageHeader } from '../shared/ui'
 
 const pageSize = 10
@@ -58,7 +59,7 @@ export function InvoicesPage() {
   })
 
   const setFilter = (key: string, value?: string) =>
-    updateParams(params, setParams, {
+    updateSearchParams(params, setParams, {
       [key]: value || null,
       page: null,
       ...(key !== 'invoice' ? { invoice: null } : {}),
@@ -66,12 +67,12 @@ export function InvoicesPage() {
   const openInspector = useCallback(
     (id: string) => {
       returnFocusId.current = id
-      updateParams(params, setParams, { invoice: id })
+      updateSearchParams(params, setParams, { invoice: id })
     },
     [params, setParams],
   )
   const closeInspector = useCallback(() => {
-    updateParams(params, setParams, { invoice: null })
+    updateSearchParams(params, setParams, { invoice: null })
     const trigger = returnFocusId.current
       ? invoiceTriggers.current.get(returnFocusId.current)
       : null
@@ -118,7 +119,7 @@ export function InvoicesPage() {
             direction={direction}
             setFilter={setFilter}
             setSort={(nextSort, nextDirection) =>
-              updateParams(params, setParams, {
+              updateSearchParams(params, setParams, {
                 sort: nextSort,
                 direction: nextDirection,
                 page: null,
@@ -175,17 +176,4 @@ export function InvoicesPage() {
       ) : null}
     </div>
   )
-}
-
-function updateParams(
-  current: URLSearchParams,
-  setter: ReturnType<typeof useSearchParams>[1],
-  values: Record<string, string | null | undefined>,
-) {
-  const next = new URLSearchParams(current)
-  for (const [key, value] of Object.entries(values)) {
-    if (value) next.set(key, value)
-    else next.delete(key)
-  }
-  setter(next, { replace: false })
 }

@@ -1,5 +1,5 @@
 import { AlertCircle, AlertTriangle } from 'lucide-react'
-import { formatDate } from '../../invoices/format'
+import { formatDate } from '../../../shared/format'
 import { Panel, StatusBadge } from '../../../shared/ui'
 import { cost, duration, shortDate } from '../format'
 import type { EvaluationDashboard, EvaluationRun } from '../types'

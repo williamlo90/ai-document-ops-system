@@ -11,6 +11,7 @@ import {
 } from '../features/inbox/components/InboxTables'
 import { categoryLabels, type InboxState } from '../features/inbox/selectors'
 import type { ReviewWorklist } from '../features/review/types'
+import { updateSearchParams } from '../shared/searchParams'
 import { ErrorState, PageHeader, Panel, SearchField, SkeletonRows } from '../shared/ui'
 
 const pageSize = 12
@@ -63,9 +64,9 @@ export function InboxPage() {
   })
   const current = state === 'blocked' ? blocked : review
   const setFilter = (values: Record<string, string | null | undefined>) =>
-    updateParams(params, setParams, { ...values, page: null })
+    updateSearchParams(params, setParams, { ...values, page: null })
   const selectState = (value: InboxState) =>
-    updateParams(params, setParams, {
+    updateSearchParams(params, setParams, {
       state: value,
       search: null,
       risk: null,
@@ -207,17 +208,4 @@ export function InboxPage() {
       </Panel>
     </div>
   )
-}
-
-function updateParams(
-  current: URLSearchParams,
-  setter: ReturnType<typeof useSearchParams>[1],
-  values: Record<string, string | null | undefined>,
-) {
-  const next = new URLSearchParams(current)
-  for (const [key, value] of Object.entries(values)) {
-    if (value) next.set(key, value)
-    else next.delete(key)
-  }
-  setter(next)
 }

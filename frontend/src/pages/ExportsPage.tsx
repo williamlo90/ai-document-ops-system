@@ -14,6 +14,7 @@ import type {
   ExportRun,
   ExportWorkspaceResponse,
 } from '../features/exports/types'
+import { updateSearchParams } from '../shared/searchParams'
 import { PageHeader } from '../shared/ui'
 
 const pageSize = 10
@@ -44,7 +45,7 @@ export function ExportsPage() {
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       if (searchValue !== search)
-        updateParams(params, setParams, { search: searchValue || null, page: null })
+        updateSearchParams(params, setParams, { search: searchValue || null, page: null })
     }, 250)
     return () => window.clearTimeout(timeout)
   }, [params, search, searchValue, setParams])
@@ -83,7 +84,7 @@ export function ExportsPage() {
       setLocalBatch(result.batch)
       setSelectedIds(new Set())
       setBatchOpen(true)
-      updateParams(params, setParams, {
+      updateSearchParams(params, setParams, {
         batch: result.batch.id,
         status: mode === 'draft' ? 'drafts' : 'in_batch',
         page: null,
@@ -108,7 +109,7 @@ export function ExportsPage() {
       }),
     onSuccess: (result) => {
       setLocalBatch(result.batch)
-      updateParams(params, setParams, { batch: result.batch.id, status: 'drafts' })
+      updateSearchParams(params, setParams, { batch: result.batch.id, status: 'drafts' })
       setToast('Export draft saved.')
       void queryClient.invalidateQueries({ queryKey: ['export-workspace'] })
     },
@@ -123,7 +124,7 @@ export function ExportsPage() {
       setConfirmOpen(false)
       setRunId(result.run.id)
       setToast(`${result.run.invoice_count} invoices exported successfully.`)
-      updateParams(params, setParams, { status: 'exported' })
+      updateSearchParams(params, setParams, { status: 'exported' })
       void queryClient.invalidateQueries({ queryKey: ['export-workspace'] })
     },
   })
@@ -136,7 +137,7 @@ export function ExportsPage() {
 
   const setView = (next: ExportView) => {
     setSelectedIds(new Set())
-    updateParams(params, setParams, { status: next, page: null })
+    updateSearchParams(params, setParams, { status: next, page: null })
   }
   const closeBatch = useCallback(() => {
     setBatchOpen(false)
@@ -150,7 +151,7 @@ export function ExportsPage() {
   const openExistingBatch = useCallback(
     (id: string, trigger?: HTMLElement) => {
       batchReturnFocus.current = trigger ?? batchTriggers.current.get(id) ?? null
-      updateParams(params, setParams, { batch: id, status: 'in_batch' })
+      updateSearchParams(params, setParams, { batch: id, status: 'in_batch' })
       setBatchOpen(true)
     },
     [params, setParams],
@@ -194,7 +195,7 @@ export function ExportsPage() {
           retry={() => void workspace.refetch()}
           setView={setView}
           setSearch={setSearchValue}
-          setFilter={(values) => updateParams(params, setParams, values)}
+          setFilter={(values) => updateSearchParams(params, setParams, values)}
           openBatch={openExistingBatch}
           registerBatchTrigger={(id, node) => {
             if (node) batchTriggers.current.set(id, node)
@@ -246,17 +247,4 @@ export function ExportsPage() {
       ) : null}
     </div>
   )
-}
-
-function updateParams(
-  current: URLSearchParams,
-  setter: ReturnType<typeof useSearchParams>[1],
-  values: Record<string, string | null | undefined>,
-) {
-  const next = new URLSearchParams(current)
-  for (const [key, value] of Object.entries(values)) {
-    if (value) next.set(key, value)
-    else next.delete(key)
-  }
-  setter(next, { replace: false })
 }

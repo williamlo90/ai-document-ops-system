@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, CircleHelp } from 'lucide-react'
-import { humanize } from '../../invoices/format'
+import { humanize } from '../../../shared/format'
 import { Button, Panel } from '../../../shared/ui'
 import { systemTabs, type SystemTab } from '../selectors'
 import type { SystemDashboard } from '../types'

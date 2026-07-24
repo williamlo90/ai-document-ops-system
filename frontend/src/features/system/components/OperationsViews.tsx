@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, ChevronRight, X } from 'lucide-react'
-import { formatDate, humanize } from '../../invoices/format'
+import { formatDate, humanize } from '../../../shared/format'
 import { Button, EmptyState, Panel, StatusBadge } from '../../../shared/ui'
 import { filterSystemJobs } from '../selectors'
 import type {

@@ -28,7 +28,8 @@ import type {
   SystemJob,
   SystemService,
 } from '../features/system/types'
-import { formatDate } from '../features/invoices/format'
+import { formatDate } from '../shared/format'
+import { updateSearchParams } from '../shared/searchParams'
 import { Button, ErrorState } from '../shared/ui'
 
 export function SystemPage() {
@@ -64,7 +65,7 @@ export function SystemPage() {
   }, [toast])
 
   const setTab = (value: SystemTab, nextFilter?: string | null, nextStage?: string | null) => {
-    updateParams(params, setParams, {
+    updateSearchParams(params, setParams, {
       tab: value === 'status' ? null : value,
       filter: nextFilter ?? null,
       stage: nextStage ?? null,
@@ -176,16 +177,4 @@ export function SystemPage() {
       ) : null}
     </div>
   )
-}
-
-function updateParams(
-  current: URLSearchParams,
-  setter: ReturnType<typeof useSearchParams>[1],
-  values: Record<string, string | null>,
-) {
-  const next = new URLSearchParams(current)
-  Object.entries(values).forEach(([key, value]) =>
-    value ? next.set(key, value) : next.delete(key),
-  )
-  setter(next)
 }
