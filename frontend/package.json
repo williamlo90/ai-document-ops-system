@@ -23,7 +23,7 @@
     "capture:demo": "set CAPTURE_DEMO=1&& playwright test e2e/demo-video.spec.ts --project=desktop --workers=1"
   },
   "dependencies": {
-    "@tanstack/react-query": "5.101.1",
+    "@tanstack/react-query": "5.101.4",
     "lucide-react": "1.21.0",
     "pdfjs-dist": "6.1.200",
     "react": "19.2.7",
