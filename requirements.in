@@ -1,5 +1,5 @@
 # Direct runtime dependencies. Regenerate requirements.txt with pip-compile on Python 3.11.
-fastapi==0.139.0
+fastapi==0.140.0
 uvicorn==0.50.2
 python-multipart==0.0.32
 httpx==0.28.1
