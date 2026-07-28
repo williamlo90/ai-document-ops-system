@@ -35,7 +35,10 @@ import type { SystemDashboard } from '../src/features/system/types'
 export type PortfolioRole = 'administrator' | 'reviewer' | 'uploader'
 
 const observedAt = '2026-07-21T03:15:00Z'
-const cleanPdf = readFileSync(
+const reviewPdf = readFileSync(
+  path.resolve('../examples/benchmark/datasets/invoice_scenarios_v1/documents/total_mismatch.pdf'),
+)
+const defaultPdf = readFileSync(
   path.resolve(
     '../examples/benchmark/datasets/invoice_scenarios_v1/documents/duplicate_original.pdf',
   ),
@@ -47,12 +50,12 @@ const duplicatePdf = readFileSync(
 const invoiceSeeds = [
   [
     'doc-acme',
-    'SIP-7788',
-    'Summit Industrial Parts',
-    '704.00',
+    'KM-1012',
+    'Keystone Manufacturing',
+    '125.00',
     'needs_review',
     'James Smith',
-    '2026-08-15',
+    '2026-08-11',
     'total_mismatch',
   ],
   [
@@ -87,12 +90,12 @@ const invoiceSeeds = [
   ],
   [
     'doc-acme-approved',
-    'INV-2026-04570',
-    'Acme Logistics',
-    '6120.00',
+    'SIP-7788',
+    'Summit Industrial Parts',
+    '704.00',
     'approved',
     'James Smith',
-    '2026-07-21',
+    '2026-08-15',
     '',
   ],
   [
@@ -162,7 +165,7 @@ function invoiceFromSeed(seed: (typeof invoiceSeeds)[number]): InvoiceItem {
     current_owner: owner,
     vendor_name: vendor,
     invoice_number: invoiceNumber,
-    invoice_date: id === 'doc-acme' ? '2026-07-16' : '2026-07-12',
+    invoice_date: id === 'doc-acme-approved' ? '2026-07-16' : '2026-07-12',
     due_date: dueDate,
     total,
     currency: 'USD',
@@ -196,10 +199,10 @@ function extractionFor(invoice: InvoiceItem): InvoiceDetailResponse['extraction'
       invoice_date: invoice.invoice_date,
       due_date: invoice.due_date,
       subtotal:
-        invoice.id === 'doc-acme' ? '640.00' : String((Number(invoice.total) / 1.1).toFixed(2)),
+        invoice.id === 'doc-acme' ? '100.00' : String((Number(invoice.total) / 1.1).toFixed(2)),
       tax:
         invoice.id === 'doc-acme'
-          ? '64.00'
+          ? '10.00'
           : String((Number(invoice.total) - Number(invoice.total) / 1.1).toFixed(2)),
       total: invoice.total,
       currency: invoice.currency,
@@ -209,18 +212,27 @@ function extractionFor(invoice: InvoiceItem): InvoiceDetailResponse['extraction'
               {
                 description: 'Professional services',
                 quantity: '1',
-                unit_price: '640.00',
-                amount: '640.00',
+                unit_price: '100.00',
+                amount: '100.00',
               },
             ]
-          : [
-              {
-                description: 'Invoice services',
-                quantity: '1',
-                unit_price: invoice.total,
-                amount: invoice.total,
-              },
-            ],
+          : invoice.id === 'doc-acme-approved'
+            ? [
+                {
+                  description: 'Professional services',
+                  quantity: '1',
+                  unit_price: '640.00',
+                  amount: '640.00',
+                },
+              ]
+            : [
+                {
+                  description: 'Invoice services',
+                  quantity: '1',
+                  unit_price: invoice.total,
+                  amount: invoice.total,
+                },
+              ],
     },
     confidence: [
       { field_name: 'vendor_name', score: 0.96, source_page: 1, source_text: invoice.vendor_name },
@@ -246,7 +258,8 @@ function extractionFor(invoice: InvoiceItem): InvoiceDetailResponse['extraction'
 }
 
 function detailFor(invoice: InvoiceItem, approved = false): InvoiceDetailResponse {
-  const document = approved
+  const isApproved = approved || invoice.business_status === 'approved'
+  const document = isApproved
     ? {
         ...invoice,
         status: 'approved',
@@ -257,7 +270,9 @@ function detailFor(invoice: InvoiceItem, approved = false): InvoiceDetailRespons
     : invoice
   return {
     document,
-    extraction: approved ? { ...extractionFor(invoice)!, validation: [] } : extractionFor(invoice),
+    extraction: isApproved
+      ? { ...extractionFor(invoice)!, validation: [] }
+      : extractionFor(invoice),
     correction_summary:
       invoice.id === 'doc-acme'
         ? {
@@ -267,7 +282,7 @@ function detailFor(invoice: InvoiceItem, approved = false): InvoiceDetailRespons
             latest_reason: 'Matched the legal vendor name shown on the PDF.',
           }
         : null,
-    audit_events: approved
+    audit_events: isApproved
       ? [
           {
             id: 'audit-upload',
@@ -1012,7 +1027,7 @@ function systemFixture(): SystemDashboard {
       ],
     },
     recent_jobs: [
-      ['job-1', 'doc-acme', 'INV-2026-04567', 'Reading PDF', 'succeeded', 12000, 1, false, null],
+      ['job-1', 'doc-acme', 'KM-1012', 'Reading PDF', 'succeeded', 12000, 1, false, null],
       [
         'job-2',
         'doc-northstar',
@@ -1116,7 +1131,7 @@ function systemFixture(): SystemDashboard {
         timestamp: '2026-07-21T03:12:00Z',
         actor: 'James Smith',
         action: 'Invoice approved',
-        target: 'INV-2026-04570',
+        target: 'SIP-7788',
         result: 'success',
       },
       {
@@ -1235,11 +1250,18 @@ export async function installPortfolioApi(
       return route.fulfill({ json: workflow })
     }
     const contentMatch = pathname.match(/^\/documents\/([^/]+)\/content$/)
-    if (contentMatch)
+    if (contentMatch) {
+      const documentId = contentMatch[1]
       return route.fulfill({
         contentType: 'application/pdf',
-        body: contentMatch[1].includes('meridian') ? duplicatePdf : cleanPdf,
+        body:
+          documentId === 'doc-acme'
+            ? reviewPdf
+            : documentId.includes('meridian')
+              ? duplicatePdf
+              : defaultPdf,
       })
+    }
     const documentMatch = pathname.match(/^\/documents\/([^/]+)$/)
     if (documentMatch) {
       const invoice = invoiceById.get(documentMatch[1])

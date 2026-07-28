@@ -80,27 +80,27 @@ test('one invoice keeps a coherent blocked journey across operational views', as
 
   await page.goto('/inbox?state=needs-decision')
   await expect(page.getByRole('cell', { name: 'INV-2026-04575' })).toBeVisible()
-  await expect(page.getByText('SIP-7788')).toHaveCount(0)
+  await expect(page.getByText('KM-1012')).toHaveCount(0)
 
   await page.getByRole('tab', { name: /Blocked/ }).click()
-  await expect(page.getByRole('cell', { name: 'SIP-7788' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'KM-1012' })).toBeVisible()
 
   await page.goto('/invoices?status=needs_review&invoice=doc-acme')
-  await expect(page.getByRole('dialog', { name: 'SIP-7788' })).toBeVisible()
+  await expect(page.getByRole('dialog', { name: 'KM-1012' })).toBeVisible()
   await expect(page.getByText('Waiting for review', { exact: true }).first()).toBeVisible()
 
   await page.goto('/review/doc-acme')
   await expect(page.getByText('Approval blocked', { exact: true }).first()).toBeVisible()
 
   await page.goto('/exports?status=ready')
-  await expect(page.getByText('SIP-7788')).toHaveCount(0)
+  await expect(page.getByText('KM-1012')).toHaveCount(0)
   await expect(page.getByRole('row').filter({ hasText: 'INV-2026-04573' })).toBeVisible()
 
   await page.goto('/exports?status=blocked')
-  const blockedExport = page.getByRole('row').filter({ hasText: 'SIP-7788' })
+  const blockedExport = page.getByRole('row').filter({ hasText: 'KM-1012' })
   await expect(blockedExport).toBeVisible()
   await expect(blockedExport.getByText('Blocked', { exact: true })).toBeVisible()
-  await expect(blockedExport.getByRole('link', { name: 'SIP-7788' })).toHaveAttribute(
+  await expect(blockedExport.getByRole('link', { name: 'KM-1012' })).toHaveAttribute(
     'href',
     '/review/doc-acme',
   )

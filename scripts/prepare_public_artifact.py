@@ -11,6 +11,7 @@ DEFAULT_OUTPUT = ROOT / "dist" / "public-invoice-review"
 
 ALLOWLIST_TOP_LEVEL = {
     "README.md",
+    "LICENSE",
     "ROADMAP.md",
     "PRD.md",
     "ARCHITECTURE.md",
@@ -20,6 +21,7 @@ ALLOWLIST_TOP_LEVEL = {
     ".env.example",
     ".gitignore",
     ".dockerignore",
+    ".gitleaks.toml",
     "Dockerfile",
     "docker-compose.yml",
     "docker-compose.production.yml",

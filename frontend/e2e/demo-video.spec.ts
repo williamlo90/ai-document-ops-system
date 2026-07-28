@@ -101,10 +101,12 @@ async function record(browser: Browser) {
     await visit(page, '/review/doc-acme', 'Review invoice')
     await installOverlay(page)
     await waitForPdf(page)
+    await page.getByRole('button', { name: 'View source for Total amount' }).click()
+    await expect(page.getByText('98% confidence / Page 1')).toBeVisible()
     await caption(
       page,
       '2. Source, fields, and checks together',
-      'The reviewer compares the PDF with extracted fields. A missing purchase-order number is visible as a deterministic blocker, so approval is unavailable.',
+      'The reviewer compares the PDF with extracted fields and exact source evidence. The displayed total conflicts with subtotal plus tax, so deterministic validation blocks approval.',
     )
 
     await visit(page, '/invoices?invoice=doc-northstar-correction', 'Invoices')

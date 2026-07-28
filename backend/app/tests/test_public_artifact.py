@@ -80,6 +80,11 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue((Path(self.output) / "README.md").exists())
 
+    def test_includes_license(self) -> None:
+        result = self._run_script(self.output)
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue((Path(self.output) / "LICENSE").exists())
+
     def test_includes_roadmap(self) -> None:
         result = self._run_script(self.output)
         self.assertEqual(result.returncode, 0, msg=result.stderr)
@@ -122,6 +127,7 @@ class PublicArtifactTests(unittest.TestCase):
         output = Path(self.output)
         self.assertTrue((output / "pyproject.toml").exists())
         self.assertTrue((output / "requirements-dev.txt").exists())
+        self.assertTrue((output / ".gitleaks.toml").exists())
         self.assertTrue((output / ".github" / "workflows" / "ci.yml").exists())
         self.assertTrue((output / "scripts" / "quality_report.py").exists())
 

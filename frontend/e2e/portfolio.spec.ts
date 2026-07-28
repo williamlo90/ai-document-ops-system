@@ -46,11 +46,16 @@ for (const viewport of viewports) {
           .first(),
       ).toBeVisible()
       if (target.pdf && route.includes('doc-')) await waitForVisiblePdf(page)
+      if (viewport.name === 'desktop' && target.name === 'review') {
+        await page.getByRole('button', { name: 'View source for Total amount' }).click()
+        await expect(page.getByText('98% confidence / Page 1')).toBeVisible()
+      }
       await settle(page)
       await expectNoPageOverflow(page)
       await page.screenshot({ path: path.join(output, `${target.name}.png`), fullPage: true })
 
       if (viewport.name === 'desktop' && target.name === 'review') {
+        await page.getByRole('button', { name: 'View source for Total amount' }).click()
         await page.getByRole('button', { name: 'Open decision panel' }).click()
         await expect(page.getByRole('dialog', { name: 'Reviewer decision' })).toBeVisible()
         await settle(page)
@@ -60,8 +65,7 @@ for (const viewport of viewports) {
 
     if (viewport.name !== 'desktop') return
 
-    fixture.setApproved(true)
-    await page.goto('/review/doc-acme')
+    await page.goto('/review/doc-acme-approved')
     await page.getByRole('button', { name: 'View decision record' }).click()
     await expect(
       page.getByRole('heading', { name: 'Decision recorded', exact: true }),
