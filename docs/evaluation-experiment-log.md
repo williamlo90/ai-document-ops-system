@@ -57,6 +57,14 @@ failure record predates failure-path cost preservation, so its cost is explicitl
 diagnosis led to deterministic normalization for localized decimal output and a regression test.
 No partial quality result is reported as a pass.
 
+| Experiment                             | Commit    | Result        | Field | Exact doc | Validation | Evidence | Calls | Estimated USD | Outcome                                 |
+| -------------------------------------- | --------- | ------------- | ----: | --------: | ---------: | -------: | ----: | ------------: | --------------------------------------- |
+| `1cb6fe9a-e3f3-497a-bf48-8a0da527d87c` | `26c26fa` | 19/20, failed |     - |         - |          - |        - |    40 |   unavailable | Localized decimal rejected by extractor |
+| `97ba567f-bd40-446e-8808-11706e50a54a` | `952e557` | 20/20, passed |  100% |      100% |       100% |    87.1% |    40 |     $0.129488 | None                                    |
+
+The passing rerun averaged 3.69 seconds observed latency per document. Its cost uses the dated
+pricing snapshot embedded in the record; provider billing remains authoritative.
+
 ## Interpretation Rules
 
 - The V1 recovery run is a provider comparison on a previously opened holdout, not a new blind
@@ -86,4 +94,5 @@ No partial quality result is reported as a pass.
 - [V2 final diagnostic aggregate](evidence/external-invoice-v2-diagnostic-final.json)
 - [V2 sealed holdout aggregate](evidence/external-invoice-v2-holdout-final.json)
 - [Current-provider failed diagnostic](evidence/current-provider-diagnostic.failed-20260728T080824Z.json)
+- [Current-provider passing diagnostic](evidence/current-provider-diagnostic.json)
 - [Experiment protocol](evaluation-experiment-protocol.md)

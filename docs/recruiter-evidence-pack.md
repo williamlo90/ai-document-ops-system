@@ -29,7 +29,8 @@ bad OCR field; it is an unsafe approval or export based on that field.
 3. Inspect the [architecture](../ARCHITECTURE.md) for authority and data boundaries.
 4. Check the [scenario coverage matrix](../SCENARIO_COVERAGE_MATRIX.md) and
    [evaluation log](evaluation-experiment-log.md).
-5. Inspect [release verification](evidence/release-verification.json) for the latest local gate.
+5. Inspect the [current-provider diagnostic](evidence/current-provider-diagnostic.json) and
+   [release verification](evidence/release-verification.json).
 6. Read the [security posture](security/SECURITY_POSTURE.md) before interpreting the project as
    deployable software.
 

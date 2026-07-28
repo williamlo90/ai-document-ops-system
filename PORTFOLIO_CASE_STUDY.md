@@ -114,11 +114,17 @@ The versioned synthetic dataset contains 20 PDFs covering:
 
 The first provider-backed run exposed three unsafe false fills in intentionally missing fields.
 Prompt-level null rules corrected two. A deterministic seller-context guard corrected the final
-vendor error. The final controlled run matched 160 of 160 evaluated fields and all 20 expected
-validation outcomes, with no provider error and 1.09 seconds average observed provider latency.
+vendor error.
+
+The current-provider release diagnostic later exposed another failure instead of hiding it: a
+localized amount such as `1.250,00` was valid model output but invalid at the decimal boundary. The
+failed 19-of-20 run was preserved, the parser was corrected with a regression test, and a clean
+rerun completed all 20 documents. That rerun matched 160 of 160 fields, all validation outcomes,
+and all approval-blocker outcomes. Source evidence covered 87.1% of correct non-null fields. The 40
+provider calls averaged 3.69 seconds per document and had a $0.129488 dated list-price estimate.
 
 These numbers describe one small synthetic golden set. They are not production accuracy,
-throughput, or SLA claims.
+throughput, billing, or SLA claims.
 
 Two separate 25-document licensed synthetic FATURA packs were prepared outside Git. The first
 sealed holdout exposed a provider-availability failure: only 1 of 10 documents completed both
