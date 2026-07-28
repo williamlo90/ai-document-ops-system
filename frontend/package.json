@@ -25,11 +25,11 @@
     "capture:demo": "set CAPTURE_DEMO=1&& playwright test e2e/demo-video.spec.ts --project=desktop --workers=1"
   },
   "dependencies": {
-    "@tanstack/react-query": "5.101.1",
+    "@tanstack/react-query": "5.101.4",
     "lucide-react": "1.21.0",
     "pdfjs-dist": "6.1.200",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "react-router-dom": "7.18.1"
   },
   "devDependencies": {
@@ -41,13 +41,13 @@
     "@types/node": "24.13.2",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-react": "6.0.4",
     "axe-core": "4.12.1",
     "jsdom": "29.1.1",
     "oxlint": "1.69.0",
     "prettier": "3.6.2",
     "typescript": "6.0.2",
-    "vite": "8.1.0",
-    "vitest": "4.1.9"
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
   }
 }

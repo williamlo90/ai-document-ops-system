@@ -6,6 +6,7 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 8_000 },
   fullyParallel: true,
+  workers: 4,
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://127.0.0.1:4173',

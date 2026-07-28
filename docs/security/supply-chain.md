@@ -31,7 +31,9 @@ CI and the documented local gate enforce:
 - digest-pinned runtime, build, and local Postgres images;
 - deployment of the exact scanned registry digest rather than a mutable image tag;
 - a high/critical Trivy scan of the built application image; and
-- weekly Dependabot checks for Python, npm, GitHub Actions, and Docker.
+- weekly Dependabot checks for Python, npm, GitHub Actions, and Docker;
+- grouped minor and patch version updates for each ecosystem; and
+- manual review of major version updates instead of automatic major-version pull requests.
 
 Dependency or action updates must pass the full backend, frontend, smoke, image-build, and image-scan
 jobs before merge. A passing scan means no advisory matched the configured database and threshold at
