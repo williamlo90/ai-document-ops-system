@@ -414,7 +414,7 @@ def _source_decimal(value: str) -> Decimal | None:
             normalized = normalized.replace(",", "")
     elif "," in normalized:
         tail = normalized.rsplit(",", 1)[-1]
-        normalized = normalized.replace(",", "." if len(tail) == 2 else "")
+        normalized = normalized.replace(",", "." if len(tail) in {1, 2} else "")
     try:
         return Decimal(normalized)
     except InvalidOperation:
@@ -506,7 +506,10 @@ def _decimal(value: Any) -> Decimal | None:
     text = _text(value)
     if text is None:
         return None
-    return Decimal(text)
+    parsed = _source_decimal(text)
+    if parsed is None:
+        raise InvalidOperation
+    return parsed
 
 
 def _text(value: Any) -> str | None:

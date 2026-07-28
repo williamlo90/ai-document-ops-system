@@ -296,6 +296,60 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         self.assertEqual(result.extraction.data.invoice_number, "INV-002")
         self.assertEqual(str(result.extraction.data.total), "25.00")
 
+    def test_normalizes_localized_decimal_values_from_model_output(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret",
+            endpoint="https://example.test/extract",
+            model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {
+                "data": {
+                    "vendor_name": "Rhein Handel GmbH",
+                    "invoice_number": "RH-7781",
+                    "invoice_date": "2026-07-03",
+                    "subtotal": "1.250,00",
+                    "tax": "250,00",
+                    "total": "1.500,00",
+                    "currency": "EUR",
+                    "line_items": [
+                        {
+                            "description": "Freight",
+                            "quantity": "1,5",
+                            "unit_price": "1.000,00",
+                            "amount": "1.500,00",
+                        }
+                    ],
+                    "field_confidence": [
+                        {
+                            "field_name": "invoice_number",
+                            "score": "0,98",
+                            "source_page": 1,
+                            "source_text": "Invoice RH-7781",
+                        }
+                    ],
+                }
+            },
+        )
+
+        result = extractor.extract_invoice(
+            ParsedDocument(
+                text=(
+                    "FROM\nRhein Handel GmbH\nRheinstrasse 10\n"
+                    "Invoice RH-7781\n"
+                    "Subtotal: 1.250,00 EUR\nTax: 250,00 EUR\nTotal: 1.500,00 EUR"
+                )
+            )
+        )
+
+        self.assertEqual(str(result.extraction.data.subtotal), "1250.00")
+        self.assertEqual(str(result.extraction.data.tax), "250.00")
+        self.assertEqual(str(result.extraction.data.total), "1500.00")
+        self.assertEqual(str(result.extraction.data.line_items[0].quantity), "1.5")
+        self.assertEqual(str(result.extraction.data.line_items[0].unit_price), "1000.00")
+        confidence = next(
+            item for item in result.extraction.confidence if item.field_name == "invoice_number"
+        )
+        self.assertEqual(str(confidence.score), "0.98")
+
     def test_normalizes_string_null_values_at_provider_boundary(self) -> None:
         extractor = LlmJsonInvoiceExtractor(
             api_key="secret",

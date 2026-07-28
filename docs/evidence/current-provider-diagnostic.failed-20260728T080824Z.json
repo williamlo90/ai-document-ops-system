@@ -1,0 +1,54 @@
+{
+  "schema_version": "current_provider_attempt_v1",
+  "generated_at": "2026-07-28T08:08:24.043814+00:00",
+  "release_status": "failed_diagnostic_not_holdout",
+  "holdout_seal_verified": false,
+  "attempt": {
+    "id": "1cb6fe9a-e3f3-497a-bf48-8a0da527d87c",
+    "status": "failed",
+    "documents_requested": 20,
+    "documents_processed": 19,
+    "provider_calls": 40,
+    "error_code": "evaluation_incomplete",
+    "started_at": "2026-07-28T08:07:13.616951+00:00",
+    "completed_at": "2026-07-28T08:08:24.043063+00:00"
+  },
+  "failures": [
+    {
+      "document_id": "european_number_format",
+      "stage": "extractor",
+      "provider": "llm_json",
+      "error_code": "invalid_extractor_response",
+      "retryable": false
+    }
+  ],
+  "experiment": {
+    "release_kind": "current_provider_diagnostic",
+    "source": {
+      "git_commit": "26c26fa291cbadcc04061ffc918ff018916fbc0a",
+      "git_branch": "main",
+      "worktree_dirty": false,
+      "critical_code_sha256": "5432ecbb1c733c466525209571e47b5686098a5061481b1ffdd053e13dacd308"
+    },
+    "dataset_fingerprint_sha256": "d22119263dea7332f39202c825cecbf23cde8b33dff6fbe7b8b9f8089f96dbb2",
+    "providers": {
+      "parser": {
+        "name": "mistral_ocr",
+        "requested_model": "mistral-ocr-latest",
+        "endpoint_host": "api.mistral.ai"
+      },
+      "extractor": {
+        "name": "llm_json",
+        "requested_model": "gpt-5.4-mini-2026-03-17",
+        "endpoint_host": "api.openai.com",
+        "prompt_version": "invoice-extraction-v3",
+        "prompt_sha256": "da0e73b938c035c198befcf68245e13586a07040149887e60b70b5e412b47d5f"
+      }
+    }
+  },
+  "limitations": [
+    "No partial quality result was promoted.",
+    "The failure record excludes OCR text, prompts, provider responses, and invoice contents.",
+    "This diagnostic used a previously seen synthetic set and is not a blind holdout."
+  ]
+}

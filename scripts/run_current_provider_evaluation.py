@@ -136,6 +136,7 @@ def _failure_report(
             ),
         },
         "failures": list(exc.failures),
+        "provider_economics": exc.economics,
         "experiment": _experiment_metadata(settings=settings, status=status),
         "limitations": [
             "No partial quality result was promoted.",

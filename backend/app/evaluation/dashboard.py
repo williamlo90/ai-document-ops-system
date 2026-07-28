@@ -48,10 +48,12 @@ class EvaluationRunIncomplete(RuntimeError):
         self,
         attempt: EvaluationAttemptRecord,
         failures: tuple[dict[str, Any], ...] = (),
+        economics: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(attempt.error_message or "Evaluation did not complete.")
         self.attempt = attempt
         self.failures = failures
+        self.economics = economics
 
 
 class EvaluationDashboardService:
@@ -168,6 +170,7 @@ class EvaluationDashboardService:
                 raise EvaluationRunIncomplete(
                     failed,
                     failures=_failure_details(observations),
+                    economics=economics,
                 )
             report = build_external_evaluation_summary(
                 records_from_dataset(dataset),
@@ -238,7 +241,11 @@ class EvaluationDashboardService:
                         "retryable": False,
                     },
                 )
-            raise EvaluationRunIncomplete(failed, failures=failures) from exc
+            raise EvaluationRunIncomplete(
+                failed,
+                failures=failures,
+                economics=economics,
+            ) from exc
         finally:
             self._run_lock.release()
 

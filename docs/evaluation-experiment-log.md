@@ -44,6 +44,19 @@ once through Mistral OCR and the OpenAI API. The run completed one OCR page with
 list-price cost was $0.006333. This is a configuration smoke check, not an accuracy experiment, and
 is intentionally excluded from the evaluation total above.
 
+## Current-Provider Release Diagnostics On 28 July 2026
+
+The first clean-commit 20-document attempt failed closed without promoting a partial score. The
+runner at that commit preserved the failed attempt count but not the document-stage failure detail,
+which exposed an observability gap.
+
+After adding a sanitized failure record, the next clean attempt processed 19 of 20 documents and
+made 40 provider calls. `european_number_format` failed at the extractor with
+`invalid_extractor_response`; no OCR text, prompt, response, or invoice content was retained. The
+failure record predates failure-path cost preservation, so its cost is explicitly unavailable. The
+diagnosis led to deterministic normalization for localized decimal output and a regression test.
+No partial quality result is reported as a pass.
+
 ## Interpretation Rules
 
 - The V1 recovery run is a provider comparison on a previously opened holdout, not a new blind
@@ -72,4 +85,5 @@ is intentionally excluded from the evaluation total above.
 - [V2 initial diagnostic aggregate](evidence/external-invoice-v2-diagnostic-initial.json)
 - [V2 final diagnostic aggregate](evidence/external-invoice-v2-diagnostic-final.json)
 - [V2 sealed holdout aggregate](evidence/external-invoice-v2-holdout-final.json)
+- [Current-provider failed diagnostic](evidence/current-provider-diagnostic.failed-20260728T080824Z.json)
 - [Experiment protocol](evaluation-experiment-protocol.md)
