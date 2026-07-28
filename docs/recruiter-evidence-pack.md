@@ -13,7 +13,7 @@ approval or export, so the model is not allowed to make that decision.
 
 | What it shows                                        | Where to verify it                                                                                  | What is still missing                                      |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| AI output is treated as a proposal, not an approval. | Validation errors block approval in both the API and UI.                                            | Rules for every possible invoice risk.                     |
+| AI output is treated as a proposal, not an approval. | Validation errors block approval in both the API and UI.                                            | Coverage of every possible invoice risk.                   |
 | Reviewers can check where a value came from.         | Fields show confidence, OCR excerpts, and source pages. Corrections show human before/after values. | Bounding-box highlighting for every OCR provider.          |
 | Review decisions are recorded.                       | Approval, rejection, correction, actor, reason, and timestamp are persisted.                        | Cryptographic tamper evidence or regulatory certification. |
 | Export is controlled.                                | Only approved invoices are eligible. Delivery is idempotent and records failures.                   | A production ERP connection.                               |

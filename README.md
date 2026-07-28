@@ -63,7 +63,7 @@ configuration uses Mistral OCR and an OpenAI structured extraction model.
 - Reviewer corrections retain the original extraction, actor, reason, timestamp, and field-level
   diff.
 - The release command checks the backend, frontend, dependencies, production build, fixture-based
-  browser tests, and one real local full-stack browser journey.
+  browser tests, and one browser test against the local full stack.
 
 Exact release counts and environment details are stored in
 [release verification](docs/evidence/release-verification.json). Provider results, including failed
@@ -71,14 +71,14 @@ runs, are recorded in the [evaluation log](docs/evaluation-experiment-log.md).
 
 ## Current limitations
 
-The evaluation documents are synthetic and intentionally small. I have not measured production
-accuracy, reviewer time savings, cost savings, or customer impact. Invoice is the only complete
-document workflow. The default SQLite, local storage, and seeded-role setup is intended for local
-evaluation, not production tenancy. A reviewer is still required for every approval.
+The evaluation uses a small synthetic dataset. I have not measured production accuracy, reviewer
+time savings, cost savings, or customer impact. Invoice is the only complete document workflow.
+SQLite, local storage, and seeded roles are used for local evaluation; they are not a production
+tenancy setup. Every approval still requires a reviewer.
 
 ## Quick start
 
-The shortest complete setup uses Docker Desktop and starts the API and background worker:
+For the fastest setup, use Docker Desktop. This starts both the API and background worker:
 
 ```powershell
 .\scripts\start_docker.ps1

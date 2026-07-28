@@ -99,7 +99,7 @@ Before processing real client data:
 5. Review correction behavior and the failure taxonomy against those cases.
 6. Complete the provider, retention, malware-scanning, and privacy checks listed in the security
    posture.
-7. Publish a hosted or one-command recruiter demo after the seeded local workflow is stable.
+7. Publish a hosted demo or a one-command local demo after the seeded workflow is stable.
 
 ## Not planned yet
 

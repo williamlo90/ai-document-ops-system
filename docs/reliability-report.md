@@ -1,6 +1,6 @@
 # Reliability Report
 
-Status: verified local portfolio results as of 22 July 2026.
+Status: local portfolio results last verified on 22 July 2026.
 
 ## What is measured
 
@@ -56,7 +56,7 @@ The technical APIs keep local records for:
 - prompt-version and run-window comparisons.
 
 Some run metrics remain placeholders. Token cost is omitted when no real planner cost was recorded.
-Run-window comparison is also not presented as a production regression system.
+Run-window comparison remains a local diagnostic.
 
 ## Automated verification
 

@@ -12,8 +12,7 @@ data. A human reviewer makes the final decision.
 
 ## My role
 
-I built this as a solo portfolio project from 12–28 July 2026. The repository history currently
-lists one human contributor.
+I built this as a solo portfolio project from 12–28 July 2026 and remain its only contributor.
 
 I was responsible for:
 
@@ -59,9 +58,8 @@ Without one review workspace, a reviewer typically needs to:
 5. communicate the result;
 6. keep a record of the decision.
 
-I have not measured the time difference against a manual process. The current design goal is
-smaller: bring the source document, proposed fields, validation reasons, and allowed decision into
-one workflow.
+I have not measured this workflow against a manual baseline. For now, the goal is simple: keep the
+source document, proposed fields, validation reasons, and review action in one place.
 
 ## The implemented workflow
 
@@ -104,7 +102,7 @@ rejects an ambiguous vendor name when the returned text does not provide enough 
 - reject an invalid invoice;
 - request a correction when information is missing or inconsistent.
 
-The model cannot perform any of these decisions.
+The model cannot make any of these decisions.
 
 ## Evaluation cases
 
@@ -174,7 +172,7 @@ The tested workflow showed that:
 - approved, rejected, and exported invoices could not be edited through the draft API;
 - correction requests returned the invoice to the uploader and kept the original extraction,
   before/after values, actor, reason, timestamp, and field-level diff;
-- the provider-backed workflow produced six durable audit events.
+- the provider-backed workflow recorded six audit events.
 
 ## Engineering checks
 
@@ -199,7 +197,7 @@ The exact counts and environment are recorded in
 | Arithmetic mismatch                  | Show the validation error and block approval.                        |
 | Duplicate invoice                    | Block the copy and keep the original reviewable.                     |
 | Invalid provider credential          | Stop without retrying and report provider health.                    |
-| Rate limit or supported server error | Retry within a fixed limit, then move the job to the failed queue.   |
+| Rate limit or retryable server error | Retry within a fixed limit, then move the job to the failed queue.   |
 | Export delivery failure              | Keep the approved state and record the failed attempt for retry.     |
 | Invalid role or workspace            | Refuse the request at the API.                                       |
 
