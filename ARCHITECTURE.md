@@ -85,6 +85,10 @@ state includes documents, extraction evidence, jobs, retries, workflow records, 
 events, and evaluation runs. The document object-storage boundary can target an S3-compatible
 service, but the default demo is self-contained.
 
+Workers claim one queued job atomically. A running job can be reclaimed only after its configured
+lease expires, so a terminated worker does not strand work indefinitely while concurrent workers
+remain unable to claim the same active job.
+
 ## State and Decision Model
 
 The business journey is projected from durable backend state:

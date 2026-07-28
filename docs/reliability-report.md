@@ -55,14 +55,18 @@ system.
 
 ## Automated Verification
 
-- backend: 453 passed, 2 skipped
-- frontend: 13 passed
-- browser: 25 active product and workflow tests passed across desktop, tablet, and mobile; 17
-  capture-only or viewport-specific cases skipped in the standard run
-- backend Ruff check: passed
-- frontend lint: passed
-- frontend production build: passed
-- npm production dependency audit: no known vulnerabilities at verification time
+The clean-commit release gate covers:
+
+- Python runtime dependency audit, Ruff formatting and lint, complexity checks, and the full backend
+  suite;
+- the reviewed frontend dependency gate, formatting, lint, unit tests, and production build;
+- fixture-based browser coverage across product routes; and
+- one real local React, FastAPI, SQLite, and worker browser journey.
+
+Exact counts, environment versions, durations, and reviewed dependency exceptions are recorded in
+`docs/evidence/release-verification.json`. The frontend gate currently contains one documented,
+time-bounded exception for a React Router server-action advisory that is not reachable in this
+client-only Vite application.
 
 ## Claim Boundary
 

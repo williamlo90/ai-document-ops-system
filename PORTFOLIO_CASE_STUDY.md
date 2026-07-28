@@ -10,6 +10,28 @@ Invoice Review is a local-first portfolio implementation of that control point. 
 uses AI for document reading, deterministic code for business safeguards, and a human reviewer for
 consequential decisions.
 
+## Role And Ownership
+
+I built this as a solo portfolio project from 12–28 July 2026. The repository history currently
+lists one human contributor. I owned the product scope, architecture decisions, implementation
+direction, evaluation design, failure analysis, documentation, and release gates.
+
+The project started as a technically broad document-workflow demo. I deliberately narrowed it to
+one complete invoice journey after repeated UI audits showed that exposing workflow-engine concepts
+made ordinary review work harder to understand.
+
+The main decisions I made were:
+
+- keep invoice as the only complete document type instead of adding shallow breadth;
+- prohibit confidence-based auto-approval;
+- put the source PDF beside editable fields and deterministic blockers;
+- retain human correction provenance rather than silently replacing model output;
+- keep evaluation, provider cost, and operational evidence behind administrator navigation;
+- preserve active inherited workflow namespaces instead of performing a risky cosmetic rename.
+
+Rejected alternatives included a chatbot, unrestricted autonomous actions, a second document type,
+and production integrations before the invoice evidence was credible.
+
 ## User and Constraint
 
 Primary user: a finance operations reviewer or accounts-payable operator handling incoming
@@ -120,13 +142,17 @@ accuracy were 100%. One unsupported due date was still hallucinated and remains 
 
 ## Engineering Evidence
 
-- 453 backend tests passed with 2 environment-dependent tests skipped
-- 13 frontend tests passed
-- frontend lint and production build passed
-- backend Ruff checks passed
-- production dependency audit reported no known npm vulnerability at verification time
+- the clean-commit release record captures exact backend, frontend, fixture-browser, and real
+  full-stack browser test counts
+- frontend lint, formatting, and production build are release gates
+- backend Ruff formatting, lint, complexity, and dependency checks are release gates
+- the frontend advisory gate fails on unreviewed high or critical findings; one client-inapplicable
+  React Router advisory has a documented, time-bounded exception
 - security tests cover session, role, workspace, CSRF, headers, upload, and state-transition boundaries
 - public artifact tests prevent `.env`, local databases, uploads, caches, and build output from being packaged
+
+The machine-readable [release verification](docs/evidence/release-verification.json) is the source
+for current counts and environment details.
 
 ## Failure Modes and Product Response
 
@@ -167,3 +193,11 @@ boundary can be demonstrated and tested.
 
 The next valuable validation is a small, permissioned real-world invoice set plus observed reviewer
 tasks. That evidence should precede another document type or broader automation claim.
+
+## What I Would Change Next
+
+1. Run the documented 3–5 participant usability study and iterate on observed task failures.
+2. Validate a permissioned, legally usable invoice set without committing raw documents.
+3. Replace seeded role tokens with production identity and tenant membership.
+4. Bind the malware scanner, object-store lifecycle, backups, and independent security review.
+5. Add worker heartbeat telemetry and managed queue semantics before claiming distributed scale.

@@ -20,8 +20,16 @@ jobs:
       - run: python -m pip install --require-hashes -r requirements-dev.txt
       - name: Run credentialed provider checks outside pull requests
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          EXTRACTOR_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          RUN_REAL_PROVIDER_TESTS: "1"
-        run: python -m unittest backend.app.tests.test_real_providers backend.app.tests.test_evaluation_real
+          EXTRACTOR_ENDPOINT: https://api.openai.com/v1/chat/completions
+          EXTRACTOR_MODEL: gpt-5.4-mini-2026-03-17
+          EXTRACTOR_ALLOWED_HOSTS: api.openai.com
+          PYTHONPATH: backend
+        run: |
+          test -n "$MISTRAL_API_KEY" || { echo "MISTRAL_API_KEY is not configured"; exit 1; }
+          test -n "$EXTRACTOR_API_KEY" || { echo "OPENAI_API_KEY is not configured"; exit 1; }
+          python -m unittest app.tests.test_real_providers app.tests.test_evaluation_real
+          python scripts/run_current_provider_evaluation.py \
+            "$RUNNER_TEMP/current-provider-smoke.json" \
+            --max-documents 1

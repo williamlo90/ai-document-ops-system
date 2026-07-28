@@ -54,20 +54,28 @@ OpenAI structured extraction model.
 
 ## Results And Limits
 
-| Observed result                                                                                                                  | Boundary                                                                                                  |
-| -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| 20 deterministic invoice scenarios cover clean, missing-field, mismatch, duplicate, low-contrast, rotated, and multi-page cases. | A small synthetic golden set, not production accuracy.                                                    |
-| The controlled synthetic regression reached 160/160 evaluated fields and 20/20 expected validation outcomes.                     | Results apply only to the committed scenario version and configuration.                                   |
-| A sealed 10-document external synthetic holdout reached 98.75% field match and 100% validation match.                            | One due-date hallucination was documented; the pack is not customer data or statistically representative. |
-| Review corrections retain the original extraction, actor, reason, timestamp, and field diff.                                     | No learning or automatic model update is claimed.                                                         |
-| 453 backend tests passed with 2 skipped; 13 frontend tests, lint, and production build passed at the last full baseline.         | Hosted infrastructure, live scanner, and independent security testing remain external gates.              |
+| Observed result                                                                                                                  | Boundary                                                                                                                                |
+| -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 20 deterministic invoice scenarios cover clean, missing-field, mismatch, duplicate, low-contrast, rotated, and multi-page cases. | A small synthetic golden set, not production accuracy.                                                                                  |
+| The controlled synthetic regression reached 160/160 evaluated fields and 20/20 expected validation outcomes.                     | Results apply only to the committed scenario version and configuration.                                                                 |
+| A sealed 10-document external synthetic holdout reached 98.75% field match and 100% validation match.                            | One due-date hallucination was documented; the pack is not customer data or statistically representative.                               |
+| Review corrections retain the original extraction, actor, reason, timestamp, and field diff.                                     | No learning or automatic model update is claimed.                                                                                       |
+| The release gate covers backend, frontend, dependency, build, fixture-browser, and real full-stack browser checks.               | See the machine-readable release record for exact counts; hosted infrastructure and independent security testing remain external gates. |
 
 No time saving, cost reduction, customer outcome, or production robustness claim is made. Invoice is
 the only complete document workflow, and human approval remains mandatory for consequential actions.
 
 ## Quick Start
 
-Prerequisites: Python 3.11+, Node.js 22, and npm 10 or 11.
+The shortest complete path uses Docker Desktop and starts both the API and background worker:
+
+```powershell
+.\scripts\start_docker.ps1
+```
+
+Open `http://127.0.0.1:8000` after the API reports ready.
+
+For local source development, prerequisites are Python 3.11+, Node.js 22, and npm 10 or 11:
 
 ```powershell
 .\scripts\setup_local_venv.ps1
@@ -80,7 +88,7 @@ Pop-Location
 .\scripts\start_dev.ps1
 ```
 
-Open `http://127.0.0.1:8000`.
+The local launcher supervises both the API and worker. Press Ctrl+C in its terminal to stop both.
 
 Local demo credentials from `.env.example`:
 
@@ -99,25 +107,21 @@ credentials. Never commit `.env` or real invoices. See [RUNBOOK.md](RUNBOOK.md).
 
 ## Quality Gates
 
-```powershell
-$env:ENV_FILE = ".env.example"
-$env:PYTHONPATH = "backend"
-.\.venv\Scripts\python.exe -m unittest discover -s backend/app/tests -t backend
-.\.venv\Scripts\python.exe -m ruff format --check backend scripts run_tests.py
-.\.venv\Scripts\python.exe -m ruff check backend scripts run_tests.py
+Run the complete local release gate from a clean worktree:
 
-Push-Location frontend
-npm run format:check
-npm test
-npm run lint
-npm run build
-npm run test:e2e
-Pop-Location
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_release.py --write-evidence
 ```
+
+This command records the exact commit, environment, checks, test counts, and reviewed dependency
+exceptions in [release verification](docs/evidence/release-verification.json). Real-provider
+evaluation is a separate, credentialed diagnostic and is never implied by this gate.
 
 ## Documentation
 
 - [Portfolio case study](PORTFOLIO_CASE_STUDY.md)
+- [Recruiter evidence pack](docs/recruiter-evidence-pack.md)
+- [Usability study protocol](docs/usability-study-protocol.md)
 - [Product requirements](PRD.md)
 - [Architecture](ARCHITECTURE.md)
 - [Runbook](RUNBOOK.md)

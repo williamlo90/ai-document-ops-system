@@ -50,6 +50,7 @@ export function ReviewWorkspacePage() {
   const [decision, setDecision] = useState<DecisionKind | null>(null)
   const [decisionPanelOpen, setDecisionPanelOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [requestedPdfPage, setRequestedPdfPage] = useState<number | null>(null)
   const [latestDecision, setLatestDecision] = useState<DecisionResult['decision'] | null>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
   const decisionTriggerRef = useRef<HTMLButtonElement>(null)
@@ -73,6 +74,12 @@ export function ReviewWorkspacePage() {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
+
+  useEffect(() => {
+    if (!toast) return
+    const timeout = window.setTimeout(() => setToast(null), 3600)
+    return () => window.clearTimeout(timeout)
+  }, [toast])
 
   const save = useMutation({
     mutationFn: () =>
@@ -195,6 +202,7 @@ export function ReviewWorkspacePage() {
           <PdfPreview
             url={`/documents/${document.id}/content`}
             filename={document.original_filename}
+            requestedPage={requestedPdfPage}
           />
         </Panel>
         <div className="review-side-column">
@@ -209,6 +217,7 @@ export function ReviewWorkspacePage() {
             setEditing={setEditing}
             setDraft={setDraft}
             save={() => save.mutate()}
+            showSourcePage={setRequestedPdfPage}
           />
         </div>
       </div>

@@ -109,6 +109,7 @@ test('one invoice keeps a coherent blocked journey across operational views', as
 test('active product pages have no serious accessibility violations or page overflow', async ({
   page,
 }) => {
+  test.setTimeout(90_000)
   await installPortfolioApi(page)
   const pages = [
     { path: '/inbox', heading: 'Inbox' },

@@ -195,28 +195,36 @@ JSON, never the private ledger, OCR text, predictions, labels, PDFs, or `.env`. 
 
 ## Quality Gates
 
-Backend:
+Run the complete release gate from a clean worktree:
 
 ```powershell
-$env:ENV_FILE = ".env.example"
-$env:PYTHONPATH = "backend"
-.\.venv\Scripts\python.exe -m unittest discover -s backend/app/tests -t backend
-.\.venv\Scripts\python.exe -m ruff format --check backend scripts run_tests.py
-.\.venv\Scripts\python.exe -m ruff check backend scripts run_tests.py
-.\.venv\Scripts\python.exe -m pip_audit --requirement requirements.txt --disable-pip --strict
+.\.venv\Scripts\python.exe scripts\verify_release.py --write-evidence
 ```
 
-Frontend:
+It runs the backend and frontend dependency, format, lint, test, build, complexity, fixture-browser,
+and real full-stack browser checks. A passing clean run writes
+`docs/evidence/release-verification.json`. Use a dry run while editing:
 
 ```powershell
-Push-Location frontend
-npm audit --audit-level=high
-npm run format:check
-npm test
-npm run lint
-npm run build
-Pop-Location
+.\.venv\Scripts\python.exe scripts\verify_release.py
 ```
+
+The frontend dependency gate uses `npm run audit`, which performs a full npm audit and accepts only
+the narrow, expiring advisory exception documented in
+`docs/security/supply-chain.md`. Do not replace it with a claim that the dependency graph has no
+advisories.
+
+To record a current-provider diagnostic against the committed synthetic scenarios:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_current_provider_evaluation.py `
+  docs\evidence\current-provider-diagnostic.json `
+  --max-documents 20
+```
+
+This command requires a clean worktree and configured Mistral and OpenAI credentials. It records
+provider, model, prompt, code, dataset, cost, latency, and failure metadata, but deliberately labels
+the result as a diagnostic rather than a blind holdout.
 
 Public artifact:
 

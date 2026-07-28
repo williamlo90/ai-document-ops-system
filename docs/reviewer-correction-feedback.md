@@ -24,9 +24,13 @@ the existing workflow rules.
 
 ## User Experience
 
-The primary UI does not expose raw feedback records:
+The primary UI keeps feedback concise:
 
-- reviewers see one compact summary of the latest corrected fields, actor, and reason
+- reviewers can open a field's source detail to see whether it is AI-extracted or
+  reviewer-corrected
+- AI-extracted values show available confidence, exact OCR excerpt, and source page
+- reviewer-corrected values show actor, reason, and the latest before/after diff without retaining
+  stale AI confidence
 - uploaders see `Fix invoice` only after a reviewer requests a correction
 - after a changed field is submitted, ownership returns to the reviewer
 

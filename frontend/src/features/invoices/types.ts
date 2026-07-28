@@ -66,6 +66,12 @@ export type InvoiceDetailResponse = {
   correction_summary?: {
     latest_change_count: number
     latest_changed_fields: string[]
+    latest_changes: Array<{
+      field_path: string
+      original_ai_value: string | number | boolean | null
+      before_value: string | number | boolean | null
+      after_value: string | number | boolean | null
+    }>
     latest_actor: string
     latest_reason: string
   } | null

@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 playwright-report/
+playwright-report-fullstack/
 test-results/
 
 # Editor directories and files

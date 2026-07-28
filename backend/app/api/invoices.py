@@ -15,7 +15,7 @@ from app.api.document_commands import (
     request_document_correction_command,
     retry_document_command,
 )
-from app.api.dependencies import AppContainer, get_container, require_admin_context
+from app.api.dependencies import AppContainer, get_container, require_authenticated_context
 from app.api.document_workflow import (
     current_work_item,
     document_for_context,
@@ -72,7 +72,7 @@ def list_invoices(
     direction: str = Query(default="desc", pattern="^(asc|desc)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, ge=1, le=100),
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     documents = container.documents.list_by_workspace(context.workspace_id)
@@ -200,7 +200,7 @@ def list_invoices(
 @router.get("/{document_id}/workflow")
 def invoice_workflow(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return document_workflow_response(container, context, document_id)
@@ -210,7 +210,7 @@ def invoice_workflow(
 def save_intake_draft(
     document_id: UUID,
     payload: IntakeDraftPayload,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     document = document_for_context(container, context, document_id)
@@ -433,7 +433,7 @@ def _invoice_business_status(status_value: DocumentStatus, has_errors: bool) -> 
 @router.post("/{document_id}/retry")
 def retry_invoice(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return retry_document_command(document_id, context, container)
@@ -442,7 +442,7 @@ def retry_invoice(
 @router.post("/{document_id}/reprocess")
 def reprocess_invoice(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return reprocess_document_command(document_id, context, container)
@@ -451,7 +451,7 @@ def reprocess_invoice(
 @router.post("/{document_id}/cancel")
 def cancel_invoice(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return cancel_document_command(document_id, context, container)
@@ -461,7 +461,7 @@ def cancel_invoice(
 def request_invoice_correction(
     document_id: UUID,
     payload: WorkflowCommandPayload,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return request_document_correction_command(document_id, payload, context, container)
@@ -471,7 +471,7 @@ def request_invoice_correction(
 def escalate_invoice(
     document_id: UUID,
     payload: WorkflowCommandPayload,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return escalate_document_command(document_id, payload, context, container)

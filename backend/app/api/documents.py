@@ -14,7 +14,7 @@ from app.api.document_commands import (
     request_document_correction_command,
     retry_document_command,
 )
-from app.api.dependencies import AppContainer, get_container, require_admin_context
+from app.api.dependencies import AppContainer, get_container, require_authenticated_context
 from app.api.document_workflow import document_workflow_response
 from app.api.serializers import audit_response, document_response, extraction_response, job_response
 from app.core.security import SecurityContext, UnauthorizedError, is_intake_role
@@ -36,7 +36,7 @@ class DeleteDocumentRequest(BaseModel):
 def upload_policy(
     filename: str = Query(default=""),
     size_bytes: int = Query(default=0, ge=0),
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     duplicates = [
@@ -56,7 +56,7 @@ def upload_policy(
 @router.post("/upload")
 def upload_document(
     file: UploadFile = File(...),
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:
@@ -85,7 +85,7 @@ def upload_document(
 
 @router.get("")
 def list_documents(
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> list[dict[str, object]]:
     return [
@@ -98,7 +98,7 @@ def list_documents(
 @router.get("/{document_id}")
 def get_document(
     document_id: UUID,
-    _context: SecurityContext = Depends(require_admin_context),
+    _context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:
@@ -129,7 +129,7 @@ def get_document(
 @router.get("/{document_id}/workflow")
 def document_workflow(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return document_workflow_response(container, context, document_id)
@@ -138,7 +138,7 @@ def document_workflow(
 @router.post("/{document_id}/retry")
 def retry_document(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return retry_document_command(document_id, context, container)
@@ -147,7 +147,7 @@ def retry_document(
 @router.post("/{document_id}/reprocess")
 def reprocess_document(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return reprocess_document_command(document_id, context, container)
@@ -156,7 +156,7 @@ def reprocess_document(
 @router.post("/{document_id}/cancel")
 def cancel_document(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return cancel_document_command(document_id, context, container)
@@ -166,7 +166,7 @@ def cancel_document(
 def request_document_correction(
     document_id: UUID,
     payload: WorkflowCommandPayload,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return request_document_correction_command(document_id, payload, context, container)
@@ -176,7 +176,7 @@ def request_document_correction(
 def escalate_document(
     document_id: UUID,
     payload: WorkflowCommandPayload,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     return escalate_document_command(document_id, payload, context, container)
@@ -185,7 +185,7 @@ def escalate_document(
 @router.get("/{document_id}/content")
 def get_document_content(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> FileResponse:
     try:
@@ -208,7 +208,7 @@ def get_document_content(
 @router.get("/{document_id}/download-url")
 def get_document_download_url(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:
@@ -233,7 +233,7 @@ def get_document_download_url(
 @router.post("/{document_id}/process")
 def process_document(
     document_id: UUID,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:
@@ -252,7 +252,7 @@ def process_document(
 def delete_document(
     document_id: UUID,
     payload: DeleteDocumentRequest,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:

@@ -6,9 +6,16 @@ from app.core.settings import load_settings
 
 
 def run_once() -> bool:
-    container = build_container(load_settings())
+    settings = load_settings()
+    container = build_container(settings)
     result = container.worker_service.run_once(
-        context=SecurityContext(actor="worker", is_admin=True)
+        context=SecurityContext(
+            actor="worker",
+            is_admin=True,
+            workspace_id=settings.workspace_id.strip() or "default",
+            user_id="worker",
+            role="admin",
+        )
     )
     return result is not None
 

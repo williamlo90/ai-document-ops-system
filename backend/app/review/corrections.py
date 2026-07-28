@@ -84,6 +84,15 @@ class CorrectionFeedbackService:
             "event_count": len(events),
             "latest_change_count": len(latest.changes),
             "latest_changed_fields": [change.field_path for change in latest.changes],
+            "latest_changes": [
+                {
+                    "field_path": change.field_path,
+                    "original_ai_value": change.original_ai_value,
+                    "before_value": change.before_value,
+                    "after_value": change.after_value,
+                }
+                for change in latest.changes
+            ],
             "latest_actor": latest.actor,
             "latest_reason": latest.reason,
             "latest_at": latest.created_at.isoformat(),

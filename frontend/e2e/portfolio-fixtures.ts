@@ -53,7 +53,7 @@ const invoiceSeeds = [
     'needs_review',
     'James Smith',
     '2026-08-15',
-    'po_number_missing',
+    'total_mismatch',
   ],
   [
     'doc-northstar',
@@ -138,7 +138,6 @@ const invoiceSeeds = [
 ] as const
 
 const findingLabels: Record<string, string> = {
-  po_number_missing: 'PO number missing',
   tax_amount_mismatch: 'Tax amount mismatch',
   duplicate_invoice: 'Possible duplicate',
   receipt_required: 'Receipt required',
@@ -178,7 +177,7 @@ function invoiceFromSeed(seed: (typeof invoiceSeeds)[number]): InvoiceItem {
     work_item_id: status === 'needs_review' ? `work-${id}` : null,
     correction_reason:
       status === 'needs_correction'
-        ? 'Please add the supporting document and correct the value highlighted by validation.'
+        ? 'Please correct the highlighted invoice value and submit it for review again.'
         : null,
   }
 }
@@ -189,13 +188,7 @@ const invoiceById = new Map(invoices.map((invoice) => [invoice.id, invoice]))
 function extractionFor(invoice: InvoiceItem): InvoiceDetailResponse['extraction'] {
   const code = invoice.validation_codes[0]
   const fieldName =
-    code === 'po_number_missing'
-      ? 'po_number'
-      : code === 'tax_amount_mismatch'
-        ? 'tax'
-        : code === 'total_mismatch'
-          ? 'total'
-          : 'invoice_number'
+    code === 'tax_amount_mismatch' ? 'tax' : code === 'total_mismatch' ? 'total' : 'invoice_number'
   return {
     data: {
       vendor_name: invoice.vendor_name,
@@ -365,22 +358,11 @@ const exceptionItems: ExceptionItem[] = reviewItems
 function exceptionDetail(item: ExceptionItem): ExceptionDetail {
   return {
     ...item,
-    message:
-      item.issue === 'PO number missing'
-        ? 'This invoice is missing a PO number required to match it to a purchase order.'
-        : `${item.issue} was detected during deterministic invoice validation.`,
+    message: `${item.issue} was detected during deterministic invoice validation.`,
     code: invoiceById.get(item.document_id)?.validation_codes[0] ?? 'validation_issue',
-    field_name:
-      item.issue === 'PO number missing'
-        ? 'po_number'
-        : item.issue.toLowerCase().includes('tax')
-          ? 'tax'
-          : 'invoice_number',
+    field_name: item.issue.toLowerCase().includes('tax') ? 'tax' : 'total',
     field_value: null,
-    required_action:
-      item.issue === 'PO number missing'
-        ? 'Add a valid PO number or request it from the vendor, then run validation again.'
-        : 'Correct the invoice data and run validation again before approval.',
+    required_action: 'Correct the invoice data and run validation again before approval.',
     related_checks: [
       { label: 'Invoice extracted', status: 'passed' },
       { label: 'Vendor matched', status: 'passed' },
@@ -748,8 +730,9 @@ function evaluationFixture(): EvaluationDashboard {
       invoice_number: 1,
       invoice_date: 1,
       due_date: 1,
+      subtotal: 1,
       total: index === 6 ? 1 : 0.99,
-      tax: 0.95,
+      tax: index === 6 ? 1 : 0.95,
       currency: 1,
     },
     failure_taxonomy: {},
@@ -762,6 +745,53 @@ function evaluationFixture(): EvaluationDashboard {
     is_current: index === 6,
   }))
   const selected = runs[6]
+  const comparison = runs[3]
+  const fieldLabels: Record<string, string> = {
+    vendor_name: 'Vendor',
+    invoice_number: 'Invoice number',
+    invoice_date: 'Invoice date',
+    due_date: 'Due date',
+    subtotal: 'Subtotal',
+    tax: 'Tax',
+    total: 'Total amount',
+    currency: 'Currency',
+  }
+  const fields = Object.entries(fieldLabels).map(([field, label]) => {
+    const current = selected.by_field[field] ?? null
+    const previous = comparison.by_field[field] ?? null
+    const deltaPp =
+      current == null || previous == null ? null : Math.round((current - previous) * 10_000) / 100
+    const status =
+      deltaPp == null
+        ? 'excluded'
+        : deltaPp > 1
+          ? 'improved'
+          : deltaPp < -1
+            ? 'regressed'
+            : 'stable'
+    return {
+      field,
+      label,
+      current,
+      previous,
+      delta_pp: deltaPp,
+      status,
+      current_matches: current == null ? null : Math.round(current * selected.documents),
+      current_denominator: selected.documents,
+      previous_matches: previous == null ? null : Math.round(previous * comparison.documents),
+      previous_denominator: comparison.documents,
+    } satisfies EvaluationDashboard['fields'][number]
+  })
+  const regressionCounts = fields.reduce(
+    (counts, field) => {
+      if (field.status === 'improved') counts.improved += 1
+      else if (field.status === 'regressed') counts.regressed += 1
+      else if (field.status === 'stable') counts.stable += 1
+      else counts.excluded += 1
+      return counts
+    },
+    { improved: 0, stable: 0, regressed: 0, excluded: 0 },
+  )
   return {
     gates: { field_match: 0.95, validation_match: 0.95, regression_tolerance_pp: 1 },
     preflight: {
@@ -802,34 +832,15 @@ function evaluationFixture(): EvaluationDashboard {
       comparison_run_id: 'eval-4',
       comparison_observed_at: '2026-06-26T03:00:00Z',
       tolerance_pp: 1,
-      comparable_fields: 7,
-      improved: 3,
-      stable: 4,
-      regressed: 0,
+      comparable_fields: fields.length - regressionCounts.excluded,
+      improved: regressionCounts.improved,
+      stable: regressionCounts.stable,
+      regressed: regressionCounts.regressed,
       new_fields: 0,
-      excluded_fields: 0,
+      excluded_fields: regressionCounts.excluded,
       new_failures: 0,
     },
-    fields: [
-      ['vendor_name', 'Vendor', 1, 1, 0, 'stable'],
-      ['invoice_number', 'Invoice number', 1, 0.99, 1, 'improved'],
-      ['invoice_date', 'Invoice date', 1, 0.98, 2, 'improved'],
-      ['due_date', 'Due date', 1, 0.98, 2, 'improved'],
-      ['total', 'Total amount', 1, 0.99, 1, 'stable'],
-      ['tax', 'Tax', 0.95, 0.96, -1, 'stable'],
-      ['currency', 'Currency', 1, 1, 0, 'stable'],
-    ].map(([field, label, current, previous, delta, status]) => ({
-      field: String(field),
-      label: String(label),
-      current: Number(current),
-      previous: Number(previous),
-      delta_pp: Number(delta),
-      status: status as 'improved' | 'stable',
-      current_matches: Math.round(Number(current) * 20),
-      current_denominator: 20,
-      previous_matches: Math.round(Number(previous) * 20),
-      previous_denominator: 20,
-    })),
+    fields,
     scenario_coverage: {
       dataset_id: 'invoice-scenarios',
       dataset_version: 'v1',

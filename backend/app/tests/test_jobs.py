@@ -25,11 +25,13 @@ class ProcessingJobTests(unittest.TestCase):
 
     def test_succeed_sets_finished_at(self) -> None:
         job = ProcessingJob(document_id=uuid4())
+        job.retry("provider_timeout")
         job.start()
 
         job.succeed()
 
         self.assertEqual(job.status, ProcessingJobStatus.SUCCEEDED)
+        self.assertIsNone(job.error_message)
         self.assertIsNotNone(job.finished_at)
 
     def test_fail_persists_safe_error_message(self) -> None:

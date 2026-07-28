@@ -1,4 +1,5 @@
-import { AlertCircle, Check, CheckCircle2, Pencil, Save, X } from 'lucide-react'
+import { AlertCircle, Check, CheckCircle2, FileSearch, Pencil, Save, X } from 'lucide-react'
+import { useState } from 'react'
 import { formatMoney } from '../../../shared/format'
 import type { InvoiceDetailResponse, InvoiceExtraction } from '../../invoices/types'
 import { Panel, StatusBadge } from '../../../shared/ui'
@@ -27,6 +28,7 @@ export type InvoiceFieldsPanelProps = {
   setEditing: (field: keyof InvoiceDraft | null) => void
   setDraft: React.Dispatch<React.SetStateAction<InvoiceDraft>>
   save: () => void
+  showSourcePage: (page: number) => void
 }
 
 export function InvoiceFieldsPanel({
@@ -40,9 +42,13 @@ export function InvoiceFieldsPanel({
   setEditing,
   setDraft,
   save,
+  showSourcePage,
 }: InvoiceFieldsPanelProps) {
   const issues = detail.extraction?.validation ?? []
   const blockers = issues.filter((issue) => issue.severity === 'error')
+  const latestCorrections = new Map(
+    (detail.correction_summary?.latest_changes ?? []).map((change) => [change.field_path, change]),
+  )
 
   return (
     <Panel className="review-data-panel" ariaLabel="Extracted invoice data">
@@ -79,22 +85,31 @@ export function InvoiceFieldsPanel({
         </section>
       ) : null}
       <div className="review-edit-fields">
-        {fields.map((field) => (
-          <EditableField
-            key={field.key}
-            field={field}
-            value={draft[field.key]}
-            editing={editing === field.key}
-            disabled={!canDecide || saving}
-            onEdit={() => setEditing(field.key)}
-            onCancel={() => {
-              setDraft((current) => ({ ...current, [field.key]: savedDraft[field.key] }))
-              setEditing(null)
-            }}
-            onChange={(value) => setDraft((current) => ({ ...current, [field.key]: value }))}
-            onSave={save}
-          />
-        ))}
+        {fields.map((field) => {
+          const evidence = detail.extraction?.confidence.find(
+            (item) => item.field_name === field.key,
+          )
+          return (
+            <EditableField
+              key={field.key}
+              field={field}
+              value={draft[field.key]}
+              editing={editing === field.key}
+              disabled={!canDecide || saving}
+              evidence={evidence}
+              correction={latestCorrections.get(field.key)}
+              correctionSummary={detail.correction_summary}
+              onEdit={() => setEditing(field.key)}
+              onCancel={() => {
+                setDraft((current) => ({ ...current, [field.key]: savedDraft[field.key] }))
+                setEditing(null)
+              }}
+              onChange={(value) => setDraft((current) => ({ ...current, [field.key]: value }))}
+              onSave={save}
+              showSourcePage={showSourcePage}
+            />
+          )
+        })}
       </div>
       {saveError ? (
         <p className="review-inline-error">
@@ -143,6 +158,10 @@ function EditableField({
   onCancel,
   onChange,
   onSave,
+  evidence,
+  correction,
+  correctionSummary,
+  showSourcePage,
 }: {
   field: (typeof fields)[number]
   value: unknown
@@ -152,10 +171,21 @@ function EditableField({
   onCancel: () => void
   onChange: (value: string) => void
   onSave: () => void
+  evidence?: InvoiceExtraction['confidence'][number]
+  correction?: NonNullable<InvoiceDetailResponse['correction_summary']>['latest_changes'][number]
+  correctionSummary: InvoiceDetailResponse['correction_summary']
+  showSourcePage: (page: number) => void
 }) {
   const text = typeof value === 'string' ? value : ''
+  const [sourceOpen, setSourceOpen] = useState(false)
+  const hasSource = Boolean(text)
+  const sourceLabel = correction
+    ? 'Reviewer corrected'
+    : evidence
+      ? 'AI extracted'
+      : 'Source unavailable'
   return (
-    <div className={!text ? 'is-missing' : ''}>
+    <div className={`review-field-row ${!text ? 'is-missing' : ''}`}>
       <span>{field.label}</span>
       {editing ? (
         <div className="review-field-editor">
@@ -179,13 +209,74 @@ function EditableField({
       ) : (
         <>
           <strong>{text || 'Missing'}</strong>
-          <button aria-label={`Edit ${field.label}`} disabled={disabled} onClick={onEdit}>
-            <Pencil size={14} />
-          </button>
+          <div className="review-field-actions">
+            {hasSource ? (
+              <button
+                aria-label={`View source for ${field.label}`}
+                aria-expanded={sourceOpen}
+                title={`View source for ${field.label}`}
+                onClick={() => {
+                  setSourceOpen((open) => !open)
+                  if (!sourceOpen && !correction && evidence?.source_page) {
+                    showSourcePage(evidence.source_page)
+                  }
+                }}
+              >
+                <FileSearch size={14} />
+              </button>
+            ) : null}
+            <button
+              aria-label={`Edit ${field.label}`}
+              title={`Edit ${field.label}`}
+              disabled={disabled}
+              onClick={onEdit}
+            >
+              <Pencil size={14} />
+            </button>
+          </div>
         </>
       )}
+      {sourceOpen && !editing ? (
+        <section className="review-field-source" aria-label={`${field.label} source`}>
+          <strong>{sourceLabel}</strong>
+          {correction ? (
+            <>
+              <span>
+                {correctionSummary?.latest_actor} changed {displayValue(correction.before_value)} to{' '}
+                {displayValue(correction.after_value)}.
+              </span>
+              {correction.original_ai_value !== correction.before_value ? (
+                <span>Original AI value: {displayValue(correction.original_ai_value)}.</span>
+              ) : null}
+              <span>{correctionSummary?.latest_reason}</span>
+            </>
+          ) : evidence ? (
+            <>
+              <span>
+                {formatConfidence(evidence.score)}
+                {evidence.source_page ? ` / Page ${evidence.source_page}` : ''}
+              </span>
+              {evidence.source_text ? <q>{evidence.source_text}</q> : <SourceUnavailable />}
+            </>
+          ) : (
+            <SourceUnavailable />
+          )}
+        </section>
+      ) : null}
     </div>
   )
+}
+
+function formatConfidence(score: number | null) {
+  return score === null ? 'Confidence not reported' : `${Math.round(score * 100)}% confidence`
+}
+
+function SourceUnavailable() {
+  return <span>Exact source text was not recorded for this value.</span>
+}
+
+function displayValue(value: string | number | boolean | null) {
+  return value === null || value === '' ? 'Missing' : String(value)
 }
 
 function LineItems({

@@ -37,6 +37,7 @@ class Settings:
     benchmark_real_provider_max_documents: int = 3
     max_processing_attempts: int = 3
     provider_timeout_seconds: int = 60
+    worker_job_lease_seconds: int = 300
     email_provider: str = "mock"
     email_sandbox_mode: bool = True
     resend_api_key: str | None = None
@@ -114,6 +115,7 @@ def load_settings() -> Settings:
         ),
         max_processing_attempts=int(_setting(config, "MAX_PROCESSING_ATTEMPTS", "3")),
         provider_timeout_seconds=int(_setting(config, "PROVIDER_TIMEOUT_SECONDS", "60")),
+        worker_job_lease_seconds=int(_setting(config, "WORKER_JOB_LEASE_SECONDS", "300")),
         email_provider=_setting(config, "EMAIL_PROVIDER", "mock"),
         email_sandbox_mode=_boolean(_setting(config, "EMAIL_SANDBOX_MODE", "true")),
         resend_api_key=_setting(config, "RESEND_API_KEY"),

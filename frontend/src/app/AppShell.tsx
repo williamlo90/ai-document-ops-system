@@ -24,6 +24,7 @@ export function AppShell({
   const workspace = useQuery({
     queryKey: ['workspace'],
     queryFn: () => api<WorkspaceSummary>('/backoffice/workspace'),
+    enabled: role === 'administrator',
     refetchInterval: 15_000,
   })
   const items = useMemo(() => navigationItems.filter((item) => item.roles.includes(role)), [role])

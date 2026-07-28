@@ -75,6 +75,19 @@ class CorrectionFeedbackTests(unittest.TestCase):
         self.assertEqual(currency.before_value, "USD")
         self.assertEqual(currency.after_value, "IDR")
         self.assertEqual(second.reason_source, CorrectionReasonSource.REVIEWER_REQUEST)
+        summary = self.service.summary("default", self.document_id)
+        assert summary is not None
+        self.assertEqual(
+            summary["latest_changes"],
+            [
+                {
+                    "field_path": "currency",
+                    "original_ai_value": "USD",
+                    "before_value": "USD",
+                    "after_value": "IDR",
+                }
+            ],
+        )
 
     def test_no_op_save_does_not_create_feedback_noise(self) -> None:
         event = self.service.capture(

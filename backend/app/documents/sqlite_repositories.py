@@ -333,21 +333,29 @@ class SqliteJobRepository:
         )
         return [_job_from_row(row) for row in rows]
 
-    def claim_next_processable(self) -> ProcessingJob | None:
+    def claim_next_processable(
+        self, *, stale_before: datetime | None = None
+    ) -> ProcessingJob | None:
         connection = self.store.connection
         with self.store.lock:
             try:
                 connection.execute("BEGIN IMMEDIATE")
+                stale_value = stale_before.isoformat() if stale_before is not None else ""
                 row = connection.execute(
                     """
                     SELECT * FROM jobs
                     WHERE status IN (?, ?)
-                    ORDER BY created_at
+                       OR (status = ? AND ? != '' AND updated_at <= ?)
+                    ORDER BY CASE WHEN status = ? THEN 0 ELSE 1 END, created_at
                     LIMIT 1
                     """,
                     (
                         ProcessingJobStatus.QUEUED.value,
                         ProcessingJobStatus.RETRYING.value,
+                        ProcessingJobStatus.RUNNING.value,
+                        stale_value,
+                        stale_value,
+                        ProcessingJobStatus.RUNNING.value,
                     ),
                 ).fetchone()
                 if row is None:
@@ -355,6 +363,8 @@ class SqliteJobRepository:
                     return None
                 job = _job_from_row(row)
                 previous_status = job.status.value
+                if job.status == ProcessingJobStatus.RUNNING:
+                    job.retry("worker_lease_expired")
                 job.start()
                 cursor = connection.execute(
                     """

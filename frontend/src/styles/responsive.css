@@ -243,8 +243,8 @@
     min-width: 0;
   }
   .ops-toast {
-    top: 70px;
     right: 14px;
+    bottom: 14px;
   }
 }
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -44,7 +45,9 @@ class JobRepository(Protocol):
 
     def list_by_status(self, status: ProcessingJobStatus) -> list[ProcessingJob]: ...
 
-    def claim_next_processable(self) -> ProcessingJob | None: ...
+    def claim_next_processable(
+        self, *, stale_before: datetime | None = None
+    ) -> ProcessingJob | None: ...
 
     def count(self) -> int: ...
 
@@ -148,15 +151,30 @@ class InMemoryJobRepository:
     def list_by_status(self, status: ProcessingJobStatus) -> list[ProcessingJob]:
         return [job for job in self.records.values() if job.status == status]
 
-    def claim_next_processable(self) -> ProcessingJob | None:
+    def claim_next_processable(
+        self, *, stale_before: datetime | None = None
+    ) -> ProcessingJob | None:
         candidates = [
             job
             for job in self.records.values()
             if job.status in {ProcessingJobStatus.QUEUED, ProcessingJobStatus.RETRYING}
+            or (
+                stale_before is not None
+                and job.status == ProcessingJobStatus.RUNNING
+                and job.updated_at <= stale_before
+            )
         ]
         if not candidates:
             return None
-        job = min(candidates, key=lambda candidate: candidate.created_at)
+        job = min(
+            candidates,
+            key=lambda candidate: (
+                candidate.status != ProcessingJobStatus.RUNNING,
+                candidate.created_at,
+            ),
+        )
+        if job.status == ProcessingJobStatus.RUNNING:
+            job.retry("worker_lease_expired")
         job.start()
         self.records[job.id] = job
         return job

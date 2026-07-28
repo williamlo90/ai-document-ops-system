@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
@@ -234,6 +234,43 @@ class SqlitePersistenceTests(unittest.TestCase):
         self.assertIsNotNone(first_claim)
         self.assertEqual(first_claim.status, ProcessingJobStatus.RUNNING)
         self.assertIsNone(second_claim)
+
+    def test_expired_sqlite_job_is_reclaimed_atomically(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = Settings(
+                app_env="test",
+                admin_token=TOKEN,
+                upload_root=Path(temp_dir) / "uploads",
+                max_upload_bytes=1000,
+                storage_backend="sqlite",
+                sqlite_path=Path(temp_dir) / "doc_intel.sqlite3",
+            )
+            app = create_app(settings)
+            client = TestClient(app)
+            client.post(
+                "/documents/upload",
+                headers=HEADERS,
+                files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
+            )
+            first_claim = app.state.container.jobs.claim_next_processable()
+            assert first_claim is not None
+            first_claim.updated_at = datetime.now(UTC) - timedelta(minutes=10)
+            app.state.container.jobs.save(first_claim)
+
+            reclaimed = app.state.container.jobs.claim_next_processable(
+                stale_before=datetime.now(UTC) - timedelta(minutes=5)
+            )
+            concurrent_claim = app.state.container.jobs.claim_next_processable(
+                stale_before=datetime.now(UTC) - timedelta(minutes=5)
+            )
+            app.state.container.documents.store.connection.close()
+
+        self.assertIsNotNone(reclaimed)
+        assert reclaimed is not None
+        self.assertEqual(reclaimed.status, ProcessingJobStatus.RUNNING)
+        self.assertEqual(reclaimed.attempt_count, 2)
+        self.assertEqual(reclaimed.error_message, "worker_lease_expired")
+        self.assertIsNone(concurrent_claim)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,8 @@ evidence and deeper implementation notes.
 ## Workflow Evidence
 
 - [Reviewer correction feedback](reviewer-correction-feedback.md)
+- [Recruiter evidence pack](recruiter-evidence-pack.md)
+- [Usability study protocol](usability-study-protocol.md)
 - [Integration boundaries](integrations.md)
 - [Object storage](object_storage.md)
 

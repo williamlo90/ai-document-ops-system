@@ -36,3 +36,18 @@ CI and the documented local gate enforce:
 Dependency or action updates must pass the full backend, frontend, smoke, image-build, and image-scan
 jobs before merge. A passing scan means no advisory matched the configured database and threshold at
 scan time; it is not proof that the dependency graph is vulnerability-free.
+
+## Temporary Frontend Advisory Exception
+
+As of 28 July 2026, the npm registry reports `GHSA-qwww-vcr4-c8h2` against React Router
+`7.12.0` through `8.2.0`. The registry's suggested downgrade to `7.11.0` reintroduces several older
+high-severity React Router advisories, while `7.18.1` is the latest available release.
+
+The application remains on `7.18.1`. The affected React Server Components and framework-mode
+server-action path is not used: this repository builds a client-only Vite SPA with no React Router
+SSR, RSC, server actions, or server-side route execution. This is a bounded risk acceptance, not a
+claim that the dependency graph is advisory-free.
+
+`npm run audit` still runs the complete npm audit and fails on every unreviewed high or critical
+finding. Its allowlist accepts only this advisory for `react-router` and `react-router-dom` and
+expires on 15 August 2026, forcing a review or upgrade when a patched release becomes available.

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from app.agent.contracts import AgentToolName
 from app.agent.service import CopilotRequest
-from app.api.dependencies import AppContainer, get_container, require_admin_context
+from app.api.dependencies import AppContainer, get_container, require_authenticated_context
 from app.core.security import SecurityContext
 
 
@@ -25,7 +25,7 @@ class CopilotRequestPayload(BaseModel):
 @router.post("/copilot")
 def read_only_copilot(
     payload: CopilotRequestPayload,
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     result = container.copilot_service.answer(

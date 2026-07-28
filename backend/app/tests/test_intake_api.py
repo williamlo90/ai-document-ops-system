@@ -259,6 +259,11 @@ class IntakeApiTests(unittest.TestCase):
             actor="Rina Reviewer",
             role="reviewer",
         )
+        admin_headers = session_headers(
+            self.client,
+            actor="Admin",
+            role="admin",
+        )
         upload = self.client.post(
             "/documents/upload",
             headers=uploader_headers,
@@ -268,7 +273,7 @@ class IntakeApiTests(unittest.TestCase):
         self.client.post(f"/documents/{document_id}/process", headers=uploader_headers)
         self.client.post(
             "/backoffice/work-items",
-            headers=reviewer_headers,
+            headers=admin_headers,
             json={
                 "title": "Review Acme invoice",
                 "work_type": "invoice_review",

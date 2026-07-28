@@ -15,8 +15,16 @@ import type { SystemDashboard } from '../features/system/types'
 import { queryClient } from '../queryClient'
 
 vi.mock('../components/PdfPreview', () => ({
-  PdfPreview: ({ filename }: { filename: string }) => (
-    <div aria-label="PDF preview">{filename}</div>
+  PdfPreview: ({
+    filename,
+    requestedPage,
+  }: {
+    filename: string
+    requestedPage?: number | null
+  }) => (
+    <div aria-label="PDF preview">
+      {filename} / requested page {requestedPage ?? 1}
+    </div>
   ),
 }))
 
@@ -80,7 +88,7 @@ const invoice: InvoiceItem = {
   updated_at: now,
   validation_issue_count: 1,
   validation_error_count: 0,
-  validation_codes: ['po_missing'],
+  validation_codes: ['total_mismatch'],
   has_validation_errors: false,
   export_state: 'not_eligible',
   work_item_id: 'item-1',
@@ -115,10 +123,10 @@ function installApi(
             data: {},
             validation: [
               {
-                field_name: 'po_number',
+                field_name: 'total',
                 severity: 'warning',
-                code: 'po_missing',
-                message: 'PO number was not found.',
+                code: 'total_mismatch',
+                message: 'Subtotal plus tax does not equal total.',
               },
             ],
             confidence: [],
@@ -220,7 +228,9 @@ describe('invoice library', () => {
     await user.click(trigger)
     const inspector = await screen.findByRole('dialog', { name: 'INV-001' })
     expect(within(inspector).getByText('Acme Logistics')).toBeInTheDocument()
-    expect(within(inspector).getByText('PO number was not found.')).toBeInTheDocument()
+    expect(
+      within(inspector).getByText('Subtotal plus tax does not equal total.'),
+    ).toBeInTheDocument()
     expect(within(inspector).queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument()
     expect(window.location.search).toContain('invoice=doc-1')
     expect(window.location.search).toContain('status=waiting_review')
@@ -342,7 +352,7 @@ describe('review queue', () => {
           owner: 'Reviewer',
           risk: 'high',
           confidence: 0.92,
-          finding: 'PO number was not found.',
+          finding: 'Subtotal plus tax does not equal total.',
           blocker_count: 1,
           issue_count: 1,
           can_approve: false,
@@ -385,10 +395,10 @@ describe('review queue', () => {
               },
               validation: [
                 {
-                  field_name: 'po_number',
+                  field_name: 'total',
                   severity: 'error',
-                  code: 'po_missing',
-                  message: 'PO number was not found.',
+                  code: 'total_mismatch',
+                  message: 'Subtotal plus tax does not equal total.',
                 },
               ],
               confidence: [],
@@ -400,7 +410,7 @@ describe('review queue', () => {
     )
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Inbox' })).toBeInTheDocument()
-    expect(await screen.findByText('PO number was not found.')).toBeInTheDocument()
+    expect(await screen.findByText('Subtotal plus tax does not equal total.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^review/i })).toHaveAttribute(
       'href',
       '/review/doc-1?from=inbox',
@@ -444,13 +454,34 @@ describe('review workspace', () => {
               },
               validation: [
                 {
-                  field_name: 'po_number',
+                  field_name: 'total',
                   severity: 'error',
-                  code: 'po_missing',
-                  message: 'PO number was not found.',
+                  code: 'total_mismatch',
+                  message: 'Subtotal plus tax does not equal total.',
                 },
               ],
-              confidence: [{ field_name: 'invoice_number', score: 0.92 }],
+              confidence: [
+                {
+                  field_name: 'invoice_number',
+                  score: 0.92,
+                  source_page: 2,
+                  source_text: 'Invoice # INV-001',
+                },
+              ],
+            },
+            correction_summary: {
+              latest_change_count: 1,
+              latest_changed_fields: ['vendor_name'],
+              latest_changes: [
+                {
+                  field_path: 'vendor_name',
+                  original_ai_value: 'Acme',
+                  before_value: 'Acme',
+                  after_value: 'Acme Logistics',
+                },
+              ],
+              latest_actor: 'Reviewer',
+              latest_reason: 'Matched the legal vendor name shown on the invoice.',
             },
             audit_events: [],
           })
@@ -470,6 +501,24 @@ describe('review workspace', () => {
     expect(await screen.findByRole('heading', { name: 'Review invoice' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Invoice preview' })).toBeInTheDocument()
     expect(screen.getByText('Approval blocked')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'View source for Invoice number' }))
+    expect(screen.getByRole('region', { name: 'Invoice number source' })).toHaveTextContent(
+      '92% confidence',
+    )
+    expect(screen.getByRole('region', { name: 'Invoice number source' })).toHaveTextContent(
+      'Invoice # INV-001',
+    )
+    expect(screen.getByLabelText('PDF preview')).toHaveTextContent('requested page 2')
+    await user.click(screen.getByRole('button', { name: 'View source for Vendor' }))
+    expect(screen.getByRole('region', { name: 'Vendor source' })).toHaveTextContent(
+      'Reviewer corrected',
+    )
+    expect(screen.getByRole('region', { name: 'Vendor source' })).toHaveTextContent(
+      'Matched the legal vendor name shown on the invoice.',
+    )
+    expect(screen.getByRole('region', { name: 'Vendor source' })).toHaveTextContent(
+      'Reviewer changed Acme to Acme Logistics.',
+    )
     const trigger = screen.getByRole('button', { name: 'Open decision panel' })
     expect(screen.queryByRole('dialog', { name: 'Reviewer decision' })).not.toBeInTheDocument()
     await user.click(trigger)
@@ -485,12 +534,14 @@ describe('review workspace', () => {
     expect(correction).toBeDisabled()
     await user.type(
       within(reopenedPanel).getByPlaceholderText('Explain the decision for the audit trail...'),
-      'Please provide the missing PO number.',
+      'Please correct the total to match subtotal plus tax.',
     )
     expect(correction).toBeEnabled()
     await user.click(correction)
     const dialog = await screen.findByRole('dialog', { name: 'Request correction?' })
-    expect(within(dialog).getByText('Please provide the missing PO number.')).toBeInTheDocument()
+    expect(
+      within(dialog).getByText('Please correct the total to match subtotal plus tax.'),
+    ).toBeInTheDocument()
   })
 })
 

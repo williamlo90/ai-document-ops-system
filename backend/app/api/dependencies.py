@@ -246,7 +246,11 @@ def build_container(settings: Settings) -> AppContainer:
         extractor_provider,
         max_processing_attempts=settings.max_processing_attempts,
     )
-    worker_service = DocumentProcessingWorker(jobs, processing_service)
+    worker_service = DocumentProcessingWorker(
+        jobs,
+        processing_service,
+        lease_seconds=settings.worker_job_lease_seconds,
+    )
     correction_feedback = CorrectionFeedbackService(correction_events)
     review_service = ReviewService(
         documents,
@@ -383,7 +387,7 @@ def get_container(request: Request) -> AppContainer:
     return request.app.state.container
 
 
-def require_admin_context(
+def require_authenticated_context(
     request: Request,
     x_access_token: str | None = Header(default=None, alias="X-Access-Token"),
     x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
@@ -402,6 +406,16 @@ def require_admin_context(
         ) from exc
 
 
+def require_admin_context(
+    context: SecurityContext = Depends(require_authenticated_context),
+) -> SecurityContext:
+    try:
+        require_any_role(context, {"admin"})
+    except UnauthorizedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden") from exc
+    return context
+
+
 def require_metrics_token(
     request: Request,
     x_metrics_token: str | None = Header(default=None, alias="X-Metrics-Token"),
@@ -417,7 +431,7 @@ def require_metrics_token(
 
 
 def require_review_context(
-    context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_authenticated_context),
 ) -> SecurityContext:
     try:
         require_any_role(context, {"admin", "reviewer"})

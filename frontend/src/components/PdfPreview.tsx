@@ -12,7 +12,15 @@ import {
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { Fragment, useEffect, useRef, useState } from 'react'
 
-export function PdfPreview({ url, filename }: { url: string; filename: string }) {
+export function PdfPreview({
+  url,
+  filename,
+  requestedPage,
+}: {
+  url: string
+  filename: string
+  requestedPage?: number | null
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const topScrollRef = useRef<HTMLDivElement>(null)
@@ -28,6 +36,10 @@ export function PdfPreview({ url, filename }: { url: string; filename: string })
     setPageNumber(1)
     setPageCount(0)
   }, [url])
+  useEffect(() => {
+    if (!requestedPage || !pageCount) return
+    setPageNumber(Math.min(Math.max(requestedPage, 1), pageCount))
+  }, [pageCount, requestedPage])
   useEffect(() => {
     if (!url) return
     let cancelled = false

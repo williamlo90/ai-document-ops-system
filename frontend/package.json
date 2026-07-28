@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "audit": "node scripts/audit-dependencies.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"e2e/**/*.ts\" \"*.{ts,json,md}\" \"../*.md\" \"../docs/**/*.md\" \"../backend/README.md\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"e2e/**/*.ts\" \"*.{ts,json,md}\" \"../*.md\" \"../docs/**/*.md\" \"../backend/README.md\"",
     "lint": "oxlint",
@@ -18,6 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:fullstack": "playwright test --config=playwright.fullstack.config.ts",
     "test:e2e:headed": "playwright test --headed",
     "capture:portfolio": "set CAPTURE_PORTFOLIO=1&& playwright test e2e/portfolio.spec.ts --project=desktop --workers=1",
     "capture:demo": "set CAPTURE_DEMO=1&& playwright test e2e/demo-video.spec.ts --project=desktop --workers=1"
@@ -28,7 +30,7 @@
     "pdfjs-dist": "6.1.200",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "react-router-dom": "^7.18.1"
+    "react-router-dom": "7.18.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.12.1",

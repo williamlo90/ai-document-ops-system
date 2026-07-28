@@ -45,10 +45,12 @@ class ProcessingJob:
         self.status = ProcessingJobStatus.RUNNING
         self.attempt_count += 1
         self.started_at = datetime.now(UTC)
+        self.finished_at = None
         self.updated_at = self.started_at
 
     def succeed(self) -> None:
         self.status = ProcessingJobStatus.SUCCEEDED
+        self.error_message = None
         self.finished_at = datetime.now(UTC)
         self.updated_at = self.finished_at
 

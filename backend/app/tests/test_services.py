@@ -3,7 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 import json
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -336,6 +336,28 @@ class DocumentServiceTests(unittest.TestCase):
 
         self.assertIsNotNone(first_claim)
         self.assertIsNone(second_claim)
+
+    def test_expired_running_job_is_reclaimed(self) -> None:
+        upload = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        first_claim = self.jobs.claim_next_processable()
+        assert first_claim is not None
+        first_claim.updated_at = datetime.now(UTC) - timedelta(minutes=10)
+
+        reclaimed = self.jobs.claim_next_processable(
+            stale_before=datetime.now(UTC) - timedelta(minutes=5)
+        )
+
+        self.assertIsNotNone(reclaimed)
+        assert reclaimed is not None
+        self.assertEqual(reclaimed.id, upload.job.id)
+        self.assertEqual(reclaimed.status, ProcessingJobStatus.RUNNING)
+        self.assertEqual(reclaimed.attempt_count, 2)
+        self.assertEqual(reclaimed.error_message, "worker_lease_expired")
 
     def test_worker_returns_none_when_no_processable_job_exists(self) -> None:
         worker = DocumentProcessingWorker(self.jobs, self._processing_service())

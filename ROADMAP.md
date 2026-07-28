@@ -71,27 +71,37 @@ Upload -> Check source and fields -> Resolve blockers -> Decide -> Export approv
 
 ## Completed Finishing Gate
 
-- 453 backend tests passed with 2 skipped; Ruff check and format passed.
-- 13 frontend tests, lint, production build, and dependency audit passed.
-- 25 active product and workflow browser tests passed across desktop, tablet, and mobile.
+- Added a cross-platform release command that runs Python dependency audit, Ruff, backend tests,
+  complexity checks, the reviewed frontend dependency gate, formatting, lint, unit tests, build,
+  fixture-browser tests, and one real full-stack browser journey.
+- Added negative role tests for administrator-only APIs and authentication-only access for shared
+  invoice work.
+- Added a real React, FastAPI, SQLite, and worker journey that covers upload, duplicate detection,
+  correction, approval, and export.
+- Added stale worker-job lease recovery so interrupted jobs can be reclaimed without concurrent
+  double-claim.
+- Added field-level source evidence and reviewer-correction provenance beside the PDF.
 - Inbox, Invoices, Review, Exports, Quality, and Operations passed serious-accessibility and page
   overflow checks at every tested viewport.
 - The current screenshot matrix and 84-second captioned demo were regenerated and visually
   inspected, including rendered PDF frames.
-- The release record for this phase is the commit containing these results and its passing CI run.
+- Exact test counts, environment versions, durations, and reviewed dependency exceptions are
+  generated from the clean commit in `docs/evidence/release-verification.json`.
 
 ## Next Evidence Phase
 
 After the thesis defense and before processing real client data:
 
-1. Validate 25 private, legally usable invoices that are excluded from Git.
-2. Maintain versioned golden labels and an experiment log for accuracy, latency, provider errors,
+1. Run the documented 3-5 participant finance-user usability study; record observed errors and
+   completion measures without inventing results.
+2. Validate 25 private, legally usable invoices that are excluded from Git.
+3. Maintain versioned golden labels and an experiment log for accuracy, latency, provider errors,
    and estimated cost.
-3. Exercise messy scans, rotations, multiple pages, totals, currencies, duplicates, and missing data.
-4. Verify reviewer corrections and failure taxonomy against those cases.
-5. Complete the external provider, retention, scanner, and privacy acceptance gates documented in
+4. Exercise messy scans, rotations, multiple pages, totals, currencies, duplicates, and missing data.
+5. Verify reviewer corrections and failure taxonomy against those cases.
+6. Complete the external provider, retention, scanner, and privacy acceptance gates documented in
    the security posture.
-6. Record a hosted or one-command recruiter demo only after the seeded local flow is stable.
+7. Record a hosted or one-command recruiter demo only after the seeded local flow is stable.
 
 ## Deliberately Deferred
 
