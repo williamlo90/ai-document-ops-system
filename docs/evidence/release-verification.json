@@ -1,0 +1,99 @@
+{
+  "schema_version": "release_verification_v1",
+  "generated_at": "2026-07-28T08:00:21.262493+00:00",
+  "source": {
+    "git_commit": "de87a4d8933f87716192299672c80225895c020b",
+    "worktree_clean_at_start": true,
+    "branch": "main"
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.6",
+    "node": "v22.19.0",
+    "npm": "11.17.0"
+  },
+  "counts": {
+    "backend_tests": 459,
+    "frontend_tests": 23,
+    "browser_tests": 29,
+    "fullstack_browser_tests": 1
+  },
+  "dependency_exceptions": [
+    {
+      "id": "GHSA-qwww-vcr4-c8h2",
+      "packages": [
+        "react-router",
+        "react-router-dom"
+      ],
+      "expires_on": "2026-08-15",
+      "reason": "The application is a client-only Vite SPA and does not enable React Server Components, framework-mode actions, SSR, or server-side route execution. Upgrade as soon as a patched React Router release is available."
+    }
+  ],
+  "checks": [
+    {
+      "name": "python_dependency_audit",
+      "passed": true,
+      "duration_seconds": 1.888
+    },
+    {
+      "name": "python_format",
+      "passed": true,
+      "duration_seconds": 0.101
+    },
+    {
+      "name": "python_lint",
+      "passed": true,
+      "duration_seconds": 0.092
+    },
+    {
+      "name": "backend_tests",
+      "passed": true,
+      "duration_seconds": 29.663
+    },
+    {
+      "name": "complexity_report",
+      "passed": true,
+      "duration_seconds": 0.697
+    },
+    {
+      "name": "frontend_dependency_audit",
+      "passed": true,
+      "duration_seconds": 1.825
+    },
+    {
+      "name": "frontend_format",
+      "passed": true,
+      "duration_seconds": 1.726
+    },
+    {
+      "name": "frontend_lint",
+      "passed": true,
+      "duration_seconds": 0.426
+    },
+    {
+      "name": "frontend_tests",
+      "passed": true,
+      "duration_seconds": 8.446
+    },
+    {
+      "name": "frontend_build",
+      "passed": true,
+      "duration_seconds": 3.789
+    },
+    {
+      "name": "browser_tests",
+      "passed": true,
+      "duration_seconds": 79.471
+    },
+    {
+      "name": "fullstack_browser_test",
+      "passed": true,
+      "duration_seconds": 12.492
+    }
+  ],
+  "claim_boundary": [
+    "Local verification is not an independent security assessment.",
+    "Browser fixture tests and one real local full-stack journey are both included.",
+    "Real-provider evaluation is recorded separately and is not run by this gate."
+  ]
+}
