@@ -45,6 +45,7 @@ def run_evaluation(
             detail={
                 "message": str(exc),
                 "attempt": container.evaluation_dashboard.attempt_response(exc.attempt),
+                "failures": list(exc.failures),
             },
         ) from exc
     except RuntimeError as exc:

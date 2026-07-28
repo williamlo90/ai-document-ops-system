@@ -44,9 +44,14 @@ FIELD_LABELS = {
 
 
 class EvaluationRunIncomplete(RuntimeError):
-    def __init__(self, attempt: EvaluationAttemptRecord) -> None:
+    def __init__(
+        self,
+        attempt: EvaluationAttemptRecord,
+        failures: tuple[dict[str, Any], ...] = (),
+    ) -> None:
         super().__init__(attempt.error_message or "Evaluation did not complete.")
         self.attempt = attempt
+        self.failures = failures
 
 
 class EvaluationDashboardService:
@@ -160,7 +165,10 @@ class EvaluationDashboardService:
                         provider_calls=provider_calls,
                     )
                 )
-                raise EvaluationRunIncomplete(failed)
+                raise EvaluationRunIncomplete(
+                    failed,
+                    failures=_failure_details(observations),
+                )
             report = build_external_evaluation_summary(
                 records_from_dataset(dataset),
                 observations,
@@ -219,7 +227,18 @@ class EvaluationDashboardService:
                     provider_calls=int(economics["attempts"]["total"]),
                 )
             )
-            raise EvaluationRunIncomplete(failed) from exc
+            failures = _failure_details(observations)
+            if not failures:
+                failures = (
+                    {
+                        "document_id": None,
+                        "stage": "evaluation",
+                        "provider": "application",
+                        "error_code": "unexpected_evaluation_error",
+                        "retryable": False,
+                    },
+                )
+            raise EvaluationRunIncomplete(failed, failures=failures) from exc
         finally:
             self._run_lock.release()
 
@@ -563,6 +582,7 @@ class EvaluationDashboardService:
         )
         started = time.perf_counter()
         attempts: list[dict[str, Any]] = []
+        stage = "parser"
         try:
             parsed = self.parser.parse(source)
             attempts.append(
@@ -572,6 +592,7 @@ class EvaluationDashboardService:
             )
             if not parsed.text:
                 raise ProviderError("empty_parsed_text", self.parser.provider_name)
+            stage = "extractor"
             result = self.extractor.extract_invoice(parsed)
             attempts.append(
                 _provider_attempt(
@@ -602,13 +623,23 @@ class EvaluationDashboardService:
                 "error": None,
             }
         except ProviderError as exc:
+            error_code = _safe_provider_error_code(exc)
+            error = {
+                "category": "provider_error",
+                "stage": stage,
+                "provider": exc.provider_name,
+                "error_code": error_code,
+                "retryable": exc.retryable,
+            }
             attempts.append(
                 {
                     "attempt": 1,
-                    "stage": "provider",
+                    "stage": stage,
                     "status": "failed",
                     "provider": exc.provider_name,
                     "error": "provider_error",
+                    "error_code": error_code,
+                    "retryable": exc.retryable,
                 }
             )
             return {
@@ -619,7 +650,7 @@ class EvaluationDashboardService:
                 "evidence_fields": [],
                 "latency_ms": round((time.perf_counter() - started) * 1000, 2),
                 "provider_attempts": attempts,
-                "error": "provider_error",
+                "error": error,
             }
 
 
@@ -632,6 +663,42 @@ def _provider_attempt(stage: str, provider: str, model: str | None, usage: Any) 
         "model": model,
         "usage": asdict(usage),
     }
+
+
+def _safe_provider_error_code(exc: ProviderError) -> str:
+    value = str(exc)
+    if len(value) <= 80 and value.replace("_", "").isalnum():
+        return value
+    return "provider_request_failed"
+
+
+def _failure_details(observations: list[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
+    failures: list[dict[str, Any]] = []
+    for observation in observations:
+        error = observation.get("error")
+        if not error:
+            continue
+        if isinstance(error, dict):
+            failures.append(
+                {
+                    "document_id": observation.get("document_id"),
+                    "stage": error.get("stage") or "provider",
+                    "provider": error.get("provider") or "unknown",
+                    "error_code": error.get("error_code") or "provider_request_failed",
+                    "retryable": bool(error.get("retryable")),
+                }
+            )
+            continue
+        failures.append(
+            {
+                "document_id": observation.get("document_id"),
+                "stage": "provider",
+                "provider": "unknown",
+                "error_code": "provider_request_failed",
+                "retryable": False,
+            }
+        )
+    return tuple(failures)
 
 
 def _evidence_exists(parsed: Any, page_number: int, source_text: str) -> bool:

@@ -704,6 +704,19 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(after["attempts"][0]["status"], "failed")
         self.assertEqual(after["attempts"][0]["documents_processed"], 0)
+        failures = attempted.json()["detail"]["failures"]
+        self.assertEqual(len(failures), 3)
+        self.assertEqual(
+            failures[0],
+            {
+                "document_id": "standard_usd",
+                "stage": "parser",
+                "provider": "failing_parser",
+                "error_code": "provider_request_failed",
+                "retryable": False,
+            },
+        )
+        self.assertNotIn("provider unavailable", attempted.text)
 
     def test_completed_evaluation_is_stored_as_a_valid_run(self) -> None:
         completed = self.client.post("/evaluation/runs", headers=HEADERS)
