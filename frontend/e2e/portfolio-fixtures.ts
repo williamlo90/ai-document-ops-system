@@ -54,7 +54,7 @@ const invoiceSeeds = [
     'Keystone Manufacturing',
     '125.00',
     'needs_review',
-    'James Smith',
+    'Daniel Brooks',
     '2026-08-11',
     'total_mismatch',
   ],
@@ -64,7 +64,7 @@ const invoiceSeeds = [
     'Northstar Office',
     '3275.40',
     'needs_review',
-    'Alex Davis',
+    'Maya Chen',
     '2026-07-20',
     'tax_amount_mismatch',
   ],
@@ -84,7 +84,7 @@ const invoiceSeeds = [
     'Cobalt Facilities',
     '1280.00',
     'needs_review',
-    'James Smith',
+    'Daniel Brooks',
     '2026-07-23',
     '',
   ],
@@ -94,7 +94,7 @@ const invoiceSeeds = [
     'Summit Industrial Parts',
     '704.00',
     'approved',
-    'James Smith',
+    'Daniel Brooks',
     '2026-08-15',
     '',
   ],
@@ -104,7 +104,7 @@ const invoiceSeeds = [
     'Northstar Office',
     '1842.10',
     'needs_correction',
-    'Alex Davis',
+    'Maya Chen',
     '2026-07-22',
     'receipt_required',
   ],
@@ -124,7 +124,7 @@ const invoiceSeeds = [
     'Greenline Supply',
     '2315.50',
     'approved',
-    'James Smith',
+    'Daniel Brooks',
     '2026-07-23',
     '',
   ],
@@ -134,7 +134,7 @@ const invoiceSeeds = [
     'Northstar Office',
     '910.25',
     'exported',
-    'Alex Davis',
+    'Maya Chen',
     '2026-07-23',
     '',
   ],
@@ -301,7 +301,7 @@ function detailFor(invoice: InvoiceItem, approved = false): InvoiceDetailRespons
           {
             id: 'audit-approved',
             event_type: 'document_approved',
-            actor: 'James Smith',
+            actor: 'Daniel Brooks',
             old_status: 'needs_review',
             new_status: 'approved',
             created_at: observedAt,
@@ -403,7 +403,7 @@ const exportItems: ExportInvoiceItem[] = invoices.map((invoice, index) => {
     invoice_label: invoice.invoice_number ?? invoice.original_filename,
     filename: invoice.original_filename,
     vendor_name: invoice.vendor_name,
-    approved_by: approved ? (index % 2 ? 'Alex Davis' : 'James Smith') : null,
+    approved_by: approved ? (index % 2 ? 'Maya Chen' : 'Daniel Brooks') : null,
     approved_at: approved ? '2026-07-21T02:50:00Z' : null,
     total: invoice.total,
     currency: invoice.currency,
@@ -426,7 +426,7 @@ const recentRuns: ExportRun[] = [
     destination: 'csv',
     destination_label: 'CSV download',
     format: 'csv',
-    actor: 'James Smith',
+    actor: 'Daniel Brooks',
     invoice_count: 3,
     total_amount: '17885.50',
     currency: 'USD',
@@ -451,7 +451,7 @@ const recentRuns: ExportRun[] = [
     destination: 'csv',
     destination_label: 'CSV download',
     format: 'csv',
-    actor: 'Alex Davis',
+    actor: 'Maya Chen',
     invoice_count: 2,
     total_amount: '5117.50',
     currency: 'USD',
@@ -478,7 +478,7 @@ const activeBatch: ExportBatch = {
   destination: 'csv',
   destination_label: 'CSV download',
   format: 'csv',
-  created_by: 'James Smith',
+  created_by: 'Daniel Brooks',
   invoice_count: exportItems.filter((item) => item.status === 'in_batch').length,
   total_amount: exportMetric('in_batch').amount,
   currency: 'USD',
@@ -647,7 +647,7 @@ function exceptionsFixture(params = new URLSearchParams()): ExceptionListRespons
           count,
         })),
     },
-    assignee_options: ['James Smith', 'Alex Davis', 'Kelly Morgan'],
+    assignee_options: ['Daniel Brooks', 'Maya Chen', 'Kelly Morgan'],
     capabilities: { resolved_history: false, due_policy: false, validated_resolution_only: true },
   }
 }
@@ -752,10 +752,10 @@ function evaluationFixture(): EvaluationDashboard {
     },
     failure_taxonomy: {},
     limitations: [
-      'Results are from labeled synthetic invoice documents.',
-      'Small sample size; use for directional engineering evidence.',
-      'English invoices only.',
-      'No customer validation has been performed.',
+      'The run used labeled synthetic invoices.',
+      'The dataset is small and intended for regression testing.',
+      'The current dataset contains English invoices only.',
+      'No customer invoices were used.',
     ],
     is_current: index === 6,
   }))
@@ -859,7 +859,7 @@ function evaluationFixture(): EvaluationDashboard {
     scenario_coverage: {
       dataset_id: 'invoice-scenarios',
       dataset_version: 'v1',
-      claim_boundary: 'Synthetic labeled evidence only; this is not production accuracy.',
+      claim_boundary: 'Based on labeled synthetic invoices. Not a production accuracy result.',
       included_in_selected_run: true,
       groups: [
         ['clean', 'Clean invoices', 5, 5],
@@ -890,7 +890,7 @@ function evaluationFixture(): EvaluationDashboard {
         run_id: 'eval-7',
         error_code: null,
         error_message: null,
-        requested_by: 'James Smith',
+        requested_by: 'Daniel Brooks',
         started_at: '2026-07-18T03:00:00Z',
         completed_at: '2026-07-18T03:00:24Z',
       },
@@ -916,8 +916,9 @@ function systemFixture(): SystemDashboard {
         'Built-in upload service',
         'operational',
         '142 files uploaded',
+        'The latest upload completed successfully.',
         null,
-        'Invoice upload remains available.',
+        'Uploads are working normally.',
       ],
       [
         'invoice_reading',
@@ -925,8 +926,9 @@ function systemFixture(): SystemDashboard {
         'Mistral OCR',
         'operational',
         '138 documents read',
+        'The latest OCR request completed successfully.',
         null,
-        'PDF reading remains available.',
+        'PDF reading is working normally.',
       ],
       [
         'data_extraction',
@@ -934,8 +936,9 @@ function systemFixture(): SystemDashboard {
         'OpenAI',
         'operational',
         '128 invoices extracted',
+        'The latest extraction completed successfully.',
         null,
-        'Structured extraction remains available.',
+        'Extraction is working normally.',
       ],
       [
         'document_storage',
@@ -943,8 +946,9 @@ function systemFixture(): SystemDashboard {
         'Local workspace storage',
         'operational',
         '98.7% capacity available',
+        'The storage write check passed.',
         null,
-        'Stored invoice files remain available.',
+        'Stored invoice files are available.',
       ],
       [
         'accounting_export',
@@ -952,10 +956,11 @@ function systemFixture(): SystemDashboard {
         'Local CSV',
         'degraded',
         'Last attempt timed out',
-        'New export execution is temporarily affected.',
-        'Upload, review, and previous export downloads remain available.',
+        'The latest CSV export timed out.',
+        'New CSV exports may fail.',
+        'Upload and review are unaffected. Previous export files can still be downloaded.',
       ],
-    ].map(([id, name, provider, status, activity, affected, unaffected]) => ({
+    ].map(([id, name, provider, status, activity, evidence, affected, unaffected]) => ({
       id: String(id),
       name: String(name),
       provider: String(provider),
@@ -964,7 +969,7 @@ function systemFixture(): SystemDashboard {
       uptime_label: 'Not enough history',
       observed_at: '2026-07-21T03:14:00Z',
       activity: String(activity),
-      evidence: `${name} returned a sanitized ${status} observation.`,
+      evidence: String(evidence),
       affected_capability: affected ? String(affected) : null,
       unaffected_capability: String(unaffected),
     })),
@@ -975,7 +980,7 @@ function systemFixture(): SystemDashboard {
         target_id: 'accounting_export',
         severity: 'warning',
         title: 'Accounting export degraded',
-        detail: 'Last attempt timed out. Review the service evidence before retrying.',
+        detail: 'The last CSV export timed out. Check the failure details before retrying.',
       },
     ],
     flow: {
@@ -1098,7 +1103,7 @@ function systemFixture(): SystemDashboard {
         provider: 'Mistral OCR',
         status: 'operational',
         observed_at: '2026-07-21T03:14:00Z',
-        evidence: 'Latest observed request succeeded.',
+        evidence: 'The latest OCR request completed successfully.',
       },
       {
         id: 'data_extraction',
@@ -1106,7 +1111,7 @@ function systemFixture(): SystemDashboard {
         provider: 'OpenAI',
         status: 'operational',
         observed_at: '2026-07-21T03:14:00Z',
-        evidence: 'Latest observed extraction succeeded.',
+        evidence: 'The latest extraction completed successfully.',
       },
       {
         id: 'document_storage',
@@ -1114,7 +1119,7 @@ function systemFixture(): SystemDashboard {
         provider: 'Local workspace storage',
         status: 'operational',
         observed_at: '2026-07-21T03:14:00Z',
-        evidence: 'Storage is writable.',
+        evidence: 'The storage write check passed.',
       },
       {
         id: 'accounting_export',
@@ -1122,14 +1127,14 @@ function systemFixture(): SystemDashboard {
         provider: 'Local CSV',
         status: 'degraded',
         observed_at: '2026-07-21T03:14:00Z',
-        evidence: 'Latest export attempt failed safely.',
+        evidence: 'The latest CSV export timed out without changing invoice approval.',
       },
     ],
     audit: [
       {
         id: 'audit-1',
         timestamp: '2026-07-21T03:12:00Z',
-        actor: 'James Smith',
+        actor: 'Daniel Brooks',
         action: 'Invoice approved',
         target: 'SIP-7788',
         result: 'success',
@@ -1137,7 +1142,7 @@ function systemFixture(): SystemDashboard {
       {
         id: 'audit-2',
         timestamp: '2026-07-21T02:57:00Z',
-        actor: 'Alex Davis',
+        actor: 'Maya Chen',
         action: 'Correction requested',
         target: 'INV-2026-04571',
         result: 'recorded',
@@ -1145,7 +1150,7 @@ function systemFixture(): SystemDashboard {
       {
         id: 'audit-3',
         timestamp: '2026-07-21T02:55:08Z',
-        actor: 'James Smith',
+        actor: 'Daniel Brooks',
         action: 'Export completed',
         target: 'invoices-2026-07-21.csv',
         result: 'success',
@@ -1171,9 +1176,9 @@ export async function installPortfolioApi(
     if (pathname === '/auth/session') {
       const actor =
         role === 'administrator'
-          ? 'James Smith'
+          ? 'Daniel Brooks'
           : role === 'reviewer'
-            ? 'Alex Davis'
+            ? 'Maya Chen'
             : 'Invoice Uploader'
       return route.fulfill({
         json: {
@@ -1216,7 +1221,7 @@ export async function installPortfolioApi(
             queued_jobs: 5,
             failed_jobs: 1,
             stalled_jobs: 0,
-            evidence: 'Worker heartbeat observed.',
+            evidence: 'Worker heartbeat received one minute ago.',
           },
           failed_jobs: [],
         },
@@ -1278,12 +1283,12 @@ export async function installPortfolioApi(
           review_task: {
             status: 'approved',
             reviewer_notes: '',
-            reviewed_by: 'James Smith',
+            reviewed_by: 'Daniel Brooks',
             reviewed_at: observedAt,
           },
           decision: {
             status: 'approved',
-            actor: 'James Smith',
+            actor: 'Daniel Brooks',
             recorded_at: observedAt,
             note: '',
             audit_event_count: 3,

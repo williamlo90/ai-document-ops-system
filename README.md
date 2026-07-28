@@ -1,37 +1,37 @@
 # Invoice Review
 
-An accounts-payable workflow for uploading invoices, checking extracted data against the source
-PDF, resolving blockers, recording reviewer decisions, and exporting approved records.
+I built Invoice Review for a common accounts-payable task: compare an invoice PDF with extracted
+data, fix or reject incorrect values, record the review decision, and export only approved records.
 
 [![Invoice list](docs/assets/screenshots/invoices.png)](docs/assets/demo/invoice-review-demo.mp4)
 
-## Workflow
+## How it works
 
 ```text
 Upload PDF -> Read and extract -> Validate -> Review or correct
            -> Record decision -> Export approved invoice
 ```
 
-The product UI is organized around three daily tasks:
+The main product is organized around three daily tasks:
 
-- **Inbox**: invoices that need a decision or have a blocking issue.
-- **Invoices**: the complete invoice lifecycle and upload entry point.
-- **Exports**: approved invoices that are eligible for controlled delivery.
+- **Inbox** shows invoices that need a decision or have a blocking issue.
+- **Invoices** shows the full invoice lifecycle and provides the upload entry point.
+- **Exports** contains approved invoices that can be prepared for delivery.
 
-Administrators also have **Quality** for labeled-test results and **Operations** for service failures,
-job retries, integrations, and audit events.
+Administrators also have **Quality** for labeled evaluation results and **Operations** for failed
+jobs, retries, integrations, and audit events.
 
-## Control Boundaries
+## Who decides what
 
-| Layer                          | Responsibility                                                                                     |
-| ------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Document providers             | Read the PDF and propose structured invoice fields with source evidence.                           |
-| Deterministic application code | Enforce required fields, arithmetic, duplicate checks, state transitions, roles, and export gates. |
-| Human reviewer                 | Compare the PDF with the proposed data and make the consequential decision.                        |
+| Layer              | Responsibility                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| Document providers | Read the PDF and propose invoice fields with source information.                             |
+| Application rules  | Check required fields, totals, duplicates, state transitions, roles, and export eligibility. |
+| Human reviewer     | Compare the PDF with the proposed data and approve, reject, or request a correction.         |
 
-Extraction confidence never approves an invoice. Error-level validation findings block approval in
-both the interface and API. Correction requests preserve the original proposal and append a
-before/after record. Exports require approval and use idempotency controls.
+Confidence alone cannot approve an invoice. Validation errors block approval in both the UI and the
+API. A correction keeps the original proposal and records the before/after values. Export is
+available only after approval and uses idempotency controls to prevent duplicate execution.
 
 ## Architecture
 
@@ -48,26 +48,37 @@ flowchart LR
     READ --> QUALITY["Labeled scenario evaluation"]
 ```
 
-The local stack is React, TypeScript, FastAPI, SQLite, and private local file storage. Mock providers
-support credential-free development. The verified provider configuration uses Mistral OCR and an
-OpenAI structured extraction model.
+The local stack uses React, TypeScript, FastAPI, SQLite, and private local file storage. Mock
+providers make the full workflow available without paid credentials. The tested real-provider
+configuration uses Mistral OCR and an OpenAI structured extraction model.
 
-## Results And Limits
+## Results
 
-| Observed result                                                                                                                  | Boundary                                                                                                                                |
-| -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| 20 deterministic invoice scenarios cover clean, missing-field, mismatch, duplicate, low-contrast, rotated, and multi-page cases. | A small synthetic golden set, not production accuracy.                                                                                  |
-| A clean-commit Mistral OCR + OpenAI diagnostic reached 160/160 fields and 20/20 validation outcomes.                             | The previously used synthetic set is diagnostic evidence, not a blind holdout or production accuracy estimate.                          |
-| A sealed 10-document external synthetic holdout reached 98.75% field match and 100% validation match.                            | One due-date hallucination was documented; the pack is not customer data or statistically representative.                               |
-| Review corrections retain the original extraction, actor, reason, timestamp, and field diff.                                     | No learning or automatic model update is claimed.                                                                                       |
-| The release gate covers backend, frontend, dependency, build, fixture-browser, and real full-stack browser checks.               | See the machine-readable release record for exact counts; hosted infrastructure and independent security testing remain external gates. |
+- The committed evaluation set contains 20 synthetic invoices covering clean cases, missing fields,
+  mismatches, duplicates, low-contrast scans, rotation, and multiple pages.
+- A clean-commit provider diagnostic matched 160 of 160 fields and all 20 expected validation
+  outcomes.
+- A separate sealed holdout of 10 licensed synthetic invoices reached 98.75% field match and 100%
+  validation match. One unsupported due date was still generated and remains documented.
+- Reviewer corrections retain the original extraction, actor, reason, timestamp, and field-level
+  diff.
+- The release command checks the backend, frontend, dependencies, production build, fixture-based
+  browser tests, and one real local full-stack browser journey.
 
-No time saving, cost reduction, customer outcome, or production robustness claim is made. Invoice is
-the only complete document workflow, and human approval remains mandatory for consequential actions.
+Exact release counts and environment details are stored in
+[release verification](docs/evidence/release-verification.json). Provider results, including failed
+runs, are recorded in the [evaluation log](docs/evaluation-experiment-log.md).
 
-## Quick Start
+## Current limitations
 
-The shortest complete path uses Docker Desktop and starts both the API and background worker:
+The evaluation documents are synthetic and intentionally small. I have not measured production
+accuracy, reviewer time savings, cost savings, or customer impact. Invoice is the only complete
+document workflow. The default SQLite, local storage, and seeded-role setup is intended for local
+evaluation, not production tenancy. A reviewer is still required for every approval.
+
+## Quick start
+
+The shortest complete setup uses Docker Desktop and starts the API and background worker:
 
 ```powershell
 .\scripts\start_docker.ps1
@@ -75,7 +86,7 @@ The shortest complete path uses Docker Desktop and starts both the API and backg
 
 Open `http://127.0.0.1:8000` after the API reports ready.
 
-For local source development, prerequisites are Python 3.11+, Node.js 22, and npm 10 or 11:
+For local source development, install Python 3.11+, Node.js 22, and npm 10 or 11:
 
 ```powershell
 .\scripts\setup_local_venv.ps1
@@ -88,7 +99,7 @@ Pop-Location
 .\scripts\start_dev.ps1
 ```
 
-The local launcher supervises both the API and worker. Press Ctrl+C in its terminal to stop both.
+The launcher supervises both the API and worker. Press Ctrl+C in its terminal to stop both.
 
 Local demo credentials from `.env.example`:
 
@@ -99,33 +110,34 @@ Local demo credentials from `.env.example`:
 | Administrator | `123`          |
 
 Each token is exchanged for a server-owned role session. The default mock-provider profile requires
-no external credential.
+no external credentials.
 
-For provider-backed runs, copy `.env.example` to the ignored `.env`, configure
-`PARSER_PROVIDER=mistral_ocr` and `EXTRACTOR_PROVIDER=llm_json`, then add the documented provider
-credentials. Never commit `.env` or real invoices. See [RUNBOOK.md](RUNBOOK.md).
+For a provider-backed run, copy `.env.example` to the ignored `.env`, set
+`PARSER_PROVIDER=mistral_ocr` and `EXTRACTOR_PROVIDER=llm_json`, and add the documented provider
+credentials. Never commit `.env` or real invoice files. See [RUNBOOK.md](RUNBOOK.md) for the full
+setup.
 
-## Quality Gates
+## Tests and release checks
 
-Run the complete local release gate from a clean worktree:
+Run the complete local release check from a clean worktree:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_release.py --write-evidence
 ```
 
-This command records the exact commit, environment, checks, test counts, and reviewed dependency
+The command records the tested commit, environment, checks, test counts, and reviewed dependency
 exceptions in [release verification](docs/evidence/release-verification.json). Real-provider
-evaluation is a separate, credentialed diagnostic and is never implied by this gate.
+evaluation is separate because it requires credentials and paid API calls.
 
 ## Documentation
 
 - [Portfolio case study](PORTFOLIO_CASE_STUDY.md)
-- [Recruiter evidence pack](docs/recruiter-evidence-pack.md)
+- [Recruiter project tour](docs/recruiter-evidence-pack.md)
 - [Usability study protocol](docs/usability-study-protocol.md)
 - [Product requirements](PRD.md)
 - [Architecture](ARCHITECTURE.md)
 - [Runbook](RUNBOOK.md)
 - [Roadmap](ROADMAP.md)
 - [Scenario coverage matrix](SCENARIO_COVERAGE_MATRIX.md)
-- [Evidence index](docs/INDEX.md)
+- [Technical evidence index](docs/INDEX.md)
 - [Security posture](docs/security/SECURITY_POSTURE.md)

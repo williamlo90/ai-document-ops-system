@@ -1,11 +1,11 @@
-# Architecture - Invoice Review
+# Architecture — Invoice Review
 
-## Design Goal
+## Design goal
 
-Keep probabilistic document reading separate from deterministic business safeguards and human
-authority. Each layer produces evidence that the next layer can inspect.
+Keep document extraction separate from business rules and reviewer decisions. Each step should
+produce something that the next step can inspect.
 
-## System Context
+## System context
 
 ```mermaid
 flowchart TB
@@ -25,73 +25,74 @@ flowchart TB
     EXTRACT --> EVAL["Scenario and reliability evaluation"]
 ```
 
-## Runtime Components
+## Runtime components
 
 ### Frontend
 
-- React, TypeScript, Vite, TanStack Query, and PDF.js
-- role-focused navigation for uploader and reviewer
-- source PDF and extracted values presented together
-- business status derived from backend workflow state
-- technical evidence routes separated from the primary review flow
+- React, TypeScript, Vite, TanStack Query, and PDF.js;
+- role-focused navigation for uploaders and reviewers;
+- source PDF and extracted values shown together;
+- business status derived from backend workflow state;
+- evaluation and operations routes kept outside the main review flow.
 
-The frontend does not decide whether approval is valid. It reflects backend capabilities and
-disables impossible actions for clarity; the API enforces the same rules independently.
+The frontend shows which actions are available, but it does not decide whether approval is valid.
+The API enforces the same rules independently.
 
 ### API and application services
 
-FastAPI composes:
+FastAPI provides:
 
-- authentication and session APIs
-- document upload, content, processing, and retry APIs
-- invoice workflow and draft APIs
-- reviewer queue and decision APIs
-- controlled accounting export
-- operational jobs, audit export, health, readiness, and metrics
-- technical run and scenario-evaluation APIs
+- authentication and session APIs;
+- document upload, content, processing, and retry APIs;
+- invoice workflow and draft APIs;
+- reviewer queue and decision APIs;
+- controlled accounting export;
+- operational jobs, audit export, health, readiness, and metrics;
+- run and scenario-evaluation APIs.
 
-Application services own state transitions. API handlers translate HTTP input and output rather
-than duplicating policy logic.
+Application services own the state transitions. API handlers translate HTTP input and output
+instead of duplicating workflow rules.
 
-### Provider boundary
+### Provider adapters
 
-The parsing and extraction interfaces support deterministic mocks and real HTTP adapters.
+The OCR and extraction interfaces support deterministic mocks and real HTTP providers.
 
 ```text
-PDF bytes -> OCR text/pages -> structured invoice candidate -> grounding guard -> validation
+PDF bytes -> OCR text and pages -> invoice proposal -> grounding guard -> validation
 ```
 
-The extractor is instructed not to infer missing values. A conservative seller-context guard
-rejects an ambiguous vendor candidate before validation. Provider timeouts and transient versus
-non-retryable failures are explicit.
+The extraction prompt tells the model not to fill unsupported values. A seller-context guard rejects
+an ambiguous vendor proposal before validation. Timeouts, retryable errors, and terminal provider
+errors are represented separately.
 
-### Validation boundary
+### Validation
 
-Validation is deterministic and runs after extraction or a reviewer correction. Current checks
-cover:
+Validation runs after extraction and after a reviewer changes a value. It currently checks:
 
-- required invoice fields
-- date and value normalization
-- subtotal, tax, total, and line-item consistency
-- supported values such as currency
-- duplicate vendor and invoice-number pairs within a workspace
+- required invoice fields;
+- date and numeric normalization;
+- subtotal, tax, total, and line-item consistency;
+- supported values such as currency;
+- duplicate vendor and invoice-number pairs within a workspace.
 
-Error-level findings route the invoice to correction and block approval.
+Validation errors send the invoice to correction and block approval.
 
 ### Persistence and storage
 
-The local profile uses repository-backed SQLite state and private local document storage. Stored
-state includes documents, extraction evidence, jobs, retries, workflow records, decisions, audit
-events, and evaluation runs. The document object-storage boundary can target an S3-compatible
-service, but the default demo is self-contained.
+The local profile stores application state in SQLite and invoice files in private local storage.
+Persisted records include documents, extracted fields, source information, jobs, retries, workflow
+state, decisions, audit events, and evaluation runs.
 
-Workers claim one queued job atomically. A running job can be reclaimed only after its configured
-lease expires, so a terminated worker does not strand work indefinitely while concurrent workers
-remain unable to claim the same active job.
+The storage interface can target an S3-compatible service, but the default demo stays
+self-contained.
 
-## State and Decision Model
+Workers claim one queued job atomically. A running job can be reclaimed only after its lease
+expires. This prevents an interrupted job from remaining stuck while also preventing two workers
+from claiming the same active job.
 
-The business journey is projected from durable backend state:
+## State and decision model
+
+The main invoice lifecycle is:
 
 ```text
 uploaded -> processing -> needs_review -> approved -> exported
@@ -100,61 +101,60 @@ uploaded -> processing -> needs_review -> approved -> exported
                          -> needs_correction
 ```
 
-Processing failures and retry exhaustion are represented separately. Approved, rejected, and
-exported evidence is immutable through the intake draft API.
+Processing failures and exhausted retries are tracked separately. Approved, rejected, and exported
+records cannot be changed through the intake draft API.
 
-Decision invariants:
+The following rules are enforced:
 
-1. Extraction confidence does not approve an invoice.
-2. Approval requires reviewer capability and a reviewable document state.
-3. Error-level validation findings block approval.
-4. Export requires an approved state.
-5. Failed external delivery does not erase approval or falsely mark export complete.
-6. Workspace boundaries apply to reads and writes.
+1. Extraction confidence cannot approve an invoice.
+2. Approval requires a reviewer and a reviewable invoice state.
+3. Validation errors block approval.
+4. Export requires approval.
+5. A failed delivery keeps the approval and does not mark the export as complete.
+6. Workspace checks apply to reads and writes.
 
-## Security Model
+## Security model
 
 The local application includes:
 
-- token-backed session cookies with role and workspace context
-- CSRF origin checks for cookie-authenticated mutations
-- request rate limiting
-- content security, frame, MIME, referrer, and permissions headers
-- upload type and size policies
-- private PDF content endpoints
-- request and trace identifiers
-- audit events for consequential operations
+- session cookies backed by server-owned role and workspace data;
+- CSRF origin checks for cookie-authenticated changes;
+- request rate limiting;
+- content-security, frame, MIME, referrer, and permissions headers;
+- upload type and size restrictions;
+- private PDF content routes;
+- request and trace identifiers;
+- audit events for approval, rejection, correction, and export.
 
-These controls make the local demo defensible, but they are not a substitute for production
-identity, managed secrets, network controls, monitoring, and tenancy lifecycle.
+These controls are sufficient for the local demo. A production deployment would still need managed
+identity, secrets, network controls, monitoring, and tenant lifecycle management.
 
-## Reliability and Evaluation
+## Reliability and evaluation
 
-Two evidence layers are deliberately separate:
+The project tracks two different types of results:
 
-- invoice scenario evaluation compares expected fields and validation behavior against versioned
-  synthetic PDFs
-- run evidence records tool choice, blocked actions, escalation, and workflow traces
+- invoice evaluation compares expected fields and validation outcomes with versioned synthetic PDFs;
+- workflow records show tool calls, blocked actions, escalation, and state transitions.
 
-This separation prevents extraction quality from being confused with workflow safety.
+Extraction accuracy and workflow safety are reported separately because they can fail for different
+reasons.
 
-## Internal Contract Inventory
+## Existing internal names
 
-The active application still depends on three historical backend namespaces:
+Three historical backend namespaces are still active:
 
 | Namespace    | Current responsibility                                                                 | Product exposure                                                                           |
 | ------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `backoffice` | Workflow state, policy, approvals, audit projection, and the shell workspace contract. | `/backoffice/workspace` supports the signed-in shell; the name is not shown in navigation. |
-| `agent`      | Bounded tool contracts and stored run evidence used by workflow services.              | No primary product page.                                                                   |
-| `agentops`   | Scenario and run-evidence records retained for technical evaluation.                   | No primary product page.                                                                   |
+| `backoffice` | Workflow state, policy, approvals, audit projection, and the shell workspace contract. | `/backoffice/workspace` supports the signed-in shell. The name is not shown in navigation. |
+| `agent`      | Bounded tool contracts and stored run records used by workflow services.               | No primary product page.                                                                   |
+| `agentops`   | Scenario and run records used for technical evaluation.                                | No primary product page.                                                                   |
 
-They are active internal contracts, not unused folders. Deleting or broadly renaming them during a
-UI refactor would risk approval, audit, and workspace behavior. A future behavior-preserving rename
-should begin with API aliases and repository contracts, then remove the historical names only after
-all callers and migration tests have moved.
+These folders are not dead code. Renaming them during the UI refactor would have added migration
+risk without changing the product. A future rename should begin with API aliases and repository
+contracts, then remove the old names after callers and migration tests have moved.
 
-## Extension Boundary
+## Extension point
 
-Invoice is the only complete schema. Shared document, policy, workflow, audit, storage, and
-provider interfaces can support another document type later, but no second workflow is claimed
-until its extraction, validation, review, execution, and evaluation contracts are implemented.
+Invoice is the only complete schema. The shared document, workflow, audit, storage, and provider
+interfaces can support another document type later. A second workflow should not be added until its
+extraction, validation, review, execution, and evaluation paths are complete.

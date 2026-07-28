@@ -1,209 +1,239 @@
-# Portfolio Case Study - Safer Invoice Review
+# Portfolio Case Study — Safer Invoice Review
 
-## Executive Summary
+## Summary
 
-Finance operations reviewers need to compare invoice PDFs with extracted data, catch exceptions,
-and record decisions before approved data can move downstream. The failure cost is asymmetric: a
-missing field should slow the workflow down, while an incorrect approval can propagate bad data.
+Finance reviewers need to compare invoice PDFs with extracted data, catch incorrect or missing
+values, and record a decision before approved data moves downstream. A missing field can slow the
+workflow down. An incorrect approval can send bad data into an accounting process.
 
-Invoice Review is a local-first portfolio implementation of that control point. It
-uses AI for document reading, deterministic code for business safeguards, and a human reviewer for
-consequential decisions.
+I built Invoice Review to keep the PDF, extracted fields, validation results, and reviewer decision
+in one workflow. AI reads the document and proposes structured data. Application rules check that
+data. A human reviewer makes the final decision.
 
-## Role And Ownership
+## My role
 
 I built this as a solo portfolio project from 12–28 July 2026. The repository history currently
-lists one human contributor. I owned the product scope, architecture decisions, implementation
-direction, evaluation design, failure analysis, documentation, and release gates.
+lists one human contributor.
 
-The project started as a technically broad document-workflow demo. I deliberately narrowed it to
-one complete invoice journey after repeated UI audits showed that exposing workflow-engine concepts
-made ordinary review work harder to understand.
+I was responsible for:
 
-The main decisions I made were:
+- product scope;
+- architecture and implementation direction;
+- evaluation design;
+- failure analysis;
+- documentation;
+- release checks.
 
-- keep invoice as the only complete document type instead of adding shallow breadth;
-- prohibit confidence-based auto-approval;
-- put the source PDF beside editable fields and deterministic blockers;
-- retain human correction provenance rather than silently replacing model output;
-- keep evaluation, provider cost, and operational evidence behind administrator navigation;
-- preserve active inherited workflow namespaces instead of performing a risky cosmetic rename.
+The project originally covered a broad document-operations platform. Repeated UI reviews showed
+that the workflow-engine concepts made ordinary invoice review harder to understand, so I narrowed
+the product to one complete invoice journey.
 
-Rejected alternatives included a chatbot, unrestricted autonomous actions, a second document type,
-and production integrations before the invoice evidence was credible.
+I made several decisions during that process:
 
-## User and Constraint
+- keep invoice as the only complete document type instead of adding a shallow second workflow;
+- never approve an invoice from model confidence alone;
+- place the PDF beside editable fields and validation errors;
+- retain the original extraction when a reviewer changes a value;
+- keep evaluation, provider cost, and operational details under administrator navigation;
+- keep existing internal API names because renaming them would add migration risk without changing
+  product behavior.
 
-Primary user: a finance operations reviewer or accounts-payable operator handling incoming
-invoices.
+I also rejected a chatbot, unrestricted autonomous actions, payment execution, and production
+integrations. None of those additions would improve the core review workflow at its current stage.
 
-Operational constraint: OCR and language models are probabilistic. The product must remain useful
-when extraction is incomplete, ambiguous, or wrong. Therefore uncertainty is surfaced for review
-instead of hidden behind an automatic approval.
+## The user and the constraint
 
-## Baseline Workflow
+The primary user is a finance reviewer or accounts-payable operator handling incoming invoices.
 
-Without a shared review surface, a reviewer typically needs to:
+OCR and language models can return incomplete, ambiguous, or incorrect data. The product therefore
+shows uncertainty and validation errors instead of hiding them behind an automatic approval.
 
-1. open the source PDF
-2. copy or compare invoice fields manually
-3. calculate or inspect totals
-4. decide whether missing or inconsistent values require follow-up
-5. communicate the result
-6. preserve evidence of the decision
+## The manual workflow
 
-This case study does not claim a measured time reduction because no real user study has been run.
-The design target is narrower: put the PDF, structured fields, validation reasons, and permitted
-decision in one workflow.
+Without one review workspace, a reviewer typically needs to:
 
-## Implemented Workflow
+1. open the source PDF;
+2. copy or compare invoice fields;
+3. inspect totals and line items;
+4. decide whether missing or inconsistent values need follow-up;
+5. communicate the result;
+6. keep a record of the decision.
+
+I have not measured the time difference against a manual process. The current design goal is
+smaller: bring the source document, proposed fields, validation reasons, and allowed decision into
+one workflow.
+
+## The implemented workflow
 
 ```text
 Uploader submits invoice
--> OCR provider reads pages
--> extractor returns grounded invoice fields
--> deterministic rules validate fields and totals
--> clean case waits for reviewer decision
--> blocked case requests correction
--> reviewer compares source PDF and data
--> decision and audit events are persisted
--> approved state unlocks controlled export
+-> OCR provider reads the pages
+-> extraction model proposes invoice fields
+-> deterministic rules check fields and totals
+-> clean invoice waits for a reviewer
+-> blocked invoice returns for correction
+-> reviewer compares the PDF with the data
+-> decision and audit events are saved
+-> approved invoice becomes eligible for export
 ```
 
-## What AI Does
+## What AI does
 
-- converts invoice pages into machine-readable text
-- maps evidence into the invoice schema
-- provides confidence and source context when available
+- reads invoice pages;
+- maps the document content into the invoice schema;
+- returns confidence and source information when the provider supports it.
 
-The extraction prompt forbids guessing missing values. A deterministic grounding guard rejects an
-ambiguous seller name even if the model returns one.
+The extraction prompt tells the model not to guess missing values. A seller-context guard also
+rejects an ambiguous vendor name when the returned text does not provide enough support.
 
-## What Deterministic Code Does
+## What application rules do
 
-- enforces required fields and normalization
-- checks subtotal, tax, total, and line-item consistency
-- detects duplicate vendor and invoice-number pairs within a workspace
-- controls processing retries and terminal states
-- enforces roles, workspaces, and valid status transitions
-- blocks approval while error-level validation findings remain
-- blocks export until a reviewer has approved the invoice
+- check required fields and normalize values;
+- compare subtotal, tax, total, and line items;
+- detect duplicate vendor and invoice-number pairs within a workspace;
+- control retries and terminal processing states;
+- enforce roles, workspaces, and valid state transitions;
+- block approval while validation errors remain;
+- block export until a reviewer approves the invoice.
 
-## What the Human Controls
+## What the reviewer controls
 
-- verifies extracted values against the visible PDF
-- corrects data before submission when evidence supports the change
-- approves a clean invoice
-- rejects an invalid invoice
-- asks for correction when evidence is missing or inconsistent
+- verify extracted values against the PDF;
+- correct a value when the document supports the change;
+- approve a clean invoice;
+- reject an invalid invoice;
+- request a correction when information is missing or inconsistent.
 
-Model confidence never replaces this authority.
+The model cannot perform any of these decisions.
 
-## Representative Scenarios
+## Evaluation cases
 
-The versioned synthetic dataset contains 20 PDFs covering:
+The committed dataset contains 20 synthetic PDFs:
 
-- ordinary single-page invoices
-- intentionally missing vendor, date, or tax fields
-- total and line-item inconsistencies
-- a duplicate invoice pair
-- unsupported or unusual values
-- low-contrast text
-- rotated content
-- a multi-page invoice
+- ordinary single-page invoices;
+- invoices with a missing vendor, date, or tax value;
+- total and line-item mismatches;
+- a duplicate invoice pair;
+- unsupported or unusual values;
+- low-contrast text;
+- rotated content;
+- one multi-page invoice.
 
-The first provider-backed run exposed three unsafe false fills in intentionally missing fields.
-Prompt-level null rules corrected two. A deterministic seller-context guard corrected the final
-vendor error.
+The first provider-backed run filled three fields that were intentionally missing. Stronger null
+instructions corrected the date and tax errors. A deterministic seller-context check rejected the
+remaining vendor error.
 
-The current-provider release diagnostic later exposed another failure instead of hiding it: a
-localized amount such as `1.250,00` was valid model output but invalid at the decimal boundary. The
-failed 19-of-20 run was preserved, the parser was corrected with a regression test, and a clean
-rerun completed all 20 documents. That rerun matched 160 of 160 fields, all validation outcomes,
-and all approval-blocker outcomes. Source evidence covered 87.1% of correct non-null fields. The 40
-provider calls averaged 3.69 seconds per document and had a $0.129488 dated list-price estimate.
+A later clean-commit diagnostic found a different problem. The model returned a localized amount
+such as `1.250,00`, but the decimal parser rejected it. I kept the failed 19-of-20 run, added
+deterministic normalization and a regression test, and ran the same diagnostic again.
 
-These numbers describe one small synthetic golden set. They are not production accuracy,
-throughput, billing, or SLA claims.
+The passing run:
 
-Two separate 25-document licensed synthetic FATURA packs were prepared outside Git. The first
-sealed holdout exposed a provider-availability failure: only 1 of 10 documents completed both
-providers. That negative result remains in the evidence record. A second pack used 25 previously
-unseen source layouts and a new sealed holdout. With Mistral OCR and OpenAI extraction, all 10
-holdout documents completed, field accuracy was 98.75%, and validation and approval-blocker
-accuracy were 100%. One unsupported due date was still hallucinated and remains documented.
+- processed all 20 invoices;
+- matched 160 of 160 expected fields;
+- matched all validation outcomes;
+- matched all approval-blocker outcomes;
+- recorded source information for 87.1% of correct non-null fields;
+- made 40 provider calls;
+- averaged 3.69 seconds per invoice;
+- produced a dated list-price estimate of $0.129488.
 
-## Safety Evidence
+This is a small synthetic diagnostic set. The result is useful for regression testing, but it is
+not a production accuracy or throughput estimate.
 
-- real-provider processing stopped at `needs_review`, including for a clean high-confidence invoice
-- explicit approval was required before the state became `approved`
-- the duplicate copy received `duplicate_invoice` while the original remained clear
-- the queue separated clean decisions from correction-required cases
-- the duplicate reason was visible beside the source PDF
-- the UI disabled approval and the backend independently refused it
-- approved, rejected, and exported invoice data could not be silently edited through the draft API
-- correction requests returned ownership to the uploader and preserved original AI output,
-  before/after values, actor, reason, timestamp, and field-level diff
-- the tested provider-backed workflow produced six durable audit events
+## External synthetic holdout
 
-## Engineering Evidence
+I also prepared two licensed 25-document FATURA packs outside Git.
 
-- the clean-commit release record captures exact backend, frontend, fixture-browser, and real
-  full-stack browser test counts
-- frontend lint, formatting, and production build are release gates
-- backend Ruff formatting, lint, complexity, and dependency checks are release gates
-- the frontend advisory gate fails on unreviewed high or critical findings; one client-inapplicable
-  React Router advisory has a documented, time-bounded exception
-- security tests cover session, role, workspace, CSRF, headers, upload, and state-transition boundaries
-- public artifact tests prevent `.env`, local databases, uploads, caches, and build output from being packaged
+The first sealed holdout exposed a provider-availability problem: only 1 of 10 selected documents
+completed both provider steps. I kept that failed result.
 
-The machine-readable [release verification](docs/evidence/release-verification.json) is the source
-for current counts and environment details.
+The second pack used 25 source layouts that had not appeared in the first pack. After the diagnostic
+fixes were frozen, I ran one new sealed 10-document holdout with Mistral OCR and OpenAI extraction.
+All 10 documents completed.
 
-## Failure Modes and Product Response
+The result was:
 
-| Failure mode                           | Product response                                                      |
-| -------------------------------------- | --------------------------------------------------------------------- |
-| Missing or ambiguous field             | Preserve null or route to correction; do not silently guess.          |
-| Arithmetic mismatch                    | Show a validation reason and block approval.                          |
-| Duplicate invoice                      | Mark the copy for correction and keep the original reviewable.        |
-| Invalid provider credential            | Fail as non-retryable and expose provider health.                     |
-| Rate limit or supported server failure | Use bounded retry and dead-letter behavior.                           |
-| Export delivery failure                | Keep the approved state and record the failed attempt for safe retry. |
-| Cross-workspace or invalid-role action | Refuse at the API boundary.                                           |
+- 98.75% field match;
+- 100% validation match;
+- 100% approval-blocker match.
 
-## Architecture Decision
+One due date was not supported by the source document but was still generated by the model. That
+failure remains documented. The holdout is licensed synthetic data, not customer traffic.
 
-The main design decision is separation of authority:
+## Review and workflow checks
+
+The tested workflow showed that:
+
+- provider-backed processing stopped at `needs_review`, even for a clean, high-confidence invoice;
+- explicit reviewer approval was required before the invoice became `approved`;
+- the duplicate copy received `duplicate_invoice` while the original remained reviewable;
+- clean decisions and correction-required cases appeared in separate queue states;
+- the duplicate reason appeared beside the PDF;
+- the UI disabled approval for blocked invoices and the backend refused the same request;
+- approved, rejected, and exported invoices could not be edited through the draft API;
+- correction requests returned the invoice to the uploader and kept the original extraction,
+  before/after values, actor, reason, timestamp, and field-level diff;
+- the provider-backed workflow produced six durable audit events.
+
+## Engineering checks
+
+- The release record contains the backend, frontend, fixture-browser, and real full-stack browser
+  test counts from a clean commit.
+- Frontend formatting, lint, tests, and production build are part of the release command.
+- Backend formatting, lint, complexity, dependency, and test checks run in the same command.
+- The frontend dependency check fails on unreviewed high or critical findings. One React Router
+  advisory that does not apply to this client-only Vite setup has a documented expiration date.
+- Security tests cover sessions, roles, workspaces, CSRF, headers, uploads, and state transitions.
+- Packaging tests prevent `.env`, local databases, uploaded files, caches, and build output from
+  entering the public artifact.
+
+The exact counts and environment are recorded in
+[release verification](docs/evidence/release-verification.json).
+
+## Failure handling
+
+| Failure                              | System response                                                      |
+| ------------------------------------ | -------------------------------------------------------------------- |
+| Missing or ambiguous field           | Keep the value empty or request a correction. Do not guess silently. |
+| Arithmetic mismatch                  | Show the validation error and block approval.                        |
+| Duplicate invoice                    | Block the copy and keep the original reviewable.                     |
+| Invalid provider credential          | Stop without retrying and report provider health.                    |
+| Rate limit or supported server error | Retry within a fixed limit, then move the job to the failed queue.   |
+| Export delivery failure              | Keep the approved state and record the failed attempt for retry.     |
+| Invalid role or workspace            | Refuse the request at the API.                                       |
+
+## Main architecture decision
+
+I separated proposal, validation, and decision:
 
 ```text
-AI proposes structured evidence.
-Deterministic code decides whether the state is safe to review or execute.
-A human makes the consequential business decision.
+AI proposes invoice data.
+Application rules validate the proposal.
+A human approves, rejects, or requests a correction.
 ```
 
-This produces a more defensible portfolio claim than unrestricted automation because every risky
-boundary can be demonstrated and tested.
+I chose this design because the risky parts are visible and testable. The model can suggest data,
+but it cannot approve or export an invoice.
 
-## Limitations and Next Evidence
+## Limitations
 
-- all benchmark invoices are synthetic
-- the external FATURA packs are licensed synthetic evidence, not customer traffic; V1 preserved a
-  provider failure and V2 still produced one unsupported due date
-- no finance operations user has completed a formal usability study
-- no customer baseline, time saving, cost saving, or error reduction has been measured
-- provider behavior may change as hosted models change
-- invoice is the only end-to-end document schema
-- local authentication, SQLite, and file storage are not a production tenancy architecture
-- the ERP/accounting integration remains a controlled mock or CSV boundary
+- All benchmark invoices are synthetic.
+- The external FATURA packs are licensed synthetic documents, not customer traffic.
+- The first external holdout kept a provider failure. The second still produced one unsupported due
+  date.
+- No finance user has completed the planned usability study.
+- I have not measured reviewer time savings, cost savings, or error reduction.
+- Provider behavior may change when hosted models change.
+- Invoice is the only complete document schema.
+- Local authentication, SQLite, and file storage are not a production tenancy setup.
+- ERP delivery remains a mock or CSV integration.
 
-The next valuable validation is a small, permissioned real-world invoice set plus observed reviewer
-tasks. That evidence should precede another document type or broader automation claim.
+## What I would do next
 
-## What I Would Change Next
-
-1. Run the documented 3–5 participant usability study and iterate on observed task failures.
-2. Validate a permissioned, legally usable invoice set without committing raw documents.
+1. Run the documented usability study with 3–5 finance users and fix the task failures I observe.
+2. Validate a small set of legally usable real invoices without committing the raw documents.
 3. Replace seeded role tokens with production identity and tenant membership.
-4. Bind the malware scanner, object-store lifecycle, backups, and independent security review.
-5. Add worker heartbeat telemetry and managed queue semantics before claiming distributed scale.
+4. Add a production malware scanner, managed object storage, retention rules, backups, and an
+   independent security review.
+5. Add worker heartbeat telemetry and a managed queue before making any distributed-scale claim.

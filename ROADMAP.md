@@ -1,113 +1,111 @@
 # Invoice Review Roadmap
 
-This file is the single source of truth for planned product work. Historical implementation plans,
-UI concept handoffs, and security remediation diaries are intentionally excluded.
+This roadmap tracks the product work that still matters. Superseded implementation plans and old UI
+handoffs are not kept here.
 
-## Product Outcome
+## Product goal
 
-Build an invoice-review application that a non-technical finance user can understand without an
-explanation and that a technical evaluator can inspect without weakening business safeguards.
-
-The core journey is:
+Build an invoice-review application that a finance user can understand without a walkthrough and
+that a technical reviewer can inspect without weakening approval and export controls.
 
 ```text
 Upload -> Check source and fields -> Resolve blockers -> Decide -> Export approved records
 ```
 
-## Non-Negotiable Controls
+## Rules that must stay true
 
 1. Extraction confidence never grants approval.
-2. Error-level validation blocks approval in the UI and API.
-3. Approval, rejection, and correction are explicit human decisions.
-4. Corrections retain the original value, updated value, actor, reason, and timestamp.
-5. Terminal decision and export evidence is append-only from the application workflow.
-6. Roles and workspace membership are derived and enforced by the server.
+2. Validation errors block approval in the UI and API.
+3. Approval, rejection, and correction are explicit human actions.
+4. Corrections keep the original value, updated value, actor, reason, and timestamp.
+5. Final decisions and export records are append-only in the application workflow.
+6. The server enforces roles and workspace membership.
 7. Export requires approval, idempotency, and failure-aware retry behavior.
 
-## Completed Product Refactor
+## Completed work
 
-### Phase 0: Baseline And Guardrails
+### Baseline and safety checks
 
 - Recorded backend, frontend, lint, build, and browser baselines.
-- Captured the safety invariants above before changing the interface.
-- Added the restrained invoice-product direction to this roadmap.
+- Captured the workflow rules above before changing the UI.
+- Narrowed the product to one complete invoice journey.
 
-### Phase 1: Remove Template Signals
+### Product cleanup
 
-- Removed decorative AI labels, recommendations, green overall confidence, dead utility controls,
-  automatic first-row selection, and decorative page motion.
-- Kept functional drawers, modals, toasts, loading indicators, and reduced-motion behavior.
+- Removed labels, recommendations, confidence indicators, utility controls, and animations that did
+  not help reviewers complete a task.
+- Kept functional drawers, modals, toasts, loading states, and reduced-motion behavior.
 
-### Phase 2: Information Architecture
+### Navigation
 
-- Primary navigation is now Inbox, Invoices, and Exports.
-- Quality and Operations are grouped under Admin.
-- Legacy URLs redirect to the relevant current view while preserving useful query state.
+- Made Inbox, Invoices, and Exports the primary navigation.
+- Grouped Quality and Operations under Admin.
+- Kept redirects for old URLs while preserving useful query parameters.
 
-### Phase 3: Daily Work
+### Daily review work
 
-- Inbox combines decision work and blocking issues through two state tabs.
-- Invoices uses lifecycle tabs and keeps the table as the primary surface.
-- Details open only after a deliberate user selection.
+- Split Inbox into invoices waiting for a decision and invoices blocked by an issue.
+- Added lifecycle tabs to Invoices and kept the table as the main surface.
+- Removed automatic first-row selection. Details open only after the user selects an invoice.
 
-### Phase 4: Review And Export
+### Review and export
 
-- Review places the source PDF beside fields, checks, and an explicit decision area.
-- Export shows eligibility and batch controls only when a selection or existing batch requires them.
-- Approval, blocker, retry, and idempotency contracts remain backend-enforced.
+- Placed the source PDF beside editable fields, validation results, and decision controls.
+- Showed export eligibility and batch controls only when they are needed.
+- Kept approval, blocker, retry, and idempotency rules enforced by the backend.
 
-### Phase 5: Administrator Evidence
+### Administrator views
 
-- Quality is limited to labeled-test results, field performance, scenario coverage, and honest limits.
-- Operations prioritizes unresolved alerts, failed jobs, retries, service status, and audit records.
-- Duplicate KPI, chart, funnel, and side-rail surfaces were removed.
+- Limited Quality to labeled results, field performance, scenario coverage, and limitations.
+- Made unresolved alerts, failed jobs, retries, service status, and audit records the focus of
+  Operations.
+- Removed duplicate KPIs, charts, funnels, and side panels.
 
-### Phase 6: Repository Hygiene
+### Repository cleanup
 
-- Removed inactive page implementations and unused frontend dependencies.
-- Split the monolithic stylesheet by responsibility and added a readable typography floor.
-- Consolidated product documentation around the Invoice Review identity.
-- Removed superseded UI concepts, motion handoffs, old screenshot matrices, and remediation diaries.
+- Removed inactive pages and unused frontend dependencies.
+- Split the large stylesheet by responsibility and added a readable typography floor.
+- Consolidated documentation around the Invoice Review product.
+- Removed old UI concepts, motion handoffs, screenshot matrices, and remediation diaries.
 
-## Completed Finishing Gate
+### Release checks
 
-- Added a cross-platform release command that runs Python dependency audit, Ruff, backend tests,
-  complexity checks, the reviewed frontend dependency gate, formatting, lint, unit tests, build,
-  fixture-browser tests, and one real full-stack browser journey.
-- Added negative role tests for administrator-only APIs and authentication-only access for shared
-  invoice work.
-- Added a real React, FastAPI, SQLite, and worker journey that covers upload, duplicate detection,
+- Added one cross-platform command for dependency audits, Ruff, backend tests, complexity checks,
+  frontend formatting and lint, unit tests, production build, fixture-browser tests, and one real
+  full-stack browser journey.
+- Added negative role tests for administrator APIs and authenticated shared invoice work.
+- Added a React, FastAPI, SQLite, and worker browser journey covering upload, duplicate detection,
   correction, approval, and export.
-- Added stale worker-job lease recovery so interrupted jobs can be reclaimed without concurrent
-  double-claim.
-- Added field-level source evidence and reviewer-correction provenance beside the PDF.
-- Inbox, Invoices, Review, Exports, Quality, and Operations passed serious-accessibility and page
-  overflow checks at every tested viewport.
-- The current screenshot matrix and 84-second captioned demo were regenerated and visually
-  inspected, including rendered PDF frames.
-- Exact test counts, environment versions, durations, and reviewed dependency exceptions are
-  generated from the clean commit in `docs/evidence/release-verification.json`.
+- Added stale worker-lease recovery so interrupted jobs can be reclaimed without two workers
+  processing the same active job.
+- Added field-level source information and reviewer-correction history beside the PDF.
+- Checked the six product pages for serious accessibility and overflow problems at every tested
+  viewport.
+- Regenerated and reviewed the screenshot matrix and 84-second captioned demo, including rendered
+  PDF frames.
+- Added a machine-readable release record containing the tested commit, counts, environment,
+  durations, and reviewed dependency exceptions.
 
-## Next Evidence Phase
+## Next validation work
 
-After the thesis defense and before processing real client data:
+Before processing real client data:
 
-1. Run the documented 3-5 participant finance-user usability study; record observed errors and
-   completion measures without inventing results.
-2. Validate 25 private, legally usable invoices that are excluded from Git.
-3. Maintain versioned golden labels and an experiment log for accuracy, latency, provider errors,
-   and estimated cost.
-4. Exercise messy scans, rotations, multiple pages, totals, currencies, duplicates, and missing data.
-5. Verify reviewer corrections and failure taxonomy against those cases.
-6. Complete the external provider, retention, scanner, and privacy acceptance gates documented in
-   the security posture.
-7. Record a hosted or one-command recruiter demo only after the seeded local flow is stable.
+1. Run the documented usability study with 3–5 finance users. Record task failures and assistance
+   without inventing results.
+2. Validate 25 private invoices that can be used legally and remain outside Git.
+3. Keep versioned labels and an experiment log for accuracy, latency, provider errors, and estimated
+   cost.
+4. Test messy scans, rotations, multiple pages, totals, currencies, duplicates, and missing values.
+5. Review correction behavior and the failure taxonomy against those cases.
+6. Complete the provider, retention, malware-scanning, and privacy checks listed in the security
+   posture.
+7. Publish a hosted or one-command recruiter demo after the seeded local workflow is stable.
 
-## Deliberately Deferred
+## Not planned yet
 
 - a second document type;
 - payment execution;
 - chatbot or document Q&A;
 - production multi-tenancy and billing;
-- live ERP delivery without an approved integration boundary;
-- claims about customer impact, time savings, or production accuracy without observed evidence.
+- live ERP delivery without an approved integration;
+- customer-impact, time-saving, or production-accuracy claims without observed data.
