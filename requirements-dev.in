@@ -4,5 +4,5 @@
 pip-audit==2.10.1
 pip-tools==7.6.0
 radon==6.0.1
-reportlab==4.4.9
+reportlab==4.5.1
 ruff==0.16.0
