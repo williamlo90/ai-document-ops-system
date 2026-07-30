@@ -1,8 +1,8 @@
 {
   "schema_version": "release_verification_v1",
-  "generated_at": "2026-07-30T10:12:23.346113+00:00",
+  "generated_at": "2026-07-30T10:35:06.373127+00:00",
   "source": {
-    "git_commit": "8e5fdfd642e2725f045cc994facc2e6698e54cf2",
+    "git_commit": "d2c01ba0c6da2b3df8540183a6e0aea3bb841467",
     "worktree_clean_at_start": true,
     "branch": "main"
   },
@@ -33,72 +33,72 @@
     {
       "name": "python_dependency_audit",
       "passed": true,
-      "duration_seconds": 2.195
+      "duration_seconds": 1.917
     },
     {
       "name": "python_format",
       "passed": true,
-      "duration_seconds": 2.128
+      "duration_seconds": 0.101
     },
     {
       "name": "python_lint",
       "passed": true,
-      "duration_seconds": 0.124
+      "duration_seconds": 0.106
     },
     {
       "name": "backend_types",
       "passed": true,
-      "duration_seconds": 0.41
+      "duration_seconds": 0.347
     },
     {
       "name": "backend_tests",
       "passed": true,
-      "duration_seconds": 130.287
+      "duration_seconds": 144.497
     },
     {
       "name": "coverage_gate",
       "passed": true,
-      "duration_seconds": 1.377
+      "duration_seconds": 1.46
     },
     {
       "name": "complexity_gate",
       "passed": true,
-      "duration_seconds": 0.731
+      "duration_seconds": 0.765
     },
     {
       "name": "frontend_dependency_audit",
       "passed": true,
-      "duration_seconds": 2.421
+      "duration_seconds": 2.148
     },
     {
       "name": "frontend_format",
       "passed": true,
-      "duration_seconds": 1.735
+      "duration_seconds": 1.821
     },
     {
       "name": "frontend_lint",
       "passed": true,
-      "duration_seconds": 0.616
+      "duration_seconds": 0.484
     },
     {
       "name": "frontend_tests",
       "passed": true,
-      "duration_seconds": 12.709
+      "duration_seconds": 9.013
     },
     {
       "name": "frontend_build",
       "passed": true,
-      "duration_seconds": 4.372
+      "duration_seconds": 4.184
     },
     {
       "name": "browser_tests",
       "passed": true,
-      "duration_seconds": 40.214
+      "duration_seconds": 26.968
     },
     {
       "name": "fullstack_browser_test",
       "passed": true,
-      "duration_seconds": 12.424
+      "duration_seconds": 12.255
     }
   ],
   "claim_boundary": [
