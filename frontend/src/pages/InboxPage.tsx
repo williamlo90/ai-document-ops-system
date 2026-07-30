@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import { AlertCircle, CalendarDays, Inbox as InboxIcon } from 'lucide-react'
 import { api } from '../api/client'
 import type { ExceptionListResponse } from '../features/exceptions/types'

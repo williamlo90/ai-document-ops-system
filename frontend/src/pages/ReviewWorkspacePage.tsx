@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { ArrowLeft, CheckCircle2, ChevronRight, ShieldCheck, X } from 'lucide-react'
 import { api } from '../api/client'
 import { PdfPreview } from '../components/PdfPreview'

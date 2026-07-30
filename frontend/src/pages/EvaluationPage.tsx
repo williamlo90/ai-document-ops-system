@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import { CheckCircle2, FlaskConical, Info, LoaderCircle, Play, X } from 'lucide-react'
 import { api } from '../api/client'
 import { EvaluationSkeleton } from '../features/evaluation/components/EvaluationSkeleton'

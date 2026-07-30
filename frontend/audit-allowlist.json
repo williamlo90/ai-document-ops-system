@@ -1,10 +1,3 @@
 {
-  "advisories": [
-    {
-      "id": "GHSA-qwww-vcr4-c8h2",
-      "packages": ["react-router", "react-router-dom"],
-      "expires_on": "2026-08-15",
-      "reason": "The application is a client-only Vite SPA and does not enable React Server Components, framework-mode actions, SSR, or server-side route execution. Upgrade as soon as a patched React Router release is available."
-    }
-  ]
+  "advisories": []
 }

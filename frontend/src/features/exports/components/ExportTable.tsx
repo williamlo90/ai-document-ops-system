@@ -1,5 +1,5 @@
 import { ExternalLink } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { formatDate, formatMoney } from '../../../shared/format'
 import { StatusBadge } from '../../../shared/ui'
 import type { ExportInvoiceItem } from '../types'

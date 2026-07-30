@@ -5,9 +5,15 @@ const allowlist = JSON.parse(
   readFileSync(new URL('../audit-allowlist.json', import.meta.url), 'utf8'),
 )
 
+const npmCli = process.env.npm_execpath
+if (!npmCli) {
+  throw new Error('Run this check through "npm run audit" so npm_execpath is available.')
+}
+
+const nodeExecutable = process.env.npm_node_execpath ?? process.execPath
 let raw
 try {
-  raw = execFileSync('npm', ['audit', '--json'], { encoding: 'utf8', shell: true })
+  raw = execFileSync(nodeExecutable, [npmCli, 'audit', '--json'], { encoding: 'utf8' })
 } catch (error) {
   raw = error.stdout
 }

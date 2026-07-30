@@ -1,5 +1,5 @@
 import { CheckCircle2, FileDown, LoaderCircle, Save } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import {
   Button,
   EmptyState,

@@ -1,4 +1,4 @@
-import type { useSearchParams } from 'react-router-dom'
+import type { useSearchParams } from 'react-router'
 
 export type SearchParamSetter = ReturnType<typeof useSearchParams>[1]
 export type SearchParamUpdates = Record<string, string | null | undefined>

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { AlertCircle, LoaderCircle, RotateCcw, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { formatDate, humanize } from '../../../shared/format'
 import { Button, StatusBadge } from '../../../shared/ui'
 import { formatDuration } from '../selectors'

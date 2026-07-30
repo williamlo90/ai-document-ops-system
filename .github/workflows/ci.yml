@@ -55,6 +55,28 @@ jobs:
             --no-emit-index-url --output-file=requirements-dev.txt requirements-dev.in
           git diff --exit-code -- requirements.txt requirements-dev.txt
 
+  clean-python-install-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11.14"
+          cache: pip
+          cache-dependency-path: requirements-dev-windows.txt
+      - name: Install and regenerate the Windows hash locks
+        shell: pwsh
+        run: |
+          python -m venv .clean-venv
+          .\.clean-venv\Scripts\python.exe -m pip install --require-hashes -r requirements-dev-windows.txt
+          .\.clean-venv\Scripts\python.exe -m piptools compile `
+            --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe --no-annotate `
+            --no-emit-index-url --output-file=requirements-windows.txt requirements.in
+          .\.clean-venv\Scripts\python.exe -m piptools compile `
+            --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe --no-annotate `
+            --no-emit-index-url --output-file=requirements-dev-windows.txt requirements-dev.in
+          git diff --exit-code -- requirements-windows.txt requirements-dev-windows.txt
+
   quality:
     runs-on: ubuntu-latest
     needs: clean-python-install
@@ -91,7 +113,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "22.19.0"
+          node-version: "22.22.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci

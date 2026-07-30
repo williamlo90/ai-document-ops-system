@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import { CheckCircle2 } from 'lucide-react'
 import { api } from '../api/client'
 import { ExportBatchPanel } from '../features/exports/components/ExportBatchPanel'

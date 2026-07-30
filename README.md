@@ -86,7 +86,7 @@ For the fastest setup, use Docker Desktop. This starts both the API and backgrou
 
 Open `http://127.0.0.1:8000` after the API reports ready.
 
-For local source development, install Python 3.11+, Node.js 22, and npm 10 or 11:
+For local source development, install Python 3.11+ and Node.js 22.22+ with npm 10 or 11:
 
 ```powershell
 .\scripts\setup_local_venv.ps1

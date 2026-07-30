@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { AlertCircle, ArrowRight, CheckCircle2, Clock3 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { formatMoney } from '../../../shared/format'
 import { invoiceLabel } from '../../invoices/format'
 import type { ExceptionItem } from '../../exceptions/types'

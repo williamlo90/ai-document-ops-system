@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { AlertTriangle, CheckCircle2, FileCheck2, Send, X } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { formatDate, formatMoney } from '../../../shared/format'
 import { invoiceLabel } from '../format'
 import { invoiceStatus } from '../selectors'

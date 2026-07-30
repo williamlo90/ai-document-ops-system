@@ -1,5 +1,5 @@
 import { QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import { AlertTriangle, LoaderCircle, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { api } from './api/client'

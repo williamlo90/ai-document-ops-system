@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import { CheckCircle2, Upload, X } from 'lucide-react'
 import { api } from '../api/client'
 import { useShell } from '../app/shell-context'
