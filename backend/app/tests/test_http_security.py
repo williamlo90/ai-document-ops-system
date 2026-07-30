@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -32,6 +33,19 @@ def settings(**overrides: object) -> Settings:
         "rate_limit_window_seconds": 60,
     }
     values.update(overrides)
+    if str(values["app_env"]).strip().lower() in {
+        "prod",
+        "production",
+        "public",
+        "public-demo",
+        "public_demo",
+        "portfolio",
+    }:
+        values.setdefault("storage_backend", "sqlite")
+        values.setdefault(
+            "sqlite_path",
+            Path(tempfile.gettempdir()) / f"ai-doc-http-security-{uuid4().hex}.sqlite3",
+        )
     return Settings(**values)  # type: ignore[arg-type]
 
 
@@ -172,31 +186,34 @@ class HttpMiddlewareTests(unittest.TestCase):
     def test_production_cookie_request_requires_same_origin(self) -> None:
         strong_token = "a-production-token-with-24-characters"
         with tempfile.TemporaryDirectory() as temp_dir:
-            client = TestClient(
-                create_app(
-                    settings(
-                        app_env="production",
-                        admin_token=strong_token,
-                        metrics_token="metrics-token-with-24-characters",
-                        uploader_token=None,
-                        reviewer_token=None,
-                        upload_root=Path(temp_dir),
-                        malware_scanner_backend="clamav",
-                    )
+            app = create_app(
+                settings(
+                    app_env="production",
+                    admin_token=strong_token,
+                    metrics_token="metrics-token-with-24-characters",
+                    uploader_token=None,
+                    reviewer_token=None,
+                    upload_root=Path(temp_dir),
+                    malware_scanner_backend="clamav",
+                    sqlite_path=Path(temp_dir) / "production.sqlite3",
                 )
             )
-            login = client.post("/auth/session", json={"access_token": strong_token})
-            self.assertEqual(login.status_code, 200)
-            cookie_header = {
-                "Cookie": f"doc_intel_admin_token={client.cookies['doc_intel_admin_token']}"
-            }
-            rejected = client.delete("/auth/session", headers=cookie_header)
-            self.assertEqual(rejected.status_code, 403)
-            accepted = client.delete(
-                "/auth/session",
-                headers={**cookie_header, "Origin": "http://testserver"},
-            )
-            self.assertEqual(accepted.status_code, 200)
+            client = TestClient(app)
+            try:
+                login = client.post("/auth/session", json={"access_token": strong_token})
+                self.assertEqual(login.status_code, 200)
+                cookie_header = {
+                    "Cookie": (f"doc_intel_admin_token={client.cookies['doc_intel_admin_token']}")
+                }
+                rejected = client.delete("/auth/session", headers=cookie_header)
+                self.assertEqual(rejected.status_code, 403)
+                accepted = client.delete(
+                    "/auth/session",
+                    headers={**cookie_header, "Origin": "http://testserver"},
+                )
+                self.assertEqual(accepted.status_code, 200)
+            finally:
+                app.state.container.close()
 
     def test_public_demo_uses_hosted_security_policy(self) -> None:
         strong_settings = settings(
@@ -208,28 +225,34 @@ class HttpMiddlewareTests(unittest.TestCase):
             parser_provider="mock",
             extractor_provider="mock",
         )
-        client = TestClient(create_app(strong_settings))
-
-        self.assertEqual(client.get("/docs").status_code, 404)
-        self.assertEqual(client.get("/openapi.json").status_code, 404)
-        login = client.post(
-            "/auth/session",
-            json={"access_token": "review-token-with-24-characters"},
-        )
-        self.assertEqual(login.status_code, 200)
-        self.assertIn("secure", login.headers["set-cookie"].lower())
-
-        cookie_header = {
-            "Cookie": f"doc_intel_admin_token={client.cookies['doc_intel_admin_token']}"
-        }
-        self.assertEqual(client.delete("/auth/session", headers=cookie_header).status_code, 403)
-        self.assertEqual(
-            client.delete(
+        app = create_app(strong_settings)
+        client = TestClient(app)
+        try:
+            self.assertEqual(client.get("/docs").status_code, 404)
+            self.assertEqual(client.get("/openapi.json").status_code, 404)
+            login = client.post(
                 "/auth/session",
-                headers={**cookie_header, "Origin": "http://testserver"},
-            ).status_code,
-            200,
-        )
+                json={"access_token": "review-token-with-24-characters"},
+            )
+            self.assertEqual(login.status_code, 200)
+            self.assertIn("secure", login.headers["set-cookie"].lower())
+
+            cookie_header = {
+                "Cookie": (f"doc_intel_admin_token={client.cookies['doc_intel_admin_token']}")
+            }
+            self.assertEqual(
+                client.delete("/auth/session", headers=cookie_header).status_code,
+                403,
+            )
+            self.assertEqual(
+                client.delete(
+                    "/auth/session",
+                    headers={**cookie_header, "Origin": "http://testserver"},
+                ).status_code,
+                200,
+            )
+        finally:
+            app.state.container.close()
 
     def test_public_demo_rejects_weak_or_missing_role_tokens(self) -> None:
         with self.assertRaises(ValueError):

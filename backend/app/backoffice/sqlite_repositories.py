@@ -37,15 +37,18 @@ class SqliteWorkItemRepository:
             self.store.execute(
                 """
                 INSERT INTO backoffice_work_items
-                (id, workspace_id, updated_at, payload) VALUES (?, ?, ?, ?)
+                (id, workspace_id, idempotency_key, updated_at, payload)
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     workspace_id = excluded.workspace_id,
+                    idempotency_key = excluded.idempotency_key,
                     updated_at = excluded.updated_at,
                     payload = excluded.payload
                 """,
                 (
                     str(work_item.id),
                     work_item.workspace_id,
+                    work_item.idempotency_key,
                     work_item.updated_at.isoformat(),
                     json.dumps(_work_item_to_dict(work_item)),
                 ),
@@ -78,6 +81,20 @@ class SqliteWorkItemRepository:
         if row is None:
             raise NotFoundError(f"Work item not found: {work_item_id}")
         return _work_item_from_dict(json.loads(row["payload"]))
+
+    def get_by_idempotency_key(
+        self,
+        workspace_id: str,
+        idempotency_key: str,
+    ) -> WorkItem | None:
+        row = self.store.query_one(
+            """
+            SELECT payload FROM backoffice_work_items
+            WHERE workspace_id = ? AND idempotency_key = ?
+            """,
+            (workspace_id, idempotency_key),
+        )
+        return _work_item_from_dict(json.loads(row["payload"])) if row else None
 
     def list_by_workspace(self, workspace_id: str) -> list[WorkItem]:
         rows = self.store.query(
@@ -129,13 +146,21 @@ class SqliteTaskPlanRepository:
     def save(self, plan: TaskPlan) -> TaskPlan:
         self.store.execute(
             """
-            INSERT OR REPLACE INTO backoffice_task_plans
-            (id, workspace_id, work_item_id, created_at, payload) VALUES (?, ?, ?, ?, ?)
+            INSERT INTO backoffice_task_plans
+            (id, workspace_id, work_item_id, idempotency_key, created_at, payload)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                workspace_id = excluded.workspace_id,
+                work_item_id = excluded.work_item_id,
+                idempotency_key = excluded.idempotency_key,
+                created_at = excluded.created_at,
+                payload = excluded.payload
             """,
             (
                 str(plan.id),
                 plan.workspace_id,
                 str(plan.work_item_id),
+                plan.idempotency_key,
                 plan.created_at.isoformat(),
                 json.dumps(_task_plan_to_dict(plan)),
             ),
@@ -150,6 +175,21 @@ class SqliteTaskPlanRepository:
         if row is None:
             raise NotFoundError(f"Task plan not found: {plan_id}")
         return _task_plan_from_dict(json.loads(row["payload"]))
+
+    def get_by_idempotency_key(
+        self,
+        workspace_id: str,
+        work_item_id: UUID,
+        idempotency_key: str,
+    ) -> TaskPlan | None:
+        row = self.store.query_one(
+            """
+            SELECT payload FROM backoffice_task_plans
+            WHERE workspace_id = ? AND work_item_id = ? AND idempotency_key = ?
+            """,
+            (workspace_id, str(work_item_id), idempotency_key),
+        )
+        return _task_plan_from_dict(json.loads(row["payload"])) if row else None
 
     def list_for_work_item(self, workspace_id: str, work_item_id: UUID) -> list[TaskPlan]:
         rows = self.store.query(
@@ -342,6 +382,7 @@ def _work_item_to_dict(item: WorkItem) -> dict[str, object]:
         "business_context": dict(item.business_context),
         "current_plan_id": str(item.current_plan_id) if item.current_plan_id else None,
         "idempotency_key": item.idempotency_key,
+        "idempotency_fingerprint": item.idempotency_fingerprint,
         "created_at": item.created_at.isoformat(),
         "updated_at": item.updated_at.isoformat(),
     }
@@ -364,6 +405,9 @@ def _work_item_from_dict(value: dict[str, object]) -> WorkItem:
         },
         current_plan_id=UUID(str(current_plan_id)) if current_plan_id else None,
         idempotency_key=(str(value["idempotency_key"]) if value.get("idempotency_key") else None),
+        idempotency_fingerprint=(
+            str(value["idempotency_fingerprint"]) if value.get("idempotency_fingerprint") else None
+        ),
         created_at=datetime.fromisoformat(str(value["created_at"])),
         updated_at=datetime.fromisoformat(str(value["updated_at"])),
     )
@@ -379,6 +423,7 @@ def _task_plan_to_dict(plan: TaskPlan) -> dict[str, object]:
         "overall_confidence": plan.overall_confidence,
         "escalation_reason": plan.escalation_reason,
         "idempotency_key": plan.idempotency_key,
+        "idempotency_fingerprint": plan.idempotency_fingerprint,
         "agent_run_id": str(plan.agent_run_id) if plan.agent_run_id else None,
         "created_at": plan.created_at.isoformat(),
         "updated_at": plan.updated_at.isoformat(),
@@ -397,6 +442,9 @@ def _task_plan_from_dict(value: dict[str, object]) -> TaskPlan:
             str(value["escalation_reason"]) if value.get("escalation_reason") else None
         ),
         idempotency_key=(str(value["idempotency_key"]) if value.get("idempotency_key") else None),
+        idempotency_fingerprint=(
+            str(value["idempotency_fingerprint"]) if value.get("idempotency_fingerprint") else None
+        ),
         agent_run_id=UUID(str(value["agent_run_id"])) if value.get("agent_run_id") else None,
         created_at=datetime.fromisoformat(str(value["created_at"])),
         updated_at=datetime.fromisoformat(str(value["updated_at"])),

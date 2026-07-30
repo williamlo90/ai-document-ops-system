@@ -47,6 +47,10 @@ class OpenApiContractTests(unittest.TestCase):
             ("/backoffice/approvals/{approval_id}/approve", "post"),
             ("/backoffice/approvals/{approval_id}/reject", "post"),
             ("/backoffice/work-items/{work_item_id}/steps/{action_step_id}/execute", "post"),
+            (
+                "/backoffice/work-items/{work_item_id}/steps/{action_step_id}/reconcile",
+                "post",
+            ),
             ("/documents/{document_id}/workflow", "get"),
             ("/documents/{document_id}/retry", "post"),
             ("/documents/{document_id}/reprocess", "post"),

@@ -13,7 +13,7 @@ from uuid import UUID
 
 from app.documents.jobs import ProcessingJob, ProcessingJobStatus
 from app.documents.models import AuditEvent, DocumentRecord, ReviewTask
-from app.documents.repositories import NotFoundError, StoredExtraction
+from app.documents.repositories import LeaseLostError, NotFoundError, StoredExtraction
 from app.documents.status import DocumentStatus
 from app.extraction.schemas import FieldConfidence, InvoiceData, InvoiceExtraction, InvoiceLineItem
 from app.providers.contracts import ExtractionResult
@@ -33,7 +33,12 @@ class SqliteStore:
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute("PRAGMA journal_mode = WAL")
         self.connection.execute("PRAGMA synchronous = NORMAL")
-        self._init_schema()
+        try:
+            self._init_schema()
+        except Exception:
+            self.connection.close()
+            self._closed = True
+            raise
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self.lock:
@@ -119,6 +124,7 @@ class SqliteStore:
                 provider_name TEXT,
                 provider_trace_id TEXT,
                 next_attempt_at TEXT,
+                lease_token TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -168,6 +174,7 @@ class SqliteStore:
             CREATE TABLE IF NOT EXISTS backoffice_work_items (
                 id TEXT PRIMARY KEY,
                 workspace_id TEXT NOT NULL,
+                idempotency_key TEXT,
                 updated_at TEXT NOT NULL,
                 payload TEXT NOT NULL
             );
@@ -177,6 +184,7 @@ class SqliteStore:
                 id TEXT PRIMARY KEY,
                 workspace_id TEXT NOT NULL,
                 work_item_id TEXT NOT NULL,
+                idempotency_key TEXT,
                 created_at TEXT NOT NULL,
                 payload TEXT NOT NULL
             );
@@ -255,6 +263,14 @@ class SqliteStore:
                 ON notifications(workspace_id, created_at);
             """
         )
+        self._migrate_schema_columns()
+        self._backfill_backoffice_idempotency_keys()
+        self._validate_backoffice_idempotency_uniqueness()
+        self._create_query_indexes()
+        self._record_schema_migrations()
+        self.connection.commit()
+
+    def _migrate_schema_columns(self) -> None:
         columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(documents)")}
         if "workspace_id" not in columns:
             self.connection.execute(
@@ -271,6 +287,26 @@ class SqliteStore:
         job_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(jobs)")}
         if "next_attempt_at" not in job_columns:
             self.connection.execute("ALTER TABLE jobs ADD COLUMN next_attempt_at TEXT")
+        if "lease_token" not in job_columns:
+            self.connection.execute("ALTER TABLE jobs ADD COLUMN lease_token TEXT")
+        work_item_columns = {
+            row["name"]
+            for row in self.connection.execute("PRAGMA table_info(backoffice_work_items)")
+        }
+        if "idempotency_key" not in work_item_columns:
+            self.connection.execute(
+                "ALTER TABLE backoffice_work_items ADD COLUMN idempotency_key TEXT"
+            )
+        plan_columns = {
+            row["name"]
+            for row in self.connection.execute("PRAGMA table_info(backoffice_task_plans)")
+        }
+        if "idempotency_key" not in plan_columns:
+            self.connection.execute(
+                "ALTER TABLE backoffice_task_plans ADD COLUMN idempotency_key TEXT"
+            )
+
+    def _create_query_indexes(self) -> None:
         self.connection.executescript(
             """
             CREATE INDEX IF NOT EXISTS idx_documents_workspace_status_updated
@@ -283,43 +319,29 @@ class SqliteStore:
                 ON audit_events(document_id, created_at, id);
             CREATE INDEX IF NOT EXISTS idx_review_tasks_status_updated
                 ON review_tasks(status, updated_at DESC, document_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_backoffice_work_items_idempotency
+                ON backoffice_work_items(workspace_id, idempotency_key)
+                WHERE idempotency_key IS NOT NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_backoffice_task_plans_idempotency
+                ON backoffice_task_plans(workspace_id, work_item_id, idempotency_key)
+                WHERE idempotency_key IS NOT NULL;
             """
         )
-        self.connection.execute(
-            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-            (2, datetime.now().astimezone().isoformat()),
-        )
-        self.connection.execute(
-            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-            (3, datetime.now().astimezone().isoformat()),
-        )
-        self.connection.execute(
-            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-            (4, datetime.now().astimezone().isoformat()),
-        )
-        self.connection.execute(
-            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-            (5, datetime.now().astimezone().isoformat()),
-        )
-        self.connection.execute(
-            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-            (6, datetime.now().astimezone().isoformat()),
-        )
-        self.connection.execute(
-            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-            (7, datetime.now().astimezone().isoformat()),
-        )
-        self.connection.execute(
-            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-            (9, datetime.now().astimezone().isoformat()),
-        )
+
+    def _record_schema_migrations(self) -> None:
+        applied_at = datetime.now(UTC).isoformat()
+        for version in (2, 3, 4, 5, 6, 7, 9):
+            self.connection.execute(
+                "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+                (version, applied_at),
+            )
         self._backfill_invoice_identities()
         self._backfill_work_item_documents()
-        self.connection.execute(
-            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-            (10, datetime.now(UTC).isoformat()),
-        )
-        self.connection.commit()
+        for version in (10, 11, 12):
+            self.connection.execute(
+                "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+                (version, applied_at),
+            )
 
     def _backfill_invoice_identities(self) -> None:
         rows = self.connection.execute(
@@ -375,6 +397,52 @@ class SqliteStore:
             """,
             values,
         )
+
+    def _backfill_backoffice_idempotency_keys(self) -> None:
+        for table_name in ("backoffice_work_items", "backoffice_task_plans"):
+            rows = self.connection.execute(
+                f"SELECT id, payload FROM {table_name} WHERE idempotency_key IS NULL"
+            ).fetchall()
+            for row in rows:
+                value = json.loads(row["payload"]).get("idempotency_key")
+                if value:
+                    self.connection.execute(
+                        f"UPDATE {table_name} SET idempotency_key = ? WHERE id = ?",
+                        (str(value), row["id"]),
+                    )
+
+    def _validate_backoffice_idempotency_uniqueness(self) -> None:
+        checks = (
+            (
+                "work item",
+                """
+                SELECT workspace_id, idempotency_key, COUNT(*) AS matches
+                FROM backoffice_work_items
+                WHERE idempotency_key IS NOT NULL
+                GROUP BY workspace_id, idempotency_key
+                HAVING matches > 1
+                LIMIT 1
+                """,
+            ),
+            (
+                "task plan",
+                """
+                SELECT workspace_id, idempotency_key, COUNT(*) AS matches
+                FROM backoffice_task_plans
+                WHERE idempotency_key IS NOT NULL
+                GROUP BY workspace_id, work_item_id, idempotency_key
+                HAVING matches > 1
+                LIMIT 1
+                """,
+            ),
+        )
+        for label, query in checks:
+            duplicate = self.connection.execute(query).fetchone()
+            if duplicate is not None:
+                raise RuntimeError(
+                    f"Duplicate backoffice {label} idempotency keys must be "
+                    "resolved before this database can be migrated."
+                )
 
 
 class SqliteDocumentRepository:
@@ -442,16 +510,71 @@ class SqliteJobRepository:
         self.save(job)
         return job
 
-    def save(self, job: ProcessingJob) -> ProcessingJob:
-        self.store.execute(
+    def save(
+        self,
+        job: ProcessingJob,
+        *,
+        expected_lease_token: str | None = None,
+    ) -> ProcessingJob:
+        if (
+            expected_lease_token is None
+            and job.status == ProcessingJobStatus.RUNNING
+            and job.lease_token is not None
+        ):
+            existing = self.store.query_one(
+                "SELECT status, lease_token FROM jobs WHERE id = ?",
+                (str(job.id),),
+            )
+            if (
+                existing is not None
+                and existing["status"] == ProcessingJobStatus.RUNNING.value
+                and existing["lease_token"] == job.lease_token
+            ):
+                expected_lease_token = job.lease_token
+        if expected_lease_token is not None:
+            cursor = self.store.execute(
+                """
+                UPDATE jobs SET document_id = ?, status = ?, attempt_count = ?,
+                    started_at = ?, finished_at = ?, error_message = ?,
+                    provider_name = ?, provider_trace_id = ?, next_attempt_at = ?,
+                    lease_token = ?, created_at = ?, updated_at = ?
+                WHERE id = ? AND lease_token = ? AND status = ?
+                """,
+                (
+                    *_job_params(job)[1:],
+                    str(job.id),
+                    expected_lease_token,
+                    ProcessingJobStatus.RUNNING.value,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise LeaseLostError(f"Processing job lease was lost: {job.id}")
+            return job
+        cursor = self.store.execute(
             """
-            INSERT OR REPLACE INTO jobs
+            INSERT INTO jobs
             (id, document_id, status, attempt_count, started_at, finished_at, error_message,
-             provider_name, provider_trace_id, next_attempt_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             provider_name, provider_trace_id, next_attempt_at, lease_token, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                document_id = excluded.document_id,
+                status = excluded.status,
+                attempt_count = excluded.attempt_count,
+                started_at = excluded.started_at,
+                finished_at = excluded.finished_at,
+                error_message = excluded.error_message,
+                provider_name = excluded.provider_name,
+                provider_trace_id = excluded.provider_trace_id,
+                next_attempt_at = excluded.next_attempt_at,
+                lease_token = excluded.lease_token,
+                created_at = excluded.created_at,
+                updated_at = excluded.updated_at
+            WHERE jobs.status != 'running' OR jobs.lease_token IS NULL
             """,
             _job_params(job),
         )
+        if cursor.rowcount != 1:
+            raise LeaseLostError(f"Processing job lease token is required to update: {job.id}")
         return job
 
     def get(self, job_id: UUID) -> ProcessingJob:
@@ -523,7 +646,7 @@ class SqliteJobRepository:
                 """
                 UPDATE jobs SET status = ?, attempt_count = ?, started_at = ?,
                 finished_at = ?, error_message = ?, provider_name = ?,
-                provider_trace_id = ?, next_attempt_at = ?, updated_at = ?
+                provider_trace_id = ?, next_attempt_at = ?, lease_token = ?, updated_at = ?
                 WHERE id = ? AND status = ?
                 """,
                 (
@@ -535,6 +658,7 @@ class SqliteJobRepository:
                     job.provider_name,
                     job.provider_trace_id,
                     None,
+                    job.lease_token,
                     job.updated_at.isoformat(),
                     str(job.id),
                     previous_status,
@@ -542,17 +666,24 @@ class SqliteJobRepository:
             )
             return job if cursor.rowcount == 1 else None
 
-    def renew_lease(self, job_id: UUID, *, renewed_at: datetime | None = None) -> bool:
+    def renew_lease(
+        self,
+        job_id: UUID,
+        lease_token: str,
+        *,
+        renewed_at: datetime | None = None,
+    ) -> bool:
         timestamp = renewed_at or datetime.now(UTC)
         cursor = self.store.execute(
             """
             UPDATE jobs SET updated_at = ?
-            WHERE id = ? AND status = ?
+            WHERE id = ? AND status = ? AND lease_token = ?
             """,
             (
                 timestamp.isoformat(),
                 str(job_id),
                 ProcessingJobStatus.RUNNING.value,
+                lease_token,
             ),
         )
         return cursor.rowcount == 1
@@ -754,6 +885,7 @@ def _job_params(job: ProcessingJob) -> tuple:
         job.provider_name,
         job.provider_trace_id,
         _dt(job.next_attempt_at),
+        job.lease_token,
         _dt(job.created_at),
         _dt(job.updated_at),
     )
@@ -771,6 +903,7 @@ def _job_from_row(row: sqlite3.Row) -> ProcessingJob:
         provider_name=row["provider_name"],
         provider_trace_id=row["provider_trace_id"],
         next_attempt_at=_parse_optional_dt(row["next_attempt_at"]),
+        lease_token=row["lease_token"],
         created_at=_parse_dt(row["created_at"]),
         updated_at=_parse_dt(row["updated_at"]),
     )

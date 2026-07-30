@@ -39,15 +39,17 @@ class ProcessingJob:
     provider_name: str | None = None
     provider_trace_id: str | None = None
     next_attempt_at: datetime | None = None
+    lease_token: str | None = None
     created_at: datetime = field(default_factory=_monotonic_timestamp)
     updated_at: datetime = field(default_factory=_monotonic_timestamp)
 
-    def start(self) -> None:
+    def start(self, *, lease_token: str | None = None) -> None:
         self.status = ProcessingJobStatus.RUNNING
         self.attempt_count += 1
         self.started_at = datetime.now(UTC)
         self.finished_at = None
         self.next_attempt_at = None
+        self.lease_token = lease_token or uuid4().hex
         self.updated_at = self.started_at
 
     def succeed(self) -> None:
@@ -55,6 +57,7 @@ class ProcessingJob:
         self.error_message = None
         self.finished_at = datetime.now(UTC)
         self.next_attempt_at = None
+        self.lease_token = None
         self.updated_at = self.finished_at
 
     def fail(self, message: str) -> None:
@@ -62,6 +65,7 @@ class ProcessingJob:
         self.error_message = message
         self.finished_at = datetime.now(UTC)
         self.next_attempt_at = None
+        self.lease_token = None
         self.updated_at = self.finished_at
 
     def retry(self, message: str, *, next_attempt_at: datetime | None = None) -> None:
@@ -69,6 +73,7 @@ class ProcessingJob:
         self.error_message = message
         self.finished_at = None
         self.next_attempt_at = next_attempt_at
+        self.lease_token = None
         self.updated_at = datetime.now(UTC)
 
     def dead_letter(self, message: str) -> None:
@@ -76,6 +81,7 @@ class ProcessingJob:
         self.error_message = message
         self.finished_at = datetime.now(UTC)
         self.next_attempt_at = None
+        self.lease_token = None
         self.updated_at = self.finished_at
 
     def cancel(self) -> None:
@@ -83,4 +89,5 @@ class ProcessingJob:
         self.error_message = None
         self.finished_at = datetime.now(UTC)
         self.next_attempt_at = None
+        self.lease_token = None
         self.updated_at = self.finished_at

@@ -7,17 +7,26 @@ versions and integrity hashes.
 
 ## Regenerate Python Locks
 
-Use Python 3.11 and the pinned pip-tools version:
+Regenerate on Python 3.11 from a fresh environment installed from the current hash-locked
+development file. That file pins the compatible bootstrap tools (`pip==26.1.2`,
+`setuptools==83.0.0`, and `pip-tools==7.6.0`):
 
 ```powershell
-python -m pip install pip-tools==7.6.0
-pip-compile --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe `
+py -3.11 -m venv .venv-lock
+.\.venv-lock\Scripts\python.exe -m pip install --require-hashes -r requirements-dev.txt
+.\.venv-lock\Scripts\python.exe -m piptools compile `
+  --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe `
   --no-emit-index-url --output-file=requirements.txt requirements.in
-pip-compile --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe `
+.\.venv-lock\Scripts\python.exe -m piptools compile `
+  --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe `
   --no-emit-index-url --output-file=requirements-dev.txt requirements-dev.in
+git diff --exit-code -- requirements.txt requirements-dev.txt
 ```
 
-Review both the direct input and generated transitive diff. Never hand-edit a generated lockfile.
+The zero-diff command is the reproducibility check when no direct dependency changed. Review both
+the direct input and generated transitive diff when updating a dependency. Never hand-edit a
+generated lockfile. CI also performs fresh hash-locked installs on Python 3.11 and 3.12 before the
+Python quality and smoke jobs run.
 
 ## Verification
 

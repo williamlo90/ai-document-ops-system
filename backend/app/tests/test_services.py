@@ -346,7 +346,12 @@ class DocumentServiceTests(unittest.TestCase):
         )
         first_claim = self.jobs.claim_next_processable()
         assert first_claim is not None
-        first_claim.updated_at = datetime.now(UTC) - timedelta(minutes=10)
+        assert first_claim.lease_token is not None
+        self.jobs.renew_lease(
+            first_claim.id,
+            first_claim.lease_token,
+            renewed_at=datetime.now(UTC) - timedelta(minutes=10),
+        )
 
         reclaimed = self.jobs.claim_next_processable(
             stale_before=datetime.now(UTC) - timedelta(minutes=5)

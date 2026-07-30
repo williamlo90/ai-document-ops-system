@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tempfile
+import threading
 import unittest
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -10,14 +11,21 @@ from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
+from app.backoffice.models import TaskPlan, WorkItem
+from app.backoffice.sqlite_repositories import (
+    SqliteTaskPlanRepository,
+    SqliteWorkItemRepository,
+)
+from app.core.security import SecurityContext
 from app.core.settings import Settings
 from app.documents.jobs import ProcessingJob, ProcessingJobStatus
 from app.documents.models import DocumentRecord
+from app.documents.repositories import LeaseLostError
 from app.documents.sqlite_repositories import SqliteJobRepository, SqliteStore
 from app.documents.status import DocumentStatus
 from app.extraction.schemas import InvoiceData, InvoiceExtraction
 from app.main import create_app
-from app.providers.contracts import ExtractionResult
+from app.providers.contracts import ExtractionResult, ParsedDocument
 from app.providers.mock import MockInvoiceExtractor
 from app.tests.auth_helpers import session_headers
 from app.validation.invoice import ValidationReport
@@ -28,6 +36,71 @@ HEADERS = {"X-Admin-Token": TOKEN}
 
 
 class SqlitePersistenceTests(unittest.TestCase):
+    def test_backoffice_idempotency_keys_are_backfilled_and_duplicates_are_rejected(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database_path = Path(temp_dir) / "idempotency.sqlite3"
+            store = SqliteStore(database_path)
+            work_items = SqliteWorkItemRepository(store)
+            plans = SqliteTaskPlanRepository(store)
+            work_item = work_items.save(
+                WorkItem(
+                    workspace_id="default",
+                    title="Backfill idempotency",
+                    idempotency_key="work-key",
+                )
+            )
+            plan = plans.save(
+                TaskPlan(
+                    workspace_id="default",
+                    work_item_id=work_item.id,
+                    planner_version="test",
+                    idempotency_key="plan-key",
+                )
+            )
+            store.execute(
+                "UPDATE backoffice_work_items SET idempotency_key = NULL WHERE id = ?",
+                (str(work_item.id),),
+            )
+            store.execute(
+                "UPDATE backoffice_task_plans SET idempotency_key = NULL WHERE id = ?",
+                (str(plan.id),),
+            )
+            store.close()
+
+            reopened = SqliteStore(database_path)
+            self.assertEqual(
+                reopened.query_one(
+                    "SELECT idempotency_key FROM backoffice_work_items WHERE id = ?",
+                    (str(work_item.id),),
+                )["idempotency_key"],
+                "work-key",
+            )
+            self.assertEqual(
+                reopened.query_one(
+                    "SELECT idempotency_key FROM backoffice_task_plans WHERE id = ?",
+                    (str(plan.id),),
+                )["idempotency_key"],
+                "plan-key",
+            )
+            reopened.execute("DROP INDEX idx_backoffice_work_items_idempotency")
+            duplicate_repo = SqliteWorkItemRepository(reopened)
+            duplicate_repo.save(
+                WorkItem(
+                    workspace_id="default",
+                    title="Duplicate idempotency",
+                    idempotency_key="work-key",
+                )
+            )
+            reopened.close()
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Duplicate backoffice work item idempotency keys",
+            ):
+                SqliteStore(database_path)
+
     def test_nested_transaction_uses_savepoint_when_inner_failure_is_caught(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             store = SqliteStore(Path(temp_dir) / "doc_intel.sqlite3")
@@ -273,7 +346,7 @@ class SqlitePersistenceTests(unittest.TestCase):
         self.assertTrue(evaluation_evidence["checks"]["operation_type"])
         self.assertEqual(
             [row["version"] for row in migration_rows],
-            [2, 3, 4, 5, 6, 7, 8, 9, 10],
+            [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         )
         self.assertIn("plan_generated", [event.event_type for event in workflow_events])
         self.assertIn("approval_approved", [event.event_type for event in workflow_events])
@@ -418,6 +491,174 @@ class SqlitePersistenceTests(unittest.TestCase):
         self.assertEqual(reclaimed.attempt_count, 2)
         self.assertEqual(reclaimed.error_message, "worker_lease_expired")
         self.assertIsNone(concurrent_claim)
+
+    def test_reclaimed_job_fences_the_previous_worker_across_connections(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database_path = Path(temp_dir) / "doc_intel.sqlite3"
+            settings = Settings(
+                app_env="test",
+                admin_token=TOKEN,
+                upload_root=Path(temp_dir) / "uploads",
+                max_upload_bytes=1000,
+                storage_backend="sqlite",
+                sqlite_path=database_path,
+            )
+            first_app = create_app(settings)
+            second_app = create_app(settings)
+            client = TestClient(first_app)
+            client.post(
+                "/documents/upload",
+                headers=HEADERS,
+                files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
+            )
+
+            first_worker_job = first_app.state.container.jobs.claim_next_processable()
+            assert first_worker_job is not None
+            first_token = first_worker_job.lease_token
+            assert first_token is not None
+            stale_at = datetime.now(UTC) - timedelta(minutes=10)
+            first_app.state.container.documents.store.execute(
+                "UPDATE jobs SET updated_at = ? WHERE id = ?",
+                (stale_at.isoformat(), str(first_worker_job.id)),
+            )
+
+            second_worker_job = second_app.state.container.jobs.claim_next_processable(
+                stale_before=datetime.now(UTC) - timedelta(minutes=5)
+            )
+            assert second_worker_job is not None
+            second_token = second_worker_job.lease_token
+            assert second_token is not None
+
+            first_renewed = first_app.state.container.jobs.renew_lease(
+                first_worker_job.id,
+                first_token,
+            )
+            first_worker_job.succeed()
+            with self.assertRaises(LeaseLostError):
+                first_app.state.container.jobs.save(
+                    first_worker_job,
+                    expected_lease_token=first_token,
+                )
+
+            second_renewed = second_app.state.container.jobs.renew_lease(
+                second_worker_job.id,
+                second_token,
+            )
+            second_worker_job.succeed()
+            second_app.state.container.jobs.save(
+                second_worker_job,
+                expected_lease_token=second_token,
+            )
+            persisted = first_app.state.container.jobs.get(second_worker_job.id)
+            first_app.state.container.documents.store.connection.close()
+            second_app.state.container.documents.store.connection.close()
+
+        self.assertNotEqual(first_token, second_token)
+        self.assertFalse(first_renewed)
+        self.assertTrue(second_renewed)
+        self.assertEqual(persisted.status, ProcessingJobStatus.SUCCEEDED)
+
+    def test_stale_worker_cannot_commit_document_results_after_reclaim(self) -> None:
+        class BlockingExtractor(MockInvoiceExtractor):
+            def __init__(
+                self,
+                started: threading.Event,
+                release: threading.Event,
+            ) -> None:
+                super().__init__()
+                self.started = started
+                self.release = release
+
+            def extract_invoice(self, parsed_document: ParsedDocument) -> ExtractionResult:
+                self.started.set()
+                if not self.release.wait(timeout=5):
+                    raise TimeoutError("Test extractor was not released")
+                return super().extract_invoice(parsed_document)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database_path = Path(temp_dir) / "doc_intel.sqlite3"
+            settings = Settings(
+                app_env="test",
+                admin_token=TOKEN,
+                upload_root=Path(temp_dir) / "uploads",
+                max_upload_bytes=1000,
+                storage_backend="sqlite",
+                sqlite_path=database_path,
+            )
+            first_app = create_app(settings)
+            second_app = create_app(settings)
+            client = TestClient(first_app)
+            upload = client.post(
+                "/documents/upload",
+                headers=HEADERS,
+                files={"file": ("invoice.pdf", b"%PDF- invoice", "application/pdf")},
+            ).json()
+            document_id = UUID(upload["document"]["id"])
+
+            first_job = first_app.state.container.jobs.claim_next_processable()
+            assert first_job is not None
+            first_token = first_job.lease_token
+            assert first_token is not None
+            extraction_started = threading.Event()
+            release_extraction = threading.Event()
+            first_app.state.container.processing_service.extractor = BlockingExtractor(
+                extraction_started,
+                release_extraction,
+            )
+            context = SecurityContext(actor="worker", is_admin=True)
+            stale_errors: list[Exception] = []
+
+            def process_with_first_worker() -> None:
+                try:
+                    first_app.state.container.processing_service.process_job(
+                        first_job.id,
+                        context,
+                        lease_token=first_token,
+                    )
+                except Exception as exc:
+                    stale_errors.append(exc)
+
+            first_thread = threading.Thread(target=process_with_first_worker)
+            first_thread.start()
+            self.assertTrue(extraction_started.wait(timeout=5))
+            stale_at = datetime.now(UTC) - timedelta(minutes=10)
+            second_app.state.container.documents.store.execute(
+                "UPDATE jobs SET updated_at = ? WHERE id = ?",
+                (stale_at.isoformat(), str(first_job.id)),
+            )
+            second_job = second_app.state.container.jobs.claim_next_processable(
+                stale_before=datetime.now(UTC) - timedelta(minutes=5)
+            )
+            assert second_job is not None
+            second_token = second_job.lease_token
+            assert second_token is not None
+            second_app.state.container.processing_service.process_job(
+                second_job.id,
+                context,
+                lease_token=second_token,
+            )
+
+            release_extraction.set()
+            first_thread.join(timeout=5)
+            self.assertFalse(first_thread.is_alive())
+            final_document = second_app.state.container.documents.get(document_id)
+            final_job = second_app.state.container.jobs.get(second_job.id)
+            final_audits = second_app.state.container.audits.list_for_document(document_id)
+            first_app.state.container.documents.store.connection.close()
+            second_app.state.container.documents.store.connection.close()
+
+        self.assertEqual(len(stale_errors), 1)
+        self.assertIsInstance(stale_errors[0], LeaseLostError)
+        self.assertEqual(final_document.status, DocumentStatus.NEEDS_REVIEW)
+        self.assertEqual(final_job.status, ProcessingJobStatus.SUCCEEDED)
+        self.assertEqual(
+            sum(event.new_status == DocumentStatus.EXTRACTED for event in final_audits),
+            1,
+        )
+        self.assertEqual(
+            sum(event.new_status == DocumentStatus.NEEDS_REVIEW for event in final_audits),
+            1,
+        )
 
 
 if __name__ == "__main__":

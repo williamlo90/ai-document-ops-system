@@ -54,7 +54,7 @@ from app.core.security import (
     require_any_role,
 )
 from app.core.upload_scanning import build_upload_scanner
-from app.core.settings import Settings
+from app.core.settings import Settings, is_hosted
 from app.core.transactions import NoopTransactionManager, TransactionManager
 from app.documents.repositories import (
     AuditRepository,
@@ -177,8 +177,8 @@ class AppContainer:
             close()
 
 
-def build_container(settings: Settings) -> AppContainer:
-    storage = build_document_storage(
+def _build_storage(settings: Settings) -> DocumentStorage:
+    return build_document_storage(
         settings.document_storage_backend,
         Path(settings.upload_root),
         max_upload_bytes=settings.max_upload_bytes,
@@ -188,7 +188,22 @@ def build_container(settings: Settings) -> AppContainer:
         s3_access_key_id=settings.s3_access_key_id or "",
         s3_secret_access_key=settings.s3_secret_access_key or "",
     )
-    if settings.storage_backend.strip().lower() == "sqlite":
+
+
+def _metadata_backend(settings: Settings) -> str:
+    backend = settings.storage_backend.strip().lower()
+    if backend == "memory" and is_hosted(settings):
+        raise ValueError(
+            "Hosted mode requires persistent sqlite storage; "
+            "memory storage is for local tests only."
+        )
+    return backend
+
+
+def build_container(settings: Settings) -> AppContainer:
+    storage = _build_storage(settings)
+    storage_backend = _metadata_backend(settings)
+    if storage_backend == "sqlite":
         store = SqliteStore(Path(settings.sqlite_path))
         transactions: TransactionManager = store
         documents = SqliteDocumentRepository(store)
@@ -211,7 +226,7 @@ def build_container(settings: Settings) -> AppContainer:
         integration_deliveries = SqliteIntegrationDeliveryRepository(store)
         export_batches = SqliteExportBatchRepository(store)
         invoice_queries: InvoiceQueryRepository | None = SqliteInvoiceQueryRepository(store)
-    elif settings.storage_backend.strip().lower() == "memory":
+    elif storage_backend == "memory":
         transactions = NoopTransactionManager()
         documents = InMemoryDocumentRepository()
         jobs = InMemoryJobRepository()
@@ -234,7 +249,7 @@ def build_container(settings: Settings) -> AppContainer:
         export_batches = InMemoryExportBatchRepository()
         invoice_queries = None
     else:
-        raise ValueError(f"Unsupported storage backend: {settings.storage_backend}")
+        raise ValueError(f"Unsupported storage backend: {storage_backend}")
     agentops_service = AgentOpsEvaluationService()
     workflow = DocumentWorkflowService()
     upload_scanner = build_upload_scanner(settings)
@@ -340,8 +355,9 @@ def build_container(settings: Settings) -> AppContainer:
         tool_executor=tool_executor,
         agent_runs=agent_runs,
         documents=documents,
+        transactions=transactions,
     )
-    if settings.storage_backend.strip().lower() == "sqlite":
+    if storage_backend == "sqlite":
         retention_repository = SqliteRetentionRepository(store)
     else:
         retention_repository = InMemoryRetentionRepository(

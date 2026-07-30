@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
@@ -13,6 +14,10 @@ from app.validation.invoice import ValidationReport
 
 
 class NotFoundError(KeyError):
+    pass
+
+
+class LeaseLostError(RuntimeError):
     pass
 
 
@@ -35,7 +40,12 @@ class DocumentRepository(Protocol):
 class JobRepository(Protocol):
     def add(self, job: ProcessingJob) -> ProcessingJob: ...
 
-    def save(self, job: ProcessingJob) -> ProcessingJob: ...
+    def save(
+        self,
+        job: ProcessingJob,
+        *,
+        expected_lease_token: str | None = None,
+    ) -> ProcessingJob: ...
 
     def get(self, job_id: UUID) -> ProcessingJob: ...
 
@@ -52,7 +62,13 @@ class JobRepository(Protocol):
         now: datetime | None = None,
     ) -> ProcessingJob | None: ...
 
-    def renew_lease(self, job_id: UUID, *, renewed_at: datetime | None = None) -> bool: ...
+    def renew_lease(
+        self,
+        job_id: UUID,
+        lease_token: str,
+        *,
+        renewed_at: datetime | None = None,
+    ) -> bool: ...
 
     def count(self) -> int: ...
 
@@ -142,13 +158,36 @@ class InMemoryJobRepository:
         self.records[job.id] = job
         return job
 
-    def save(self, job: ProcessingJob) -> ProcessingJob:
-        self.records[job.id] = job
-        return job
+    def save(
+        self,
+        job: ProcessingJob,
+        *,
+        expected_lease_token: str | None = None,
+    ) -> ProcessingJob:
+        current = self.records.get(job.id)
+        if (
+            expected_lease_token is None
+            and current is not None
+            and current.status == ProcessingJobStatus.RUNNING
+            and current.lease_token is not None
+        ):
+            if job.status == ProcessingJobStatus.RUNNING and job.lease_token == current.lease_token:
+                expected_lease_token = current.lease_token
+            else:
+                raise LeaseLostError(f"Processing job lease token is required to update: {job.id}")
+        if expected_lease_token is not None and (
+            current is None or current.lease_token != expected_lease_token
+        ):
+            raise LeaseLostError(f"Processing job lease was lost: {job.id}")
+        if current is None:
+            self.records[job.id] = job
+            return job
+        current.__dict__.update(deepcopy(job.__dict__))
+        return current
 
     def get(self, job_id: UUID) -> ProcessingJob:
         try:
-            return self.records[job_id]
+            return deepcopy(self.records[job_id])
         except KeyError as exc:
             raise NotFoundError(f"Processing job not found: {job_id}") from exc
 
@@ -156,13 +195,13 @@ class InMemoryJobRepository:
         matches = [job for job in self.records.values() if job.document_id == document_id]
         if not matches:
             raise NotFoundError(f"Processing job not found for document: {document_id}")
-        return max(matches, key=lambda job: job.created_at)
+        return deepcopy(max(matches, key=lambda job: job.created_at))
 
     def list_all(self) -> list[ProcessingJob]:
-        return list(self.records.values())
+        return deepcopy(list(self.records.values()))
 
     def list_by_status(self, status: ProcessingJobStatus) -> list[ProcessingJob]:
-        return [job for job in self.records.values() if job.status == status]
+        return deepcopy([job for job in self.records.values() if job.status == status])
 
     def claim_next_processable(
         self,
@@ -197,12 +236,21 @@ class InMemoryJobRepository:
         if job.status == ProcessingJobStatus.RUNNING:
             job.retry("worker_lease_expired")
         job.start()
-        self.records[job.id] = job
-        return job
+        return deepcopy(job)
 
-    def renew_lease(self, job_id: UUID, *, renewed_at: datetime | None = None) -> bool:
+    def renew_lease(
+        self,
+        job_id: UUID,
+        lease_token: str,
+        *,
+        renewed_at: datetime | None = None,
+    ) -> bool:
         job = self.records.get(job_id)
-        if job is None or job.status != ProcessingJobStatus.RUNNING:
+        if (
+            job is None
+            or job.status != ProcessingJobStatus.RUNNING
+            or job.lease_token != lease_token
+        ):
             return False
         job.updated_at = renewed_at or datetime.now(UTC)
         return True

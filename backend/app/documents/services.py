@@ -22,14 +22,21 @@ from app.documents.repositories import (
     DocumentRepository,
     ExtractionRepository,
     JobRepository,
+    LeaseLostError,
     NotFoundError,
 )
 from app.documents.status import DocumentStatus, InvalidStatusTransition
 from app.documents.workflow import DocumentWorkflowService
-from app.providers.contracts import DocumentSource, ExtractorProvider, ParserProvider, ProviderError
+from app.providers.contracts import (
+    DocumentSource,
+    ExtractionResult,
+    ExtractorProvider,
+    ParserProvider,
+    ProviderError,
+)
 from app.providers.storage import DocumentStorage
 from app.validation.document import validate_document_invoice
-from app.validation.invoice import ValidationReport
+from app.validation.invoice import ValidationIssue, ValidationReport
 from app.validation.untrusted_content import validate_untrusted_extraction
 
 
@@ -137,10 +144,18 @@ class DocumentProcessingService:
         self.retry_max_seconds = max(self.retry_base_seconds, retry_max_seconds)
         self.transactions = transactions or NoopTransactionManager()
 
-    def process_job(self, job_id: UUID, context: SecurityContext) -> DocumentRecord:
+    def process_job(
+        self,
+        job_id: UUID,
+        context: SecurityContext,
+        *,
+        lease_token: str | None = None,
+    ) -> DocumentRecord:
         require_admin(context)
         job = self.jobs.get(job_id)
-        return self._process_job(job, context)
+        if lease_token is not None and job.lease_token != lease_token:
+            raise LeaseLostError(f"Processing job lease was lost: {job.id}")
+        return self._process_job(job, context, claimed_lease_token=lease_token)
 
     def process_document(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
         require_any_role(context, {"admin", *INTAKE_ROLES})
@@ -225,21 +240,19 @@ class DocumentProcessingService:
             self.documents.add(document)
         return document
 
-    def _process_job(self, job: ProcessingJob, context: SecurityContext) -> DocumentRecord:
+    def _process_job(
+        self,
+        job: ProcessingJob,
+        context: SecurityContext,
+        *,
+        claimed_lease_token: str | None = None,
+    ) -> DocumentRecord:
         document = self.documents.get(job.document_id)
         _require_workspace(document, context)
-        if job.status not in {
-            ProcessingJobStatus.QUEUED,
-            ProcessingJobStatus.RETRYING,
-            ProcessingJobStatus.RUNNING,
-        }:
-            raise InvalidStatusTransition(f"Cannot process job with status {job.status}")
+        self._require_processable_job_status(job)
         if document.status not in {DocumentStatus.QUEUED, DocumentStatus.PROCESSING}:
             raise InvalidStatusTransition(f"Cannot process document with status {document.status}")
-        if job.status != ProcessingJobStatus.RUNNING:
-            with self.transactions.transaction():
-                job.start()
-                self.jobs.add(job)
+        job, lease_token = self._active_job_lease(job, claimed_lease_token)
         log_operation(
             OperationEvent(
                 event_type="processing_started",
@@ -260,27 +273,88 @@ class DocumentProcessingService:
                 )
                 self.documents.add(document)
         try:
-            source = self._document_source(document)
-            parsed = self.parser.parse(source)
-            if not parsed.text.strip():
-                raise ProviderError("empty_document_text", provider_name=self.parser.provider_name)
-            result = self.extractor.extract_invoice(parsed)
-            report = validate_document_invoice(
-                result.extraction.data,
-                document,
-                self.documents,
-                self.extractions,
-            )
-            security_issues = validate_untrusted_extraction(
-                result.extraction,
-                parsed,
-                result.provider_name,
-            )
-            if security_issues:
-                report = ValidationReport(issues=(*report.issues, *security_issues))
+            result, report, security_issues = self._extract_document(document)
         except Exception as exc:
-            return self._finalize_processing_failure(document, job, context, exc)
+            return self._finalize_processing_failure(
+                document,
+                job,
+                context,
+                exc,
+                lease_token=lease_token,
+            )
+        self._finalize_processing_success(
+            document,
+            job,
+            context,
+            result,
+            report,
+            security_issues,
+            lease_token,
+        )
+        return document
 
+    def _require_processable_job_status(self, job: ProcessingJob) -> None:
+        if job.status not in {
+            ProcessingJobStatus.QUEUED,
+            ProcessingJobStatus.RETRYING,
+            ProcessingJobStatus.RUNNING,
+        }:
+            raise InvalidStatusTransition(f"Cannot process job with status {job.status}")
+
+    def _active_job_lease(
+        self,
+        job: ProcessingJob,
+        claimed_lease_token: str | None,
+    ) -> tuple[ProcessingJob, str]:
+        if job.status == ProcessingJobStatus.RUNNING:
+            if claimed_lease_token is None or job.lease_token != claimed_lease_token:
+                raise LeaseLostError(f"Processing job is owned by another worker: {job.id}")
+        else:
+            with self.transactions.transaction():
+                job = self.jobs.get(job.id)
+                if job.status == ProcessingJobStatus.RUNNING:
+                    raise LeaseLostError(f"Processing job is owned by another worker: {job.id}")
+                job.start()
+                self.jobs.save(job)
+            claimed_lease_token = job.lease_token
+        if claimed_lease_token is None:
+            raise LeaseLostError(f"Processing job has no active lease: {job.id}")
+        return job, claimed_lease_token
+
+    def _extract_document(
+        self,
+        document: DocumentRecord,
+    ) -> tuple[ExtractionResult, ValidationReport, tuple[ValidationIssue, ...]]:
+        source = self._document_source(document)
+        parsed = self.parser.parse(source)
+        if not parsed.text.strip():
+            raise ProviderError("empty_document_text", provider_name=self.parser.provider_name)
+        result = self.extractor.extract_invoice(parsed)
+        report = validate_document_invoice(
+            result.extraction.data,
+            document,
+            self.documents,
+            self.extractions,
+        )
+        security_issues = validate_untrusted_extraction(
+            result.extraction,
+            parsed,
+            result.provider_name,
+        )
+        if security_issues:
+            report = ValidationReport(issues=(*report.issues, *security_issues))
+        return result, report, security_issues
+
+    def _finalize_processing_success(
+        self,
+        document: DocumentRecord,
+        job: ProcessingJob,
+        context: SecurityContext,
+        result: ExtractionResult,
+        report: ValidationReport,
+        security_issues: tuple[ValidationIssue, ...],
+        lease_token: str,
+    ) -> None:
         with self.transactions.transaction():
             if security_issues:
                 self.audits.add(
@@ -316,7 +390,7 @@ class DocumentProcessingService:
             job.provider_name = result.provider_name
             job.provider_trace_id = result.provider_trace_id
             job.succeed()
-            self.jobs.add(job)
+            self.jobs.save(job, expected_lease_token=lease_token)
         log_operation(
             OperationEvent(
                 event_type="processing_succeeded",
@@ -329,7 +403,6 @@ class DocumentProcessingService:
                 attempt_count=job.attempt_count,
             )
         )
-        return document
 
     def _finalize_processing_failure(
         self,
@@ -337,6 +410,8 @@ class DocumentProcessingService:
         job: ProcessingJob,
         context: SecurityContext,
         exc: Exception,
+        *,
+        lease_token: str,
     ) -> DocumentRecord:
         error_code = _safe_error_code(exc)
         with self.transactions.transaction():
@@ -371,7 +446,7 @@ class DocumentProcessingService:
                         )
                     )
             self.documents.add(document)
-            self.jobs.add(job)
+            self.jobs.save(job, expected_lease_token=lease_token)
         log_operation(
             OperationEvent(
                 event_type="processing_failed",

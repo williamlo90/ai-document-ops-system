@@ -20,6 +20,7 @@ from app.backoffice.repositories import (
 )
 from app.backoffice.services import BackofficeWorkflowService
 from app.core.security import SecurityContext
+from app.core.transactions import NoopTransactionManager
 
 
 class BackofficeScenarioTests(unittest.TestCase):
@@ -33,6 +34,7 @@ class BackofficeScenarioTests(unittest.TestCase):
             drafts=InMemoryActionDraftRepository(),
             approvals=InMemoryApprovalRepository(),
             policy_decisions=self.policy_decisions,
+            transactions=NoopTransactionManager(),
         )
         self.admin = SecurityContext(
             actor="admin",

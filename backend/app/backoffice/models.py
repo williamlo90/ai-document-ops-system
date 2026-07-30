@@ -67,6 +67,7 @@ class ActionStepStatus(StrEnum):
     PLANNED = "planned"
     WAITING_FOR_APPROVAL = "waiting_for_approval"
     APPROVED = "approved"
+    EXECUTING = "executing"
     EXECUTED = "executed"
     BLOCKED = "blocked"
     FAILED = "failed"
@@ -111,6 +112,7 @@ class WorkItem:
     business_context: dict[str, str] = field(default_factory=dict)
     current_plan_id: UUID | None = None
     idempotency_key: str | None = None
+    idempotency_fingerprint: str | None = None
     id: UUID = field(default_factory=uuid4)
     created_at: datetime = field(default_factory=_now)
     updated_at: datetime = field(default_factory=_now)
@@ -169,6 +171,7 @@ class TaskPlan:
     overall_confidence: str = "medium"
     escalation_reason: str | None = None
     idempotency_key: str | None = None
+    idempotency_fingerprint: str | None = None
     agent_run_id: UUID | None = None
     id: UUID = field(default_factory=uuid4)
     created_at: datetime = field(default_factory=_now)

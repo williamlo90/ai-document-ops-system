@@ -45,6 +45,32 @@ class WorkerEntrypointTests(unittest.TestCase):
 
         self.assertGreater(jobs.get(job.id).updated_at, claimed_at[0])
 
+    def test_terminal_job_does_not_turn_a_successful_run_into_a_lease_failure(self) -> None:
+        jobs = InMemoryJobRepository()
+        job = jobs.add(ProcessingJob(document_id=uuid4()))
+        processing_service = Mock()
+
+        def process(*_args, **_kwargs) -> DocumentRecord:
+            running = jobs.get(job.id)
+            lease_token = running.lease_token
+            self.assertIsNotNone(lease_token)
+            running.succeed()
+            jobs.save(running, expected_lease_token=lease_token)
+            time.sleep(1.15)
+            return DocumentRecord(
+                original_filename="invoice.pdf",
+                storage_key="invoice.pdf",
+                content_type="application/pdf",
+                id=job.document_id,
+            )
+
+        processing_service.process_job.side_effect = process
+        worker = DocumentProcessingWorker(jobs, processing_service, lease_seconds=1)
+
+        result = worker.run_once(SecurityContext(actor="worker", is_admin=True))
+
+        self.assertEqual(result.id, job.document_id)
+
     def test_worker_uses_the_configured_workspace(self) -> None:
         settings = Settings(
             app_env="test",

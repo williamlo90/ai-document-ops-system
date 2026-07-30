@@ -23,6 +23,7 @@ from app.backoffice.repositories import (
 )
 from app.backoffice.services import BackofficeWorkflowService
 from app.core.security import SecurityContext
+from app.core.transactions import NoopTransactionManager
 from app.documents.models import DocumentRecord
 from app.documents.repositories import InMemoryDocumentRepository, NotFoundError
 from app.documents.status import DocumentStatus
@@ -65,6 +66,7 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
             policy_decisions=self.decisions,
             tool_executor=self.executor,
             documents=self.documents,
+            transactions=NoopTransactionManager(),
         )
         self.admin = SecurityContext(
             actor="admin",
@@ -79,17 +81,19 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
         )
 
     def test_create_and_plan_are_idempotent_when_key_is_replayed(self) -> None:
+        document_id = uuid4()
         first_item = self.service.create_work_item(
             title="Export approved invoice",
             context=self.admin,
             work_type=WorkType.INVOICE_EXPORT,
-            linked_document_ids=(uuid4(),),
+            linked_document_ids=(document_id,),
             idempotency_key="create-export-1",
         )
         second_item = self.service.create_work_item(
-            title="Duplicate request must not create another item",
+            title="Export approved invoice",
             context=self.admin,
             work_type=WorkType.INVOICE_EXPORT,
+            linked_document_ids=(document_id,),
             idempotency_key="create-export-1",
         )
         planning_input = PlanningInput(
@@ -115,6 +119,16 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
         self.assertEqual(len(self.plans.records), 1)
         self.assertEqual(len(self.drafts.records), 1)
         self.assertEqual(len(self.approvals.records), 1)
+        with self.assertRaisesRegex(
+            ValueError,
+            "idempotency key is already bound to a different request",
+        ):
+            self.service.create_work_item(
+                title="Different request",
+                context=self.admin,
+                work_type=WorkType.INVOICE_EXPORT,
+                idempotency_key="create-export-1",
+            )
 
     def test_plan_work_item_creates_reviewable_vendor_message_draft(self) -> None:
         work_item = self.service.create_work_item(

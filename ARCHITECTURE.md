@@ -81,14 +81,16 @@ Validation errors send the invoice to correction and block approval.
 
 The local profile stores application state in SQLite and invoice files in private local storage.
 Persisted records include documents, extracted fields, source information, jobs, retries, workflow
-state, decisions, audit events, and evaluation runs.
+state, decisions, audit events, and evaluation runs. In-memory metadata storage is limited to
+disposable local tests; hosted modes refuse to start with it.
 
 The storage interface can target an S3-compatible service, but the default demo stays
 self-contained.
 
-Workers claim one queued job atomically. A running job can be reclaimed only after its lease
-expires. This prevents an interrupted job from remaining stuck while also preventing two workers
-from claiming the same active job.
+Workers claim one queued job atomically and receive a unique lease token. Heartbeats and terminal
+writes must present that token. A running job can be reclaimed with a new token only after its lease
+expires, and the former holder can no longer renew or finalize it. Provider work stays outside the
+database transaction; the token fences the transaction that stores the result.
 
 ## State and decision model
 
@@ -112,6 +114,12 @@ The following rules are enforced:
 4. Export requires approval.
 5. A failed delivery keeps the approval and does not mark the export as complete.
 6. Workspace checks apply to reads and writes.
+
+Local backoffice commands commit their related records in one transaction. Controlled external
+execution uses two transactions: the first reserves the action as `executing`, the tool call runs
+without holding the database lock, and the second stores the outcome. If the external outcome
+cannot be confirmed or the second transaction fails, replay does not call the tool again. An
+administrator must reconcile that reserved action through the dedicated endpoint.
 
 ## Security model
 

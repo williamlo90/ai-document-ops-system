@@ -50,6 +50,8 @@ Invoke-WebRequest http://127.0.0.1:8000/internal/metrics `
 
 Hosted modes require `APP_METRICS_TOKEN` to contain at least 24 non-default characters and to be
 different from every user-role credential. Keep the route off public ingress even with this control.
+They also require `STORAGE_BACKEND=sqlite`; the in-memory backend is disposable test state and is
+rejected during hosted startup.
 
 ## Real Provider Profile
 

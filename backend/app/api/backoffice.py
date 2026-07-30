@@ -55,6 +55,11 @@ class DraftEditPayload(BaseModel):
     preview_content: str = Field(min_length=1, max_length=10000)
 
 
+class ExecutionReconciliationPayload(BaseModel):
+    succeeded: bool
+    summary: str = Field(min_length=1, max_length=500)
+
+
 @router.get("/workspace")
 def backoffice_workspace(
     context: SecurityContext = Depends(require_admin_context),
@@ -306,6 +311,29 @@ def execute_step(
         },
         "work_item": _work_item_detail(container, context, work_item),
     }
+
+
+@router.post("/work-items/{work_item_id}/steps/{action_step_id}/reconcile")
+def reconcile_step(
+    work_item_id: UUID,
+    action_step_id: UUID,
+    payload: ExecutionReconciliationPayload,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    try:
+        work_item = container.backoffice_service.reconcile_execution(
+            work_item_id=work_item_id,
+            action_step_id=action_step_id,
+            context=context,
+            succeeded=payload.succeeded,
+            summary=payload.summary,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except BackofficeWorkflowError as exc:
+        raise _backoffice_workflow_http_error(exc) from exc
+    return {"work_item": _work_item_detail(container, context, work_item)}
 
 
 def _work_item_for_context(

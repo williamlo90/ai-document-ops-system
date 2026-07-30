@@ -847,11 +847,16 @@ class ApiTests(unittest.TestCase):
             upload_root=Path(self.temp_dir.name),
             max_upload_bytes=1000,
             malware_scanner_backend="clamav",
+            storage_backend="sqlite",
+            sqlite_path=Path(self.temp_dir.name) / "production.sqlite3",
         )
-        production_client = TestClient(create_app(strong_settings))
-
-        self.assertEqual(production_client.get("/docs").status_code, 404)
-        self.assertEqual(production_client.get("/openapi.json").status_code, 404)
+        production_app = create_app(strong_settings)
+        production_client = TestClient(production_app)
+        try:
+            self.assertEqual(production_client.get("/docs").status_code, 404)
+            self.assertEqual(production_client.get("/openapi.json").status_code, 404)
+        finally:
+            production_app.state.container.close()
 
     def test_public_demo_rejects_real_providers(self) -> None:
         settings = Settings(
