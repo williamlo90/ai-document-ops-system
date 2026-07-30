@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from threading import Event, Thread
 from time import perf_counter
 from typing import Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.agent.contracts import (
     AgentConfidence,
@@ -76,6 +78,33 @@ class BackofficeExecutionReservation:
     step: ActionStep
     tool_name: AgentToolName
     executor: BackofficeToolExecutor
+    execution_token: str
+
+
+EXECUTION_LEASE_SECONDS = 300
+
+
+class _ExecutionHeartbeat:
+    def __init__(self, renew: Callable[[], bool]) -> None:
+        self.renew = renew
+        self.interval_seconds = min(30.0, EXECUTION_LEASE_SECONDS / 3)
+        self._stopping = Event()
+        self._thread = Thread(target=self._run, name="backoffice-execution-heartbeat", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stopping.set()
+        self._thread.join(timeout=self.interval_seconds + 1)
+
+    def _run(self) -> None:
+        while not self._stopping.wait(self.interval_seconds):
+            try:
+                if not self.renew():
+                    return
+            except Exception:
+                continue
 
 
 ACTION_TOOL_MAP: dict[ActionType, AgentToolName] = {
@@ -548,6 +577,10 @@ class BackofficeWorkflowService:
         if isinstance(reservation, AgentToolResponse):
             return reservation
         started = perf_counter()
+        heartbeat = _ExecutionHeartbeat(
+            lambda: self._renew_execution_reservation(reservation, context)
+        )
+        heartbeat.start()
         try:
             response = reservation.executor.execute(
                 ToolExecutionRequest(
@@ -562,6 +595,8 @@ class BackofficeWorkflowService:
                 reservation,
                 context,
             )
+        finally:
+            heartbeat.stop()
         try:
             return self._finalize_reserved_execution(
                 reservation,
@@ -592,11 +627,15 @@ class BackofficeWorkflowService:
             if isinstance(execution, AgentToolResponse):
                 return execution
             tool_name, executor = execution
+            execution_token = uuid4().hex
+            now = datetime.now(UTC)
             step.status = ActionStepStatus.EXECUTING
-            step.updated_at = datetime.now(UTC)
+            step.updated_at = now
             work_item.status = WorkItemStatus.EXECUTING
+            work_item.attach_context("execution_token", execution_token)
             work_item.attach_context("execution_outcome", "in_flight")
-            work_item.updated_at = step.updated_at
+            work_item.attach_context("execution_heartbeat_at", now.isoformat())
+            work_item.updated_at = now
             self.plans.save(plan)
             self.work_items.save(work_item)
             self._record_event(
@@ -610,6 +649,7 @@ class BackofficeWorkflowService:
                 step=step,
                 tool_name=tool_name,
                 executor=executor,
+                execution_token=execution_token,
             )
 
     def _execution_tool_or_error(
@@ -666,6 +706,28 @@ class BackofficeWorkflowService:
             return export_guard
         return tool_name, self.tool_executor
 
+    def _renew_execution_reservation(
+        self,
+        reservation: BackofficeExecutionReservation,
+        context: SecurityContext,
+    ) -> bool:
+        with self.transactions.transaction():
+            work_item = self._get_work_item_for_context(reservation.work_item.id, context)
+            plan = self._current_plan(work_item)
+            step = self._find_step(plan.steps, reservation.step.id)
+            if (
+                step.status != ActionStepStatus.EXECUTING
+                or work_item.business_context.get("execution_outcome") != "in_flight"
+                or work_item.business_context.get("execution_token") != reservation.execution_token
+            ):
+                return False
+            work_item.attach_context(
+                "execution_heartbeat_at",
+                datetime.now(UTC).isoformat(),
+            )
+            self.work_items.save(work_item)
+            return True
+
     def _mark_execution_outcome_unknown(
         self,
         reservation: BackofficeExecutionReservation,
@@ -675,7 +737,11 @@ class BackofficeWorkflowService:
             current_item = self._get_work_item_for_context(reservation.work_item.id, context)
             current_plan = self._current_plan(current_item)
             current_step = self._find_step(current_plan.steps, reservation.step.id)
-            if current_step.status == ActionStepStatus.EXECUTING:
+            if (
+                current_step.status == ActionStepStatus.EXECUTING
+                and current_item.business_context.get("execution_token")
+                == reservation.execution_token
+            ):
                 current_item.status = WorkItemStatus.AWAITING_HUMAN
                 current_item.attach_context("execution_outcome", "unknown")
                 self.work_items.save(current_item)
@@ -705,7 +771,11 @@ class BackofficeWorkflowService:
             current_item = self._get_work_item_for_context(reservation.work_item.id, context)
             current_plan = self._current_plan(current_item)
             current_step = self._find_step(current_plan.steps, reservation.step.id)
-            if current_step.status != ActionStepStatus.EXECUTING:
+            if (
+                current_step.status != ActionStepStatus.EXECUTING
+                or current_item.business_context.get("execution_token")
+                != reservation.execution_token
+            ):
                 return self._blocked_response(
                     current_step,
                     "The execution reservation is no longer active.",
@@ -767,7 +837,7 @@ class BackofficeWorkflowService:
                 raise BackofficeWorkflowError(
                     "Only an execution with an unknown outcome can be reconciled."
                 )
-            if work_item.business_context.get("execution_outcome") != "unknown":
+            if not _execution_is_reconcilable(work_item):
                 raise BackofficeWorkflowError(
                     "An active execution cannot be reconciled before its outcome is unknown."
                 )
@@ -1085,3 +1155,23 @@ def _require_matching_fingerprint(actual: str | None, expected: str) -> None:
         raise BackofficeWorkflowError(
             "This idempotency key is already bound to a different request."
         )
+
+
+def _execution_is_reconcilable(work_item: WorkItem) -> bool:
+    outcome = work_item.business_context.get("execution_outcome")
+    if outcome == "unknown":
+        return True
+    if outcome != "in_flight":
+        return False
+    heartbeat_value = work_item.business_context.get("execution_heartbeat_at")
+    if not heartbeat_value:
+        return True
+    try:
+        heartbeat_at = datetime.fromisoformat(heartbeat_value)
+    except ValueError:
+        return False
+    if heartbeat_at.tzinfo is None:
+        return False
+    return datetime.now(UTC) - heartbeat_at.astimezone(UTC) >= timedelta(
+        seconds=EXECUTION_LEASE_SECONDS
+    )

@@ -496,6 +496,68 @@ class TransactionBoundaryTests(unittest.TestCase):
                 release.set()
                 container.close()
 
+    def test_stale_backoffice_execution_can_be_reconciled_after_process_loss(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            container = build_container(self._settings(temp_dir))
+            try:
+                batch = self._seed_export_batch(container)
+                work_item = container.backoffice_service.create_work_item(
+                    title="Export approved invoice",
+                    context=self._context(),
+                    work_type=WorkType.INVOICE_EXPORT,
+                    linked_document_ids=(batch.document_ids[0],),
+                )
+                plan_result = container.backoffice_service.plan_work_item(
+                    work_item_id=work_item.id,
+                    context=self._context(),
+                    planning_input=PlanningInput(
+                        requested_outcome="export invoice",
+                        approved_for_export=True,
+                    ),
+                )
+                plan = container.backoffice_plans.get(plan_result.plan_id)
+                step = next(
+                    item
+                    for item in plan.steps
+                    if item.action_type == ActionType.EXPORT_APPROVED_INVOICE
+                )
+                container.backoffice_service.approve_request(
+                    approval_id=plan_result.pending_approval_ids[0],
+                    context=self._context(),
+                )
+                reservation = container.backoffice_service._reserve_approved_execution(
+                    work_item_id=work_item.id,
+                    action_step_id=step.id,
+                    context=self._context(),
+                )
+                self.assertTrue(
+                    container.backoffice_service._renew_execution_reservation(
+                        reservation,
+                        self._context(),
+                    )
+                )
+                stale_item = container.backoffice_work_items.get(work_item.id)
+                stale_item.attach_context(
+                    "execution_heartbeat_at",
+                    (datetime.now(UTC) - timedelta(minutes=6)).isoformat(),
+                )
+                container.backoffice_work_items.save(stale_item)
+
+                reconciled = container.backoffice_service.reconcile_execution(
+                    work_item_id=work_item.id,
+                    action_step_id=step.id,
+                    context=self._context(),
+                    succeeded=False,
+                    summary="The worker stopped and the accounting system shows no export.",
+                )
+
+                self.assertEqual(reconciled.status, WorkItemStatus.FAILED)
+                final_plan = container.backoffice_plans.get(plan.id)
+                final_step = next(item for item in final_plan.steps if item.id == step.id)
+                self.assertEqual(final_step.status, ActionStepStatus.FAILED)
+            finally:
+                container.close()
+
     def test_export_start_rolls_back_run_when_batch_transition_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             container = build_container(self._settings(temp_dir))

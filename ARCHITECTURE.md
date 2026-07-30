@@ -117,9 +117,11 @@ The following rules are enforced:
 
 Local backoffice commands commit their related records in one transaction. Controlled external
 execution uses two transactions: the first reserves the action as `executing`, the tool call runs
-without holding the database lock, and the second stores the outcome. If the external outcome
-cannot be confirmed or the second transaction fails, replay does not call the tool again. An
-administrator must reconcile that reserved action through the dedicated endpoint.
+without holding the database lock, and the second stores the outcome. A durable heartbeat
+distinguishes an active call from a process that stopped. If the external outcome cannot be
+confirmed, the second transaction fails, or the heartbeat remains stale for five minutes, replay
+does not call the tool again. An administrator must reconcile that reserved action through the
+dedicated endpoint.
 
 ## Security model
 
