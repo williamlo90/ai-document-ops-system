@@ -68,6 +68,20 @@ Upload -> Check source and fields -> Resolve blockers -> Decide -> Export approv
 - Consolidated documentation around the Invoice Review product.
 - Removed old UI concepts, motion handoffs, screenshot matrices, and remediation diaries.
 
+### Maintainability and bounded reads
+
+- Split backoffice planning, execution, and recovery while preserving the service API.
+- Split export eligibility, execution, and workspace projection while preserving transaction
+  ownership and response contracts.
+- Separated SQLite connection/transaction ownership from schema and migration setup.
+- Expanded Mypy from the original selective scope to the transaction, ownership, worker,
+  persistence, query, and composition modules changed by this hardening pass.
+- Replaced full collection scans in metrics, provider health, and processing-job monitoring with
+  workspace-scoped SQL read models and query-budget tests.
+- Added a Windows hash-lock verification job alongside the Linux Python 3.11/3.12 clean installs.
+- Migrated to the patched React Router package, removed the temporary advisory exception, and kept
+  the dependency allowlist empty.
+
 ### Release checks
 
 - Added one cross-platform command for dependency audits, Ruff, backend tests, complexity checks,

@@ -53,6 +53,18 @@ FastAPI provides:
 Application services own the state transitions. API handlers translate HTTP input and output
 instead of duplicating workflow rules.
 
+The largest correctness paths are split by responsibility:
+
+- backoffice planning owns plans, drafts, policy decisions, and approvals;
+- backoffice execution owns reservation, heartbeat, external calls, and finalization;
+- backoffice recovery owns stale and unknown-outcome reconciliation;
+- export eligibility decides membership and blockers;
+- export execution owns reservation, artifact generation, finalization, and retry;
+- export workspace code is read-only projection and filtering.
+
+The original service classes remain as compatibility facades, so API and workflow contracts do not
+depend on the internal split.
+
 ### Provider adapters
 
 The OCR and extraction interfaces support deterministic mocks and real HTTP providers.
@@ -83,6 +95,12 @@ The local profile stores application state in SQLite and invoice files in privat
 Persisted records include documents, extracted fields, source information, jobs, retries, workflow
 state, decisions, audit events, and evaluation runs. In-memory metadata storage is limited to
 disposable local tests; hosted modes refuse to start with it.
+
+SQLite connection and transaction ownership live in `sqlite_store.py`; schema creation, migrations,
+indexes, and backfills live in `sqlite_schema.py`; aggregate repositories remain in
+`sqlite_repositories.py`. Metrics, provider health, and processing-job monitoring use
+workspace-scoped SQL read models with a fixed query count instead of loading every record into the
+application process.
 
 The storage interface can target an S3-compatible service, but the default demo stays
 self-contained.
@@ -139,6 +157,18 @@ The local application includes:
 
 These controls are sufficient for the local demo. A production deployment would still need managed
 identity, secrets, network controls, monitoring, and tenant lifecycle management.
+
+## Deployment boundary
+
+The implemented runtime is a single-node modular monolith. SQLite is the only persistent metadata
+adapter, and browser sessions and request rate limits are process-local. Multiple worker processes
+sharing the same database are protected by lease fencing, but SQLite remains a single-writer
+bottleneck. The export workspace projection still filters and enriches records in the application
+process, so it is not presented as a high-volume read model.
+
+The Compose PostgreSQL profile is a target dependency for future work, not an implemented
+repository adapter. Horizontal deployment requires PostgreSQL repositories, shared session and
+rate-limit state, durable delivery coordination, and multi-process failure tests.
 
 ## Reliability and evaluation
 
