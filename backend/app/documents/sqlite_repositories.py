@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import sqlite3
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from threading import RLock
 from dataclasses import asdict
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
@@ -22,16 +24,22 @@ class SqliteStore:
     def __init__(self, path: Path) -> None:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(str(path), check_same_thread=False)
+        self.connection = sqlite3.connect(str(path), check_same_thread=False, timeout=5.0)
         self.connection.row_factory = sqlite3.Row
         self.lock = RLock()
         self._closed = False
+        self._transaction_depth = 0
+        self.connection.execute("PRAGMA busy_timeout = 5000")
+        self.connection.execute("PRAGMA foreign_keys = ON")
+        self.connection.execute("PRAGMA journal_mode = WAL")
+        self.connection.execute("PRAGMA synchronous = NORMAL")
         self._init_schema()
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self.lock:
             cursor = self.connection.execute(sql, params)
-            self.connection.commit()
+            if self._transaction_depth == 0:
+                self.connection.commit()
             return cursor
 
     def query(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
@@ -41,6 +49,33 @@ class SqliteStore:
     def query_one(self, sql: str, params: tuple = ()) -> sqlite3.Row | None:
         with self.lock:
             return self.connection.execute(sql, params).fetchone()
+
+    @contextmanager
+    def transaction(self) -> Iterator[None]:
+        with self.lock:
+            outermost = self._transaction_depth == 0
+            savepoint = f"nested_transaction_{self._transaction_depth}"
+            if outermost:
+                self.connection.execute("BEGIN IMMEDIATE")
+            else:
+                self.connection.execute(f"SAVEPOINT {savepoint}")
+            self._transaction_depth += 1
+            try:
+                yield
+            except Exception:
+                self._transaction_depth -= 1
+                if outermost:
+                    self.connection.rollback()
+                else:
+                    self.connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                    self.connection.execute(f"RELEASE SAVEPOINT {savepoint}")
+                raise
+            else:
+                self._transaction_depth -= 1
+                if outermost:
+                    self.connection.commit()
+                else:
+                    self.connection.execute(f"RELEASE SAVEPOINT {savepoint}")
 
     def close(self) -> None:
         with self.lock:
@@ -83,6 +118,7 @@ class SqliteStore:
                 error_message TEXT,
                 provider_name TEXT,
                 provider_trace_id TEXT,
+                next_attempt_at TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -111,6 +147,24 @@ class SqliteStore:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS invoice_identities (
+                document_id TEXT PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+                vendor_identity TEXT NOT NULL,
+                invoice_identity TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_invoice_identity_lookup
+                ON invoice_identities(vendor_identity, invoice_identity, document_id);
+            CREATE TABLE IF NOT EXISTS backoffice_work_item_documents (
+                work_item_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (work_item_id, document_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_work_item_document_latest
+                ON backoffice_work_item_documents(
+                    workspace_id, document_id, updated_at DESC, work_item_id
+                );
             CREATE TABLE IF NOT EXISTS backoffice_work_items (
                 id TEXT PRIMARY KEY,
                 workspace_id TEXT NOT NULL,
@@ -214,6 +268,23 @@ class SqliteStore:
             self.connection.execute(
                 "ALTER TABLE documents ADD COLUMN size_bytes INTEGER NOT NULL DEFAULT 0"
             )
+        job_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(jobs)")}
+        if "next_attempt_at" not in job_columns:
+            self.connection.execute("ALTER TABLE jobs ADD COLUMN next_attempt_at TEXT")
+        self.connection.executescript(
+            """
+            CREATE INDEX IF NOT EXISTS idx_documents_workspace_status_updated
+                ON documents(workspace_id, status, updated_at DESC, id);
+            CREATE INDEX IF NOT EXISTS idx_jobs_processable
+                ON jobs(status, next_attempt_at, updated_at, created_at, id);
+            CREATE INDEX IF NOT EXISTS idx_jobs_document_created
+                ON jobs(document_id, created_at DESC, id);
+            CREATE INDEX IF NOT EXISTS idx_audit_document_created
+                ON audit_events(document_id, created_at, id);
+            CREATE INDEX IF NOT EXISTS idx_review_tasks_status_updated
+                ON review_tasks(status, updated_at DESC, document_id);
+            """
+        )
         self.connection.execute(
             "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
             (2, datetime.now().astimezone().isoformat()),
@@ -238,7 +309,72 @@ class SqliteStore:
             "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
             (7, datetime.now().astimezone().isoformat()),
         )
+        self.connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+            (9, datetime.now().astimezone().isoformat()),
+        )
+        self._backfill_invoice_identities()
+        self._backfill_work_item_documents()
+        self.connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
+            (10, datetime.now(UTC).isoformat()),
+        )
         self.connection.commit()
+
+    def _backfill_invoice_identities(self) -> None:
+        rows = self.connection.execute(
+            """
+            SELECT e.document_id, e.payload
+            FROM extractions e
+            LEFT JOIN invoice_identities i ON i.document_id = e.document_id
+            WHERE i.document_id IS NULL
+            """
+        )
+        values = []
+        for row in rows:
+            data = json.loads(row["payload"]).get("data", {})
+            vendor_identity = _identity_text(data.get("vendor_name"))
+            invoice_identity = _identity_text(data.get("invoice_number"))
+            if vendor_identity and invoice_identity:
+                values.append((row["document_id"], vendor_identity, invoice_identity))
+        self.connection.executemany(
+            """
+            INSERT OR REPLACE INTO invoice_identities
+            (document_id, vendor_identity, invoice_identity) VALUES (?, ?, ?)
+            """,
+            values,
+        )
+
+    def _backfill_work_item_documents(self) -> None:
+        document_ids = {row["id"] for row in self.connection.execute("SELECT id FROM documents")}
+        rows = self.connection.execute(
+            """
+            SELECT id, workspace_id, updated_at, payload
+            FROM backoffice_work_items
+            WHERE id NOT IN (SELECT DISTINCT work_item_id FROM backoffice_work_item_documents)
+            """
+        )
+        values = []
+        for row in rows:
+            payload = json.loads(row["payload"])
+            values.extend(
+                (
+                    row["id"],
+                    row["workspace_id"],
+                    document_id,
+                    row["updated_at"],
+                )
+                for document_id in payload.get("linked_document_ids", [])
+                if document_id in document_ids
+            )
+        self.connection.executemany(
+            """
+            INSERT OR REPLACE INTO backoffice_work_item_documents
+            (work_item_id, workspace_id, document_id, updated_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            values,
+        )
 
 
 class SqliteDocumentRepository:
@@ -248,10 +384,21 @@ class SqliteDocumentRepository:
     def add(self, document: DocumentRecord) -> DocumentRecord:
         self.store.execute(
             """
-            INSERT OR REPLACE INTO documents
+            INSERT INTO documents
             (id, workspace_id, original_filename, storage_key, content_type, submitted_by,
              size_bytes, status, created_at, updated_at, error_message)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                workspace_id = excluded.workspace_id,
+                original_filename = excluded.original_filename,
+                storage_key = excluded.storage_key,
+                content_type = excluded.content_type,
+                submitted_by = excluded.submitted_by,
+                size_bytes = excluded.size_bytes,
+                status = excluded.status,
+                created_at = excluded.created_at,
+                updated_at = excluded.updated_at,
+                error_message = excluded.error_message
             """,
             _document_params(document),
         )
@@ -261,21 +408,21 @@ class SqliteDocumentRepository:
         row = self.store.query_one("SELECT * FROM documents WHERE id = ?", (str(document_id),))
         if row is None:
             raise NotFoundError(f"Document not found: {document_id}")
-        return _document_from_row(row)
+        return document_from_row(row)
 
     def list_all(self) -> list[DocumentRecord]:
-        return [_document_from_row(row) for row in self.store.query("SELECT * FROM documents")]
+        return [document_from_row(row) for row in self.store.query("SELECT * FROM documents")]
 
     def list_by_workspace(self, workspace_id: str) -> list[DocumentRecord]:
         rows = self.store.query(
             "SELECT * FROM documents WHERE workspace_id = ?",
             (workspace_id,),
         )
-        return [_document_from_row(row) for row in rows]
+        return [document_from_row(row) for row in rows]
 
     def list_by_status(self, status: DocumentStatus) -> list[DocumentRecord]:
         rows = self.store.query("SELECT * FROM documents WHERE status = ?", (status.value,))
-        return [_document_from_row(row) for row in rows]
+        return [document_from_row(row) for row in rows]
 
     def list_by_workspace_and_status(
         self, workspace_id: str, status: DocumentStatus
@@ -284,7 +431,7 @@ class SqliteDocumentRepository:
             "SELECT * FROM documents WHERE workspace_id = ? AND status = ?",
             (workspace_id, status.value),
         )
-        return [_document_from_row(row) for row in rows]
+        return [document_from_row(row) for row in rows]
 
 
 class SqliteJobRepository:
@@ -300,8 +447,8 @@ class SqliteJobRepository:
             """
             INSERT OR REPLACE INTO jobs
             (id, document_id, status, attempt_count, started_at, finished_at, error_message,
-             provider_name, provider_trace_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             provider_name, provider_trace_id, next_attempt_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             _job_params(job),
         )
@@ -334,63 +481,81 @@ class SqliteJobRepository:
         return [_job_from_row(row) for row in rows]
 
     def claim_next_processable(
-        self, *, stale_before: datetime | None = None
+        self,
+        *,
+        stale_before: datetime | None = None,
+        now: datetime | None = None,
     ) -> ProcessingJob | None:
         connection = self.store.connection
-        with self.store.lock:
-            try:
-                connection.execute("BEGIN IMMEDIATE")
-                stale_value = stale_before.isoformat() if stale_before is not None else ""
-                row = connection.execute(
-                    """
+        current = now or datetime.now(UTC)
+        with self.store.transaction():
+            stale_value = stale_before.isoformat() if stale_before is not None else ""
+            row = connection.execute(
+                """
                     SELECT * FROM jobs
-                    WHERE status IN (?, ?)
+                    WHERE status = ?
+                       OR (
+                           status = ?
+                           AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+                       )
                        OR (status = ? AND ? != '' AND updated_at <= ?)
                     ORDER BY CASE WHEN status = ? THEN 0 ELSE 1 END, created_at
                     LIMIT 1
                     """,
-                    (
-                        ProcessingJobStatus.QUEUED.value,
-                        ProcessingJobStatus.RETRYING.value,
-                        ProcessingJobStatus.RUNNING.value,
-                        stale_value,
-                        stale_value,
-                        ProcessingJobStatus.RUNNING.value,
-                    ),
-                ).fetchone()
-                if row is None:
-                    connection.commit()
-                    return None
-                job = _job_from_row(row)
-                previous_status = job.status.value
-                if job.status == ProcessingJobStatus.RUNNING:
-                    job.retry("worker_lease_expired")
-                job.start()
-                cursor = connection.execute(
-                    """
-                    UPDATE jobs SET status = ?, attempt_count = ?, started_at = ?,
-                    finished_at = ?, error_message = ?, provider_name = ?,
-                    provider_trace_id = ?, updated_at = ?
-                    WHERE id = ? AND status = ?
-                    """,
-                    (
-                        job.status.value,
-                        job.attempt_count,
-                        job.started_at.isoformat(),
-                        None,
-                        job.error_message,
-                        job.provider_name,
-                        job.provider_trace_id,
-                        job.updated_at.isoformat(),
-                        str(job.id),
-                        previous_status,
-                    ),
-                )
-                connection.commit()
-                return job if cursor.rowcount == 1 else None
-            except Exception:
-                connection.rollback()
-                raise
+                (
+                    ProcessingJobStatus.QUEUED.value,
+                    ProcessingJobStatus.RETRYING.value,
+                    current.isoformat(),
+                    ProcessingJobStatus.RUNNING.value,
+                    stale_value,
+                    stale_value,
+                    ProcessingJobStatus.RUNNING.value,
+                ),
+            ).fetchone()
+            if row is None:
+                return None
+            job = _job_from_row(row)
+            previous_status = job.status.value
+            if job.status == ProcessingJobStatus.RUNNING:
+                job.retry("worker_lease_expired")
+            job.start()
+            cursor = connection.execute(
+                """
+                UPDATE jobs SET status = ?, attempt_count = ?, started_at = ?,
+                finished_at = ?, error_message = ?, provider_name = ?,
+                provider_trace_id = ?, next_attempt_at = ?, updated_at = ?
+                WHERE id = ? AND status = ?
+                """,
+                (
+                    job.status.value,
+                    job.attempt_count,
+                    job.started_at.isoformat(),
+                    None,
+                    job.error_message,
+                    job.provider_name,
+                    job.provider_trace_id,
+                    None,
+                    job.updated_at.isoformat(),
+                    str(job.id),
+                    previous_status,
+                ),
+            )
+            return job if cursor.rowcount == 1 else None
+
+    def renew_lease(self, job_id: UUID, *, renewed_at: datetime | None = None) -> bool:
+        timestamp = renewed_at or datetime.now(UTC)
+        cursor = self.store.execute(
+            """
+            UPDATE jobs SET updated_at = ?
+            WHERE id = ? AND status = ?
+            """,
+            (
+                timestamp.isoformat(),
+                str(job_id),
+                ProcessingJobStatus.RUNNING.value,
+            ),
+        )
+        return cursor.rowcount == 1
 
     def count(self) -> int:
         row = self.store.query_one("SELECT COUNT(*) AS count FROM jobs")
@@ -444,10 +609,29 @@ class SqliteExtractionRepository:
         validation_report: ValidationReport,
     ) -> StoredExtraction:
         stored = StoredExtraction(document_id, extraction_result, validation_report)
-        self.store.execute(
-            "INSERT OR REPLACE INTO extractions (document_id, payload) VALUES (?, ?)",
-            (str(document_id), json.dumps(_stored_extraction_to_dict(stored))),
-        )
+        data = extraction_result.extraction.data
+        vendor_identity = _identity_text(data.vendor_name)
+        invoice_identity = _identity_text(data.invoice_number)
+        with self.store.transaction():
+            self.store.execute(
+                """
+                INSERT INTO extractions (document_id, payload) VALUES (?, ?)
+                ON CONFLICT(document_id) DO UPDATE SET payload = excluded.payload
+                """,
+                (str(document_id), json.dumps(_stored_extraction_to_dict(stored))),
+            )
+            self.store.execute(
+                "DELETE FROM invoice_identities WHERE document_id = ?",
+                (str(document_id),),
+            )
+            if vendor_identity and invoice_identity:
+                self.store.execute(
+                    """
+                    INSERT INTO invoice_identities
+                    (document_id, vendor_identity, invoice_identity) VALUES (?, ?, ?)
+                    """,
+                    (str(document_id), vendor_identity, invoice_identity),
+                )
         return stored
 
     def get_for_document(self, document_id: UUID) -> StoredExtraction:
@@ -458,6 +642,33 @@ class SqliteExtractionRepository:
         if row is None:
             raise NotFoundError(f"Extraction not found for document: {document_id}")
         return _stored_extraction_from_dict(json.loads(row["payload"]))
+
+    def get_for_documents(self, document_ids: list[UUID]) -> dict[UUID, StoredExtraction]:
+        if not document_ids:
+            return {}
+        placeholders = ", ".join("?" for _ in document_ids)
+        rows = self.store.query(
+            f"SELECT payload FROM extractions WHERE document_id IN ({placeholders})",
+            tuple(str(document_id) for document_id in document_ids),
+        )
+        return {
+            stored.document_id: stored
+            for stored in (_stored_extraction_from_dict(json.loads(row["payload"])) for row in rows)
+        }
+
+    def find_by_invoice_identity(
+        self,
+        vendor_identity: str,
+        invoice_identity: str,
+    ) -> list[UUID]:
+        rows = self.store.query(
+            """
+            SELECT document_id FROM invoice_identities
+            WHERE vendor_identity = ? AND invoice_identity = ?
+            """,
+            (vendor_identity, invoice_identity),
+        )
+        return [UUID(row["document_id"]) for row in rows]
 
 
 class SqliteReviewTaskRepository:
@@ -515,7 +726,7 @@ def _document_params(document: DocumentRecord) -> tuple:
     )
 
 
-def _document_from_row(row: sqlite3.Row) -> DocumentRecord:
+def document_from_row(row: sqlite3.Row) -> DocumentRecord:
     return DocumentRecord(
         id=UUID(row["id"]),
         workspace_id=row["workspace_id"],
@@ -542,6 +753,7 @@ def _job_params(job: ProcessingJob) -> tuple:
         job.error_message,
         job.provider_name,
         job.provider_trace_id,
+        _dt(job.next_attempt_at),
         _dt(job.created_at),
         _dt(job.updated_at),
     )
@@ -558,6 +770,7 @@ def _job_from_row(row: sqlite3.Row) -> ProcessingJob:
         error_message=row["error_message"],
         provider_name=row["provider_name"],
         provider_trace_id=row["provider_trace_id"],
+        next_attempt_at=_parse_optional_dt(row["next_attempt_at"]),
         created_at=_parse_dt(row["created_at"]),
         updated_at=_parse_dt(row["updated_at"]),
     )
@@ -706,3 +919,7 @@ def _parse_decimal(value: str | None):
 
 def _decimal(value: Decimal | None) -> str | None:
     return str(value) if value is not None else None
+
+
+def _identity_text(value: str | None) -> str:
+    return "".join(character for character in (value or "").casefold() if character.isalnum())

@@ -55,6 +55,7 @@ from app.core.security import (
 )
 from app.core.upload_scanning import build_upload_scanner
 from app.core.settings import Settings
+from app.core.transactions import NoopTransactionManager, TransactionManager
 from app.documents.repositories import (
     AuditRepository,
     DocumentRepository,
@@ -103,6 +104,7 @@ from app.integrations.repositories import (
     SqliteIntegrationDeliveryRepository,
 )
 from app.integrations.services import InvoiceIntegrationService
+from app.invoices.queries import InvoiceQueryRepository, SqliteInvoiceQueryRepository
 from app.metrics.services import MetricsService
 from app.providers.factory import build_extractor_provider, build_parser_provider
 from app.providers.storage import DocumentStorage, build_document_storage
@@ -159,6 +161,8 @@ class AppContainer:
     workflow_events: WorkflowEventRepository
     backoffice_service: BackofficeWorkflowService
     retention_service: DocumentRetentionService
+    transactions: TransactionManager
+    invoice_queries: InvoiceQueryRepository | None
 
     def readiness(self) -> dict[str, bool]:
         return {
@@ -186,6 +190,7 @@ def build_container(settings: Settings) -> AppContainer:
     )
     if settings.storage_backend.strip().lower() == "sqlite":
         store = SqliteStore(Path(settings.sqlite_path))
+        transactions: TransactionManager = store
         documents = SqliteDocumentRepository(store)
         jobs = SqliteJobRepository(store)
         audits = SqliteAuditRepository(store)
@@ -205,7 +210,9 @@ def build_container(settings: Settings) -> AppContainer:
         notifications = SqliteNotificationRepository(store)
         integration_deliveries = SqliteIntegrationDeliveryRepository(store)
         export_batches = SqliteExportBatchRepository(store)
+        invoice_queries: InvoiceQueryRepository | None = SqliteInvoiceQueryRepository(store)
     elif settings.storage_backend.strip().lower() == "memory":
+        transactions = NoopTransactionManager()
         documents = InMemoryDocumentRepository()
         jobs = InMemoryJobRepository()
         audits = InMemoryAuditRepository()
@@ -225,13 +232,20 @@ def build_container(settings: Settings) -> AppContainer:
         notifications = InMemoryNotificationRepository()
         integration_deliveries = InMemoryIntegrationDeliveryRepository()
         export_batches = InMemoryExportBatchRepository()
+        invoice_queries = None
     else:
         raise ValueError(f"Unsupported storage backend: {settings.storage_backend}")
     agentops_service = AgentOpsEvaluationService()
     workflow = DocumentWorkflowService()
     upload_scanner = build_upload_scanner(settings)
     upload_service = DocumentUploadService(
-        storage, documents, jobs, audits, workflow, upload_scanner
+        storage,
+        documents,
+        jobs,
+        audits,
+        workflow,
+        upload_scanner,
+        transactions,
     )
     parser_provider = build_parser_provider(settings)
     extractor_provider = build_extractor_provider(settings)
@@ -245,6 +259,9 @@ def build_container(settings: Settings) -> AppContainer:
         parser_provider,
         extractor_provider,
         max_processing_attempts=settings.max_processing_attempts,
+        retry_base_seconds=settings.worker_retry_base_seconds,
+        retry_max_seconds=settings.worker_retry_max_seconds,
+        transactions=transactions,
     )
     worker_service = DocumentProcessingWorker(
         jobs,
@@ -259,8 +276,15 @@ def build_container(settings: Settings) -> AppContainer:
         audits,
         workflow,
         correction_feedback,
+        transactions,
     )
-    export_service = InvoiceExportService(documents, extractions, audits, workflow)
+    export_service = InvoiceExportService(
+        documents,
+        extractions,
+        audits,
+        workflow,
+        transactions,
+    )
     export_batch_service = ExportBatchService(
         settings=settings,
         repository=export_batches,
@@ -269,6 +293,7 @@ def build_container(settings: Settings) -> AppContainer:
         audits=audits,
         workflow=workflow,
         invoice_exports=export_service,
+        transactions=transactions,
     )
     evaluation_dashboard = EvaluationDashboardService(
         settings=settings,
@@ -284,6 +309,7 @@ def build_container(settings: Settings) -> AppContainer:
         workflow,
         MockAccountingAdapter(),
         integration_deliveries,
+        transactions,
     )
     metrics_service = MetricsService(documents, jobs, audits)
     tool_executor = ControlledToolExecutor(
@@ -380,6 +406,8 @@ def build_container(settings: Settings) -> AppContainer:
         workflow_events=workflow_events,
         backoffice_service=backoffice_service,
         retention_service=retention_service,
+        transactions=transactions,
+        invoice_queries=invoice_queries,
     )
 
 

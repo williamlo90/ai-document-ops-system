@@ -168,37 +168,30 @@ class SqliteExportBatchRepository:
 
     def reserve_run(self, run: ExportRunRecord) -> tuple[ExportRunRecord, bool]:
         connection = self.store.connection
-        with self.store.lock:
-            try:
-                connection.execute("BEGIN IMMEDIATE")
-                existing = connection.execute(
-                    "SELECT payload FROM export_runs WHERE workspace_id = ? AND idempotency_key = ?",
-                    (run.workspace_id, run.idempotency_key),
-                ).fetchone()
-                if existing is not None:
-                    connection.commit()
-                    return _run_from_dict(json.loads(existing["payload"])), False
-                connection.execute(
-                    """
-                    INSERT INTO export_runs
-                    (id, workspace_id, batch_id, idempotency_key, status, updated_at, payload)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        str(run.id),
-                        run.workspace_id,
-                        str(run.batch_id),
-                        run.idempotency_key,
-                        run.status.value,
-                        run.updated_at.isoformat(),
-                        json.dumps(_run_to_dict(run), sort_keys=True),
-                    ),
-                )
-                connection.commit()
-                return run, True
-            except Exception:
-                connection.rollback()
-                raise
+        with self.store.transaction():
+            existing = connection.execute(
+                "SELECT payload FROM export_runs WHERE workspace_id = ? AND idempotency_key = ?",
+                (run.workspace_id, run.idempotency_key),
+            ).fetchone()
+            if existing is not None:
+                return _run_from_dict(json.loads(existing["payload"])), False
+            connection.execute(
+                """
+                INSERT INTO export_runs
+                (id, workspace_id, batch_id, idempotency_key, status, updated_at, payload)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(run.id),
+                    run.workspace_id,
+                    str(run.batch_id),
+                    run.idempotency_key,
+                    run.status.value,
+                    run.updated_at.isoformat(),
+                    json.dumps(_run_to_dict(run), sort_keys=True),
+                ),
+            )
+            return run, True
 
     def save_run(self, run: ExportRunRecord) -> ExportRunRecord:
         self.store.execute(

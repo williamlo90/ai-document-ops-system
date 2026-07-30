@@ -10,6 +10,7 @@ from uuid import UUID
 
 from app.core.observability import OperationEvent, log_operation
 from app.core.security import SecurityContext, require_admin
+from app.core.transactions import NoopTransactionManager, TransactionManager
 from app.documents.models import AuditEvent, DocumentRecord
 from app.documents.repositories import (
     AuditRepository,
@@ -54,6 +55,7 @@ class InvoiceIntegrationService:
         workflow: DocumentWorkflowService,
         adapter: AccountingIntegrationAdapter,
         deliveries: IntegrationDeliveryRepository,
+        transactions: TransactionManager | None = None,
     ) -> None:
         self.documents = documents
         self.extractions = extractions
@@ -61,6 +63,7 @@ class InvoiceIntegrationService:
         self.workflow = workflow
         self.adapter = adapter
         self.deliveries = deliveries
+        self.transactions = transactions or NoopTransactionManager()
 
     def send_approved_invoice(
         self,
@@ -148,8 +151,6 @@ class InvoiceIntegrationService:
                 retryable=False,
                 updated_at=datetime.now(UTC),
             )
-            self.deliveries.save(reconciled)
-            self._mark_document_exported(document, reconciled, context.actor)
             event_type = "integration_export_reconciled_succeeded"
         else:
             if document.status == DocumentStatus.EXPORTED:
@@ -164,19 +165,22 @@ class InvoiceIntegrationService:
                 retryable=True,
                 updated_at=datetime.now(UTC),
             )
-            self.deliveries.save(reconciled)
             event_type = "integration_export_reconciled_failed"
-        self.audits.add(
-            _integration_audit(
-                document,
-                event_type=event_type,
-                actor=context.actor,
-                payload_summary=(
-                    f"adapter={self.adapter.name}; key={_key_fingerprint(normalized_key)}; "
-                    f"reason={normalized_reason}"
-                ),
+        with self.transactions.transaction():
+            self.deliveries.save(reconciled)
+            if succeeded:
+                self._mark_document_exported(document, reconciled, context.actor)
+            self.audits.add(
+                _integration_audit(
+                    document,
+                    event_type=event_type,
+                    actor=context.actor,
+                    payload_summary=(
+                        f"adapter={self.adapter.name}; key={_key_fingerprint(normalized_key)}; "
+                        f"reason={normalized_reason}"
+                    ),
+                )
             )
-        )
         return reconciled
 
     def _handle_existing_delivery(
@@ -233,17 +237,18 @@ class InvoiceIntegrationService:
         context: SecurityContext,
     ) -> IntegrationSendResult:
         key_fingerprint = _key_fingerprint(delivery.idempotency_key)
-        self.audits.add(
-            _integration_audit(
-                document,
-                event_type="integration_export_attempted",
-                actor=context.actor,
-                payload_summary=(
-                    f"adapter={self.adapter.name}; key={key_fingerprint}; "
-                    f"attempt={delivery.attempt_count}"
-                ),
+        with self.transactions.transaction():
+            self.audits.add(
+                _integration_audit(
+                    document,
+                    event_type="integration_export_attempted",
+                    actor=context.actor,
+                    payload_summary=(
+                        f"adapter={self.adapter.name}; key={key_fingerprint}; "
+                        f"attempt={delivery.attempt_count}"
+                    ),
+                )
             )
-        )
         log_operation(
             OperationEvent(
                 event_type="integration_export_attempted",
@@ -278,20 +283,21 @@ class InvoiceIntegrationService:
                 retryable=exc.retryable and not exc.outcome_unknown,
                 updated_at=datetime.now(UTC),
             )
-            self.deliveries.save(failed_delivery)
-            self.audits.add(
-                _integration_audit(
-                    document,
-                    event_type="integration_export_failed",
-                    actor=context.actor,
-                    payload_summary=(
-                        f"adapter={self.adapter.name}; code={exc.code}; "
-                        f"retryable={str(exc.retryable).lower()}; "
-                        f"outcome_unknown={str(exc.outcome_unknown).lower()}; "
-                        f"key={key_fingerprint}"
-                    ),
+            with self.transactions.transaction():
+                self.deliveries.save(failed_delivery)
+                self.audits.add(
+                    _integration_audit(
+                        document,
+                        event_type="integration_export_failed",
+                        actor=context.actor,
+                        payload_summary=(
+                            f"adapter={self.adapter.name}; code={exc.code}; "
+                            f"retryable={str(exc.retryable).lower()}; "
+                            f"outcome_unknown={str(exc.outcome_unknown).lower()}; "
+                            f"key={key_fingerprint}"
+                        ),
+                    )
                 )
-            )
             log_operation(
                 OperationEvent(
                     event_type="integration_export_failed",
@@ -313,19 +319,20 @@ class InvoiceIntegrationService:
             retryable=False,
             updated_at=datetime.now(UTC),
         )
-        self.deliveries.save(succeeded_delivery)
-        self.audits.add(
-            _integration_audit(
-                document,
-                event_type="integration_export_succeeded",
-                actor=context.actor,
-                payload_summary=(
-                    f"adapter={result.adapter_name}; external_id={result.external_id}; "
-                    f"key={key_fingerprint}"
-                ),
+        with self.transactions.transaction():
+            self.deliveries.save(succeeded_delivery)
+            self.audits.add(
+                _integration_audit(
+                    document,
+                    event_type="integration_export_succeeded",
+                    actor=context.actor,
+                    payload_summary=(
+                        f"adapter={result.adapter_name}; external_id={result.external_id}; "
+                        f"key={key_fingerprint}"
+                    ),
+                )
             )
-        )
-        self._mark_document_exported(document, succeeded_delivery, context.actor)
+            self._mark_document_exported(document, succeeded_delivery, context.actor)
         log_operation(
             OperationEvent(
                 event_type="integration_export_succeeded",

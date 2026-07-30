@@ -6,6 +6,7 @@ from io import StringIO
 from uuid import uuid4
 
 from app.core.security import SecurityContext, require_admin
+from app.core.transactions import NoopTransactionManager, TransactionManager
 from app.documents.models import DocumentRecord
 from app.documents.repositories import (
     AuditRepository,
@@ -38,11 +39,13 @@ class InvoiceExportService:
         extractions: ExtractionRepository,
         audits: AuditRepository,
         workflow: DocumentWorkflowService,
+        transactions: TransactionManager | None = None,
     ) -> None:
         self.documents = documents
         self.extractions = extractions
         self.audits = audits
         self.workflow = workflow
+        self.transactions = transactions or NoopTransactionManager()
 
     def export_approved_csv(self, context: SecurityContext) -> str:
         require_admin(context)
@@ -51,16 +54,17 @@ class InvoiceExportService:
             context.workspace_id, DocumentStatus.APPROVED
         )
         csv_text = self.render_documents_csv(approved_documents)
-        for document in approved_documents:
-            self.audits.add(
-                self.workflow.transition(
-                    document,
-                    DocumentStatus.EXPORTED,
-                    context.actor,
-                    payload_summary=f"export_id={export_id}",
+        with self.transactions.transaction():
+            for document in approved_documents:
+                self.audits.add(
+                    self.workflow.transition(
+                        document,
+                        DocumentStatus.EXPORTED,
+                        context.actor,
+                        payload_summary=f"export_id={export_id}",
+                    )
                 )
-            )
-            self.documents.add(document)
+                self.documents.add(document)
         return csv_text
 
     def render_documents_csv(self, documents: list[DocumentRecord]) -> str:
@@ -83,7 +87,7 @@ class InvoiceExportService:
             rows.append(
                 {key: str(value) if value is not None else None for key, value in row.items()}
             )
-        rows.sort(key=lambda row: row["document_id"])
+        rows.sort(key=lambda row: row["document_id"] or "")
         return json.dumps(rows, indent=2)
 
     def _row_for_document(
@@ -91,7 +95,7 @@ class InvoiceExportService:
     ) -> tuple[DocumentRecord, dict[str, object]]:
         stored = self.extractions.get_for_document(document.id)
         data = stored.extraction_result.extraction.data
-        row = {
+        row: dict[str, object] = {
             "document_id": str(document.id),
             "vendor_name": data.vendor_name,
             "invoice_number": data.invoice_number,

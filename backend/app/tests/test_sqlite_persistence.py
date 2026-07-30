@@ -5,16 +5,22 @@ import unittest
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from uuid import UUID
+from unittest.mock import patch
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
 from app.core.settings import Settings
-from app.documents.jobs import ProcessingJobStatus
-from app.extraction.schemas import InvoiceData
+from app.documents.jobs import ProcessingJob, ProcessingJobStatus
+from app.documents.models import DocumentRecord
+from app.documents.sqlite_repositories import SqliteJobRepository, SqliteStore
+from app.documents.status import DocumentStatus
+from app.extraction.schemas import InvoiceData, InvoiceExtraction
 from app.main import create_app
+from app.providers.contracts import ExtractionResult
 from app.providers.mock import MockInvoiceExtractor
 from app.tests.auth_helpers import session_headers
+from app.validation.invoice import ValidationReport
 
 
 TOKEN = "test-token"
@@ -22,6 +28,144 @@ HEADERS = {"X-Admin-Token": TOKEN}
 
 
 class SqlitePersistenceTests(unittest.TestCase):
+    def test_nested_transaction_uses_savepoint_when_inner_failure_is_caught(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = SqliteStore(Path(temp_dir) / "doc_intel.sqlite3")
+            try:
+                store.execute("CREATE TABLE transaction_probe (value TEXT NOT NULL)")
+                with store.transaction():
+                    store.execute("INSERT INTO transaction_probe VALUES ('outer-before')")
+                    try:
+                        with store.transaction():
+                            store.execute("INSERT INTO transaction_probe VALUES ('inner')")
+                            raise ValueError("injected inner failure")
+                    except ValueError:
+                        pass
+                    store.execute("INSERT INTO transaction_probe VALUES ('outer-after')")
+
+                values = [
+                    row["value"] for row in store.query("SELECT value FROM transaction_probe")
+                ]
+            finally:
+                store.close()
+
+        self.assertEqual(values, ["outer-before", "outer-after"])
+
+    def test_invoice_page_uses_a_bounded_number_of_queries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = Settings(
+                app_env="test",
+                admin_token=TOKEN,
+                upload_root=Path(temp_dir) / "uploads",
+                max_upload_bytes=1_000,
+                storage_backend="sqlite",
+                sqlite_path=Path(temp_dir) / "doc_intel.sqlite3",
+            )
+            app = create_app(settings)
+            container = app.state.container
+            try:
+                for index in range(60):
+                    document = DocumentRecord(
+                        original_filename=f"invoice-{index:03d}.pdf",
+                        storage_key=f"invoice-{index:03d}.pdf",
+                        content_type="application/pdf",
+                        status=DocumentStatus.NEEDS_REVIEW,
+                    )
+                    container.documents.add(document)
+                    container.extractions.save(
+                        document.id,
+                        ExtractionResult(
+                            extraction=InvoiceExtraction(
+                                data=InvoiceData(
+                                    vendor_name=f"Vendor {index:03d}",
+                                    invoice_number=f"INV-{index:03d}",
+                                    invoice_date=date(2026, 7, 1),
+                                    total=Decimal("100.00"),
+                                    currency="USD",
+                                )
+                            ),
+                            provider_name="test",
+                        ),
+                        ValidationReport(issues=()),
+                    )
+
+                store = container.documents.store
+                with (
+                    patch.object(store, "query", wraps=store.query) as query_many,
+                    patch.object(store, "query_one", wraps=store.query_one) as query_one,
+                ):
+                    response = TestClient(app).get(
+                        "/invoices?page=2&page_size=10&sort=vendor&direction=asc",
+                        headers=HEADERS,
+                    )
+            finally:
+                container.close()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["total"], 60)
+        self.assertEqual(len(response.json()["items"]), 10)
+        self.assertEqual(response.json()["items"][0]["vendor_name"], "Vendor 010")
+        self.assertLessEqual(query_many.call_count + query_one.call_count, 7)
+
+    def test_sqlite_enables_concurrency_pragmas_and_query_indexes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = SqliteStore(Path(temp_dir) / "doc_intel.sqlite3")
+            try:
+                pragmas = {
+                    "journal_mode": store.query_one("PRAGMA journal_mode")["journal_mode"],
+                    "foreign_keys": store.query_one("PRAGMA foreign_keys")["foreign_keys"],
+                    "busy_timeout": store.query_one("PRAGMA busy_timeout")["timeout"],
+                }
+                document_indexes = {
+                    row["name"] for row in store.query("PRAGMA index_list('documents')")
+                }
+                plan = store.query(
+                    """
+                    EXPLAIN QUERY PLAN
+                    SELECT * FROM documents
+                    WHERE workspace_id = ? AND status = ?
+                    ORDER BY updated_at DESC
+                    """,
+                    ("default", "needs_review"),
+                )
+            finally:
+                store.close()
+
+        self.assertEqual(pragmas["journal_mode"], "wal")
+        self.assertEqual(pragmas["foreign_keys"], 1)
+        self.assertGreaterEqual(pragmas["busy_timeout"], 5_000)
+        self.assertIn("idx_documents_workspace_status_updated", document_indexes)
+        self.assertTrue(
+            any("idx_documents_workspace_status_updated" in row["detail"] for row in plan)
+        )
+
+    def test_retry_schedule_survives_restart_and_blocks_early_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "doc_intel.sqlite3"
+            now = datetime.now(UTC)
+            retry_at = now + timedelta(minutes=5)
+            store = SqliteStore(path)
+            repository = SqliteJobRepository(store)
+            job = ProcessingJob(document_id=uuid4())
+            job.retry("temporary provider failure", next_attempt_at=retry_at)
+            repository.add(job)
+
+            self.assertIsNone(repository.claim_next_processable(now=now))
+            store.close()
+
+            reopened_store = SqliteStore(path)
+            reopened_repository = SqliteJobRepository(reopened_store)
+            try:
+                claimed = reopened_repository.claim_next_processable(
+                    now=retry_at + timedelta(seconds=1)
+                )
+            finally:
+                reopened_store.close()
+
+        self.assertIsNotNone(claimed)
+        self.assertEqual(claimed.id, job.id)
+        self.assertEqual(claimed.status, ProcessingJobStatus.RUNNING)
+
     def test_backoffice_aggregate_survives_app_recreation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             settings = Settings(
@@ -127,7 +271,10 @@ class SqlitePersistenceTests(unittest.TestCase):
         self.assertEqual(evaluation_evidence["actual_operation_type"], "document_export")
         self.assertTrue(evaluation_evidence["checks"]["document_type"])
         self.assertTrue(evaluation_evidence["checks"]["operation_type"])
-        self.assertEqual([row["version"] for row in migration_rows], [2, 3, 4, 5, 6, 7, 8])
+        self.assertEqual(
+            [row["version"] for row in migration_rows],
+            [2, 3, 4, 5, 6, 7, 8, 9, 10],
+        )
         self.assertIn("plan_generated", [event.event_type for event in workflow_events])
         self.assertIn("approval_approved", [event.event_type for event in workflow_events])
 

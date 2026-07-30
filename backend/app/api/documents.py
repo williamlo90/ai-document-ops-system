@@ -135,7 +135,14 @@ def document_workflow(
     return document_workflow_response(container, context, document_id)
 
 
-@router.post("/{document_id}/retry")
+@router.post(
+    "/{document_id}/retry",
+    deprecated=True,
+    description=(
+        "Deprecated compatibility alias. Use POST /invoices/{document_id}/retry. "
+        "Removal target: v2 after 2026-10-31."
+    ),
+)
 def retry_document(
     document_id: UUID,
     context: SecurityContext = Depends(require_authenticated_context),
@@ -144,7 +151,14 @@ def retry_document(
     return retry_document_command(document_id, context, container)
 
 
-@router.post("/{document_id}/reprocess")
+@router.post(
+    "/{document_id}/reprocess",
+    deprecated=True,
+    description=(
+        "Deprecated compatibility alias. Use POST /invoices/{document_id}/reprocess. "
+        "Removal target: v2 after 2026-10-31."
+    ),
+)
 def reprocess_document(
     document_id: UUID,
     context: SecurityContext = Depends(require_authenticated_context),
@@ -153,7 +167,14 @@ def reprocess_document(
     return reprocess_document_command(document_id, context, container)
 
 
-@router.post("/{document_id}/cancel")
+@router.post(
+    "/{document_id}/cancel",
+    deprecated=True,
+    description=(
+        "Deprecated compatibility alias. Use POST /invoices/{document_id}/cancel. "
+        "Removal target: v2 after 2026-10-31."
+    ),
+)
 def cancel_document(
     document_id: UUID,
     context: SecurityContext = Depends(require_authenticated_context),
@@ -162,7 +183,14 @@ def cancel_document(
     return cancel_document_command(document_id, context, container)
 
 
-@router.post("/{document_id}/request-correction")
+@router.post(
+    "/{document_id}/request-correction",
+    deprecated=True,
+    description=(
+        "Deprecated compatibility alias. Use POST /invoices/{document_id}/request-correction. "
+        "Removal target: v2 after 2026-10-31."
+    ),
+)
 def request_document_correction(
     document_id: UUID,
     payload: WorkflowCommandPayload,
@@ -172,7 +200,14 @@ def request_document_correction(
     return request_document_correction_command(document_id, payload, context, container)
 
 
-@router.post("/{document_id}/escalate")
+@router.post(
+    "/{document_id}/escalate",
+    deprecated=True,
+    description=(
+        "Deprecated compatibility alias. Use POST /invoices/{document_id}/escalate. "
+        "Removal target: v2 after 2026-10-31."
+    ),
+)
 def escalate_document(
     document_id: UUID,
     payload: WorkflowCommandPayload,

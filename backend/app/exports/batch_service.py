@@ -8,6 +8,7 @@ from uuid import UUID
 
 from app.core.security import SecurityContext, require_admin
 from app.core.settings import Settings
+from app.core.transactions import NoopTransactionManager, TransactionManager
 from app.documents.models import AuditEvent, DocumentRecord
 from app.documents.repositories import (
     AuditRepository,
@@ -50,6 +51,7 @@ class ExportBatchService:
         audits: AuditRepository,
         workflow: DocumentWorkflowService,
         invoice_exports: InvoiceExportService,
+        transactions: TransactionManager | None = None,
     ) -> None:
         self.settings = settings
         self.repository = repository
@@ -58,6 +60,7 @@ class ExportBatchService:
         self.audits = audits
         self.workflow = workflow
         self.invoice_exports = invoice_exports
+        self.transactions = transactions or NoopTransactionManager()
         self._execution_lock = RLock()
 
     def workspace(
@@ -336,22 +339,18 @@ class ExportBatchService:
                         "This idempotency key is already bound to another export batch."
                     )
                 return reserved
-            self.repository.save_batch(
-                replace(batch, status=ExportBatchStatus.RUNNING, last_run_id=run.id, updated_at=now)
-            )
+            with self.transactions.transaction():
+                self.repository.save_batch(
+                    replace(
+                        batch,
+                        status=ExportBatchStatus.RUNNING,
+                        last_run_id=run.id,
+                        updated_at=now,
+                    )
+                )
             try:
                 csv_text = self.invoice_exports.render_documents_csv(documents)
                 file_name = f"invoices-{now.date().isoformat()}-{str(run.id)[:8]}.csv"
-                for document in documents:
-                    self.audits.add(
-                        self.workflow.transition(
-                            document,
-                            DocumentStatus.EXPORTED,
-                            context.actor,
-                            payload_summary=f"export_run_id={run.id}",
-                        )
-                    )
-                    self.documents.add(document)
                 completed_at = datetime.now(UTC)
                 succeeded = replace(
                     run,
@@ -361,15 +360,26 @@ class ExportBatchService:
                     completed_at=completed_at,
                     updated_at=completed_at,
                 )
-                self.repository.save_run(succeeded)
-                self.repository.save_batch(
-                    replace(
-                        batch,
-                        status=ExportBatchStatus.COMPLETED,
-                        last_run_id=run.id,
-                        updated_at=completed_at,
+                with self.transactions.transaction():
+                    for document in documents:
+                        self.audits.add(
+                            self.workflow.transition(
+                                document,
+                                DocumentStatus.EXPORTED,
+                                context.actor,
+                                payload_summary=f"export_run_id={run.id}",
+                            )
+                        )
+                        self.documents.add(document)
+                    self.repository.save_run(succeeded)
+                    self.repository.save_batch(
+                        replace(
+                            batch,
+                            status=ExportBatchStatus.COMPLETED,
+                            last_run_id=run.id,
+                            updated_at=completed_at,
+                        )
                     )
-                )
                 return succeeded
             except Exception as exc:
                 failed_at = datetime.now(UTC)
@@ -382,15 +392,16 @@ class ExportBatchService:
                     completed_at=failed_at,
                     updated_at=failed_at,
                 )
-                self.repository.save_run(failed)
-                self.repository.save_batch(
-                    replace(
-                        batch,
-                        status=ExportBatchStatus.FAILED,
-                        last_run_id=run.id,
-                        updated_at=failed_at,
+                with self.transactions.transaction():
+                    self.repository.save_run(failed)
+                    self.repository.save_batch(
+                        replace(
+                            batch,
+                            status=ExportBatchStatus.FAILED,
+                            last_run_id=run.id,
+                            updated_at=failed_at,
+                        )
                     )
-                )
                 raise RuntimeError("Export generation failed") from exc
 
     def retry(

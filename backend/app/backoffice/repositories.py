@@ -22,6 +22,12 @@ class WorkItemRepository(Protocol):
 
     def list_by_workspace(self, workspace_id: str) -> list[WorkItem]: ...
 
+    def get_latest_for_documents(
+        self,
+        workspace_id: str,
+        document_ids: list[UUID],
+    ) -> dict[UUID, WorkItem]: ...
+
 
 class TaskPlanRepository(Protocol):
     def save(self, plan: TaskPlan) -> TaskPlan: ...
@@ -79,6 +85,24 @@ class InMemoryWorkItemRepository:
 
     def list_by_workspace(self, workspace_id: str) -> list[WorkItem]:
         return [item for item in self.records.values() if item.workspace_id == workspace_id]
+
+    def get_latest_for_documents(
+        self,
+        workspace_id: str,
+        document_ids: list[UUID],
+    ) -> dict[UUID, WorkItem]:
+        requested = set(document_ids)
+        latest: dict[UUID, WorkItem] = {}
+        for item in self.records.values():
+            if item.workspace_id != workspace_id:
+                continue
+            for document_id in item.linked_document_ids:
+                if document_id not in requested:
+                    continue
+                existing = latest.get(document_id)
+                if existing is None or item.updated_at > existing.updated_at:
+                    latest[document_id] = item
+        return latest
 
 
 @dataclass

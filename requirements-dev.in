@@ -1,6 +1,8 @@
 -r requirements.in
 
 # Development and evidence tooling.
+coverage==7.15.2
+mypy==2.3.0
 pip-audit==2.10.1
 pip-tools==7.6.0
 radon==6.0.1

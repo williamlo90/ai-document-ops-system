@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from app.core.security import (
 )
 from app.core.upload_scanning import SignatureUploadScanner, UploadScanner
 from app.core.observability import OperationEvent, log_operation
+from app.core.transactions import NoopTransactionManager, TransactionManager
 from app.documents.jobs import ProcessingJob, ProcessingJobStatus
 from app.documents.models import AuditEvent, DocumentRecord
 from app.documents.repositories import (
@@ -46,6 +48,7 @@ class DocumentUploadService:
         audits: AuditRepository,
         workflow: DocumentWorkflowService,
         upload_scanner: UploadScanner | None = None,
+        transactions: TransactionManager | None = None,
     ) -> None:
         self.storage = storage
         self.documents = documents
@@ -53,6 +56,7 @@ class DocumentUploadService:
         self.audits = audits
         self.workflow = workflow
         self.upload_scanner = upload_scanner or SignatureUploadScanner()
+        self.transactions = transactions or NoopTransactionManager()
 
     def upload_pdf(
         self,
@@ -65,22 +69,32 @@ class DocumentUploadService:
         stored = self.storage.save_upload_stream(
             original_filename, content_type, self.upload_scanner.scan(chunks)
         )
-        document = self.documents.add(
-            DocumentRecord(
-                original_filename=stored.original_filename,
-                storage_key=stored.storage_key,
-                content_type=stored.content_type,
-                workspace_id=context.workspace_id,
-                submitted_by=context.user_id,
-                size_bytes=stored.size_bytes,
-            )
-        )
-        self.audits.add(self.workflow.record_upload(document, actor=context.actor))
-        self.audits.add(
-            self.workflow.transition(document, DocumentStatus.QUEUED, actor=context.actor)
-        )
-        self.documents.add(document)
-        job = self.jobs.add(ProcessingJob(document_id=document.id))
+        try:
+            with self.transactions.transaction():
+                document = self.documents.add(
+                    DocumentRecord(
+                        original_filename=stored.original_filename,
+                        storage_key=stored.storage_key,
+                        content_type=stored.content_type,
+                        workspace_id=context.workspace_id,
+                        submitted_by=context.user_id,
+                        size_bytes=stored.size_bytes,
+                    )
+                )
+                self.audits.add(self.workflow.record_upload(document, actor=context.actor))
+                self.audits.add(
+                    self.workflow.transition(document, DocumentStatus.QUEUED, actor=context.actor)
+                )
+                self.documents.add(document)
+                job = self.jobs.add(ProcessingJob(document_id=document.id))
+        except Exception:
+            try:
+                self.storage.delete(stored.storage_key)
+            except Exception as cleanup_exc:
+                raise RuntimeError(
+                    "Upload metadata failed and the stored object could not be removed"
+                ) from cleanup_exc
+            raise
         log_operation(
             OperationEvent(
                 event_type="document_uploaded",
@@ -106,6 +120,9 @@ class DocumentProcessingService:
         parser: ParserProvider,
         extractor: ExtractorProvider,
         max_processing_attempts: int = 3,
+        retry_base_seconds: int = 5,
+        retry_max_seconds: int = 300,
+        transactions: TransactionManager | None = None,
     ) -> None:
         self.storage = storage
         self.documents = documents
@@ -116,6 +133,9 @@ class DocumentProcessingService:
         self.parser = parser
         self.extractor = extractor
         self.max_processing_attempts = max_processing_attempts
+        self.retry_base_seconds = max(1, retry_base_seconds)
+        self.retry_max_seconds = max(self.retry_base_seconds, retry_max_seconds)
+        self.transactions = transactions or NoopTransactionManager()
 
     def process_job(self, job_id: UUID, context: SecurityContext) -> DocumentRecord:
         require_admin(context)
@@ -137,16 +157,17 @@ class DocumentProcessingService:
         if document.status != DocumentStatus.FAILED:
             raise InvalidStatusTransition("Only failed documents can be retried")
         document.error_message = None
-        self.audits.add(
-            self.workflow.transition(
-                document,
-                DocumentStatus.QUEUED,
-                actor=context.actor,
-                payload_summary="manual retry requested",
+        with self.transactions.transaction():
+            self.audits.add(
+                self.workflow.transition(
+                    document,
+                    DocumentStatus.QUEUED,
+                    actor=context.actor,
+                    payload_summary="manual retry requested",
+                )
             )
-        )
-        self.documents.add(document)
-        self.jobs.add(ProcessingJob(document_id=document.id))
+            self.documents.add(document)
+            self.jobs.add(ProcessingJob(document_id=document.id))
         return document
 
     def reprocess_document(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
@@ -163,16 +184,17 @@ class DocumentProcessingService:
                 "Only extracted, review, failed, or cancelled documents can be reprocessed"
             )
         document.error_message = None
-        self.audits.add(
-            self.workflow.transition(
-                document,
-                DocumentStatus.QUEUED,
-                actor=context.actor,
-                payload_summary="manual reprocess requested",
+        with self.transactions.transaction():
+            self.audits.add(
+                self.workflow.transition(
+                    document,
+                    DocumentStatus.QUEUED,
+                    actor=context.actor,
+                    payload_summary="manual reprocess requested",
+                )
             )
-        )
-        self.documents.add(document)
-        self.jobs.add(ProcessingJob(document_id=document.id))
+            self.documents.add(document)
+            self.jobs.add(ProcessingJob(document_id=document.id))
         return document
 
     def cancel_document(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
@@ -189,17 +211,18 @@ class DocumentProcessingService:
             ProcessingJobStatus.DEAD_LETTER,
         }:
             raise InvalidStatusTransition("Active processing cannot be cancelled")
-        job.cancel()
-        self.jobs.save(job)
-        self.audits.add(
-            self.workflow.transition(
-                document,
-                DocumentStatus.CANCELLED,
-                actor=context.actor,
-                payload_summary="intake cancelled by operator",
+        with self.transactions.transaction():
+            job.cancel()
+            self.jobs.save(job)
+            self.audits.add(
+                self.workflow.transition(
+                    document,
+                    DocumentStatus.CANCELLED,
+                    actor=context.actor,
+                    payload_summary="intake cancelled by operator",
+                )
             )
-        )
-        self.documents.add(document)
+            self.documents.add(document)
         return document
 
     def _process_job(self, job: ProcessingJob, context: SecurityContext) -> DocumentRecord:
@@ -213,28 +236,30 @@ class DocumentProcessingService:
             raise InvalidStatusTransition(f"Cannot process job with status {job.status}")
         if document.status not in {DocumentStatus.QUEUED, DocumentStatus.PROCESSING}:
             raise InvalidStatusTransition(f"Cannot process document with status {document.status}")
-        try:
-            if job.status != ProcessingJobStatus.RUNNING:
+        if job.status != ProcessingJobStatus.RUNNING:
+            with self.transactions.transaction():
                 job.start()
                 self.jobs.add(job)
-            log_operation(
-                OperationEvent(
-                    event_type="processing_started",
-                    workspace_id=context.workspace_id,
-                    actor=context.actor,
-                    document_id=str(document.id),
-                    job_id=str(job.id),
-                    status=job.status.value,
-                    attempt_count=job.attempt_count,
-                )
+        log_operation(
+            OperationEvent(
+                event_type="processing_started",
+                workspace_id=context.workspace_id,
+                actor=context.actor,
+                document_id=str(document.id),
+                job_id=str(job.id),
+                status=job.status.value,
+                attempt_count=job.attempt_count,
             )
-            if document.status != DocumentStatus.PROCESSING:
+        )
+        if document.status != DocumentStatus.PROCESSING:
+            with self.transactions.transaction():
                 self.audits.add(
                     self.workflow.transition(
                         document, DocumentStatus.PROCESSING, actor=context.actor
                     )
                 )
                 self.documents.add(document)
+        try:
             source = self._document_source(document)
             parsed = self.parser.parse(source)
             if not parsed.text.strip():
@@ -253,6 +278,11 @@ class DocumentProcessingService:
             )
             if security_issues:
                 report = ValidationReport(issues=(*report.issues, *security_issues))
+        except Exception as exc:
+            return self._finalize_processing_failure(document, job, context, exc)
+
+        with self.transactions.transaction():
+            if security_issues:
                 self.audits.add(
                     AuditEvent(
                         document_id=document.id,
@@ -287,23 +317,38 @@ class DocumentProcessingService:
             job.provider_trace_id = result.provider_trace_id
             job.succeed()
             self.jobs.add(job)
-            log_operation(
-                OperationEvent(
-                    event_type="processing_succeeded",
-                    workspace_id=context.workspace_id,
-                    actor=context.actor,
-                    document_id=str(document.id),
-                    job_id=str(job.id),
-                    provider_name=job.provider_name,
-                    status=job.status.value,
-                    attempt_count=job.attempt_count,
-                )
+        log_operation(
+            OperationEvent(
+                event_type="processing_succeeded",
+                workspace_id=context.workspace_id,
+                actor=context.actor,
+                document_id=str(document.id),
+                job_id=str(job.id),
+                provider_name=job.provider_name,
+                status=job.status.value,
+                attempt_count=job.attempt_count,
             )
-            return document
-        except Exception as exc:
-            error_code = _safe_error_code(exc)
+        )
+        return document
+
+    def _finalize_processing_failure(
+        self,
+        document: DocumentRecord,
+        job: ProcessingJob,
+        context: SecurityContext,
+        exc: Exception,
+    ) -> DocumentRecord:
+        error_code = _safe_error_code(exc)
+        with self.transactions.transaction():
             if _should_retry(exc, job, self.max_processing_attempts):
-                job.retry(error_code)
+                job.retry(
+                    error_code,
+                    next_attempt_at=_next_retry_at(
+                        job,
+                        base_seconds=self.retry_base_seconds,
+                        max_seconds=self.retry_max_seconds,
+                    ),
+                )
                 document.error_message = error_code
                 self.audits.add(
                     self.workflow.transition(
@@ -327,20 +372,20 @@ class DocumentProcessingService:
                     )
             self.documents.add(document)
             self.jobs.add(job)
-            log_operation(
-                OperationEvent(
-                    event_type="processing_failed",
-                    workspace_id=context.workspace_id,
-                    actor=context.actor,
-                    document_id=str(document.id),
-                    job_id=str(job.id),
-                    status=job.status.value,
-                    error_code=error_code,
-                    retryable=isinstance(exc, ProviderError) and exc.retryable,
-                    attempt_count=job.attempt_count,
-                )
+        log_operation(
+            OperationEvent(
+                event_type="processing_failed",
+                workspace_id=context.workspace_id,
+                actor=context.actor,
+                document_id=str(document.id),
+                job_id=str(job.id),
+                status=job.status.value,
+                error_code=error_code,
+                retryable=isinstance(exc, ProviderError) and exc.retryable,
+                attempt_count=job.attempt_count,
             )
-            return document
+        )
+        return document
 
     def _document_source(self, document: DocumentRecord) -> DocumentSource:
         path: Path = self.storage.open_for_parser(document.storage_key)
@@ -360,6 +405,19 @@ def _safe_error_code(exc: Exception) -> str:
 
 def _should_retry(exc: Exception, job: ProcessingJob, max_attempts: int) -> bool:
     return isinstance(exc, ProviderError) and exc.retryable and job.attempt_count < max_attempts
+
+
+def _next_retry_at(
+    job: ProcessingJob,
+    *,
+    base_seconds: int,
+    max_seconds: int,
+) -> datetime:
+    exponent = max(0, job.attempt_count - 1)
+    bounded_delay = min(max_seconds, base_seconds * (2**exponent))
+    jitter_percent = (job.id.int % 21) - 10
+    jittered_delay = max(1.0, bounded_delay * (1 + jitter_percent / 100))
+    return datetime.now(UTC) + timedelta(seconds=jittered_delay)
 
 
 def _require_workspace(document: DocumentRecord, context: SecurityContext) -> None:

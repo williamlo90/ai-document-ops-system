@@ -21,15 +21,14 @@ def validate_document_invoice(
     identity = _invoice_identity(invoice.vendor_name, invoice.invoice_number)
     if identity is None:
         return report
-    for candidate in documents.list_by_workspace(document.workspace_id):
-        if candidate.id == document.id:
+    for candidate_id in extractions.find_by_invoice_identity(*identity):
+        if candidate_id == document.id:
             continue
         try:
-            stored = extractions.get_for_document(candidate.id)
+            candidate = documents.get(candidate_id)
         except NotFoundError:
             continue
-        candidate_data = stored.extraction_result.extraction.data
-        if _invoice_identity(candidate_data.vendor_name, candidate_data.invoice_number) != identity:
+        if candidate.workspace_id != document.workspace_id:
             continue
         issue = ValidationIssue(
             field_name="invoice_number",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -46,8 +46,13 @@ class JobRepository(Protocol):
     def list_by_status(self, status: ProcessingJobStatus) -> list[ProcessingJob]: ...
 
     def claim_next_processable(
-        self, *, stale_before: datetime | None = None
+        self,
+        *,
+        stale_before: datetime | None = None,
+        now: datetime | None = None,
     ) -> ProcessingJob | None: ...
+
+    def renew_lease(self, job_id: UUID, *, renewed_at: datetime | None = None) -> bool: ...
 
     def count(self) -> int: ...
 
@@ -76,6 +81,14 @@ class ExtractionRepository(Protocol):
     ) -> StoredExtraction: ...
 
     def get_for_document(self, document_id: UUID) -> StoredExtraction: ...
+
+    def get_for_documents(self, document_ids: list[UUID]) -> dict[UUID, StoredExtraction]: ...
+
+    def find_by_invoice_identity(
+        self,
+        vendor_identity: str,
+        invoice_identity: str,
+    ) -> list[UUID]: ...
 
 
 class ReviewTaskRepository(Protocol):
@@ -152,12 +165,20 @@ class InMemoryJobRepository:
         return [job for job in self.records.values() if job.status == status]
 
     def claim_next_processable(
-        self, *, stale_before: datetime | None = None
+        self,
+        *,
+        stale_before: datetime | None = None,
+        now: datetime | None = None,
     ) -> ProcessingJob | None:
+        current = now or datetime.now(UTC)
         candidates = [
             job
             for job in self.records.values()
-            if job.status in {ProcessingJobStatus.QUEUED, ProcessingJobStatus.RETRYING}
+            if job.status == ProcessingJobStatus.QUEUED
+            or (
+                job.status == ProcessingJobStatus.RETRYING
+                and (job.next_attempt_at is None or job.next_attempt_at <= current)
+            )
             or (
                 stale_before is not None
                 and job.status == ProcessingJobStatus.RUNNING
@@ -178,6 +199,13 @@ class InMemoryJobRepository:
         job.start()
         self.records[job.id] = job
         return job
+
+    def renew_lease(self, job_id: UUID, *, renewed_at: datetime | None = None) -> bool:
+        job = self.records.get(job_id)
+        if job is None or job.status != ProcessingJobStatus.RUNNING:
+            return False
+        job.updated_at = renewed_at or datetime.now(UTC)
+        return True
 
     def count(self) -> int:
         return len(self.records)
@@ -222,6 +250,27 @@ class InMemoryExtractionRepository:
         except KeyError as exc:
             raise NotFoundError(f"Extraction not found for document: {document_id}") from exc
 
+    def get_for_documents(self, document_ids: list[UUID]) -> dict[UUID, StoredExtraction]:
+        return {
+            document_id: self.records[document_id]
+            for document_id in document_ids
+            if document_id in self.records
+        }
+
+    def find_by_invoice_identity(
+        self,
+        vendor_identity: str,
+        invoice_identity: str,
+    ) -> list[UUID]:
+        return [
+            document_id
+            for document_id, stored in self.records.items()
+            if _identity_text(stored.extraction_result.extraction.data.vendor_name)
+            == vendor_identity
+            and _identity_text(stored.extraction_result.extraction.data.invoice_number)
+            == invoice_identity
+        ]
+
 
 @dataclass
 class InMemoryReviewTaskRepository:
@@ -239,3 +288,7 @@ class InMemoryReviewTaskRepository:
 
     def list_open(self) -> list[ReviewTask]:
         return [task for task in self.records.values() if task.status == "open"]
+
+
+def _identity_text(value: str | None) -> str:
+    return "".join(character for character in (value or "").casefold() if character.isalnum())

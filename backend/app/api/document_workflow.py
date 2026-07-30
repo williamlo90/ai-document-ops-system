@@ -64,12 +64,10 @@ def extraction_or_none(container: AppContainer, document_id: UUID):
 def current_work_item(
     container: AppContainer, context: SecurityContext, document_id: UUID
 ) -> WorkItem | None:
-    matches = [
-        item
-        for item in container.backoffice_work_items.list_by_workspace(context.workspace_id)
-        if document_id in item.linked_document_ids
-    ]
-    return max(matches, key=lambda item: item.updated_at) if matches else None
+    return container.backoffice_work_items.get_latest_for_documents(
+        context.workspace_id,
+        [document_id],
+    ).get(document_id)
 
 
 def required_work_item(

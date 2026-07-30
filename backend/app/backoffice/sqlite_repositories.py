@@ -33,18 +33,41 @@ class SqliteWorkItemRepository:
         self.store = store
 
     def save(self, work_item: WorkItem) -> WorkItem:
-        self.store.execute(
-            """
-            INSERT OR REPLACE INTO backoffice_work_items
-            (id, workspace_id, updated_at, payload) VALUES (?, ?, ?, ?)
-            """,
-            (
-                str(work_item.id),
-                work_item.workspace_id,
-                work_item.updated_at.isoformat(),
-                json.dumps(_work_item_to_dict(work_item)),
-            ),
-        )
+        with self.store.transaction():
+            self.store.execute(
+                """
+                INSERT INTO backoffice_work_items
+                (id, workspace_id, updated_at, payload) VALUES (?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    workspace_id = excluded.workspace_id,
+                    updated_at = excluded.updated_at,
+                    payload = excluded.payload
+                """,
+                (
+                    str(work_item.id),
+                    work_item.workspace_id,
+                    work_item.updated_at.isoformat(),
+                    json.dumps(_work_item_to_dict(work_item)),
+                ),
+            )
+            self.store.execute(
+                "DELETE FROM backoffice_work_item_documents WHERE work_item_id = ?",
+                (str(work_item.id),),
+            )
+            for document_id in work_item.linked_document_ids:
+                self.store.execute(
+                    """
+                    INSERT INTO backoffice_work_item_documents
+                    (work_item_id, workspace_id, document_id, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        str(work_item.id),
+                        work_item.workspace_id,
+                        str(document_id),
+                        work_item.updated_at.isoformat(),
+                    ),
+                )
         return work_item
 
     def get(self, work_item_id: UUID) -> WorkItem:
@@ -65,6 +88,38 @@ class SqliteWorkItemRepository:
             (workspace_id,),
         )
         return [_work_item_from_dict(json.loads(row["payload"])) for row in rows]
+
+    def get_latest_for_documents(
+        self,
+        workspace_id: str,
+        document_ids: list[UUID],
+    ) -> dict[UUID, WorkItem]:
+        if not document_ids:
+            return {}
+        placeholders = ", ".join("?" for _ in document_ids)
+        rows = self.store.query(
+            f"""
+            WITH ranked AS (
+                SELECT document_id, work_item_id,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY document_id
+                           ORDER BY updated_at DESC, work_item_id DESC
+                       ) AS position
+                FROM backoffice_work_item_documents
+                WHERE workspace_id = ?
+                  AND document_id IN ({placeholders})
+            )
+            SELECT ranked.document_id, items.payload
+            FROM ranked
+            JOIN backoffice_work_items items ON items.id = ranked.work_item_id
+            WHERE ranked.position = 1
+            """,
+            (workspace_id, *(str(document_id) for document_id in document_ids)),
+        )
+        return {
+            UUID(row["document_id"]): _work_item_from_dict(json.loads(row["payload"]))
+            for row in rows
+        }
 
 
 class SqliteTaskPlanRepository:

@@ -22,6 +22,30 @@ def project_workflow(
     work_item: WorkItem | None,
     approvals: ApprovalRepository,
 ) -> WorkflowProjection:
+    pending_for_item = False
+    if work_item is not None:
+        pending_for_item = any(
+            item.work_item_id == work_item.id
+            for item in approvals.list_pending(work_item.workspace_id)
+        )
+    return project_workflow_state(document, work_item, pending_for_item=pending_for_item)
+
+
+def project_workflow_state(
+    document: DocumentRecord,
+    work_item: WorkItem | None,
+    *,
+    pending_for_item: bool,
+) -> WorkflowProjection:
+    document_projection = _document_status_projection(document)
+    if document_projection is not None:
+        return document_projection
+    if work_item is None:
+        return _without_work_item(document)
+    return _with_work_item(work_item, pending_for_item=pending_for_item)
+
+
+def _document_status_projection(document: DocumentRecord) -> WorkflowProjection | None:
     if document.status == DocumentStatus.FAILED:
         return WorkflowProjection(
             "failed",
@@ -58,28 +82,34 @@ def project_workflow(
             "Reprocess or upload another invoice",
             None,
         )
+    return None
 
-    if work_item is None:
-        if document.status == DocumentStatus.NEEDS_REVIEW:
-            return WorkflowProjection(
-                "needs_verification",
-                "Reviewer",
-                "Human verification",
-                "Review extracted invoice data",
-                "Validation requires human review.",
-            )
-        if document.status == DocumentStatus.EXPORTED:
-            return WorkflowProjection("completed", "System", None, "No action required", None)
+
+def _without_work_item(document: DocumentRecord) -> WorkflowProjection:
+    if document.status == DocumentStatus.NEEDS_REVIEW:
         return WorkflowProjection(
-            "ready_to_submit",
-            "Intake Operator",
-            "Business outcome",
-            "Submit invoice for processing",
-            None,
+            "needs_verification",
+            "Reviewer",
+            "Human verification",
+            "Review extracted invoice data",
+            "Validation requires human review.",
         )
+    if document.status == DocumentStatus.EXPORTED:
+        return WorkflowProjection("completed", "System", None, "No action required", None)
+    return WorkflowProjection(
+        "ready_to_submit",
+        "Intake Operator",
+        "Business outcome",
+        "Submit invoice for processing",
+        None,
+    )
 
-    pending = approvals.list_pending(work_item.workspace_id)
-    pending_for_item = any(item.work_item_id == work_item.id for item in pending)
+
+def _with_work_item(
+    work_item: WorkItem,
+    *,
+    pending_for_item: bool,
+) -> WorkflowProjection:
     correction_state = work_item.business_context.get("correction_state")
     if correction_state == "requested":
         return WorkflowProjection(

@@ -79,6 +79,19 @@ class OpenApiContractTests(unittest.TestCase):
                 if operation.get("requestBody"):
                     self.assertIn("422", responses, f"{method.upper()} {path}")
 
+    def test_document_command_aliases_are_explicitly_deprecated(self) -> None:
+        for command in (
+            "retry",
+            "reprocess",
+            "cancel",
+            "request-correction",
+            "escalate",
+        ):
+            operation = self.schema["paths"][f"/documents/{{document_id}}/{command}"]["post"]
+            self.assertTrue(operation["deprecated"])
+            self.assertIn("/invoices/{document_id}/", operation["description"])
+            self.assertIn("2026-10-31", operation["description"])
+
 
 if __name__ == "__main__":
     unittest.main()

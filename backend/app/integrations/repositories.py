@@ -98,33 +98,26 @@ class SqliteIntegrationDeliveryRepository:
 
     def reserve(self, record: IntegrationDeliveryRecord) -> tuple[IntegrationDeliveryRecord, bool]:
         connection = self.store.connection
-        with self.store.lock:
-            try:
-                connection.execute("BEGIN IMMEDIATE")
-                existing = connection.execute(
-                    """
-                    SELECT payload FROM integration_deliveries
-                    WHERE workspace_id = ? AND adapter_name = ? AND idempotency_key = ?
-                    """,
-                    (record.workspace_id, record.adapter_name, record.idempotency_key),
-                ).fetchone()
-                if existing is not None:
-                    connection.commit()
-                    return _record_from_dict(json.loads(existing["payload"])), False
-                connection.execute(
-                    """
-                    INSERT INTO integration_deliveries
-                    (id, workspace_id, document_id, adapter_name, idempotency_key,
-                     status, updated_at, payload)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    _record_params(record),
-                )
-                connection.commit()
-                return record, True
-            except Exception:
-                connection.rollback()
-                raise
+        with self.store.transaction():
+            existing = connection.execute(
+                """
+                SELECT payload FROM integration_deliveries
+                WHERE workspace_id = ? AND adapter_name = ? AND idempotency_key = ?
+                """,
+                (record.workspace_id, record.adapter_name, record.idempotency_key),
+            ).fetchone()
+            if existing is not None:
+                return _record_from_dict(json.loads(existing["payload"])), False
+            connection.execute(
+                """
+                INSERT INTO integration_deliveries
+                (id, workspace_id, document_id, adapter_name, idempotency_key,
+                 status, updated_at, payload)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                _record_params(record),
+            )
+            return record, True
 
     def save(self, record: IntegrationDeliveryRecord) -> IntegrationDeliveryRecord:
         self.store.execute(
@@ -156,45 +149,37 @@ class SqliteIntegrationDeliveryRepository:
 
     def claim_retry(self, record_id: UUID) -> IntegrationDeliveryRecord | None:
         connection = self.store.connection
-        with self.store.lock:
-            try:
-                connection.execute("BEGIN IMMEDIATE")
-                row = connection.execute(
-                    "SELECT payload FROM integration_deliveries WHERE id = ?",
-                    (str(record_id),),
-                ).fetchone()
-                if row is None:
-                    connection.commit()
-                    return None
-                record = _record_from_dict(json.loads(row["payload"]))
-                if record.status != IntegrationDeliveryStatus.FAILED or not record.retryable:
-                    connection.commit()
-                    return None
-                claimed = replace(
-                    record,
-                    status=IntegrationDeliveryStatus.PENDING,
-                    retryable=False,
-                    error_code=None,
-                    attempt_count=record.attempt_count + 1,
-                    updated_at=datetime.now(UTC),
-                )
-                connection.execute(
-                    """
-                    UPDATE integration_deliveries
-                    SET status = ?, updated_at = ?, payload = ? WHERE id = ?
-                    """,
-                    (
-                        claimed.status.value,
-                        claimed.updated_at.isoformat(),
-                        json.dumps(_record_to_dict(claimed), sort_keys=True),
-                        str(claimed.id),
-                    ),
-                )
-                connection.commit()
-                return claimed
-            except Exception:
-                connection.rollback()
-                raise
+        with self.store.transaction():
+            row = connection.execute(
+                "SELECT payload FROM integration_deliveries WHERE id = ?",
+                (str(record_id),),
+            ).fetchone()
+            if row is None:
+                return None
+            record = _record_from_dict(json.loads(row["payload"]))
+            if record.status != IntegrationDeliveryStatus.FAILED or not record.retryable:
+                return None
+            claimed = replace(
+                record,
+                status=IntegrationDeliveryStatus.PENDING,
+                retryable=False,
+                error_code=None,
+                attempt_count=record.attempt_count + 1,
+                updated_at=datetime.now(UTC),
+            )
+            connection.execute(
+                """
+                UPDATE integration_deliveries
+                SET status = ?, updated_at = ?, payload = ? WHERE id = ?
+                """,
+                (
+                    claimed.status.value,
+                    claimed.updated_at.isoformat(),
+                    json.dumps(_record_to_dict(claimed), sort_keys=True),
+                    str(claimed.id),
+                ),
+            )
+            return claimed
 
 
 def _record_key(record: IntegrationDeliveryRecord) -> tuple[str, str, str]:
