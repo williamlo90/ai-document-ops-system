@@ -410,7 +410,7 @@ class TransactionBoundaryTests(unittest.TestCase):
             finally:
                 container.close()
 
-    def test_active_backoffice_execution_cannot_be_reconciled(self) -> None:
+    def test_active_backoffice_execution_cannot_be_reconciled_or_replanned(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             container = build_container(self._settings(temp_dir))
             started = threading.Event()
@@ -482,6 +482,19 @@ class TransactionBoundaryTests(unittest.TestCase):
                             succeeded=False,
                             summary="Do not override active work.",
                         )
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "must be finalized or reconciled before replanning",
+                    ):
+                        container.backoffice_service.plan_work_item(
+                            work_item_id=work_item.id,
+                            context=self._context(),
+                            planning_input=PlanningInput(
+                                requested_outcome="create a replacement plan",
+                            ),
+                        )
+                    active_item = container.backoffice_work_items.get(work_item.id)
+                    self.assertEqual(active_item.current_plan_id, plan.id)
                     release.set()
                     thread.join(timeout=5)
                     self.assertFalse(thread.is_alive())

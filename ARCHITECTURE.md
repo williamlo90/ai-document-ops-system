@@ -121,7 +121,8 @@ without holding the database lock, and the second stores the outcome. A durable 
 distinguishes an active call from a process that stopped. If the external outcome cannot be
 confirmed, the second transaction fails, or the heartbeat remains stale for five minutes, replay
 does not call the tool again. An administrator must reconcile that reserved action through the
-dedicated endpoint.
+dedicated endpoint. Each reservation remains bound to its original plan and step, and the service
+rejects replanning until the active execution has been finalized or reconciled.
 
 ## Security model
 

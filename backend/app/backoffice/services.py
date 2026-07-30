@@ -75,6 +75,7 @@ class BackofficePlanResult:
 @dataclass(frozen=True)
 class BackofficeExecutionReservation:
     work_item: WorkItem
+    plan_id: UUID
     step: ActionStep
     tool_name: AgentToolName
     executor: BackofficeToolExecutor
@@ -228,6 +229,7 @@ class BackofficeWorkflowService:
                         existing_plan,
                         context.workspace_id,
                     )
+            self._require_no_pending_execution(work_item)
             started = perf_counter()
             plan = self.planner.plan(
                 work_item=work_item,
@@ -635,6 +637,8 @@ class BackofficeWorkflowService:
             work_item.attach_context("execution_token", execution_token)
             work_item.attach_context("execution_outcome", "in_flight")
             work_item.attach_context("execution_heartbeat_at", now.isoformat())
+            work_item.attach_context("execution_plan_id", str(plan.id))
+            work_item.attach_context("execution_step_id", str(step.id))
             work_item.updated_at = now
             self.plans.save(plan)
             self.work_items.save(work_item)
@@ -646,6 +650,7 @@ class BackofficeWorkflowService:
             )
             return BackofficeExecutionReservation(
                 work_item=work_item,
+                plan_id=plan.id,
                 step=step,
                 tool_name=tool_name,
                 executor=executor,
@@ -713,12 +718,12 @@ class BackofficeWorkflowService:
     ) -> bool:
         with self.transactions.transaction():
             work_item = self._get_work_item_for_context(reservation.work_item.id, context)
-            plan = self._current_plan(work_item)
+            plan = self.plans.get(reservation.plan_id)
             step = self._find_step(plan.steps, reservation.step.id)
             if (
                 step.status != ActionStepStatus.EXECUTING
                 or work_item.business_context.get("execution_outcome") != "in_flight"
-                or work_item.business_context.get("execution_token") != reservation.execution_token
+                or not self._reservation_matches(work_item, reservation)
             ):
                 return False
             work_item.attach_context(
@@ -735,12 +740,10 @@ class BackofficeWorkflowService:
     ) -> AgentToolResponse:
         with self.transactions.transaction():
             current_item = self._get_work_item_for_context(reservation.work_item.id, context)
-            current_plan = self._current_plan(current_item)
+            current_plan = self.plans.get(reservation.plan_id)
             current_step = self._find_step(current_plan.steps, reservation.step.id)
-            if (
-                current_step.status == ActionStepStatus.EXECUTING
-                and current_item.business_context.get("execution_token")
-                == reservation.execution_token
+            if current_step.status == ActionStepStatus.EXECUTING and self._reservation_matches(
+                current_item, reservation
             ):
                 current_item.status = WorkItemStatus.AWAITING_HUMAN
                 current_item.attach_context("execution_outcome", "unknown")
@@ -769,12 +772,10 @@ class BackofficeWorkflowService:
     ) -> AgentToolResponse:
         with self.transactions.transaction():
             current_item = self._get_work_item_for_context(reservation.work_item.id, context)
-            current_plan = self._current_plan(current_item)
+            current_plan = self.plans.get(reservation.plan_id)
             current_step = self._find_step(current_plan.steps, reservation.step.id)
-            if (
-                current_step.status != ActionStepStatus.EXECUTING
-                or current_item.business_context.get("execution_token")
-                != reservation.execution_token
+            if current_step.status != ActionStepStatus.EXECUTING or not self._reservation_matches(
+                current_item, reservation
             ):
                 return self._blocked_response(
                     current_step,
@@ -823,7 +824,7 @@ class BackofficeWorkflowService:
             raise BackofficeWorkflowError("A reconciliation summary is required.")
         with self.transactions.transaction():
             work_item = self._get_work_item_for_context(work_item_id, context)
-            plan = self._current_plan(work_item)
+            plan = self._plan_containing_step(work_item, action_step_id)
             step = self._find_step(plan.steps, action_step_id)
             if step.status == ActionStepStatus.EXECUTED:
                 if succeeded:
@@ -836,6 +837,10 @@ class BackofficeWorkflowService:
             if step.status != ActionStepStatus.EXECUTING:
                 raise BackofficeWorkflowError(
                     "Only an execution with an unknown outcome can be reconciled."
+                )
+            if not self._execution_target_matches(work_item, plan.id, step.id):
+                raise BackofficeWorkflowError(
+                    "The execution target does not match the active reservation."
                 )
             if not _execution_is_reconcilable(work_item):
                 raise BackofficeWorkflowError(
@@ -896,6 +901,48 @@ class BackofficeWorkflowService:
         if work_item.current_plan_id is None:
             raise BackofficeWorkflowError("Work item does not have a current plan.")
         return self.plans.get(work_item.current_plan_id)
+
+    def _plan_containing_step(self, work_item: WorkItem, step_id: UUID) -> TaskPlan:
+        preferred_ids = _execution_plan_ids(work_item)
+        for plan_id in preferred_ids:
+            plan = self.plans.get(plan_id)
+            if plan.workspace_id != work_item.workspace_id or plan.work_item_id != work_item.id:
+                raise BackofficeWorkflowError("Execution plan does not belong to this work item.")
+            if any(step.id == step_id for step in plan.steps):
+                return plan
+        for plan in self.plans.list_for_work_item(work_item.workspace_id, work_item.id):
+            if any(step.id == step_id for step in plan.steps):
+                return plan
+        raise NotFoundError(f"Action step not found: {step_id}")
+
+    def _require_no_pending_execution(self, work_item: WorkItem) -> None:
+        if work_item.business_context.get("execution_outcome") in {"in_flight", "unknown"}:
+            raise BackofficeWorkflowError(
+                "The active execution must be finalized or reconciled before replanning."
+            )
+
+    def _reservation_matches(
+        self,
+        work_item: WorkItem,
+        reservation: BackofficeExecutionReservation,
+    ) -> bool:
+        return work_item.business_context.get(
+            "execution_token"
+        ) == reservation.execution_token and self._execution_target_matches(
+            work_item,
+            reservation.plan_id,
+            reservation.step.id,
+        )
+
+    def _execution_target_matches(
+        self,
+        work_item: WorkItem,
+        plan_id: UUID,
+        step_id: UUID,
+    ) -> bool:
+        return work_item.business_context.get("execution_plan_id") == str(
+            plan_id
+        ) and work_item.business_context.get("execution_step_id") == str(step_id)
 
     def _find_step(self, steps: tuple[ActionStep, ...], step_id: UUID) -> ActionStep:
         for step in steps:
@@ -1175,3 +1222,21 @@ def _execution_is_reconcilable(work_item: WorkItem) -> bool:
     return datetime.now(UTC) - heartbeat_at.astimezone(UTC) >= timedelta(
         seconds=EXECUTION_LEASE_SECONDS
     )
+
+
+def _execution_plan_ids(work_item: WorkItem) -> tuple[UUID, ...]:
+    candidates = (
+        work_item.business_context.get("execution_plan_id"),
+        str(work_item.current_plan_id) if work_item.current_plan_id else None,
+    )
+    result: list[UUID] = []
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            plan_id = UUID(candidate)
+        except ValueError as exc:
+            raise BackofficeWorkflowError("Execution plan identifier is invalid.") from exc
+        if plan_id not in result:
+            result.append(plan_id)
+    return tuple(result)
