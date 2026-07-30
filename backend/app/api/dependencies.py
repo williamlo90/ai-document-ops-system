@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 
@@ -72,6 +73,7 @@ from app.documents.services import DocumentProcessingService, DocumentUploadServ
 from app.documents.retention import (
     DocumentRetentionService,
     InMemoryRetentionRepository,
+    RetentionRepository,
     SqliteRetentionRepository,
 )
 from app.documents.sqlite_repositories import (
@@ -106,13 +108,20 @@ from app.integrations.repositories import (
 from app.integrations.services import InvoiceIntegrationService
 from app.invoices.queries import InvoiceQueryRepository, SqliteInvoiceQueryRepository
 from app.metrics.services import MetricsService
+from app.metrics.queries import MetricsQueryRepository, SqliteMetricsQueryRepository
 from app.providers.factory import build_extractor_provider, build_parser_provider
+from app.providers.contracts import ExtractorProvider, ParserProvider
+from app.providers.queries import (
+    ProviderHealthQueryRepository,
+    SqliteProviderHealthQueryRepository,
+)
 from app.providers.storage import DocumentStorage, build_document_storage
 from app.operations.notifications import (
     InMemoryNotificationRepository,
     NotificationRepository,
     SqliteNotificationRepository,
 )
+from app.operations.queries import OperationsQueryRepository, SqliteOperationsQueryRepository
 from app.review.services import ReviewService
 from app.review.corrections import CorrectionFeedbackService
 from app.review.repositories import (
@@ -163,6 +172,9 @@ class AppContainer:
     retention_service: DocumentRetentionService
     transactions: TransactionManager
     invoice_queries: InvoiceQueryRepository | None
+    metrics_queries: MetricsQueryRepository | None
+    provider_health_queries: ProviderHealthQueryRepository | None
+    operations_queries: OperationsQueryRepository | None
 
     def readiness(self) -> dict[str, bool]:
         return {
@@ -200,32 +212,91 @@ def _metadata_backend(settings: Settings) -> str:
     return backend
 
 
+def _build_read_models(
+    store: SqliteStore | None,
+) -> tuple[
+    InvoiceQueryRepository | None,
+    MetricsQueryRepository | None,
+    ProviderHealthQueryRepository | None,
+    OperationsQueryRepository | None,
+]:
+    if store is None:
+        return None, None, None, None
+    return (
+        SqliteInvoiceQueryRepository(store),
+        SqliteMetricsQueryRepository(store),
+        SqliteProviderHealthQueryRepository(store),
+        SqliteOperationsQueryRepository(store),
+    )
+
+
+def _build_processing_services(
+    *,
+    settings: Settings,
+    storage: DocumentStorage,
+    documents: DocumentRepository,
+    jobs: JobRepository,
+    audits: AuditRepository,
+    extractions: ExtractionRepository,
+    workflow: DocumentWorkflowService,
+    parser: ParserProvider,
+    extractor: ExtractorProvider,
+    transactions: TransactionManager,
+) -> tuple[DocumentProcessingService, DocumentProcessingWorker]:
+    processing = DocumentProcessingService(
+        storage,
+        documents,
+        jobs,
+        audits,
+        extractions,
+        workflow,
+        parser,
+        extractor,
+        max_processing_attempts=settings.max_processing_attempts,
+        retry_base_seconds=settings.worker_retry_base_seconds,
+        retry_max_seconds=settings.worker_retry_max_seconds,
+        transactions=transactions,
+    )
+    worker = DocumentProcessingWorker(
+        jobs,
+        processing,
+        lease_seconds=settings.worker_job_lease_seconds,
+    )
+    return processing, worker
+
+
 def build_container(settings: Settings) -> AppContainer:
     storage = _build_storage(settings)
     storage_backend = _metadata_backend(settings)
+    store: SqliteStore | None = None
     if storage_backend == "sqlite":
         store = SqliteStore(Path(settings.sqlite_path))
         transactions: TransactionManager = store
-        documents = SqliteDocumentRepository(store)
-        jobs = SqliteJobRepository(store)
-        audits = SqliteAuditRepository(store)
-        extractions = SqliteExtractionRepository(store)
-        reviews = SqliteReviewTaskRepository(store)
-        correction_events = SqliteCorrectionEventRepository(store)
-        benchmark_history = SqliteBenchmarkHistoryRepository(store)
-        evaluation_attempts = SqliteEvaluationAttemptRepository(store)
-        backoffice_work_items = SqliteWorkItemRepository(store)
-        backoffice_plans = SqliteTaskPlanRepository(store)
-        backoffice_drafts = SqliteActionDraftRepository(store)
-        backoffice_approvals = SqliteApprovalRepository(store)
-        backoffice_policy_decisions = SqlitePolicyDecisionRepository(store)
-        workflow_events = SqliteWorkflowEventRepository(store)
-        agent_runs = SqliteAgentRunRepository(store)
-        scenario_evaluations = SqliteScenarioEvaluationRepository(store)
-        notifications = SqliteNotificationRepository(store)
-        integration_deliveries = SqliteIntegrationDeliveryRepository(store)
-        export_batches = SqliteExportBatchRepository(store)
-        invoice_queries: InvoiceQueryRepository | None = SqliteInvoiceQueryRepository(store)
+        documents: DocumentRepository = SqliteDocumentRepository(store)
+        jobs: JobRepository = SqliteJobRepository(store)
+        audits: AuditRepository = SqliteAuditRepository(store)
+        extractions: ExtractionRepository = SqliteExtractionRepository(store)
+        reviews: ReviewTaskRepository = SqliteReviewTaskRepository(store)
+        correction_events: CorrectionEventRepository = SqliteCorrectionEventRepository(store)
+        benchmark_history: BenchmarkHistoryRepository = SqliteBenchmarkHistoryRepository(store)
+        evaluation_attempts: EvaluationAttemptRepository = SqliteEvaluationAttemptRepository(store)
+        backoffice_work_items: WorkItemRepository = SqliteWorkItemRepository(store)
+        backoffice_plans: TaskPlanRepository = SqliteTaskPlanRepository(store)
+        backoffice_drafts: ActionDraftRepository = SqliteActionDraftRepository(store)
+        backoffice_approvals: ApprovalRepository = SqliteApprovalRepository(store)
+        backoffice_policy_decisions: PolicyDecisionRepository = SqlitePolicyDecisionRepository(
+            store
+        )
+        workflow_events: WorkflowEventRepository = SqliteWorkflowEventRepository(store)
+        agent_runs: AgentRunRepository = SqliteAgentRunRepository(store)
+        scenario_evaluations: ScenarioEvaluationRepository = SqliteScenarioEvaluationRepository(
+            store
+        )
+        notifications: NotificationRepository = SqliteNotificationRepository(store)
+        integration_deliveries: IntegrationDeliveryRepository = SqliteIntegrationDeliveryRepository(
+            store
+        )
+        export_batches: ExportBatchRepository = SqliteExportBatchRepository(store)
     elif storage_backend == "memory":
         transactions = NoopTransactionManager()
         documents = InMemoryDocumentRepository()
@@ -247,9 +318,11 @@ def build_container(settings: Settings) -> AppContainer:
         notifications = InMemoryNotificationRepository()
         integration_deliveries = InMemoryIntegrationDeliveryRepository()
         export_batches = InMemoryExportBatchRepository()
-        invoice_queries = None
     else:
         raise ValueError(f"Unsupported storage backend: {storage_backend}")
+    invoice_queries, metrics_queries, provider_health_queries, operations_queries = (
+        _build_read_models(store)
+    )
     agentops_service = AgentOpsEvaluationService()
     workflow = DocumentWorkflowService()
     upload_scanner = build_upload_scanner(settings)
@@ -264,24 +337,17 @@ def build_container(settings: Settings) -> AppContainer:
     )
     parser_provider = build_parser_provider(settings)
     extractor_provider = build_extractor_provider(settings)
-    processing_service = DocumentProcessingService(
-        storage,
-        documents,
-        jobs,
-        audits,
-        extractions,
-        workflow,
-        parser_provider,
-        extractor_provider,
-        max_processing_attempts=settings.max_processing_attempts,
-        retry_base_seconds=settings.worker_retry_base_seconds,
-        retry_max_seconds=settings.worker_retry_max_seconds,
+    processing_service, worker_service = _build_processing_services(
+        settings=settings,
+        storage=storage,
+        documents=documents,
+        jobs=jobs,
+        audits=audits,
+        extractions=extractions,
+        workflow=workflow,
+        parser=parser_provider,
+        extractor=extractor_provider,
         transactions=transactions,
-    )
-    worker_service = DocumentProcessingWorker(
-        jobs,
-        processing_service,
-        lease_seconds=settings.worker_job_lease_seconds,
     )
     correction_feedback = CorrectionFeedbackService(correction_events)
     review_service = ReviewService(
@@ -326,7 +392,7 @@ def build_container(settings: Settings) -> AppContainer:
         integration_deliveries,
         transactions,
     )
-    metrics_service = MetricsService(documents, jobs, audits)
+    metrics_service = MetricsService(documents, jobs, audits, metrics_queries)
     tool_executor = ControlledToolExecutor(
         processing_service=processing_service,
         export_service=export_service,
@@ -358,7 +424,9 @@ def build_container(settings: Settings) -> AppContainer:
         transactions=transactions,
     )
     if storage_backend == "sqlite":
-        retention_repository = SqliteRetentionRepository(store)
+        retention_repository: RetentionRepository = SqliteRetentionRepository(
+            cast(SqliteStore, store)
+        )
     else:
         retention_repository = InMemoryRetentionRepository(
             documents=documents,
@@ -424,11 +492,14 @@ def build_container(settings: Settings) -> AppContainer:
         retention_service=retention_service,
         transactions=transactions,
         invoice_queries=invoice_queries,
+        metrics_queries=metrics_queries,
+        provider_health_queries=provider_health_queries,
+        operations_queries=operations_queries,
     )
 
 
 def get_container(request: Request) -> AppContainer:
-    return request.app.state.container
+    return cast(AppContainer, request.app.state.container)
 
 
 def require_authenticated_context(
@@ -438,7 +509,10 @@ def require_authenticated_context(
     session_id: str | None = Cookie(default=None, alias="doc_intel_admin_token"),
 ) -> SecurityContext:
     settings = get_container(request).settings
-    session_context = request.app.state.sessions.get(session_id)
+    session_context = cast(
+        SecurityContext | None,
+        request.app.state.sessions.get(session_id),
+    )
     if session_context is not None:
         return session_context
     try:
@@ -496,7 +570,7 @@ def _storage_ready(storage: DocumentStorage) -> bool:
     try:
         upload_root = getattr(storage, "upload_root", None)
         if upload_root is not None:
-            return upload_root.exists()
+            return cast(Path, upload_root).exists()
         return True
     except Exception:
         return False

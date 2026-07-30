@@ -1,448 +1,22 @@
 from __future__ import annotations
 
-import sqlite3
 import json
-from collections.abc import Iterator
-from contextlib import contextmanager
-from threading import RLock
+import sqlite3
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from pathlib import Path
+from typing import Any, cast
 from uuid import UUID
 
 from app.documents.jobs import ProcessingJob, ProcessingJobStatus
 from app.documents.models import AuditEvent, DocumentRecord, ReviewTask
 from app.documents.repositories import LeaseLostError, NotFoundError, StoredExtraction
+from app.documents.sqlite_schema import normalize_invoice_identity as _identity_text
+from app.documents.sqlite_store import SqliteStore as SqliteStore
 from app.documents.status import DocumentStatus
 from app.extraction.schemas import FieldConfidence, InvoiceData, InvoiceExtraction, InvoiceLineItem
 from app.providers.contracts import ExtractionResult
 from app.validation.invoice import IssueSeverity, ValidationIssue, ValidationReport
-
-
-class SqliteStore:
-    def __init__(self, path: Path) -> None:
-        self.path = path
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(str(path), check_same_thread=False, timeout=5.0)
-        self.connection.row_factory = sqlite3.Row
-        self.lock = RLock()
-        self._closed = False
-        self._transaction_depth = 0
-        self.connection.execute("PRAGMA busy_timeout = 5000")
-        self.connection.execute("PRAGMA foreign_keys = ON")
-        self.connection.execute("PRAGMA journal_mode = WAL")
-        self.connection.execute("PRAGMA synchronous = NORMAL")
-        try:
-            self._init_schema()
-        except Exception:
-            self.connection.close()
-            self._closed = True
-            raise
-
-    def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
-        with self.lock:
-            cursor = self.connection.execute(sql, params)
-            if self._transaction_depth == 0:
-                self.connection.commit()
-            return cursor
-
-    def query(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
-        with self.lock:
-            return list(self.connection.execute(sql, params))
-
-    def query_one(self, sql: str, params: tuple = ()) -> sqlite3.Row | None:
-        with self.lock:
-            return self.connection.execute(sql, params).fetchone()
-
-    @contextmanager
-    def transaction(self) -> Iterator[None]:
-        with self.lock:
-            outermost = self._transaction_depth == 0
-            savepoint = f"nested_transaction_{self._transaction_depth}"
-            if outermost:
-                self.connection.execute("BEGIN IMMEDIATE")
-            else:
-                self.connection.execute(f"SAVEPOINT {savepoint}")
-            self._transaction_depth += 1
-            try:
-                yield
-            except Exception:
-                self._transaction_depth -= 1
-                if outermost:
-                    self.connection.rollback()
-                else:
-                    self.connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
-                    self.connection.execute(f"RELEASE SAVEPOINT {savepoint}")
-                raise
-            else:
-                self._transaction_depth -= 1
-                if outermost:
-                    self.connection.commit()
-                else:
-                    self.connection.execute(f"RELEASE SAVEPOINT {savepoint}")
-
-    def close(self) -> None:
-        with self.lock:
-            if self._closed:
-                return
-            self.connection.close()
-            self._closed = True
-
-    def _init_schema(self) -> None:
-        with self.lock:
-            self._init_schema_locked()
-
-    def _init_schema_locked(self) -> None:
-        self.connection.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS schema_migrations (
-                version INTEGER PRIMARY KEY,
-                applied_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS documents (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL DEFAULT 'default',
-                original_filename TEXT NOT NULL,
-                storage_key TEXT NOT NULL,
-                content_type TEXT NOT NULL,
-                submitted_by TEXT NOT NULL DEFAULT 'admin',
-                size_bytes INTEGER NOT NULL DEFAULT 0,
-                status TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                error_message TEXT
-            );
-            CREATE TABLE IF NOT EXISTS jobs (
-                id TEXT PRIMARY KEY,
-                document_id TEXT NOT NULL,
-                status TEXT NOT NULL,
-                attempt_count INTEGER NOT NULL,
-                started_at TEXT,
-                finished_at TEXT,
-                error_message TEXT,
-                provider_name TEXT,
-                provider_trace_id TEXT,
-                next_attempt_at TEXT,
-                lease_token TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS audit_events (
-                id TEXT PRIMARY KEY,
-                document_id TEXT NOT NULL,
-                event_type TEXT NOT NULL,
-                actor TEXT NOT NULL,
-                old_status TEXT,
-                new_status TEXT,
-                payload_summary TEXT,
-                created_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS extractions (
-                document_id TEXT PRIMARY KEY,
-                payload TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS review_tasks (
-                document_id TEXT PRIMARY KEY,
-                id TEXT NOT NULL,
-                status TEXT NOT NULL,
-                reviewer_notes TEXT,
-                assigned_to TEXT,
-                reviewed_by TEXT,
-                reviewed_at TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS invoice_identities (
-                document_id TEXT PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
-                vendor_identity TEXT NOT NULL,
-                invoice_identity TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_invoice_identity_lookup
-                ON invoice_identities(vendor_identity, invoice_identity, document_id);
-            CREATE TABLE IF NOT EXISTS backoffice_work_item_documents (
-                work_item_id TEXT NOT NULL,
-                workspace_id TEXT NOT NULL,
-                document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (work_item_id, document_id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_work_item_document_latest
-                ON backoffice_work_item_documents(
-                    workspace_id, document_id, updated_at DESC, work_item_id
-                );
-            CREATE TABLE IF NOT EXISTS backoffice_work_items (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                idempotency_key TEXT,
-                updated_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_backoffice_work_items_workspace
-                ON backoffice_work_items(workspace_id, updated_at);
-            CREATE TABLE IF NOT EXISTS backoffice_task_plans (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                work_item_id TEXT NOT NULL,
-                idempotency_key TEXT,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_backoffice_task_plans_work_item
-                ON backoffice_task_plans(workspace_id, work_item_id, created_at);
-            CREATE TABLE IF NOT EXISTS backoffice_action_drafts (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                work_item_id TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_backoffice_action_drafts_work_item
-                ON backoffice_action_drafts(workspace_id, work_item_id, created_at);
-            CREATE TABLE IF NOT EXISTS backoffice_approvals (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                work_item_id TEXT NOT NULL,
-                status TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_backoffice_approvals_work_item
-                ON backoffice_approvals(workspace_id, work_item_id, created_at);
-            CREATE INDEX IF NOT EXISTS idx_backoffice_approvals_pending
-                ON backoffice_approvals(workspace_id, status, created_at);
-            CREATE TABLE IF NOT EXISTS backoffice_policy_decisions (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                work_item_id TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_backoffice_policy_decisions_work_item
-                ON backoffice_policy_decisions(workspace_id, work_item_id, created_at);
-            CREATE TABLE IF NOT EXISTS workflow_events (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                document_id TEXT,
-                work_item_id TEXT,
-                event_type TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_workflow_events_document
-                ON workflow_events(workspace_id, document_id, created_at);
-            CREATE INDEX IF NOT EXISTS idx_workflow_events_work_item
-                ON workflow_events(workspace_id, work_item_id, created_at);
-            CREATE TABLE IF NOT EXISTS agent_runs (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_agent_runs_workspace
-                ON agent_runs(workspace_id, created_at);
-            CREATE TABLE IF NOT EXISTS agentops_evaluations (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                evaluation_type TEXT NOT NULL,
-                scenario_id TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_agentops_evaluations_workspace
-                ON agentops_evaluations(workspace_id, created_at);
-            CREATE TABLE IF NOT EXISTS notifications (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                source_key TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL,
-                read_at TEXT,
-                payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_notifications_workspace
-                ON notifications(workspace_id, created_at);
-            """
-        )
-        self._migrate_schema_columns()
-        self._backfill_backoffice_idempotency_keys()
-        self._validate_backoffice_idempotency_uniqueness()
-        self._create_query_indexes()
-        self._record_schema_migrations()
-        self.connection.commit()
-
-    def _migrate_schema_columns(self) -> None:
-        columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(documents)")}
-        if "workspace_id" not in columns:
-            self.connection.execute(
-                "ALTER TABLE documents ADD COLUMN workspace_id TEXT NOT NULL DEFAULT 'default'"
-            )
-        if "submitted_by" not in columns:
-            self.connection.execute(
-                "ALTER TABLE documents ADD COLUMN submitted_by TEXT NOT NULL DEFAULT 'admin'"
-            )
-        if "size_bytes" not in columns:
-            self.connection.execute(
-                "ALTER TABLE documents ADD COLUMN size_bytes INTEGER NOT NULL DEFAULT 0"
-            )
-        job_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(jobs)")}
-        if "next_attempt_at" not in job_columns:
-            self.connection.execute("ALTER TABLE jobs ADD COLUMN next_attempt_at TEXT")
-        if "lease_token" not in job_columns:
-            self.connection.execute("ALTER TABLE jobs ADD COLUMN lease_token TEXT")
-        work_item_columns = {
-            row["name"]
-            for row in self.connection.execute("PRAGMA table_info(backoffice_work_items)")
-        }
-        if "idempotency_key" not in work_item_columns:
-            self.connection.execute(
-                "ALTER TABLE backoffice_work_items ADD COLUMN idempotency_key TEXT"
-            )
-        plan_columns = {
-            row["name"]
-            for row in self.connection.execute("PRAGMA table_info(backoffice_task_plans)")
-        }
-        if "idempotency_key" not in plan_columns:
-            self.connection.execute(
-                "ALTER TABLE backoffice_task_plans ADD COLUMN idempotency_key TEXT"
-            )
-
-    def _create_query_indexes(self) -> None:
-        self.connection.executescript(
-            """
-            CREATE INDEX IF NOT EXISTS idx_documents_workspace_status_updated
-                ON documents(workspace_id, status, updated_at DESC, id);
-            CREATE INDEX IF NOT EXISTS idx_jobs_processable
-                ON jobs(status, next_attempt_at, updated_at, created_at, id);
-            CREATE INDEX IF NOT EXISTS idx_jobs_document_created
-                ON jobs(document_id, created_at DESC, id);
-            CREATE INDEX IF NOT EXISTS idx_audit_document_created
-                ON audit_events(document_id, created_at, id);
-            CREATE INDEX IF NOT EXISTS idx_review_tasks_status_updated
-                ON review_tasks(status, updated_at DESC, document_id);
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_backoffice_work_items_idempotency
-                ON backoffice_work_items(workspace_id, idempotency_key)
-                WHERE idempotency_key IS NOT NULL;
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_backoffice_task_plans_idempotency
-                ON backoffice_task_plans(workspace_id, work_item_id, idempotency_key)
-                WHERE idempotency_key IS NOT NULL;
-            """
-        )
-
-    def _record_schema_migrations(self) -> None:
-        applied_at = datetime.now(UTC).isoformat()
-        for version in (2, 3, 4, 5, 6, 7, 9):
-            self.connection.execute(
-                "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-                (version, applied_at),
-            )
-        self._backfill_invoice_identities()
-        self._backfill_work_item_documents()
-        for version in (10, 11, 12):
-            self.connection.execute(
-                "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-                (version, applied_at),
-            )
-
-    def _backfill_invoice_identities(self) -> None:
-        rows = self.connection.execute(
-            """
-            SELECT e.document_id, e.payload
-            FROM extractions e
-            LEFT JOIN invoice_identities i ON i.document_id = e.document_id
-            WHERE i.document_id IS NULL
-            """
-        )
-        values = []
-        for row in rows:
-            data = json.loads(row["payload"]).get("data", {})
-            vendor_identity = _identity_text(data.get("vendor_name"))
-            invoice_identity = _identity_text(data.get("invoice_number"))
-            if vendor_identity and invoice_identity:
-                values.append((row["document_id"], vendor_identity, invoice_identity))
-        self.connection.executemany(
-            """
-            INSERT OR REPLACE INTO invoice_identities
-            (document_id, vendor_identity, invoice_identity) VALUES (?, ?, ?)
-            """,
-            values,
-        )
-
-    def _backfill_work_item_documents(self) -> None:
-        document_ids = {row["id"] for row in self.connection.execute("SELECT id FROM documents")}
-        rows = self.connection.execute(
-            """
-            SELECT id, workspace_id, updated_at, payload
-            FROM backoffice_work_items
-            WHERE id NOT IN (SELECT DISTINCT work_item_id FROM backoffice_work_item_documents)
-            """
-        )
-        values = []
-        for row in rows:
-            payload = json.loads(row["payload"])
-            values.extend(
-                (
-                    row["id"],
-                    row["workspace_id"],
-                    document_id,
-                    row["updated_at"],
-                )
-                for document_id in payload.get("linked_document_ids", [])
-                if document_id in document_ids
-            )
-        self.connection.executemany(
-            """
-            INSERT OR REPLACE INTO backoffice_work_item_documents
-            (work_item_id, workspace_id, document_id, updated_at)
-            VALUES (?, ?, ?, ?)
-            """,
-            values,
-        )
-
-    def _backfill_backoffice_idempotency_keys(self) -> None:
-        for table_name in ("backoffice_work_items", "backoffice_task_plans"):
-            rows = self.connection.execute(
-                f"SELECT id, payload FROM {table_name} WHERE idempotency_key IS NULL"
-            ).fetchall()
-            for row in rows:
-                value = json.loads(row["payload"]).get("idempotency_key")
-                if value:
-                    self.connection.execute(
-                        f"UPDATE {table_name} SET idempotency_key = ? WHERE id = ?",
-                        (str(value), row["id"]),
-                    )
-
-    def _validate_backoffice_idempotency_uniqueness(self) -> None:
-        checks = (
-            (
-                "work item",
-                """
-                SELECT workspace_id, idempotency_key, COUNT(*) AS matches
-                FROM backoffice_work_items
-                WHERE idempotency_key IS NOT NULL
-                GROUP BY workspace_id, idempotency_key
-                HAVING matches > 1
-                LIMIT 1
-                """,
-            ),
-            (
-                "task plan",
-                """
-                SELECT workspace_id, idempotency_key, COUNT(*) AS matches
-                FROM backoffice_task_plans
-                WHERE idempotency_key IS NOT NULL
-                GROUP BY workspace_id, work_item_id, idempotency_key
-                HAVING matches > 1
-                LIMIT 1
-                """,
-            ),
-        )
-        for label, query in checks:
-            duplicate = self.connection.execute(query).fetchone()
-            if duplicate is not None:
-                raise RuntimeError(
-                    f"Duplicate backoffice {label} idempotency keys must be "
-                    "resolved before this database can be migrated."
-                )
 
 
 class SqliteDocumentRepository:
@@ -581,7 +155,7 @@ class SqliteJobRepository:
         row = self.store.query_one("SELECT * FROM jobs WHERE id = ?", (str(job_id),))
         if row is None:
             raise NotFoundError(f"Processing job not found: {job_id}")
-        return _job_from_row(row)
+        return job_from_row(row)
 
     def get_latest_for_document(self, document_id: UUID) -> ProcessingJob:
         row = self.store.query_one(
@@ -590,18 +164,18 @@ class SqliteJobRepository:
         )
         if row is None:
             raise NotFoundError(f"Processing job not found for document: {document_id}")
-        return _job_from_row(row)
+        return job_from_row(row)
 
     def list_all(self) -> list[ProcessingJob]:
         rows = self.store.query("SELECT * FROM jobs")
-        return [_job_from_row(row) for row in rows]
+        return [job_from_row(row) for row in rows]
 
     def list_by_status(self, status: ProcessingJobStatus) -> list[ProcessingJob]:
         rows = self.store.query(
             "SELECT * FROM jobs WHERE status = ? ORDER BY created_at",
             (status.value,),
         )
-        return [_job_from_row(row) for row in rows]
+        return [job_from_row(row) for row in rows]
 
     def claim_next_processable(
         self,
@@ -637,7 +211,7 @@ class SqliteJobRepository:
             ).fetchone()
             if row is None:
                 return None
-            job = _job_from_row(row)
+            job = job_from_row(row)
             previous_status = job.status.value
             if job.status == ProcessingJobStatus.RUNNING:
                 job.retry("worker_lease_expired")
@@ -652,7 +226,7 @@ class SqliteJobRepository:
                 (
                     job.status.value,
                     job.attempt_count,
-                    job.started_at.isoformat(),
+                    cast(datetime, job.started_at).isoformat(),
                     None,
                     job.error_message,
                     job.provider_name,
@@ -690,6 +264,7 @@ class SqliteJobRepository:
 
     def count(self) -> int:
         row = self.store.query_one("SELECT COUNT(*) AS count FROM jobs")
+        assert row is not None
         return int(row["count"])
 
 
@@ -726,6 +301,7 @@ class SqliteAuditRepository:
 
     def count(self) -> int:
         row = self.store.query_one("SELECT COUNT(*) AS count FROM audit_events")
+        assert row is not None
         return int(row["count"])
 
 
@@ -841,7 +417,7 @@ class SqliteReviewTaskRepository:
         return [_review_from_row(row) for row in rows]
 
 
-def _document_params(document: DocumentRecord) -> tuple:
+def _document_params(document: DocumentRecord) -> tuple[object, ...]:
     return (
         str(document.id),
         document.workspace_id,
@@ -873,7 +449,7 @@ def document_from_row(row: sqlite3.Row) -> DocumentRecord:
     )
 
 
-def _job_params(job: ProcessingJob) -> tuple:
+def _job_params(job: ProcessingJob) -> tuple[object, ...]:
     return (
         str(job.id),
         str(job.document_id),
@@ -891,7 +467,7 @@ def _job_params(job: ProcessingJob) -> tuple:
     )
 
 
-def _job_from_row(row: sqlite3.Row) -> ProcessingJob:
+def job_from_row(row: sqlite3.Row) -> ProcessingJob:
     return ProcessingJob(
         id=UUID(row["id"]),
         document_id=UUID(row["document_id"]),
@@ -936,7 +512,7 @@ def _review_from_row(row: sqlite3.Row) -> ReviewTask:
     )
 
 
-def _stored_extraction_to_dict(stored: StoredExtraction) -> dict:
+def _stored_extraction_to_dict(stored: StoredExtraction) -> dict[str, Any]:
     data = stored.extraction_result.extraction.data
     return {
         "document_id": str(stored.document_id),
@@ -975,7 +551,7 @@ def _stored_extraction_to_dict(stored: StoredExtraction) -> dict:
     }
 
 
-def _stored_extraction_from_dict(payload: dict) -> StoredExtraction:
+def _stored_extraction_from_dict(payload: dict[str, Any]) -> StoredExtraction:
     data = payload["data"]
     extraction = InvoiceExtraction(
         schema_version=payload["schema_version"],
@@ -1001,7 +577,7 @@ def _stored_extraction_from_dict(payload: dict) -> StoredExtraction:
         confidence=tuple(
             FieldConfidence(
                 field_name=item["field_name"],
-                score=_parse_decimal(item.get("score")),
+                score=cast(float | None, _parse_decimal(item.get("score"))),
                 source_page=item.get("source_page"),
                 source_text=item.get("source_text"),
             )
@@ -1042,17 +618,13 @@ def _parse_optional_dt(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value) if value else None
 
 
-def _parse_date(value: str | None):
+def _parse_date(value: str | None) -> date | None:
     return datetime.fromisoformat(value).date() if value else None
 
 
-def _parse_decimal(value: str | None):
+def _parse_decimal(value: str | None) -> Decimal | None:
     return Decimal(value) if value is not None else None
 
 
-def _decimal(value: Decimal | None) -> str | None:
+def _decimal(value: Decimal | float | None) -> str | None:
     return str(value) if value is not None else None
-
-
-def _identity_text(value: str | None) -> str:
-    return "".join(character for character in (value or "").casefold() if character.isalnum())

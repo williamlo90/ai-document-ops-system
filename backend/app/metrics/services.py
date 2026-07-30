@@ -8,6 +8,7 @@ from app.documents.repositories import (
     DocumentRepository,
     JobRepository,
 )
+from app.metrics.queries import MetricsQueryRepository, MetricsSnapshot
 
 
 ESTIMATED_COST_PER_SUCCEEDED_DOCUMENT_USD = 0.05
@@ -19,13 +20,17 @@ class MetricsService:
         documents: DocumentRepository,
         jobs: JobRepository,
         audits: AuditRepository,
+        queries: MetricsQueryRepository | None = None,
     ) -> None:
         self.documents = documents
         self.jobs = jobs
         self.audits = audits
+        self.queries = queries
 
     def summary(self, context: SecurityContext) -> dict[str, object]:
         require_admin(context)
+        if self.queries is not None:
+            return self._snapshot_summary(self.queries.summary(context.workspace_id))
         documents = self.documents.list_by_workspace(context.workspace_id)
         document_ids = {document.id for document in documents}
         by_status: dict[str, int] = {}
@@ -48,6 +53,36 @@ class MetricsService:
             "review": self._review_metrics(by_status, audit_events),
             "cost": self._cost_metrics(succeeded_jobs),
             "average_processing_time_ms": self._average_processing_time_ms(jobs),
+        }
+
+    @staticmethod
+    def _snapshot_summary(snapshot: MetricsSnapshot) -> dict[str, object]:
+        estimated_total = snapshot.succeeded_jobs * ESTIMATED_COST_PER_SUCCEEDED_DOCUMENT_USD
+        return {
+            "documents_total": snapshot.documents_total,
+            "jobs_total": snapshot.jobs_total,
+            "audit_events_total": snapshot.audit_events_total,
+            "by_status": snapshot.by_status,
+            "queue": snapshot.queue,
+            "provider": {
+                "failure_count": snapshot.provider_failures,
+                "retrying_count": snapshot.queue["retrying"],
+                "dead_letter_count": snapshot.queue["dead_letter"],
+                "by_provider": snapshot.provider_runs,
+            },
+            "review": {
+                "queue_count": snapshot.by_status.get(DocumentStatus.NEEDS_REVIEW.value, 0),
+                "approved_count": snapshot.by_status.get(DocumentStatus.APPROVED.value, 0),
+                "rejected_count": snapshot.by_status.get(DocumentStatus.REJECTED.value, 0),
+                "correction_count": snapshot.correction_count,
+                "review_saved_count": snapshot.review_saved_count,
+            },
+            "cost": {
+                "processed_documents": snapshot.succeeded_jobs,
+                "estimated_cost_per_document_usd": ESTIMATED_COST_PER_SUCCEEDED_DOCUMENT_USD,
+                "estimated_total_usd": round(estimated_total, 6),
+            },
+            "average_processing_time_ms": snapshot.average_processing_time_ms,
         }
 
     def _queue_metrics(self, jobs: list) -> dict[str, int]:
@@ -108,7 +143,7 @@ class MetricsService:
             durations.append(delta * 1000)
         if not durations:
             return 0.0
-        return sum(durations) / len(durations)
+        return float(round(sum(durations) / len(durations)))
 
     def _job_count(self, jobs: list, status: ProcessingJobStatus) -> int:
         return sum(1 for job in jobs if job.status == status)

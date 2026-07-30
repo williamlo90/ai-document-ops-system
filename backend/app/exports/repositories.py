@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from threading import RLock
-from typing import Protocol
+from typing import Protocol, cast
 from uuid import UUID
 
 from app.documents.sqlite_repositories import SqliteStore
@@ -244,7 +244,9 @@ def _batch_from_dict(value: dict[str, object]) -> ExportBatchRecord:
     return ExportBatchRecord(
         id=UUID(str(value["id"])),
         workspace_id=str(value["workspace_id"]),
-        document_ids=tuple(UUID(str(item)) for item in value.get("document_ids", [])),
+        document_ids=tuple(
+            UUID(str(item)) for item in cast(list[object], value.get("document_ids", []))
+        ),
         destination=str(value["destination"]),
         export_format=str(value["export_format"]),
         created_by=str(value["created_by"]),
@@ -273,13 +275,15 @@ def _run_from_dict(value: dict[str, object]) -> ExportRunRecord:
         id=UUID(str(value["id"])),
         workspace_id=str(value["workspace_id"]),
         batch_id=UUID(str(value["batch_id"])),
-        document_ids=tuple(UUID(str(item)) for item in value.get("document_ids", [])),
+        document_ids=tuple(
+            UUID(str(item)) for item in cast(list[object], value.get("document_ids", []))
+        ),
         idempotency_key=str(value["idempotency_key"]),
         destination=str(value["destination"]),
         export_format=str(value["export_format"]),
         actor=str(value["actor"]),
         status=ExportRunStatus(str(value["status"])),
-        attempt_count=int(value.get("attempt_count", 1)),
+        attempt_count=int(cast(int | str, value.get("attempt_count", 1))),
         file_name=str(value["file_name"]) if value.get("file_name") else None,
         artifact_content=(
             str(value["artifact_content"]) if value.get("artifact_content") is not None else None

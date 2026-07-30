@@ -1,33 +1,21 @@
 from __future__ import annotations
 
-import hashlib
-import json
-from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
-from threading import Event, Thread
-from time import perf_counter
-from typing import Protocol
-from uuid import UUID, uuid4
+from datetime import UTC, datetime
+from uuid import UUID
 
-from app.agent.contracts import (
-    AgentConfidence,
-    AgentFailureType,
-    AgentToolName,
-    AgentToolResponse,
-    AgentToolRisk,
-)
-from app.agent.models import AgentRun, AgentToolCallTrace
+from app.agent.contracts import AgentToolResponse
+from app.agent.models import AgentRun
 from app.agent.repositories import AgentRunRepository
-from app.agent.tools import ToolExecutionRequest
+from app.backoffice.errors import BackofficeWorkflowError as BackofficeWorkflowError
+from app.backoffice.execution import (
+    BackofficeExecutionCoordinator,
+    BackofficeExecutionReservation,
+    BackofficeToolExecutor,
+)
 from app.backoffice.models import (
     ActionDraft,
     ActionStep,
-    ActionStepStatus,
-    ActionType,
     Approval,
-    ApprovalStatus,
-    DraftStatus,
     DraftType,
     TaskPlan,
     WorkflowEvent,
@@ -36,8 +24,13 @@ from app.backoffice.models import (
     WorkItemStatus,
     WorkType,
 )
+from app.backoffice.planning_service import (
+    BackofficePlanningService,
+    BackofficePlanResult,
+)
 from app.backoffice.planner import BackofficePlanner, PlanningInput
 from app.backoffice.policy import AutonomyPolicyEngine
+from app.backoffice.recovery import BackofficeExecutionRecovery
 from app.backoffice.repositories import (
     ActionDraftRepository,
     ApprovalRepository,
@@ -46,79 +39,14 @@ from app.backoffice.repositories import (
     WorkItemRepository,
     WorkflowEventRepository,
 )
+from app.backoffice.request_identity import (
+    normalized_key as _normalized_key,
+    require_matching_fingerprint as _require_matching_fingerprint,
+    work_item_fingerprint as _work_item_fingerprint,
+)
 from app.core.security import SecurityContext
 from app.core.transactions import TransactionManager
 from app.documents.repositories import DocumentRepository, NotFoundError
-from app.documents.status import DocumentStatus
-
-
-class BackofficeWorkflowError(ValueError):
-    pass
-
-
-class BackofficeToolExecutor(Protocol):
-    def execute(
-        self,
-        request: ToolExecutionRequest,
-        context: SecurityContext,
-    ) -> AgentToolResponse: ...
-
-
-@dataclass(frozen=True)
-class BackofficePlanResult:
-    work_item: WorkItem
-    plan_id: UUID
-    created_draft_ids: tuple[UUID, ...]
-    pending_approval_ids: tuple[UUID, ...]
-
-
-@dataclass(frozen=True)
-class BackofficeExecutionReservation:
-    work_item: WorkItem
-    plan_id: UUID
-    step: ActionStep
-    tool_name: AgentToolName
-    executor: BackofficeToolExecutor
-    execution_token: str
-
-
-EXECUTION_LEASE_SECONDS = 300
-
-
-class _ExecutionHeartbeat:
-    def __init__(self, renew: Callable[[], bool]) -> None:
-        self.renew = renew
-        self.interval_seconds = min(30.0, EXECUTION_LEASE_SECONDS / 3)
-        self._stopping = Event()
-        self._thread = Thread(target=self._run, name="backoffice-execution-heartbeat", daemon=True)
-
-    def start(self) -> None:
-        self._thread.start()
-
-    def stop(self) -> None:
-        self._stopping.set()
-        self._thread.join(timeout=self.interval_seconds + 1)
-
-    def _run(self) -> None:
-        while not self._stopping.wait(self.interval_seconds):
-            try:
-                if not self.renew():
-                    return
-            except Exception:
-                continue
-
-
-ACTION_TOOL_MAP: dict[ActionType, AgentToolName] = {
-    ActionType.PROCESS_DOCUMENT: AgentToolName.PROCESS_DOCUMENT,
-    ActionType.EXPORT_APPROVED_INVOICE: AgentToolName.EXPORT_APPROVED_CSV,
-}
-
-
-DRAFT_TYPE_MAP: dict[ActionType, DraftType] = {
-    ActionType.DRAFT_ACCOUNTING_NOTE: DraftType.ACCOUNTING_NOTE,
-    ActionType.DRAFT_VENDOR_MESSAGE: DraftType.VENDOR_MESSAGE,
-    ActionType.EXPORT_APPROVED_INVOICE: DraftType.EXPORT_PREVIEW,
-}
 
 
 class BackofficeWorkflowService:
@@ -150,6 +78,34 @@ class BackofficeWorkflowService:
         self.agent_runs = agent_runs
         self.documents = documents
         self.transactions = transactions
+        self._planning = BackofficePlanningService(
+            work_items=work_items,
+            plans=plans,
+            drafts=drafts,
+            approvals=approvals,
+            policy_decisions=policy_decisions,
+            transactions=transactions,
+            record_event=self._record_event,
+            planner=self.planner,
+            policy=self.policy,
+            agent_runs=agent_runs,
+        )
+        self._execution = BackofficeExecutionCoordinator(
+            work_items=work_items,
+            plans=plans,
+            approvals=approvals,
+            transactions=transactions,
+            record_event=self._record_event,
+            tool_executor=tool_executor,
+            agent_runs=agent_runs,
+            documents=documents,
+        )
+        self._recovery = BackofficeExecutionRecovery(
+            work_items=work_items,
+            plans=plans,
+            transactions=transactions,
+            record_event=self._record_event,
+        )
 
     def create_work_item(
         self,
@@ -208,109 +164,12 @@ class BackofficeWorkflowService:
         planning_input: PlanningInput | None = None,
         idempotency_key: str | None = None,
     ) -> BackofficePlanResult:
-        normalized_key = _normalized_key(idempotency_key)
-        inputs = planning_input or PlanningInput()
-        fingerprint = _planning_fingerprint(inputs, context)
-        with self.transactions.transaction():
-            work_item = self._get_work_item_for_context(work_item_id, context)
-            if normalized_key:
-                existing_plan = self.plans.get_by_idempotency_key(
-                    context.workspace_id,
-                    work_item.id,
-                    normalized_key,
-                )
-                if existing_plan is not None:
-                    _require_matching_fingerprint(
-                        existing_plan.idempotency_fingerprint,
-                        fingerprint,
-                    )
-                    return self._plan_result_for(
-                        work_item,
-                        existing_plan,
-                        context.workspace_id,
-                    )
-            self._require_no_pending_execution(work_item)
-            started = perf_counter()
-            plan = self.planner.plan(
-                work_item=work_item,
-                context=context,
-                planning_input=inputs,
-            )
-            run = self._record_plan_run(
-                work_item=work_item,
-                plan=plan,
-                context=context,
-                latency_ms=(perf_counter() - started) * 1000,
-            )
-            if run is not None:
-                plan.agent_run_id = run.id
-            plan.idempotency_key = normalized_key
-            plan.idempotency_fingerprint = fingerprint if normalized_key else None
-            self.plans.save(plan)
-            self.work_items.save(work_item)
-            self._record_event(
-                work_item=work_item,
-                event_type="plan_generated",
-                actor=context.actor,
-                summary=f"Plan generated with {len(plan.steps)} bounded steps.",
-                agent_run_id=run.id if run else None,
-            )
-
-            draft_ids: list[UUID] = []
-            approval_ids: list[UUID] = []
-            for step in plan.steps:
-                decision = self.policy.decide(
-                    work_item=work_item,
-                    action_type=step.action_type,
-                    context=context,
-                    action_step_id=step.id,
-                    confirmed=not step.requires_approval,
-                )
-                self.policy_decisions.add(decision)
-
-                if step.action_type in DRAFT_TYPE_MAP and step.status != ActionStepStatus.BLOCKED:
-                    draft = self.create_draft_for_step(
-                        work_item_id=work_item.id,
-                        action_step=step,
-                        context=context,
-                    )
-                    draft_ids.append(draft.id)
-                    self._record_event(
-                        work_item=work_item,
-                        event_type="draft_created",
-                        actor=context.actor,
-                        summary=f"Draft created: {draft.draft_type.value}.",
-                    )
-
-                if step.requires_approval:
-                    approval = self.request_approval_for_step(
-                        work_item_id=work_item.id,
-                        action_step=step,
-                        context=context,
-                    )
-                    approval_ids.append(approval.id)
-                    self._record_event(
-                        work_item=work_item,
-                        event_type="approval_requested",
-                        actor=context.actor,
-                        summary=f"Human approval requested for {step.action_type.value}.",
-                    )
-
-            if plan.escalation_reason:
-                work_item.status = WorkItemStatus.AWAITING_HUMAN
-                self.work_items.save(work_item)
-                self._record_event(
-                    work_item=work_item,
-                    event_type="workflow_escalated",
-                    actor=context.actor,
-                    summary=plan.escalation_reason,
-                )
-            return BackofficePlanResult(
-                work_item=work_item,
-                plan_id=plan.id,
-                created_draft_ids=tuple(draft_ids),
-                pending_approval_ids=tuple(approval_ids),
-            )
+        return self._planning.plan_work_item(
+            work_item_id=work_item_id,
+            context=context,
+            planning_input=planning_input,
+            idempotency_key=idempotency_key,
+        )
 
     def update_work_item(
         self,
@@ -355,23 +214,12 @@ class BackofficeWorkflowService:
         context: SecurityContext,
         preview_content: str,
     ) -> ActionDraft:
-        with self.transactions.transaction():
-            work_item = self._get_work_item_for_context(work_item_id, context)
-            draft = self.drafts.get(draft_id)
-            if draft.workspace_id != context.workspace_id or draft.work_item_id != work_item.id:
-                raise NotFoundError(f"Draft not found: {draft_id}")
-            if draft.status != DraftStatus.DRAFTED:
-                raise BackofficeWorkflowError("Only an active draft can be edited.")
-            draft.preview_content = preview_content.strip()
-            draft.updated_at = datetime.now(UTC)
-            saved = self.drafts.save(draft)
-            self._record_event(
-                work_item=work_item,
-                event_type="draft_edited",
-                actor=context.actor,
-                summary=f"Draft edited: {saved.draft_type.value}.",
-            )
-            return saved
+        return self._planning.edit_draft(
+            work_item_id=work_item_id,
+            draft_id=draft_id,
+            context=context,
+            preview_content=preview_content,
+        )
 
     def regenerate_draft(
         self,
@@ -380,31 +228,11 @@ class BackofficeWorkflowService:
         draft_id: UUID,
         context: SecurityContext,
     ) -> ActionDraft:
-        with self.transactions.transaction():
-            work_item = self._get_work_item_for_context(work_item_id, context)
-            previous = self.drafts.get(draft_id)
-            if (
-                previous.workspace_id != context.workspace_id
-                or previous.work_item_id != work_item.id
-            ):
-                raise NotFoundError(f"Draft not found: {draft_id}")
-            regenerated = ActionDraft(
-                workspace_id=work_item.workspace_id,
-                work_item_id=work_item.id,
-                action_step_id=previous.action_step_id,
-                draft_type=previous.draft_type,
-                preview_content=(
-                    f"{previous.preview_content}\n\nRegenerated for current work-item evidence."
-                ),
-            )
-            saved = self.drafts.save(regenerated)
-            self._record_event(
-                work_item=work_item,
-                event_type="draft_regenerated",
-                actor=context.actor,
-                summary=f"New draft version generated: {saved.draft_type.value}.",
-            )
-            return saved
+        return self._planning.regenerate_draft(
+            work_item_id=work_item_id,
+            draft_id=draft_id,
+            context=context,
+        )
 
     def create_draft_for_step(
         self,
@@ -413,23 +241,11 @@ class BackofficeWorkflowService:
         action_step: ActionStep,
         context: SecurityContext,
     ) -> ActionDraft:
-        work_item = self._get_work_item_for_context(work_item_id, context)
-        if action_step.status == ActionStepStatus.BLOCKED:
-            raise BackofficeWorkflowError("Cannot create a draft for a blocked action.")
-        try:
-            draft_type = DRAFT_TYPE_MAP[action_step.action_type]
-        except KeyError as exc:
-            raise BackofficeWorkflowError(
-                f"Action does not produce a reviewable draft: {action_step.action_type}"
-            ) from exc
-        draft = ActionDraft(
-            workspace_id=work_item.workspace_id,
-            work_item_id=work_item.id,
-            action_step_id=action_step.id,
-            draft_type=draft_type,
-            preview_content=self._draft_preview(work_item, action_step, draft_type),
+        return self._planning.create_draft_for_step(
+            work_item_id=work_item_id,
+            action_step=action_step,
+            context=context,
         )
-        return self.drafts.save(draft)
 
     def request_approval_for_step(
         self,
@@ -438,16 +254,11 @@ class BackofficeWorkflowService:
         action_step: ActionStep,
         context: SecurityContext,
     ) -> Approval:
-        work_item = self._get_work_item_for_context(work_item_id, context)
-        if not action_step.requires_approval:
-            raise BackofficeWorkflowError("This action does not require approval.")
-        approval = Approval(
-            workspace_id=work_item.workspace_id,
-            work_item_id=work_item.id,
-            action_step_id=action_step.id,
-            requested_by=context.actor,
+        return self._planning.request_approval_for_step(
+            work_item_id=work_item_id,
+            action_step=action_step,
+            context=context,
         )
-        return self.approvals.save(approval)
 
     def approve_request(
         self,
@@ -456,20 +267,11 @@ class BackofficeWorkflowService:
         context: SecurityContext,
         notes: str | None = None,
     ) -> Approval:
-        with self.transactions.transaction():
-            approval = self._get_approval_for_context(approval_id, context)
-            already_approved = approval.status == ApprovalStatus.APPROVED
-            approval.approve(context.actor, notes)
-            saved = self.approvals.save(approval)
-            if not already_approved:
-                work_item = self._get_work_item_for_context(saved.work_item_id, context)
-                self._record_event(
-                    work_item=work_item,
-                    event_type="approval_approved",
-                    actor=context.actor,
-                    summary=notes or "Human approval granted.",
-                )
-            return saved
+        return self._planning.approve_request(
+            approval_id=approval_id,
+            context=context,
+            notes=notes,
+        )
 
     def reject_request(
         self,
@@ -478,20 +280,11 @@ class BackofficeWorkflowService:
         context: SecurityContext,
         notes: str | None = None,
     ) -> Approval:
-        with self.transactions.transaction():
-            approval = self._get_approval_for_context(approval_id, context)
-            already_rejected = approval.status == ApprovalStatus.REJECTED
-            approval.reject(context.actor, notes)
-            saved = self.approvals.save(approval)
-            if not already_rejected:
-                work_item = self._get_work_item_for_context(saved.work_item_id, context)
-                self._record_event(
-                    work_item=work_item,
-                    event_type="approval_rejected",
-                    actor=context.actor,
-                    summary=notes or "Human approval rejected.",
-                )
-            return saved
+        return self._planning.reject_request(
+            approval_id=approval_id,
+            context=context,
+            notes=notes,
+        )
 
     def request_correction(
         self,
@@ -571,48 +364,11 @@ class BackofficeWorkflowService:
         action_step_id: UUID,
         context: SecurityContext,
     ) -> AgentToolResponse:
-        reservation = self._reserve_approved_execution(
+        return self._execution.execute_approved_step(
             work_item_id=work_item_id,
             action_step_id=action_step_id,
             context=context,
         )
-        if isinstance(reservation, AgentToolResponse):
-            return reservation
-        started = perf_counter()
-        heartbeat = _ExecutionHeartbeat(
-            lambda: self._renew_execution_reservation(reservation, context)
-        )
-        heartbeat.start()
-        try:
-            response = reservation.executor.execute(
-                ToolExecutionRequest(
-                    tool_name=reservation.tool_name,
-                    document_id=self._selected_document_id(reservation.work_item),
-                    confirmed=True,
-                ),
-                context,
-            )
-        except Exception:
-            return self._mark_execution_outcome_unknown(
-                reservation,
-                context,
-            )
-        finally:
-            heartbeat.stop()
-        try:
-            return self._finalize_reserved_execution(
-                reservation,
-                response,
-                context,
-                started,
-            )
-        except Exception:
-            try:
-                self._mark_execution_outcome_unknown(reservation, context)
-            except Exception:
-                # Keep the original finalization failure; an unmarked reservation remains blocked.
-                pass
-            raise
 
     def _reserve_approved_execution(
         self,
@@ -621,147 +377,25 @@ class BackofficeWorkflowService:
         action_step_id: UUID,
         context: SecurityContext,
     ) -> BackofficeExecutionReservation | AgentToolResponse:
-        with self.transactions.transaction():
-            work_item = self._get_work_item_for_context(work_item_id, context)
-            plan = self._current_plan(work_item)
-            step = self._find_step(plan.steps, action_step_id)
-            execution = self._execution_tool_or_error(work_item, step)
-            if isinstance(execution, AgentToolResponse):
-                return execution
-            tool_name, executor = execution
-            execution_token = uuid4().hex
-            now = datetime.now(UTC)
-            step.status = ActionStepStatus.EXECUTING
-            step.updated_at = now
-            work_item.status = WorkItemStatus.EXECUTING
-            work_item.attach_context("execution_token", execution_token)
-            work_item.attach_context("execution_outcome", "in_flight")
-            work_item.attach_context("execution_heartbeat_at", now.isoformat())
-            work_item.attach_context("execution_plan_id", str(plan.id))
-            work_item.attach_context("execution_step_id", str(step.id))
-            work_item.updated_at = now
-            self.plans.save(plan)
-            self.work_items.save(work_item)
-            self._record_event(
-                work_item=work_item,
-                event_type="action_execution_started",
-                actor=context.actor,
-                summary=f"Controlled execution reserved for {step.action_type.value}.",
-            )
-            return BackofficeExecutionReservation(
-                work_item=work_item,
-                plan_id=plan.id,
-                step=step,
-                tool_name=tool_name,
-                executor=executor,
-                execution_token=execution_token,
-            )
-
-    def _execution_tool_or_error(
-        self,
-        work_item: WorkItem,
-        step: ActionStep,
-    ) -> tuple[AgentToolName, BackofficeToolExecutor] | AgentToolResponse:
-        if step.status == ActionStepStatus.EXECUTED:
-            return AgentToolResponse(
-                tool_name=ACTION_TOOL_MAP.get(
-                    step.action_type,
-                    AgentToolName.GET_READINESS,
-                ),
-                status="success",
-                risk=AgentToolRisk.ADMIN_ACTION,
-                summary="Action was already executed; no duplicate side effect was created.",
-                confidence=AgentConfidence.HIGH,
-                evidence=(f"action_step_id={step.id}", "idempotent_replay=true"),
-            )
-        if step.status == ActionStepStatus.EXECUTING:
-            return self._blocked_response(
-                step,
-                "The previous execution outcome must be reconciled before another attempt.",
-                failure_type=AgentFailureType.TOOL_EXECUTION_FAILED,
-            )
-        if step.status in {ActionStepStatus.BLOCKED, ActionStepStatus.FAILED}:
-            return self._blocked_response(step, step.why_not or "Action is blocked.")
-        approval = self._approved_action_for_step(
-            workspace_id=work_item.workspace_id,
-            work_item_id=work_item.id,
-            action_step_id=step.id,
+        return self._execution.reserve_approved_execution(
+            work_item_id=work_item_id,
+            action_step_id=action_step_id,
+            context=context,
         )
-        if step.requires_approval and approval is None:
-            return self._blocked_response(
-                step,
-                "Approved human confirmation is required before execution.",
-                failure_type=AgentFailureType.CONFIRMATION_REQUIRED,
-            )
-        tool_name = ACTION_TOOL_MAP.get(step.action_type)
-        if tool_name is None:
-            return self._blocked_response(
-                step,
-                "This action is not mapped to a controlled execution tool.",
-                failure_type=AgentFailureType.MISSING_TOOL,
-            )
-        if self.tool_executor is None:
-            return self._blocked_response(
-                step,
-                "Controlled tool executor is not configured.",
-                failure_type=AgentFailureType.MISSING_TOOL,
-            )
-        export_guard = self._export_execution_guard(work_item, step)
-        if export_guard is not None:
-            return export_guard
-        return tool_name, self.tool_executor
 
     def _renew_execution_reservation(
         self,
         reservation: BackofficeExecutionReservation,
         context: SecurityContext,
     ) -> bool:
-        with self.transactions.transaction():
-            work_item = self._get_work_item_for_context(reservation.work_item.id, context)
-            plan = self.plans.get(reservation.plan_id)
-            step = self._find_step(plan.steps, reservation.step.id)
-            if (
-                step.status != ActionStepStatus.EXECUTING
-                or work_item.business_context.get("execution_outcome") != "in_flight"
-                or not self._reservation_matches(work_item, reservation)
-            ):
-                return False
-            work_item.attach_context(
-                "execution_heartbeat_at",
-                datetime.now(UTC).isoformat(),
-            )
-            self.work_items.save(work_item)
-            return True
+        return self._execution.renew_execution_reservation(reservation, context)
 
     def _mark_execution_outcome_unknown(
         self,
         reservation: BackofficeExecutionReservation,
         context: SecurityContext,
     ) -> AgentToolResponse:
-        with self.transactions.transaction():
-            current_item = self._get_work_item_for_context(reservation.work_item.id, context)
-            current_plan = self.plans.get(reservation.plan_id)
-            current_step = self._find_step(current_plan.steps, reservation.step.id)
-            if current_step.status == ActionStepStatus.EXECUTING and self._reservation_matches(
-                current_item, reservation
-            ):
-                current_item.status = WorkItemStatus.AWAITING_HUMAN
-                current_item.attach_context("execution_outcome", "unknown")
-                self.work_items.save(current_item)
-                self._record_event(
-                    work_item=current_item,
-                    event_type="action_execution_outcome_unknown",
-                    actor=context.actor,
-                    summary=(
-                        "The tool call did not return a confirmed outcome; "
-                        "manual reconciliation is required."
-                    ),
-                )
-        return self._blocked_response(
-            reservation.step,
-            "The execution outcome is unknown and must be reconciled before retrying.",
-            failure_type=AgentFailureType.TOOL_EXECUTION_FAILED,
-        )
+        return self._execution.mark_execution_outcome_unknown(reservation, context)
 
     def _finalize_reserved_execution(
         self,
@@ -770,45 +404,12 @@ class BackofficeWorkflowService:
         context: SecurityContext,
         started: float,
     ) -> AgentToolResponse:
-        with self.transactions.transaction():
-            current_item = self._get_work_item_for_context(reservation.work_item.id, context)
-            current_plan = self.plans.get(reservation.plan_id)
-            current_step = self._find_step(current_plan.steps, reservation.step.id)
-            if current_step.status != ActionStepStatus.EXECUTING or not self._reservation_matches(
-                current_item, reservation
-            ):
-                return self._blocked_response(
-                    current_step,
-                    "The execution reservation is no longer active.",
-                    failure_type=AgentFailureType.INVALID_WORKFLOW_STATE,
-                )
-            run = self._record_execution_run(
-                work_item=current_item,
-                plan_id=current_plan.id,
-                response=response,
-                context=context,
-                latency_ms=(perf_counter() - started) * 1000,
-            )
-            if response.status == "success":
-                current_step.status = ActionStepStatus.EXECUTED
-                current_item.status = WorkItemStatus.RESOLVED
-                current_item.attach_context("execution_outcome", "confirmed_success")
-            else:
-                current_step.status = ActionStepStatus.FAILED
-                current_item.status = WorkItemStatus.FAILED
-                current_item.attach_context("execution_outcome", "confirmed_failure")
-            current_step.updated_at = datetime.now(UTC)
-            current_item.updated_at = current_step.updated_at
-            self.plans.save(current_plan)
-            self.work_items.save(current_item)
-            self._record_event(
-                work_item=current_item,
-                event_type=("action_executed" if response.status == "success" else "action_failed"),
-                actor=context.actor,
-                summary=response.summary,
-                agent_run_id=run.id if run else None,
-            )
-        return response
+        return self._execution.finalize_reserved_execution(
+            reservation,
+            response,
+            context,
+            started,
+        )
 
     def reconcile_execution(
         self,
@@ -819,55 +420,13 @@ class BackofficeWorkflowService:
         succeeded: bool,
         summary: str,
     ) -> WorkItem:
-        normalized_summary = " ".join(summary.split())[:500]
-        if not normalized_summary:
-            raise BackofficeWorkflowError("A reconciliation summary is required.")
-        with self.transactions.transaction():
-            work_item = self._get_work_item_for_context(work_item_id, context)
-            plan = self._plan_containing_step(work_item, action_step_id)
-            step = self._find_step(plan.steps, action_step_id)
-            if step.status == ActionStepStatus.EXECUTED:
-                if succeeded:
-                    return work_item
-                raise BackofficeWorkflowError("A successful reconciliation cannot be overwritten.")
-            if step.status == ActionStepStatus.FAILED:
-                if not succeeded:
-                    return work_item
-                raise BackofficeWorkflowError("A failed reconciliation cannot be overwritten.")
-            if step.status != ActionStepStatus.EXECUTING:
-                raise BackofficeWorkflowError(
-                    "Only an execution with an unknown outcome can be reconciled."
-                )
-            if not self._execution_target_matches(work_item, plan.id, step.id):
-                raise BackofficeWorkflowError(
-                    "The execution target does not match the active reservation."
-                )
-            if not _execution_is_reconcilable(work_item):
-                raise BackofficeWorkflowError(
-                    "An active execution cannot be reconciled before its outcome is unknown."
-                )
-            now = datetime.now(UTC)
-            step.status = ActionStepStatus.EXECUTED if succeeded else ActionStepStatus.FAILED
-            step.updated_at = now
-            work_item.status = WorkItemStatus.RESOLVED if succeeded else WorkItemStatus.FAILED
-            work_item.attach_context(
-                "execution_outcome",
-                "confirmed_success" if succeeded else "confirmed_failure",
-            )
-            work_item.updated_at = now
-            self.plans.save(plan)
-            self.work_items.save(work_item)
-            self._record_event(
-                work_item=work_item,
-                event_type=(
-                    "action_execution_reconciled_succeeded"
-                    if succeeded
-                    else "action_execution_reconciled_failed"
-                ),
-                actor=context.actor,
-                summary=normalized_summary,
-            )
-            return work_item
+        return self._recovery.reconcile_execution(
+            work_item_id=work_item_id,
+            action_step_id=action_step_id,
+            context=context,
+            succeeded=succeeded,
+            summary=summary,
+        )
 
     def _plan_result_for(
         self,
@@ -875,64 +434,20 @@ class BackofficeWorkflowService:
         plan: TaskPlan,
         workspace_id: str,
     ) -> BackofficePlanResult:
-        step_ids = {step.id for step in plan.steps}
-        return BackofficePlanResult(
-            work_item=work_item,
-            plan_id=plan.id,
-            created_draft_ids=tuple(
-                draft.id
-                for draft in self.drafts.list_for_work_item(
-                    workspace_id,
-                    work_item.id,
-                )
-                if draft.action_step_id in step_ids
-            ),
-            pending_approval_ids=tuple(
-                approval.id
-                for approval in self.approvals.list_for_work_item(
-                    workspace_id,
-                    work_item.id,
-                )
-                if approval.action_step_id in step_ids
-            ),
-        )
-
-    def _current_plan(self, work_item: WorkItem) -> TaskPlan:
-        if work_item.current_plan_id is None:
-            raise BackofficeWorkflowError("Work item does not have a current plan.")
-        return self.plans.get(work_item.current_plan_id)
+        return self._planning.plan_result_for(work_item, plan, workspace_id)
 
     def _plan_containing_step(self, work_item: WorkItem, step_id: UUID) -> TaskPlan:
-        preferred_ids = _execution_plan_ids(work_item)
-        for plan_id in preferred_ids:
-            plan = self.plans.get(plan_id)
-            if plan.workspace_id != work_item.workspace_id or plan.work_item_id != work_item.id:
-                raise BackofficeWorkflowError("Execution plan does not belong to this work item.")
-            if any(step.id == step_id for step in plan.steps):
-                return plan
-        for plan in self.plans.list_for_work_item(work_item.workspace_id, work_item.id):
-            if any(step.id == step_id for step in plan.steps):
-                return plan
-        raise NotFoundError(f"Action step not found: {step_id}")
+        return self._recovery.plan_containing_step(work_item, step_id)
 
     def _require_no_pending_execution(self, work_item: WorkItem) -> None:
-        if work_item.business_context.get("execution_outcome") in {"in_flight", "unknown"}:
-            raise BackofficeWorkflowError(
-                "The active execution must be finalized or reconciled before replanning."
-            )
+        self._planning.require_no_pending_execution(work_item)
 
     def _reservation_matches(
         self,
         work_item: WorkItem,
         reservation: BackofficeExecutionReservation,
     ) -> bool:
-        return work_item.business_context.get(
-            "execution_token"
-        ) == reservation.execution_token and self._execution_target_matches(
-            work_item,
-            reservation.plan_id,
-            reservation.step.id,
-        )
+        return self._execution.reservation_matches(work_item, reservation)
 
     def _execution_target_matches(
         self,
@@ -940,30 +455,7 @@ class BackofficeWorkflowService:
         plan_id: UUID,
         step_id: UUID,
     ) -> bool:
-        return work_item.business_context.get("execution_plan_id") == str(
-            plan_id
-        ) and work_item.business_context.get("execution_step_id") == str(step_id)
-
-    def _find_step(self, steps: tuple[ActionStep, ...], step_id: UUID) -> ActionStep:
-        for step in steps:
-            if step.id == step_id:
-                return step
-        raise NotFoundError(f"Action step not found: {step_id}")
-
-    def _approved_action_for_step(
-        self,
-        *,
-        workspace_id: str,
-        work_item_id: UUID,
-        action_step_id: UUID,
-    ) -> Approval | None:
-        for approval in self.approvals.list_for_work_item(workspace_id, work_item_id):
-            if (
-                approval.action_step_id == action_step_id
-                and approval.status == ApprovalStatus.APPROVED
-            ):
-                return approval
-        return None
+        return self._execution.execution_target_matches(work_item, plan_id, step_id)
 
     def _get_work_item_for_context(self, work_item_id: UUID, context: SecurityContext) -> WorkItem:
         work_item = self.work_items.get(work_item_id)
@@ -977,63 +469,13 @@ class BackofficeWorkflowService:
             raise NotFoundError(f"Approval not found: {approval_id}")
         return approval
 
-    def _selected_document_id(self, work_item: WorkItem) -> UUID | None:
-        return work_item.linked_document_ids[0] if work_item.linked_document_ids else None
-
-    def _export_execution_guard(
-        self,
-        work_item: WorkItem,
-        step: ActionStep,
-    ) -> AgentToolResponse | None:
-        if step.action_type != ActionType.EXPORT_APPROVED_INVOICE or self.documents is None:
-            return None
-        document_id = self._selected_document_id(work_item)
-        if document_id is None:
-            return self._blocked_response(
-                step,
-                "Export requires a linked approved invoice.",
-            )
-        document = self.documents.get(document_id)
-        if document.workspace_id != work_item.workspace_id:
-            raise NotFoundError(f"Document not found: {document_id}")
-        if document.status != DocumentStatus.APPROVED:
-            return self._blocked_response(
-                step,
-                "Export requires the linked invoice to be approved first.",
-            )
-        return None
-
     def _draft_preview(
         self,
         work_item: WorkItem,
         action_step: ActionStep,
         draft_type: DraftType,
     ) -> str:
-        if draft_type == DraftType.ACCOUNTING_NOTE:
-            return (
-                f"Accounting note draft for {work_item.title}: {action_step.why_this or ''}".strip()
-            )
-        if draft_type == DraftType.VENDOR_MESSAGE:
-            return f"Vendor follow-up draft for {work_item.title}: {action_step.why_this or ''}".strip()
-        return f"Export preview for {work_item.title}: {action_step.why_this or ''}".strip()
-
-    def _blocked_response(
-        self,
-        step: ActionStep,
-        summary: str,
-        *,
-        failure_type: AgentFailureType = AgentFailureType.INVALID_WORKFLOW_STATE,
-    ) -> AgentToolResponse:
-        return AgentToolResponse(
-            tool_name=ACTION_TOOL_MAP.get(step.action_type, AgentToolName.GET_READINESS),
-            status="blocked",
-            risk=AgentToolRisk.BLOCKED,
-            summary=summary,
-            confidence=AgentConfidence.LOW,
-            requires_follow_up=True,
-            failure_type=failure_type,
-            human_escalation_reason=summary,
-        )
+        return self._planning.draft_preview(work_item, action_step, draft_type)
 
     def _record_event(
         self,
@@ -1068,175 +510,9 @@ class BackofficeWorkflowService:
         context: SecurityContext,
         latency_ms: float,
     ) -> AgentRun | None:
-        if self.agent_runs is None:
-            return None
-        confidence = {
-            "high": AgentConfidence.HIGH,
-            "medium": AgentConfidence.MEDIUM,
-            "low": AgentConfidence.LOW,
-        }.get(plan.overall_confidence, AgentConfidence.MEDIUM)
-        selected = next(
-            (
-                ACTION_TOOL_MAP[step.action_type]
-                for step in plan.steps
-                if step.action_type in ACTION_TOOL_MAP
-            ),
-            None,
-        )
-        run = AgentRun(
-            workspace_id=work_item.workspace_id,
-            actor=context.actor,
-            request=f"Plan work item {work_item.id}: {work_item.title}",
-            intent="backoffice_plan_and_recommendation",
-            prompt_version=plan.planner_version,
-            confidence=confidence,
-            selected_tool=selected,
-            selection_reason=f"Generated {len(plan.steps)} policy-bounded steps.",
-            human_escalation_reason=plan.escalation_reason,
-            final_summary=f"Plan {plan.id} generated with {len(plan.steps)} steps.",
-            work_item_id=work_item.id,
-            plan_id=plan.id,
+        return self._planning.record_plan_run(
+            work_item=work_item,
+            plan=plan,
+            context=context,
             latency_ms=latency_ms,
         )
-        for step in plan.steps:
-            if step.status == ActionStepStatus.BLOCKED:
-                run.block_action(step.why_not or f"{step.action_type.value} blocked")
-        return self.agent_runs.add(run)
-
-    def _record_execution_run(
-        self,
-        *,
-        work_item: WorkItem,
-        plan_id: UUID,
-        response: AgentToolResponse,
-        context: SecurityContext,
-        latency_ms: float,
-    ) -> AgentRun | None:
-        if self.agent_runs is None:
-            return None
-        run = AgentRun(
-            workspace_id=work_item.workspace_id,
-            actor=context.actor,
-            request=f"Execute controlled action for work item {work_item.id}",
-            intent="backoffice_controlled_execution",
-            prompt_version="deterministic-backoffice-v1",
-            confidence=response.confidence,
-            expected_tool=response.tool_name,
-            selected_tool=response.tool_name,
-            selection_reason="Mapped approved plan step to the controlled tool registry.",
-            human_escalation_reason=response.human_escalation_reason,
-            failure_type=response.failure_type,
-            final_summary=response.summary,
-            work_item_id=work_item.id,
-            plan_id=plan_id,
-            latency_ms=latency_ms,
-        )
-        run.add_tool_call(
-            AgentToolCallTrace(
-                tool_name=response.tool_name,
-                risk=response.risk,
-                status=response.status,
-                summary=response.summary,
-                confidence=response.confidence,
-                evidence=response.evidence,
-                failure_type=response.failure_type,
-                human_escalation_reason=response.human_escalation_reason,
-            )
-        )
-        return self.agent_runs.add(run)
-
-
-def _normalized_key(value: str | None) -> str | None:
-    normalized = (value or "").strip()
-    if not normalized:
-        return None
-    if len(normalized) > 200:
-        raise BackofficeWorkflowError("Idempotency key is too long.")
-    return normalized
-
-
-def _work_item_fingerprint(
-    *,
-    title: str,
-    work_type: WorkType | None,
-    linked_document_ids: tuple[UUID, ...],
-    business_context: dict[str, str],
-) -> str:
-    return _fingerprint(
-        {
-            "title": title,
-            "work_type": work_type.value if work_type else None,
-            "linked_document_ids": [str(value) for value in linked_document_ids],
-            "business_context": business_context,
-        }
-    )
-
-
-def _planning_fingerprint(inputs: PlanningInput, context: SecurityContext) -> str:
-    return _fingerprint(
-        {
-            "requested_outcome": inputs.requested_outcome,
-            "evidence_sufficient": inputs.evidence_sufficient,
-            "approved_for_export": inputs.approved_for_export,
-            "missing_fields": list(inputs.missing_fields),
-            "selected_document_id": (
-                str(inputs.selected_document_id) if inputs.selected_document_id else None
-            ),
-            "role": context.role,
-            "is_admin": context.is_admin,
-        }
-    )
-
-
-def _fingerprint(payload: dict[str, object]) -> str:
-    encoded = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
-def _require_matching_fingerprint(actual: str | None, expected: str) -> None:
-    if actual != expected:
-        raise BackofficeWorkflowError(
-            "This idempotency key is already bound to a different request."
-        )
-
-
-def _execution_is_reconcilable(work_item: WorkItem) -> bool:
-    outcome = work_item.business_context.get("execution_outcome")
-    if outcome == "unknown":
-        return True
-    if outcome != "in_flight":
-        return False
-    heartbeat_value = work_item.business_context.get("execution_heartbeat_at")
-    if not heartbeat_value:
-        return True
-    try:
-        heartbeat_at = datetime.fromisoformat(heartbeat_value)
-    except ValueError:
-        return False
-    if heartbeat_at.tzinfo is None:
-        return False
-    return datetime.now(UTC) - heartbeat_at.astimezone(UTC) >= timedelta(
-        seconds=EXECUTION_LEASE_SECONDS
-    )
-
-
-def _execution_plan_ids(work_item: WorkItem) -> tuple[UUID, ...]:
-    candidates = (
-        work_item.business_context.get("execution_plan_id"),
-        str(work_item.current_plan_id) if work_item.current_plan_id else None,
-    )
-    result: list[UUID] = []
-    for candidate in candidates:
-        if not candidate:
-            continue
-        try:
-            plan_id = UUID(candidate)
-        except ValueError as exc:
-            raise BackofficeWorkflowError("Execution plan identifier is invalid.") from exc
-        if plan_id not in result:
-            result.append(plan_id)
-    return tuple(result)

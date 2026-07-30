@@ -22,6 +22,7 @@ from app.documents.jobs import ProcessingJob, ProcessingJobStatus
 from app.documents.models import DocumentRecord
 from app.documents.repositories import LeaseLostError
 from app.documents.sqlite_repositories import SqliteJobRepository, SqliteStore
+from app.documents.sqlite_store import SqliteStore as DirectSqliteStore
 from app.documents.status import DocumentStatus
 from app.extraction.schemas import InvoiceData, InvoiceExtraction
 from app.main import create_app
@@ -36,6 +37,9 @@ HEADERS = {"X-Admin-Token": TOKEN}
 
 
 class SqlitePersistenceTests(unittest.TestCase):
+    def test_legacy_module_reexports_sqlite_store(self) -> None:
+        self.assertIs(SqliteStore, DirectSqliteStore)
+
     def test_backoffice_idempotency_keys_are_backfilled_and_duplicates_are_rejected(
         self,
     ) -> None:
@@ -179,6 +183,197 @@ class SqlitePersistenceTests(unittest.TestCase):
         self.assertEqual(len(response.json()["items"]), 10)
         self.assertEqual(response.json()["items"][0]["vendor_name"], "Vendor 010")
         self.assertLessEqual(query_many.call_count + query_one.call_count, 7)
+
+    def test_metrics_summary_uses_a_bounded_number_of_queries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = Settings(
+                app_env="test",
+                admin_token=TOKEN,
+                upload_root=Path(temp_dir) / "uploads",
+                max_upload_bytes=1_000,
+                storage_backend="sqlite",
+                sqlite_path=Path(temp_dir) / "doc_intel.sqlite3",
+            )
+            app = create_app(settings)
+            container = app.state.container
+            try:
+                for index in range(60):
+                    container.documents.add(
+                        DocumentRecord(
+                            original_filename=f"invoice-{index:03d}.pdf",
+                            storage_key=f"invoice-{index:03d}.pdf",
+                            content_type="application/pdf",
+                            status=DocumentStatus.NEEDS_REVIEW,
+                        )
+                    )
+
+                store = container.documents.store
+                with (
+                    patch.object(store, "query", wraps=store.query) as query_many,
+                    patch.object(store, "query_one", wraps=store.query_one) as query_one,
+                ):
+                    response = TestClient(app).get("/metrics/summary", headers=HEADERS)
+            finally:
+                container.close()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["documents_total"], 60)
+        self.assertEqual(query_many.call_count + query_one.call_count, 3)
+
+    def test_provider_health_uses_a_bounded_number_of_queries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = Settings(
+                app_env="test",
+                admin_token=TOKEN,
+                upload_root=Path(temp_dir) / "uploads",
+                max_upload_bytes=1_000,
+                storage_backend="sqlite",
+                sqlite_path=Path(temp_dir) / "doc_intel.sqlite3",
+            )
+            app = create_app(settings)
+            container = app.state.container
+            try:
+                for index in range(60):
+                    document = container.documents.add(
+                        DocumentRecord(
+                            original_filename=f"invoice-{index:03d}.pdf",
+                            storage_key=f"invoice-{index:03d}.pdf",
+                            content_type="application/pdf",
+                        )
+                    )
+                    container.jobs.add(
+                        ProcessingJob(
+                            document_id=document.id,
+                            provider_name="mock_extractor",
+                        )
+                    )
+
+                store = container.documents.store
+                with (
+                    patch.object(store, "query", wraps=store.query) as query_many,
+                    patch.object(store, "query_one", wraps=store.query_one) as query_one,
+                ):
+                    response = TestClient(app).get("/providers/health", headers=HEADERS)
+            finally:
+                container.close()
+
+        self.assertEqual(response.status_code, 200)
+        providers = {
+            provider["provider_name"]: provider for provider in response.json()["providers"]
+        }
+        self.assertEqual(providers["mock_extractor"]["observed_runs"], 60)
+        self.assertEqual(query_many.call_count + query_one.call_count, 1)
+
+    def test_metrics_duration_precision_matches_memory_and_sqlite(self) -> None:
+        observed: list[float] = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for storage_backend in ("memory", "sqlite"):
+                settings = Settings(
+                    app_env="test",
+                    admin_token=TOKEN,
+                    upload_root=Path(temp_dir) / storage_backend,
+                    max_upload_bytes=1_000,
+                    storage_backend=storage_backend,
+                    sqlite_path=Path(temp_dir) / f"{storage_backend}.sqlite3",
+                )
+                app = create_app(settings)
+                container = app.state.container
+                document = container.documents.add(
+                    DocumentRecord(
+                        original_filename=f"{storage_backend}.pdf",
+                        storage_key=f"{storage_backend}.pdf",
+                        content_type="application/pdf",
+                    )
+                )
+                started = datetime(2026, 1, 1, tzinfo=UTC)
+                jobs = [
+                    ProcessingJob(
+                        document_id=document.id,
+                        status=ProcessingJobStatus.SUCCEEDED,
+                        started_at=started,
+                        finished_at=started + timedelta(seconds=1),
+                    ),
+                    ProcessingJob(
+                        document_id=document.id,
+                        status=ProcessingJobStatus.SUCCEEDED,
+                        started_at=started,
+                        finished_at=started + timedelta(seconds=1, microseconds=2_000),
+                    ),
+                    ProcessingJob(
+                        document_id=document.id,
+                        status=ProcessingJobStatus.SUCCEEDED,
+                        started_at=None,
+                        finished_at=None,
+                    ),
+                    ProcessingJob(
+                        document_id=document.id,
+                        status=ProcessingJobStatus.SUCCEEDED,
+                        started_at=started,
+                        finished_at=started - timedelta(seconds=1),
+                    ),
+                ]
+                for job in jobs:
+                    container.jobs.add(job)
+                observed.append(
+                    container.metrics_service.summary(
+                        SecurityContext(actor="admin", is_admin=True)
+                    )["average_processing_time_ms"]
+                )
+                container.close()
+
+        self.assertEqual(observed, [1_001.0, 1_001.0])
+
+    def test_operational_jobs_use_a_bounded_number_of_queries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = Settings(
+                app_env="test",
+                admin_token=TOKEN,
+                upload_root=Path(temp_dir) / "uploads",
+                max_upload_bytes=1_000,
+                storage_backend="sqlite",
+                sqlite_path=Path(temp_dir) / "doc_intel.sqlite3",
+            )
+            app = create_app(settings)
+            container = app.state.container
+            try:
+                for index in range(205):
+                    document = container.documents.add(
+                        DocumentRecord(
+                            original_filename=f"invoice-{index:03d}.pdf",
+                            storage_key=f"invoice-{index:03d}.pdf",
+                            content_type="application/pdf",
+                        )
+                    )
+                    job = ProcessingJob(document_id=document.id)
+                    job.fail("injected provider failure")
+                    container.jobs.add(job)
+
+                store = container.documents.store
+                with (
+                    patch.object(store, "query", wraps=store.query) as query_many,
+                    patch.object(store, "query_one", wraps=store.query_one) as query_one,
+                ):
+                    response = TestClient(app).get(
+                        "/operations/jobs?failure_page=3&failure_page_size=100",
+                        headers=HEADERS,
+                    )
+            finally:
+                container.close()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["worker"]["failed_jobs"], 205)
+        self.assertEqual(len(response.json()["failed_jobs"]), 5)
+        self.assertEqual(
+            response.json()["failed_jobs_pagination"],
+            {
+                "page": 3,
+                "page_size": 100,
+                "returned": 5,
+                "total": 205,
+                "total_pages": 3,
+            },
+        )
+        self.assertEqual(query_many.call_count + query_one.call_count, 2)
 
     def test_sqlite_enables_concurrency_pragmas_and_query_indexes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

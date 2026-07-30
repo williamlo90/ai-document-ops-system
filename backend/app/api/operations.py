@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from io import StringIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -103,42 +103,64 @@ def mark_all_notifications_read(
 
 @router.get("/jobs")
 def operational_jobs(
+    failure_page: int = Query(default=1, ge=1),
+    failure_page_size: int = Query(default=100, ge=1, le=200),
     context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    document_ids = {
-        document.id for document in container.documents.list_by_workspace(context.workspace_id)
-    }
-    jobs = [job for job in container.jobs.list_all() if job.document_id in document_ids]
-    failures = [
-        job
-        for job in jobs
-        if job.status in {ProcessingJobStatus.FAILED, ProcessingJobStatus.DEAD_LETTER}
-    ]
-    queued = [
-        job
-        for job in jobs
-        if job.status in {ProcessingJobStatus.QUEUED, ProcessingJobStatus.RETRYING}
-    ]
-    stalled = [
-        job
-        for job in jobs
-        if job.status == ProcessingJobStatus.RUNNING
-        and job.updated_at < datetime.now(UTC) - timedelta(minutes=5)
-    ]
+    stalled_before = datetime.now(UTC) - timedelta(minutes=5)
+    failure_offset = (failure_page - 1) * failure_page_size
+    if container.operations_queries is not None:
+        snapshot = container.operations_queries.job_health(
+            context.workspace_id,
+            stalled_before=stalled_before,
+            failure_offset=failure_offset,
+            failure_limit=failure_page_size,
+        )
+        failures = list(snapshot.failures)
+        queued_count = snapshot.queued_jobs
+        failed_count = snapshot.failed_jobs
+        stalled_count = snapshot.stalled_jobs
+    else:
+        document_ids = {
+            document.id for document in container.documents.list_by_workspace(context.workspace_id)
+        }
+        jobs = [job for job in container.jobs.list_all() if job.document_id in document_ids]
+        failures = [
+            job
+            for job in jobs
+            if job.status in {ProcessingJobStatus.FAILED, ProcessingJobStatus.DEAD_LETTER}
+        ]
+        failures.sort(key=lambda job: (job.updated_at, str(job.id)), reverse=True)
+        queued_count = sum(
+            job.status in {ProcessingJobStatus.QUEUED, ProcessingJobStatus.RETRYING} for job in jobs
+        )
+        failed_count = len(failures)
+        failures = failures[failure_offset : failure_offset + failure_page_size]
+        stalled_count = sum(
+            job.status == ProcessingJobStatus.RUNNING and job.updated_at < stalled_before
+            for job in jobs
+        )
     return {
         "worker": {
-            "status": "degraded" if stalled else "healthy",
-            "queued_jobs": len(queued),
-            "failed_jobs": len(failures),
-            "stalled_jobs": len(stalled),
+            "status": "degraded" if stalled_count else "healthy",
+            "queued_jobs": queued_count,
+            "failed_jobs": failed_count,
+            "stalled_jobs": stalled_count,
             "evidence": (
                 "No processing job has been running for more than five minutes."
-                if not stalled
+                if not stalled_count
                 else "One or more processing jobs appear stalled."
             ),
         },
         "failed_jobs": [job_response(job) for job in failures],
+        "failed_jobs_pagination": {
+            "page": failure_page,
+            "page_size": failure_page_size,
+            "returned": len(failures),
+            "total": failed_count,
+            "total_pages": max(1, (failed_count + failure_page_size - 1) // failure_page_size),
+        },
     }
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from typing import cast
 from uuid import UUID
 
 from app.backoffice.models import (
@@ -399,9 +400,12 @@ def _work_item_from_dict(value: dict[str, object]) -> WorkItem:
         work_type=WorkType(str(work_type)) if work_type else None,
         priority=WorkItemPriority(str(value["priority"])),
         status=WorkItemStatus(str(value["status"])),
-        linked_document_ids=tuple(UUID(str(item)) for item in value["linked_document_ids"]),
+        linked_document_ids=tuple(
+            UUID(str(item)) for item in cast(list[object], value["linked_document_ids"])
+        ),
         business_context={
-            str(key): str(item) for key, item in dict(value["business_context"]).items()
+            str(key): str(item)
+            for key, item in cast(dict[object, object], value["business_context"]).items()
         },
         current_plan_id=UUID(str(current_plan_id)) if current_plan_id else None,
         idempotency_key=(str(value["idempotency_key"]) if value.get("idempotency_key") else None),
@@ -436,7 +440,10 @@ def _task_plan_from_dict(value: dict[str, object]) -> TaskPlan:
         workspace_id=str(value["workspace_id"]),
         work_item_id=UUID(str(value["work_item_id"])),
         planner_version=str(value["planner_version"]),
-        steps=tuple(_action_step_from_dict(item) for item in value["steps"]),
+        steps=tuple(
+            _action_step_from_dict(cast(dict[str, object], item))
+            for item in cast(list[object], value["steps"])
+        ),
         overall_confidence=str(value["overall_confidence"]),
         escalation_reason=(
             str(value["escalation_reason"]) if value.get("escalation_reason") else None

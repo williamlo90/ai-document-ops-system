@@ -1,0 +1,2 @@
+class BackofficeWorkflowError(ValueError):
+    pass

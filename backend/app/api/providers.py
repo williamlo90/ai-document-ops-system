@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from app.api.dependencies import AppContainer, get_container, require_admin_context
 from app.core.security import SecurityContext
 from app.documents.jobs import ProcessingJobStatus
+from app.providers.queries import ProviderActivity
 
 
 router = APIRouter(prefix="/providers", tags=["providers"])
@@ -12,21 +13,42 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 
 @router.get("/health")
 def provider_health(
-    _context: SecurityContext = Depends(require_admin_context),
+    context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    jobs = container.jobs.list_all()
-    failed = [
-        job
-        for job in jobs
-        if job.status in {ProcessingJobStatus.FAILED, ProcessingJobStatus.DEAD_LETTER}
-    ]
     parser_name = container.processing_service.parser.provider_name
     extractor_name = container.processing_service.extractor.provider_name
+    if container.provider_health_queries is not None:
+        activity = container.provider_health_queries.summary(context.workspace_id)
+    else:
+        document_ids = {
+            document.id for document in container.documents.list_by_workspace(context.workspace_id)
+        }
+        jobs = [job for job in container.jobs.list_all() if job.document_id in document_ids]
+        failed = [
+            job
+            for job in jobs
+            if job.status in {ProcessingJobStatus.FAILED, ProcessingJobStatus.DEAD_LETTER}
+        ]
+        activity = {
+            name: ProviderActivity(
+                observed_runs=sum(job.provider_name == name for job in jobs),
+                observed_failures=sum(job.provider_name == name for job in failed),
+            )
+            for name in {parser_name, extractor_name}
+        }
     providers = [
-        _provider_status("parser", parser_name, container.settings.parser_provider, jobs, failed),
         _provider_status(
-            "extractor", extractor_name, container.settings.extractor_provider, jobs, failed
+            "parser",
+            parser_name,
+            container.settings.parser_provider,
+            activity.get(parser_name, ProviderActivity()),
+        ),
+        _provider_status(
+            "extractor",
+            extractor_name,
+            container.settings.extractor_provider,
+            activity.get(extractor_name, ProviderActivity()),
         ),
     ]
     overall = (
@@ -45,21 +67,20 @@ def _provider_status(
     role: str,
     runtime_name: str,
     configured_name: str,
-    jobs: list,
-    failed_jobs: list,
+    activity: ProviderActivity,
 ) -> dict[str, object]:
     is_mock = configured_name.strip().lower() == "mock"
-    observed_jobs = [job for job in jobs if job.provider_name == runtime_name]
-    observed_failures = [job for job in failed_jobs if job.provider_name == runtime_name]
-    status = "degraded" if observed_failures else "healthy" if is_mock else "ready_unverified"
+    status = (
+        "degraded" if activity.observed_failures else "healthy" if is_mock else "ready_unverified"
+    )
     return {
         "role": role,
         "provider_name": runtime_name,
         "configured_provider": configured_name,
         "status": status,
         "configuration_ready": True,
-        "observed_runs": len(observed_jobs),
-        "observed_failures": len(observed_failures),
+        "observed_runs": activity.observed_runs,
+        "observed_failures": activity.observed_failures,
         "evidence": (
             "Local deterministic provider is available."
             if is_mock

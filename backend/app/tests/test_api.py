@@ -9,6 +9,8 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from app.core.settings import Settings
+from app.documents.jobs import ProcessingJob
+from app.documents.models import DocumentRecord
 from app.extraction.schemas import SCHEMA_VERSION
 from app.main import create_app
 from app.providers.mock import MockParserProvider
@@ -60,6 +62,47 @@ class ApiTests(unittest.TestCase):
         )
         self.assertTrue(all(provider["configuration_ready"] for provider in payload["providers"]))
         self.assertTrue(all(provider["evidence"] for provider in payload["providers"]))
+
+    def test_provider_health_memory_fallback_is_workspace_scoped(self) -> None:
+        container = self.client.app.state.container
+        local_document = container.documents.add(
+            DocumentRecord(
+                original_filename="local.pdf",
+                storage_key="local.pdf",
+                content_type="application/pdf",
+                workspace_id="default",
+            )
+        )
+        foreign_document = container.documents.add(
+            DocumentRecord(
+                original_filename="foreign.pdf",
+                storage_key="foreign.pdf",
+                content_type="application/pdf",
+                workspace_id="other",
+            )
+        )
+        container.jobs.add(
+            ProcessingJob(
+                document_id=local_document.id,
+                provider_name="mock_extractor",
+            )
+        )
+        foreign_job = ProcessingJob(
+            document_id=foreign_document.id,
+            provider_name="mock_extractor",
+        )
+        foreign_job.fail("foreign workspace failure")
+        container.jobs.add(foreign_job)
+
+        response = self.client.get("/providers/health", headers=HEADERS)
+
+        extractor = next(
+            provider
+            for provider in response.json()["providers"]
+            if provider["provider_name"] == "mock_extractor"
+        )
+        self.assertEqual(extractor["observed_runs"], 1)
+        self.assertEqual(extractor["observed_failures"], 0)
 
     def test_local_document_download_contract_uses_authenticated_content_url(self) -> None:
         upload = self.client.post(
