@@ -1,4 +1,4 @@
-# Direct runtime dependencies. Regenerate requirements.txt with pip-compile on Python 3.11.
+# Direct runtime dependencies. Regenerate both platform locks with pip-compile on Python 3.11.
 fastapi==0.140.0
 uvicorn==0.51.0
 python-multipart==0.0.32

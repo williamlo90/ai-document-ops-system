@@ -16,6 +16,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 DEFAULT_EVIDENCE = ROOT / "docs" / "evidence" / "release-verification.json"
+RUNTIME_REQUIREMENTS = (
+    ROOT / "requirements-windows.txt" if sys.platform == "win32" else ROOT / "requirements.txt"
+)
 
 
 def main() -> int:
@@ -41,7 +44,7 @@ def main() -> int:
                 "-m",
                 "pip_audit",
                 "--requirement",
-                "requirements.txt",
+                str(RUNTIME_REQUIREMENTS),
                 "--disable-pip",
                 "--strict",
             ],

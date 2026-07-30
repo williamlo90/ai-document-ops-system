@@ -21,7 +21,8 @@ Each record in `expected.json` contains the printed field ground truth plus expe
 python scripts/generate_invoice_scenario_dataset.py
 ```
 
-The generator uses `reportlab`, which is included in `requirements-dev.txt`. Output is deterministic so regenerating unchanged fixtures should not alter Git content.
+The generator uses `reportlab`, which is included in both platform development locks. Output is
+deterministic, so regenerating unchanged fixtures should not alter Git content.
 
 Run the configured real providers across the full set with an explicit safety-limit override:
 

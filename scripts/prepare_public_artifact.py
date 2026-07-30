@@ -26,8 +26,12 @@ ALLOWLIST_TOP_LEVEL = {
     "docker-compose.yml",
     "docker-compose.production.yml",
     "pyproject.toml",
+    "requirements.in",
+    "requirements-dev.in",
     "requirements.txt",
     "requirements-dev.txt",
+    "requirements-windows.txt",
+    "requirements-dev-windows.txt",
     "run_tests.py",
     "sample_invoice.pdf",
 }

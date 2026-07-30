@@ -48,10 +48,10 @@ jobs:
         if: startsWith(matrix.python-version, '3.11')
         run: |
           .clean-venv/bin/python -m piptools compile \
-            --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe \
+            --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe --no-annotate \
             --no-emit-index-url --output-file=requirements.txt requirements.in
           .clean-venv/bin/python -m piptools compile \
-            --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe \
+            --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe --no-annotate \
             --no-emit-index-url --output-file=requirements-dev.txt requirements-dev.in
           git diff --exit-code -- requirements.txt requirements-dev.txt
 

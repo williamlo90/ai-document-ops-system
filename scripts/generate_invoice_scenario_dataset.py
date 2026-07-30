@@ -12,7 +12,7 @@ try:
 except ImportError as exc:
     raise SystemExit(
         "reportlab is required. Install development dependencies with "
-        "'pip install --require-hashes -r requirements-dev.txt'."
+        "the development lock for your operating system."
     ) from exc
 
 

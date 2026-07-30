@@ -10,6 +10,6 @@ if (-not (Test-Path ".venv")) {
 }
 
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install --require-hashes -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pip install --require-hashes -r requirements-dev-windows.txt
 
 Write-Host "Local development environment and quality-gate tools are ready."

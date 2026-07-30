@@ -1,9 +1,9 @@
 # Supply-Chain Controls
 
 The repository keeps direct Python dependencies in `requirements.in` and
-`requirements-dev.in`. The corresponding `.txt` files are complete Python 3.11 lockfiles with
-package hashes. Frontend direct versions are exact and `package-lock.json` supplies transitive
-versions and integrity hashes.
+`requirements-dev.in`. Linux and Windows each have complete Python 3.11 lockfiles with package
+hashes because platform-specific dependencies differ. Frontend direct versions are exact and
+`package-lock.json` supplies transitive versions and integrity hashes.
 
 ## Regenerate Python Locks
 
@@ -13,20 +13,22 @@ development file. That file pins the compatible bootstrap tools (`pip==26.1.2`,
 
 ```powershell
 py -3.11 -m venv .venv-lock
-.\.venv-lock\Scripts\python.exe -m pip install --require-hashes -r requirements-dev.txt
+.\.venv-lock\Scripts\python.exe -m pip install --require-hashes -r requirements-dev-windows.txt
 .\.venv-lock\Scripts\python.exe -m piptools compile `
-  --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe `
-  --no-emit-index-url --output-file=requirements.txt requirements.in
+  --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe --no-annotate `
+  --no-emit-index-url --output-file=requirements-windows.txt requirements.in
 .\.venv-lock\Scripts\python.exe -m piptools compile `
-  --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe `
-  --no-emit-index-url --output-file=requirements-dev.txt requirements-dev.in
-git diff --exit-code -- requirements.txt requirements-dev.txt
+  --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe --no-annotate `
+  --no-emit-index-url --output-file=requirements-dev-windows.txt requirements-dev.in
+git diff --exit-code -- requirements-windows.txt requirements-dev-windows.txt
 ```
 
-The zero-diff command is the reproducibility check when no direct dependency changed. Review both
-the direct input and generated transitive diff when updating a dependency. Never hand-edit a
-generated lockfile. CI also performs fresh hash-locked installs on Python 3.11 and 3.12 before the
-Python quality and smoke jobs run.
+The Windows lock files support local PowerShell setup. CI and the container use
+`requirements.txt` and `requirements-dev.txt`, which are generated on Linux. The zero-diff command
+is the reproducibility check when no direct dependency changed. Review both the direct input and
+generated transitive diff when updating a dependency. Never hand-edit a generated lockfile. CI
+also performs fresh Linux hash-locked installs on Python 3.11 and 3.12 before the Python quality
+and smoke jobs run.
 
 ## Verification
 
