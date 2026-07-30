@@ -1,104 +1,94 @@
 {
   "schema_version": "release_verification_v1",
-  "generated_at": "2026-07-30T10:56:10.984646+00:00",
+  "generated_at": "2026-07-30T12:18:42.133612+00:00",
   "source": {
-    "git_commit": "f539887e54473a9a600393f34158efd6696ea19a",
+    "git_commit": "c2bc013c937e5e228dafabac10800495e3c3913f",
     "worktree_clean_at_start": true,
     "branch": "main"
   },
   "environment": {
-    "platform": "Windows-10-10.0.26200-SP0",
-    "python": "3.11.14",
-    "node": "v22.19.0",
-    "npm": "11.17.0"
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.13.6",
+    "node": "v22.22.0",
+    "npm": "10.9.4"
   },
   "counts": {
-    "backend_tests": 501,
+    "backend_tests": 507,
     "frontend_tests": 23,
     "browser_tests": 29,
     "fullstack_browser_tests": 1
   },
-  "dependency_exceptions": [
-    {
-      "id": "GHSA-qwww-vcr4-c8h2",
-      "packages": [
-        "react-router",
-        "react-router-dom"
-      ],
-      "expires_on": "2026-08-15",
-      "reason": "The application is a client-only Vite SPA and does not enable React Server Components, framework-mode actions, SSR, or server-side route execution. Upgrade as soon as a patched React Router release is available."
-    }
-  ],
+  "dependency_exceptions": [],
   "checks": [
     {
       "name": "python_dependency_audit",
       "passed": true,
-      "duration_seconds": 1.77
+      "duration_seconds": 2.616
     },
     {
       "name": "python_format",
       "passed": true,
-      "duration_seconds": 0.151
+      "duration_seconds": 2.123
     },
     {
       "name": "python_lint",
       "passed": true,
-      "duration_seconds": 0.103
+      "duration_seconds": 0.088
     },
     {
       "name": "backend_types",
       "passed": true,
-      "duration_seconds": 0.387
+      "duration_seconds": 0.494
     },
     {
       "name": "backend_tests",
       "passed": true,
-      "duration_seconds": 71.934
+      "duration_seconds": 49.504
     },
     {
       "name": "coverage_gate",
       "passed": true,
-      "duration_seconds": 1.418
+      "duration_seconds": 1.334
     },
     {
       "name": "complexity_gate",
       "passed": true,
-      "duration_seconds": 0.667
+      "duration_seconds": 0.767
     },
     {
       "name": "frontend_dependency_audit",
       "passed": true,
-      "duration_seconds": 1.983
+      "duration_seconds": 38.461
     },
     {
       "name": "frontend_format",
       "passed": true,
-      "duration_seconds": 1.857
+      "duration_seconds": 1.709
     },
     {
       "name": "frontend_lint",
       "passed": true,
-      "duration_seconds": 0.646
+      "duration_seconds": 3.02
     },
     {
       "name": "frontend_tests",
       "passed": true,
-      "duration_seconds": 16.861
+      "duration_seconds": 92.633
     },
     {
       "name": "frontend_build",
       "passed": true,
-      "duration_seconds": 3.947
+      "duration_seconds": 50.343
     },
     {
       "name": "browser_tests",
       "passed": true,
-      "duration_seconds": 99.458
+      "duration_seconds": 46.06
     },
     {
       "name": "fullstack_browser_test",
       "passed": true,
-      "duration_seconds": 18.252
+      "duration_seconds": 12.687
     }
   ],
   "claim_boundary": [
