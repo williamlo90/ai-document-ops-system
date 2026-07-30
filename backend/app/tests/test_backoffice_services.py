@@ -6,10 +6,14 @@ from uuid import uuid4
 from app.agent.contracts import AgentConfidence, AgentToolName, AgentToolResponse, AgentToolRisk
 from app.agent.tools import ToolExecutionRequest
 from app.backoffice.models import (
+    ActionRiskLevel,
+    ActionStep,
     ActionStepStatus,
     ActionType,
     ApprovalStatus,
     DraftType,
+    TaskPlan,
+    WorkItem,
     WorkItemStatus,
     WorkType,
 )
@@ -272,6 +276,62 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
 
         with self.assertRaises(NotFoundError):
             self.service.plan_work_item(work_item_id=work_item.id, context=other_context)
+
+    def test_execution_step_lookup_falls_back_to_historical_plan(self) -> None:
+        work_item = WorkItem(workspace_id="acme", title="Historical execution")
+        historical_step = ActionStep(
+            action_type=ActionType.DRAFT_ACCOUNTING_NOTE,
+            risk_level=ActionRiskLevel.LOW,
+        )
+        historical_plan = TaskPlan(
+            workspace_id="acme",
+            work_item_id=work_item.id,
+            planner_version="test",
+            steps=(historical_step,),
+        )
+        current_plan = TaskPlan(
+            workspace_id="acme",
+            work_item_id=work_item.id,
+            planner_version="test",
+        )
+        self.plans.save(historical_plan)
+        self.plans.save(current_plan)
+        work_item.current_plan_id = current_plan.id
+        work_item.attach_context("execution_plan_id", str(current_plan.id))
+
+        found = self.service._plan_containing_step(work_item, historical_step.id)
+
+        self.assertEqual(found.id, historical_plan.id)
+
+    def test_execution_step_lookup_rejects_invalid_or_foreign_plan(self) -> None:
+        work_item = WorkItem(workspace_id="acme", title="Invalid execution plan")
+        work_item.attach_context("execution_plan_id", "not-a-uuid")
+        with self.assertRaisesRegex(ValueError, "identifier is invalid"):
+            self.service._plan_containing_step(work_item, uuid4())
+
+        foreign_plan = TaskPlan(
+            workspace_id="other",
+            work_item_id=work_item.id,
+            planner_version="test",
+        )
+        self.plans.save(foreign_plan)
+        work_item.attach_context("execution_plan_id", str(foreign_plan.id))
+        with self.assertRaisesRegex(ValueError, "does not belong"):
+            self.service._plan_containing_step(work_item, uuid4())
+
+    def test_execution_step_lookup_raises_when_step_is_absent(self) -> None:
+        work_item = WorkItem(workspace_id="acme", title="Missing execution step")
+        plan = TaskPlan(
+            workspace_id="acme",
+            work_item_id=work_item.id,
+            planner_version="test",
+        )
+        self.plans.save(plan)
+        work_item.current_plan_id = plan.id
+        work_item.attach_context("execution_plan_id", str(plan.id))
+
+        with self.assertRaises(NotFoundError):
+            self.service._plan_containing_step(work_item, uuid4())
 
     def test_rejected_approval_does_not_execute(self) -> None:
         work_item, export_step_id, approval_id = self._planned_export()
