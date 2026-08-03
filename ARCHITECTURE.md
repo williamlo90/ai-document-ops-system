@@ -53,6 +53,12 @@ FastAPI provides:
 Application services own the state transitions. API handlers translate HTTP input and output
 instead of duplicating workflow rules.
 
+Application assembly is split under `app/bootstrap/` by bounded context. The container keeps a flat
+compatibility API for routers and workers, while persistence, documents, review, exports,
+integrations, evaluation, operations, agent tools, and backoffice services are wired in separate
+modules. Adding a service therefore changes its owning bootstrap module instead of one global
+constructor.
+
 The largest correctness paths are split by responsibility:
 
 - backoffice planning owns plans, drafts, policy decisions, and approvals;
@@ -64,6 +70,12 @@ The largest correctness paths are split by responsibility:
 
 The original service classes remain as compatibility facades, so API and workflow contracts do not
 depend on the internal split.
+
+Document processing follows the same pattern. `DocumentProcessingService` owns authorization,
+workspace checks, lease coordination, and provider orchestration. `ProcessingRetryPolicy` owns
+failure classification and backoff, while `ProcessingResultRecorder` owns atomic result, audit,
+job, and workflow writes. The public processing methods and mutable provider hooks remain unchanged
+for worker and test compatibility.
 
 ### Provider adapters
 

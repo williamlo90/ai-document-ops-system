@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import atexit
 from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
@@ -33,7 +32,6 @@ from app.api.system import router as system_router
 from app.api.review import router as review_router
 from app.api.auth import router as auth_router
 from app.core.security import validate_access_token_policy, validate_public_demo_provider_policy
-from app.core.security import SessionStore
 from app.core.upload_scanning import validate_upload_scanning_policy
 from app.core.provider_egress import validate_configured_provider_egress
 from app.core.http_security import (
@@ -84,8 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.http_metrics = HttpMetrics()
     app.add_middleware(RequestObservabilityMiddleware, metrics=app.state.http_metrics)
     app.state.container = build_container(resolved_settings)
-    app.state.sessions = SessionStore(resolved_settings.session_ttl_seconds)
-    app.state.container._app_sessions = app.state.sessions
+    app.state.sessions = app.state.container.sessions
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CsrfOriginMiddleware,
@@ -158,4 +155,3 @@ def _frontend_dist() -> Path | None:
 
 
 app = create_app()
-atexit.register(app.state.container.close)

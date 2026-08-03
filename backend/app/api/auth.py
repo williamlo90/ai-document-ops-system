@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 
 from app.api.dependencies import AppContainer, get_container
@@ -20,7 +20,6 @@ class LoginPayload(BaseModel):
 def create_session(
     payload: LoginPayload,
     response: Response,
-    request: Request,
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
     try:
@@ -29,7 +28,7 @@ def create_session(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized"
         ) from exc
-    session_id = request.app.state.sessions.create(context)
+    session_id = container.sessions.create(context)
     response.set_cookie(
         SESSION_COOKIE,
         session_id,
@@ -44,10 +43,10 @@ def create_session(
 
 @router.get("/session")
 def get_session(
-    request: Request,
     session_id: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    context = request.app.state.sessions.get(session_id)
+    context = container.sessions.get(session_id)
     if context is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     return _session_payload(context)
@@ -55,16 +54,16 @@ def get_session(
 
 @router.delete("/session")
 def delete_session(
-    request: Request,
     response: Response,
     session_id: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    container: AppContainer = Depends(get_container),
 ) -> dict[str, bool]:
-    request.app.state.sessions.revoke(session_id)
+    container.sessions.revoke(session_id)
     response.delete_cookie(
         SESSION_COOKIE,
         path="/",
         httponly=True,
-        secure=is_hosted(request.app.state.container.settings),
+        secure=is_hosted(container.settings),
         samesite="strict",
     )
     return {"authenticated": False}

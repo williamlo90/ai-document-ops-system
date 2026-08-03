@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
@@ -16,7 +15,9 @@ from app.core.upload_scanning import SignatureUploadScanner, UploadScanner
 from app.core.observability import OperationEvent, log_operation
 from app.core.transactions import NoopTransactionManager, TransactionManager
 from app.documents.jobs import ProcessingJob, ProcessingJobStatus
-from app.documents.models import AuditEvent, DocumentRecord
+from app.documents.models import DocumentRecord
+from app.documents.processing_policy import ProcessingRetryPolicy
+from app.documents.processing_results import ProcessingResultRecorder
 from app.documents.repositories import (
     AuditRepository,
     DocumentRepository,
@@ -143,6 +144,20 @@ class DocumentProcessingService:
         self.retry_base_seconds = max(1, retry_base_seconds)
         self.retry_max_seconds = max(self.retry_base_seconds, retry_max_seconds)
         self.transactions = transactions or NoopTransactionManager()
+        self.retry_policy = ProcessingRetryPolicy(
+            max_attempts=self.max_processing_attempts,
+            base_seconds=self.retry_base_seconds,
+            max_seconds=self.retry_max_seconds,
+        )
+        self.result_recorder = ProcessingResultRecorder(
+            documents=self.documents,
+            jobs=self.jobs,
+            audits=self.audits,
+            extractions=self.extractions,
+            workflow=self.workflow,
+            retry_policy=self.retry_policy,
+            transactions=self.transactions,
+        )
 
     def process_job(
         self,
@@ -275,21 +290,21 @@ class DocumentProcessingService:
         try:
             result, report, security_issues = self._extract_document(document)
         except Exception as exc:
-            return self._finalize_processing_failure(
-                document,
-                job,
-                context,
-                exc,
+            return self.result_recorder.record_failure(
+                document=document,
+                job=job,
+                context=context,
+                error=exc,
                 lease_token=lease_token,
             )
-        self._finalize_processing_success(
-            document,
-            job,
-            context,
-            result,
-            report,
-            security_issues,
-            lease_token,
+        self.result_recorder.record_success(
+            document=document,
+            job=job,
+            context=context,
+            result=result,
+            report=report,
+            security_issues=security_issues,
+            lease_token=lease_token,
         )
         return document
 
@@ -345,123 +360,6 @@ class DocumentProcessingService:
             report = ValidationReport(issues=(*report.issues, *security_issues))
         return result, report, security_issues
 
-    def _finalize_processing_success(
-        self,
-        document: DocumentRecord,
-        job: ProcessingJob,
-        context: SecurityContext,
-        result: ExtractionResult,
-        report: ValidationReport,
-        security_issues: tuple[ValidationIssue, ...],
-        lease_token: str,
-    ) -> None:
-        with self.transactions.transaction():
-            if security_issues:
-                self.audits.add(
-                    AuditEvent(
-                        document_id=document.id,
-                        event_type="untrusted_content_flagged",
-                        actor=context.actor,
-                        old_status=document.status,
-                        new_status=document.status,
-                        payload_summary=(
-                            "codes=" + ",".join(sorted({issue.code for issue in security_issues}))
-                        ),
-                    )
-                )
-            self.extractions.save(document.id, result, report)
-            self.audits.add(
-                self.workflow.transition(document, DocumentStatus.EXTRACTED, actor=context.actor)
-            )
-            self.documents.add(document)
-            self.audits.add(
-                self.workflow.transition(
-                    document,
-                    DocumentStatus.NEEDS_REVIEW,
-                    actor=context.actor,
-                    payload_summary=(
-                        "Validation requires reviewer correction."
-                        if report.has_errors
-                        else "Invoice is ready for reviewer approval."
-                    ),
-                )
-            )
-            self.documents.add(document)
-            job.provider_name = result.provider_name
-            job.provider_trace_id = result.provider_trace_id
-            job.succeed()
-            self.jobs.save(job, expected_lease_token=lease_token)
-        log_operation(
-            OperationEvent(
-                event_type="processing_succeeded",
-                workspace_id=context.workspace_id,
-                actor=context.actor,
-                document_id=str(document.id),
-                job_id=str(job.id),
-                provider_name=job.provider_name,
-                status=job.status.value,
-                attempt_count=job.attempt_count,
-            )
-        )
-
-    def _finalize_processing_failure(
-        self,
-        document: DocumentRecord,
-        job: ProcessingJob,
-        context: SecurityContext,
-        exc: Exception,
-        *,
-        lease_token: str,
-    ) -> DocumentRecord:
-        error_code = _safe_error_code(exc)
-        with self.transactions.transaction():
-            if _should_retry(exc, job, self.max_processing_attempts):
-                job.retry(
-                    error_code,
-                    next_attempt_at=_next_retry_at(
-                        job,
-                        base_seconds=self.retry_base_seconds,
-                        max_seconds=self.retry_max_seconds,
-                    ),
-                )
-                document.error_message = error_code
-                self.audits.add(
-                    self.workflow.transition(
-                        document,
-                        DocumentStatus.QUEUED,
-                        actor=context.actor,
-                        payload_summary=error_code,
-                    )
-                )
-            else:
-                if isinstance(exc, ProviderError) and exc.retryable:
-                    job.dead_letter(error_code)
-                else:
-                    job.fail(error_code)
-                document.error_message = job.error_message
-                if document.status != DocumentStatus.FAILED:
-                    self.audits.add(
-                        self.workflow.transition(
-                            document, DocumentStatus.FAILED, actor=context.actor
-                        )
-                    )
-            self.documents.add(document)
-            self.jobs.save(job, expected_lease_token=lease_token)
-        log_operation(
-            OperationEvent(
-                event_type="processing_failed",
-                workspace_id=context.workspace_id,
-                actor=context.actor,
-                document_id=str(document.id),
-                job_id=str(job.id),
-                status=job.status.value,
-                error_code=error_code,
-                retryable=isinstance(exc, ProviderError) and exc.retryable,
-                attempt_count=job.attempt_count,
-            )
-        )
-        return document
-
     def _document_source(self, document: DocumentRecord) -> DocumentSource:
         path: Path = self.storage.open_for_parser(document.storage_key)
         return DocumentSource(
@@ -470,29 +368,6 @@ class DocumentProcessingService:
             original_filename=document.original_filename,
             content_type=document.content_type,
         )
-
-
-def _safe_error_code(exc: Exception) -> str:
-    if isinstance(exc, ProviderError):
-        return f"provider_error:{exc.provider_name}"
-    return exc.__class__.__name__
-
-
-def _should_retry(exc: Exception, job: ProcessingJob, max_attempts: int) -> bool:
-    return isinstance(exc, ProviderError) and exc.retryable and job.attempt_count < max_attempts
-
-
-def _next_retry_at(
-    job: ProcessingJob,
-    *,
-    base_seconds: int,
-    max_seconds: int,
-) -> datetime:
-    exponent = max(0, job.attempt_count - 1)
-    bounded_delay = min(max_seconds, base_seconds * (2**exponent))
-    jitter_percent = (job.id.int % 21) - 10
-    jittered_delay = max(1.0, bounded_delay * (1 + jitter_percent / 100))
-    return datetime.now(UTC) + timedelta(seconds=jittered_delay)
 
 
 def _require_workspace(document: DocumentRecord, context: SecurityContext) -> None:

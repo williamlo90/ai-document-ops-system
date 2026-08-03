@@ -28,12 +28,10 @@ COMPLEXITY_EXCEPTIONS = {
 }
 FUNCTION_LENGTH_EXCEPTIONS = {
     "backend/app/documents/sqlite_repositories.py::SqliteStore._init_schema_locked": 232,
-    "backend/app/api/dependencies.py::build_container": 231,
     "backend/app/exports/batch_service.py::ExportBatchService.execute": 127,
     "backend/app/integrations/services.py::InvoiceIntegrationService._deliver": 118,
     "backend/app/backoffice/services.py::BackofficeWorkflowService.plan_work_item": 118,
     "backend/app/evaluation/dashboard.py::EvaluationDashboardService.run": 115,
-    "backend/app/documents/services.py::DocumentProcessingService._process_job": 105,
     "backend/app/api/invoices.py::save_intake_draft": 102,
     "backend/app/main.py::create_app": 99,
     "backend/app/documents/retention.py::SqliteRetentionRepository.purge": 95,
