@@ -19,8 +19,10 @@ from app.documents.repositories import (
 )
 from app.documents.services import DocumentProcessingService, DocumentUploadService
 from app.documents.status import DocumentStatus, InvalidStatusTransition
+from app.documents.state_writer import DocumentStateWriter
 from app.documents.workflow import DocumentWorkflowService
 from app.exports.services import InvoiceExportService
+from app.exports.sources import RepositoryInvoiceExportSource
 from app.extraction.schemas import InvoiceData
 from app.providers.mock import MockInvoiceExtractor, MockParserProvider
 from app.providers.storage import LocalStorageService
@@ -70,7 +72,7 @@ class ReviewAndExportTests(unittest.TestCase):
 
         self.assertEqual(task.reviewer_notes, "fixed total manually")
         self.assertEqual(approved.status, "approved")
-        self.assertEqual(document.status, DocumentStatus.APPROVED)
+        self.assertEqual(self.documents.get(document.id).status, DocumentStatus.APPROVED)
         self.assertEqual(
             self.extractions.get_for_document(
                 document.id
@@ -96,7 +98,7 @@ class ReviewAndExportTests(unittest.TestCase):
         task = service.reject(document.id, notes="not an invoice", context=self.context)
 
         self.assertEqual(task.status, "rejected")
-        self.assertEqual(document.status, DocumentStatus.REJECTED)
+        self.assertEqual(self.documents.get(document.id).status, DocumentStatus.REJECTED)
         self.assertEqual(
             self.audits.list_for_document(document.id)[-1].event_type,
             "document_rejected",
@@ -181,7 +183,7 @@ class ReviewAndExportTests(unittest.TestCase):
         task = self.reviews.get_for_document(document.id)
         self.assertEqual(task.reviewer_notes, "original notes")
         self.assertEqual(task.status, "approved")
-        self.assertEqual(document.status, DocumentStatus.APPROVED)
+        self.assertEqual(self.documents.get(document.id).status, DocumentStatus.APPROVED)
         self.assertEqual(self.audits.list_for_document(document.id), before_events)
 
     def test_review_requires_admin_context(self) -> None:
@@ -298,12 +300,7 @@ class ReviewAndExportTests(unittest.TestCase):
             )
         )
 
-        csv_text = InvoiceExportService(
-            self.documents,
-            self.extractions,
-            self.audits,
-            self.workflow,
-        ).export_approved_csv(context=self.context)
+        csv_text = self._export_service().export_approved_csv(context=self.context)
 
         self.assertIn(str(approved.id), csv_text)
         self.assertNotIn(str(needs_review.id), csv_text)
@@ -311,7 +308,7 @@ class ReviewAndExportTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["vendor_name"], "'=Acme, Inc.\nNorth")
         self.assertEqual(rows[0]["invoice_number"], '\'\t=INV-"001"')
-        self.assertEqual(approved.status, DocumentStatus.EXPORTED)
+        self.assertEqual(self.documents.get(approved.id).status, DocumentStatus.EXPORTED)
         self.assertEqual(needs_review.status, DocumentStatus.NEEDS_REVIEW)
 
     def test_export_ignores_unapproved_valid_invoice(self) -> None:
@@ -324,12 +321,7 @@ class ReviewAndExportTests(unittest.TestCase):
             )
         )
 
-        csv_text = InvoiceExportService(
-            self.documents,
-            self.extractions,
-            self.audits,
-            self.workflow,
-        ).export_approved_csv(context=self.context)
+        csv_text = self._export_service().export_approved_csv(context=self.context)
 
         self.assertNotIn(str(needs_review.id), csv_text)
         rows = list(csv.DictReader(StringIO(csv_text)))
@@ -376,26 +368,19 @@ class ReviewAndExportTests(unittest.TestCase):
             context=other_context,
         )
 
-        csv_text = InvoiceExportService(
-            self.documents,
-            self.extractions,
-            self.audits,
-            self.workflow,
-        ).export_approved_csv(context=acme_context)
+        csv_text = self._export_service().export_approved_csv(context=acme_context)
 
         self.assertIn(str(acme_document.id), csv_text)
         self.assertNotIn(str(other_document.id), csv_text)
-        self.assertEqual(acme_document.status, DocumentStatus.EXPORTED)
+        self.assertEqual(
+            self.documents.get(acme_document.id).status,
+            DocumentStatus.EXPORTED,
+        )
         self.assertEqual(other_document.status, DocumentStatus.APPROVED)
 
     def test_export_second_run_excludes_already_exported_documents(self) -> None:
         approved = self._approve_invoice(self._process_invoice())
-        export_service = InvoiceExportService(
-            self.documents,
-            self.extractions,
-            self.audits,
-            self.workflow,
-        )
+        export_service = self._export_service()
 
         first_csv = export_service.export_approved_csv(context=self.context)
         second_csv = export_service.export_approved_csv(context=self.context)
@@ -430,12 +415,7 @@ class ReviewAndExportTests(unittest.TestCase):
         )
         self.documents.add(queued)
 
-        json_text = InvoiceExportService(
-            self.documents,
-            self.extractions,
-            self.audits,
-            self.workflow,
-        ).export_predictions_json(context=self.context)
+        json_text = self._export_service().export_predictions_json(context=self.context)
 
         self.assertIn(str(needs_review.id), json_text)
         self.assertIn("INV-001", json_text)
@@ -448,12 +428,7 @@ class ReviewAndExportTests(unittest.TestCase):
         self.extractions.records.pop(second.id)
 
         with self.assertRaises(Exception):
-            InvoiceExportService(
-                self.documents,
-                self.extractions,
-                self.audits,
-                self.workflow,
-            ).export_approved_csv(context=self.context)
+            self._export_service().export_approved_csv(context=self.context)
 
         self.assertEqual(first.status, DocumentStatus.APPROVED)
         self.assertEqual(second.status, DocumentStatus.APPROVED)
@@ -464,7 +439,7 @@ class ReviewAndExportTests(unittest.TestCase):
         context: SecurityContext | None = None,
     ):
         self._review_service().approve(document.id, context=context or self.context)
-        return document
+        return self.documents.get(document.id)
 
     def _process_invoice(
         self,
@@ -517,6 +492,11 @@ class ReviewAndExportTests(unittest.TestCase):
             self.audits,
             self.workflow,
         )
+
+    def _export_service(self) -> InvoiceExportService:
+        source = RepositoryInvoiceExportSource(self.documents, self.extractions)
+        state_writer = DocumentStateWriter(self.documents, self.audits, self.workflow)
+        return InvoiceExportService(source, state_writer)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from app.documents.repositories import (
     DocumentRepository,
     ExtractionRepository,
 )
+from app.documents.state_writer import DocumentStateWriter
 from app.documents.workflow import DocumentWorkflowService
 from app.exports.eligibility import ExportDestination, ExportEligibilityPolicy
 from app.exports.execution import ExportExecutionLifecycle
@@ -40,6 +41,7 @@ class ExportBatchService:
         workflow: DocumentWorkflowService,
         invoice_exports: InvoiceExportService,
         transactions: TransactionManager | None = None,
+        state_writer: DocumentStateWriter | None = None,
     ) -> None:
         self.settings = settings
         self.repository = repository
@@ -49,6 +51,12 @@ class ExportBatchService:
         self.workflow = workflow
         self.invoice_exports = invoice_exports
         self.transactions = transactions or NoopTransactionManager()
+        self.state_writer = state_writer or DocumentStateWriter(
+            documents,
+            audits,
+            workflow,
+            self.transactions,
+        )
 
         self._eligibility = ExportEligibilityPolicy(
             repository=repository,
@@ -65,8 +73,7 @@ class ExportBatchService:
         self._execution = ExportExecutionLifecycle(
             repository=repository,
             documents=documents,
-            audits=audits,
-            workflow=workflow,
+            state_writer=self.state_writer,
             invoice_exports=invoice_exports,
             transactions=self.transactions,
             eligibility=self._eligibility,

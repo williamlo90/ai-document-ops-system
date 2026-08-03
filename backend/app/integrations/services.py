@@ -19,6 +19,7 @@ from app.documents.repositories import (
     NotFoundError,
 )
 from app.documents.status import DocumentStatus, InvalidStatusTransition
+from app.documents.state_writer import DocumentStateWriter
 from app.documents.workflow import DocumentWorkflowService
 from app.extraction.schemas import InvoiceData
 from app.integrations.models import (
@@ -56,6 +57,7 @@ class InvoiceIntegrationService:
         adapter: AccountingIntegrationAdapter,
         deliveries: IntegrationDeliveryRepository,
         transactions: TransactionManager | None = None,
+        state_writer: DocumentStateWriter | None = None,
     ) -> None:
         self.documents = documents
         self.extractions = extractions
@@ -64,6 +66,12 @@ class InvoiceIntegrationService:
         self.adapter = adapter
         self.deliveries = deliveries
         self.transactions = transactions or NoopTransactionManager()
+        self.state_writer = state_writer or DocumentStateWriter(
+            documents,
+            audits,
+            workflow,
+            self.transactions,
+        )
 
     def send_approved_invoice(
         self,
@@ -361,17 +369,14 @@ class InvoiceIntegrationService:
             raise InvalidStatusTransition(
                 "A delivered invoice can only finalize from approved status"
             )
-        self.audits.add(
-            self.workflow.transition(
-                document,
-                DocumentStatus.EXPORTED,
-                actor,
-                payload_summary=(
-                    f"adapter={delivery.adapter_name}; external_id={delivery.external_id}"
-                ),
-            )
+        self.state_writer.transition(
+            document,
+            DocumentStatus.EXPORTED,
+            actor,
+            payload_summary=(
+                f"adapter={delivery.adapter_name}; external_id={delivery.external_id}"
+            ),
         )
-        self.documents.add(document)
 
     def _payload_for_document(self, document: DocumentRecord) -> IntegrationInvoicePayload:
         stored = self.extractions.get_for_document(document.id)

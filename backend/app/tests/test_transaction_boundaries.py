@@ -618,13 +618,13 @@ class TransactionBoundaryTests(unittest.TestCase):
             completed: list[ExportRunRecord] = []
             try:
                 batch = self._seed_export_batch(first)
-                original_render = first.export_batch_service.invoice_exports.render_documents_csv
+                original_render = first.export_batch_service.invoice_exports.render_document_ids_csv
 
-                def blocking_render(documents: list[DocumentRecord]) -> str:
+                def blocking_render(document_ids) -> str:
                     render_started.set()
                     if not release_render.wait(timeout=5):
                         raise TimeoutError("Test export render was not released")
-                    return original_render(documents)
+                    return original_render(document_ids)
 
                 def run_first_export() -> None:
                     try:
@@ -640,7 +640,7 @@ class TransactionBoundaryTests(unittest.TestCase):
 
                 with patch.object(
                     first.export_batch_service.invoice_exports,
-                    "render_documents_csv",
+                    "render_document_ids_csv",
                     side_effect=blocking_render,
                 ):
                     thread = threading.Thread(target=run_first_export)
@@ -762,7 +762,7 @@ class TransactionBoundaryTests(unittest.TestCase):
                     status=ExportBatchStatus.READY,
                 )
                 container.export_batches.save_batch(batch)
-                original_add = container.documents.add
+                original_save = container.documents.save
                 write_count = 0
 
                 def fail_second_document_write(document: DocumentRecord) -> DocumentRecord:
@@ -770,12 +770,12 @@ class TransactionBoundaryTests(unittest.TestCase):
                     write_count += 1
                     if write_count == 2:
                         raise RuntimeError("injected document finalization failure")
-                    return original_add(document)
+                    return original_save(document)
 
                 with (
                     patch.object(
                         container.documents,
-                        "add",
+                        "save",
                         side_effect=fail_second_document_write,
                     ),
                     self.assertRaisesRegex(RuntimeError, "Export generation failed"),

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -43,51 +44,58 @@ class InMemoryExportBatchRepository:
 
     def save_batch(self, batch: ExportBatchRecord) -> ExportBatchRecord:
         with self.lock:
-            self.batches[(batch.workspace_id, batch.id)] = batch
-        return batch
+            stored = deepcopy(batch)
+            self.batches[(batch.workspace_id, batch.id)] = stored
+        return deepcopy(stored)
 
     def get_batch(self, workspace_id: str, batch_id: UUID) -> ExportBatchRecord | None:
         with self.lock:
-            return self.batches.get((workspace_id, batch_id))
+            return deepcopy(self.batches.get((workspace_id, batch_id)))
 
     def list_batches(self, workspace_id: str) -> list[ExportBatchRecord]:
         with self.lock:
-            return sorted(
-                (batch for (scope, _), batch in self.batches.items() if scope == workspace_id),
-                key=lambda batch: batch.updated_at,
-                reverse=True,
+            return deepcopy(
+                sorted(
+                    (batch for (scope, _), batch in self.batches.items() if scope == workspace_id),
+                    key=lambda batch: batch.updated_at,
+                    reverse=True,
+                )
             )
 
     def reserve_run(self, run: ExportRunRecord) -> tuple[ExportRunRecord, bool]:
         with self.lock:
             existing_id = self.run_keys.get((run.workspace_id, run.idempotency_key))
             if existing_id is not None:
-                return self.runs[(run.workspace_id, existing_id)], False
-            self.runs[(run.workspace_id, run.id)] = run
+                return deepcopy(self.runs[(run.workspace_id, existing_id)]), False
+            stored = deepcopy(run)
+            self.runs[(run.workspace_id, run.id)] = stored
             self.run_keys[(run.workspace_id, run.idempotency_key)] = run.id
-            return run, True
+            return deepcopy(stored), True
 
     def save_run(self, run: ExportRunRecord) -> ExportRunRecord:
         with self.lock:
-            self.runs[(run.workspace_id, run.id)] = run
+            stored = deepcopy(run)
+            self.runs[(run.workspace_id, run.id)] = stored
             self.run_keys[(run.workspace_id, run.idempotency_key)] = run.id
-        return run
+        return deepcopy(stored)
 
     def get_run(self, workspace_id: str, run_id: UUID) -> ExportRunRecord | None:
         with self.lock:
-            return self.runs.get((workspace_id, run_id))
+            return deepcopy(self.runs.get((workspace_id, run_id)))
 
     def get_run_by_key(self, workspace_id: str, key: str) -> ExportRunRecord | None:
         with self.lock:
             run_id = self.run_keys.get((workspace_id, key))
-            return self.runs.get((workspace_id, run_id)) if run_id else None
+            return deepcopy(self.runs.get((workspace_id, run_id))) if run_id else None
 
     def list_runs(self, workspace_id: str) -> list[ExportRunRecord]:
         with self.lock:
-            return sorted(
-                (run for (scope, _), run in self.runs.items() if scope == workspace_id),
-                key=lambda run: run.created_at,
-                reverse=True,
+            return deepcopy(
+                sorted(
+                    (run for (scope, _), run in self.runs.items() if scope == workspace_id),
+                    key=lambda run: run.created_at,
+                    reverse=True,
+                )
             )
 
 

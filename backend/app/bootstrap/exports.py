@@ -7,6 +7,7 @@ from app.bootstrap.persistence import PersistenceModule
 from app.core.settings import Settings
 from app.exports.batch_service import ExportBatchService
 from app.exports.services import InvoiceExportService
+from app.exports.sources import RepositoryInvoiceExportSource
 
 
 @dataclass(frozen=True)
@@ -21,12 +22,13 @@ def build_export_module(
     persistence: PersistenceModule,
 ) -> ExportModule:
     repositories = persistence.documents
-    service = InvoiceExportService(
+    source = RepositoryInvoiceExportSource(
         repositories.documents,
         repositories.extractions,
-        repositories.audits,
-        documents.workflow,
-        persistence.transactions,
+    )
+    service = InvoiceExportService(
+        source,
+        documents.state_writer,
     )
     batch_service = ExportBatchService(
         settings=settings,
@@ -37,5 +39,6 @@ def build_export_module(
         workflow=documents.workflow,
         invoice_exports=service,
         transactions=persistence.transactions,
+        state_writer=documents.state_writer,
     )
     return ExportModule(service=service, batch_service=batch_service)

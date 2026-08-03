@@ -13,6 +13,7 @@ from app.documents.repositories import (
     JobRepository,
 )
 from app.documents.status import DocumentStatus
+from app.documents.state_writer import DocumentStateWriter
 from app.documents.workflow import DocumentWorkflowService
 from app.providers.contracts import ExtractionResult, ProviderError
 from app.validation.invoice import ValidationIssue, ValidationReport
@@ -29,6 +30,7 @@ class ProcessingResultRecorder:
         workflow: DocumentWorkflowService,
         retry_policy: ProcessingRetryPolicy,
         transactions: TransactionManager,
+        state_writer: DocumentStateWriter | None = None,
     ) -> None:
         self.documents = documents
         self.jobs = jobs
@@ -37,6 +39,12 @@ class ProcessingResultRecorder:
         self.workflow = workflow
         self.retry_policy = retry_policy
         self.transactions = transactions
+        self.state_writer = state_writer or DocumentStateWriter(
+            documents,
+            audits,
+            workflow,
+            transactions,
+        )
 
     def record_success(
         self,
@@ -64,23 +72,21 @@ class ProcessingResultRecorder:
                     )
                 )
             self.extractions.save(document.id, result, report)
-            self.audits.add(
-                self.workflow.transition(document, DocumentStatus.EXTRACTED, actor=context.actor)
+            self.state_writer.transition(
+                document,
+                DocumentStatus.EXTRACTED,
+                actor=context.actor,
             )
-            self.documents.add(document)
-            self.audits.add(
-                self.workflow.transition(
-                    document,
-                    DocumentStatus.NEEDS_REVIEW,
-                    actor=context.actor,
-                    payload_summary=(
-                        "Validation requires reviewer correction."
-                        if report.has_errors
-                        else "Invoice is ready for reviewer approval."
-                    ),
-                )
+            self.state_writer.transition(
+                document,
+                DocumentStatus.NEEDS_REVIEW,
+                actor=context.actor,
+                payload_summary=(
+                    "Validation requires reviewer correction."
+                    if report.has_errors
+                    else "Invoice is ready for reviewer approval."
+                ),
             )
-            self.documents.add(document)
             job.provider_name = result.provider_name
             job.provider_trace_id = result.provider_trace_id
             job.succeed()
@@ -112,13 +118,11 @@ class ProcessingResultRecorder:
             if self.retry_policy.should_retry(error, job):
                 job.retry(error_code, next_attempt_at=self.retry_policy.next_attempt_at(job))
                 document.error_message = error_code
-                self.audits.add(
-                    self.workflow.transition(
-                        document,
-                        DocumentStatus.QUEUED,
-                        actor=context.actor,
-                        payload_summary=error_code,
-                    )
+                self.state_writer.transition(
+                    document,
+                    DocumentStatus.QUEUED,
+                    actor=context.actor,
+                    payload_summary=error_code,
                 )
             else:
                 if isinstance(error, ProviderError) and error.retryable:
@@ -127,12 +131,13 @@ class ProcessingResultRecorder:
                     job.fail(error_code)
                 document.error_message = job.error_message
                 if document.status != DocumentStatus.FAILED:
-                    self.audits.add(
-                        self.workflow.transition(
-                            document, DocumentStatus.FAILED, actor=context.actor
-                        )
+                    self.state_writer.transition(
+                        document,
+                        DocumentStatus.FAILED,
+                        actor=context.actor,
                     )
-            self.documents.add(document)
+                else:
+                    self.documents.save(document)
             self.jobs.save(job, expected_lease_token=lease_token)
         log_operation(
             OperationEvent(

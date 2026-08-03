@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
@@ -35,20 +36,22 @@ class InMemoryIntegrationDeliveryRepository:
         with self.lock:
             existing = self.records.get(key)
             if existing is not None:
-                return existing, False
-            self.records[key] = record
-            return record, True
+                return deepcopy(existing), False
+            stored = deepcopy(record)
+            self.records[key] = stored
+            return deepcopy(stored), True
 
     def save(self, record: IntegrationDeliveryRecord) -> IntegrationDeliveryRecord:
         with self.lock:
-            self.records[_record_key(record)] = record
-        return record
+            stored = deepcopy(record)
+            self.records[_record_key(record)] = stored
+        return deepcopy(stored)
 
     def get_by_key(
         self, workspace_id: str, adapter_name: str, idempotency_key: str
     ) -> IntegrationDeliveryRecord | None:
         with self.lock:
-            return self.records.get((workspace_id, adapter_name, idempotency_key))
+            return deepcopy(self.records.get((workspace_id, adapter_name, idempotency_key)))
 
     def claim_retry(self, record_id: UUID) -> IntegrationDeliveryRecord | None:
         with self.lock:
@@ -66,8 +69,8 @@ class InMemoryIntegrationDeliveryRepository:
                         attempt_count=record.attempt_count + 1,
                         updated_at=datetime.now(UTC),
                     )
-                    self.records[key] = claimed
-                    return claimed
+                    self.records[key] = deepcopy(claimed)
+                    return deepcopy(claimed)
         return None
 
 

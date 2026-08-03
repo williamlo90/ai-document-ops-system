@@ -7,6 +7,7 @@ from app.bootstrap.persistence import PersistenceModule
 from app.core.settings import Settings
 from app.core.upload_scanning import build_upload_scanner
 from app.documents.services import DocumentProcessingService, DocumentUploadService
+from app.documents.state_writer import DocumentStateWriter
 from app.documents.worker import DocumentProcessingWorker
 from app.documents.workflow import DocumentWorkflowService
 from app.providers.contracts import ExtractorProvider, ParserProvider
@@ -18,6 +19,7 @@ from app.providers.storage import DocumentStorage, build_document_storage
 class DocumentModule:
     storage: DocumentStorage
     workflow: DocumentWorkflowService
+    state_writer: DocumentStateWriter
     parser: ParserProvider
     extractor: ExtractorProvider
     upload_service: DocumentUploadService
@@ -32,6 +34,12 @@ def build_document_module(
     repositories = persistence.documents
     storage = _build_storage(settings)
     workflow = DocumentWorkflowService()
+    state_writer = DocumentStateWriter(
+        repositories.documents,
+        repositories.audits,
+        workflow,
+        persistence.transactions,
+    )
     parser = build_parser_provider(settings)
     extractor = build_extractor_provider(settings)
     upload_service = DocumentUploadService(
@@ -42,6 +50,7 @@ def build_document_module(
         workflow,
         build_upload_scanner(settings),
         persistence.transactions,
+        state_writer,
     )
     processing_service = DocumentProcessingService(
         storage,
@@ -56,6 +65,7 @@ def build_document_module(
         retry_base_seconds=settings.worker_retry_base_seconds,
         retry_max_seconds=settings.worker_retry_max_seconds,
         transactions=persistence.transactions,
+        state_writer=state_writer,
     )
     worker_service = DocumentProcessingWorker(
         repositories.jobs,
@@ -65,6 +75,7 @@ def build_document_module(
     return DocumentModule(
         storage=storage,
         workflow=workflow,
+        state_writer=state_writer,
         parser=parser,
         extractor=extractor,
         upload_service=upload_service,

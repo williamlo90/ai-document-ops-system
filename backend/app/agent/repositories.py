@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
@@ -25,19 +26,20 @@ class InMemoryAgentRunRepository:
     records: dict[UUID, AgentRun] = field(default_factory=dict)
 
     def add(self, run: AgentRun) -> AgentRun:
-        self.records[run.id] = run
-        return run
+        stored = deepcopy(run)
+        self.records[run.id] = stored
+        return deepcopy(stored)
 
     def get(self, run_id: UUID) -> AgentRun:
         try:
-            return self.records[run_id]
+            return deepcopy(self.records[run_id])
         except KeyError as exc:
             raise NotFoundError(f"Agent run not found: {run_id}") from exc
 
     def list_recent(self, workspace_id: str, limit: int = 20) -> list[AgentRun]:
         matching = [run for run in self.records.values() if run.workspace_id == workspace_id]
         matching.sort(key=lambda run: run.created_at, reverse=True)
-        return matching[: max(limit, 0)]
+        return deepcopy(matching[: max(limit, 0)])
 
 
 class SqliteAgentRunRepository:

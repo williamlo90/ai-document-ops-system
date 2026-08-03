@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
@@ -33,12 +34,15 @@ class InMemoryScenarioEvaluationRepository:
     records: list[ScenarioEvaluationRecord] = field(default_factory=list)
 
     def add(self, record: ScenarioEvaluationRecord) -> ScenarioEvaluationRecord:
-        self.records.append(record)
-        return record
+        stored = deepcopy(record)
+        self.records.append(stored)
+        return deepcopy(stored)
 
     def list_recent(self, workspace_id: str, limit: int = 100) -> list[ScenarioEvaluationRecord]:
         records = [record for record in self.records if record.workspace_id == workspace_id]
-        return sorted(records, key=lambda record: record.created_at, reverse=True)[: max(limit, 0)]
+        return deepcopy(
+            sorted(records, key=lambda record: record.created_at, reverse=True)[: max(limit, 0)]
+        )
 
 
 class SqliteScenarioEvaluationRepository:

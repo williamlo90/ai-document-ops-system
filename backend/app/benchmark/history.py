@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 import sqlite3
 from dataclasses import dataclass, field
@@ -42,24 +43,26 @@ class InMemoryBenchmarkHistoryRepository:
             id=uuid4(),
             dataset_name=dataset_name,
             provider_name=provider_name,
-            report=report,
+            report=deepcopy(report),
             created_at=_now(),
         )
         self.records[record.id] = record
-        return record
+        return deepcopy(record)
 
     def get(self, run_id: UUID) -> BenchmarkHistoryRecord:
         try:
-            return self.records[run_id]
+            return deepcopy(self.records[run_id])
         except KeyError as exc:
             raise NotFoundError(f"Benchmark run not found: {run_id}") from exc
 
     def list_recent(self, limit: int = 10) -> list[BenchmarkHistoryRecord]:
-        return sorted(
-            self.records.values(),
-            key=lambda record: record.created_at,
-            reverse=True,
-        )[:limit]
+        return deepcopy(
+            sorted(
+                self.records.values(),
+                key=lambda record: record.created_at,
+                reverse=True,
+            )[:limit]
+        )
 
     def count(self) -> int:
         return len(self.records)

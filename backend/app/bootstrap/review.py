@@ -28,5 +28,6 @@ def build_review_module(
         documents.workflow,
         correction_feedback,
         persistence.transactions,
+        documents.state_writer,
     )
     return ReviewModule(service=service, correction_feedback=correction_feedback)

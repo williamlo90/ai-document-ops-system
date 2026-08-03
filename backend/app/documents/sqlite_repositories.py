@@ -24,6 +24,9 @@ class SqliteDocumentRepository:
         self.store = store
 
     def add(self, document: DocumentRecord) -> DocumentRecord:
+        return self.save(document)
+
+    def save(self, document: DocumentRecord) -> DocumentRecord:
         self.store.execute(
             """
             INSERT INTO documents

@@ -75,7 +75,10 @@ class DocumentServiceTests(unittest.TestCase):
             document = processor.process_job(upload_result.job.id, context=self.context)
 
         self.assertEqual(document.status, DocumentStatus.NEEDS_REVIEW)
-        self.assertEqual(upload_result.job.status, ProcessingJobStatus.SUCCEEDED)
+        self.assertEqual(
+            self.jobs.get(upload_result.job.id).status,
+            ProcessingJobStatus.SUCCEEDED,
+        )
         self.assertFalse(
             self.extractions.get_for_document(document.id).validation_report.has_errors
         )
@@ -104,7 +107,10 @@ class DocumentServiceTests(unittest.TestCase):
         document = processor.process_job(upload_result.job.id, context=self.context)
 
         self.assertEqual(document.status, DocumentStatus.NEEDS_REVIEW)
-        self.assertEqual(upload_result.job.status, ProcessingJobStatus.SUCCEEDED)
+        self.assertEqual(
+            self.jobs.get(upload_result.job.id).status,
+            ProcessingJobStatus.SUCCEEDED,
+        )
         self.assertTrue(self.extractions.get_for_document(document.id).validation_report.has_errors)
 
     def test_duplicate_vendor_and_invoice_number_is_flagged_within_workspace(self) -> None:
@@ -210,8 +216,9 @@ class DocumentServiceTests(unittest.TestCase):
         document = processor.process_job(upload_result.job.id, context=self.context)
 
         self.assertEqual(document.status, DocumentStatus.FAILED)
-        self.assertEqual(upload_result.job.status, ProcessingJobStatus.FAILED)
-        self.assertEqual(upload_result.job.error_message, "provider_error:failing_parser")
+        persisted_job = self.jobs.get(upload_result.job.id)
+        self.assertEqual(persisted_job.status, ProcessingJobStatus.FAILED)
+        self.assertEqual(persisted_job.error_message, "provider_error:failing_parser")
 
     def test_retryable_provider_error_requeues_document_and_job(self) -> None:
         upload_result = self._upload_service().upload_pdf(
@@ -225,9 +232,10 @@ class DocumentServiceTests(unittest.TestCase):
         document = processor.process_job(upload_result.job.id, context=self.context)
 
         self.assertEqual(document.status, DocumentStatus.QUEUED)
-        self.assertEqual(upload_result.job.status, ProcessingJobStatus.RETRYING)
-        self.assertEqual(upload_result.job.attempt_count, 1)
-        self.assertEqual(upload_result.job.error_message, "provider_error:retryable_parser")
+        persisted_job = self.jobs.get(upload_result.job.id)
+        self.assertEqual(persisted_job.status, ProcessingJobStatus.RETRYING)
+        self.assertEqual(persisted_job.attempt_count, 1)
+        self.assertEqual(persisted_job.error_message, "provider_error:retryable_parser")
 
     def test_retrying_job_can_succeed_on_later_attempt(self) -> None:
         upload_result = self._upload_service().upload_pdf(
@@ -241,13 +249,17 @@ class DocumentServiceTests(unittest.TestCase):
 
         first_document = processor.process_job(upload_result.job.id, context=self.context)
         self.assertEqual(first_document.status, DocumentStatus.QUEUED)
-        self.assertEqual(upload_result.job.status, ProcessingJobStatus.RETRYING)
+        self.assertEqual(
+            self.jobs.get(upload_result.job.id).status,
+            ProcessingJobStatus.RETRYING,
+        )
 
         second_document = processor.process_job(upload_result.job.id, context=self.context)
 
         self.assertEqual(second_document.status, DocumentStatus.NEEDS_REVIEW)
-        self.assertEqual(upload_result.job.status, ProcessingJobStatus.SUCCEEDED)
-        self.assertEqual(upload_result.job.attempt_count, 2)
+        persisted_job = self.jobs.get(upload_result.job.id)
+        self.assertEqual(persisted_job.status, ProcessingJobStatus.SUCCEEDED)
+        self.assertEqual(persisted_job.attempt_count, 2)
 
     def test_retryable_provider_error_dead_letters_after_limit(self) -> None:
         upload_result = self._upload_service().upload_pdf(
@@ -264,8 +276,9 @@ class DocumentServiceTests(unittest.TestCase):
         document = processor.process_job(upload_result.job.id, context=self.context)
 
         self.assertEqual(document.status, DocumentStatus.FAILED)
-        self.assertEqual(upload_result.job.status, ProcessingJobStatus.DEAD_LETTER)
-        self.assertEqual(upload_result.job.attempt_count, 1)
+        persisted_job = self.jobs.get(upload_result.job.id)
+        self.assertEqual(persisted_job.status, ProcessingJobStatus.DEAD_LETTER)
+        self.assertEqual(persisted_job.attempt_count, 1)
 
     def test_empty_parser_text_fails_document_and_job_safely(self) -> None:
         upload_result = self._upload_service().upload_pdf(
@@ -279,7 +292,10 @@ class DocumentServiceTests(unittest.TestCase):
         document = processor.process_job(upload_result.job.id, context=self.context)
 
         self.assertEqual(document.status, DocumentStatus.FAILED)
-        self.assertEqual(upload_result.job.error_message, "provider_error:mock_parser")
+        self.assertEqual(
+            self.jobs.get(upload_result.job.id).error_message,
+            "provider_error:mock_parser",
+        )
 
     def test_non_provider_exception_stores_class_name_only(self) -> None:
         upload_result = self._upload_service().upload_pdf(
@@ -293,7 +309,7 @@ class DocumentServiceTests(unittest.TestCase):
         document = processor.process_job(upload_result.job.id, context=self.context)
 
         self.assertEqual(document.status, DocumentStatus.FAILED)
-        self.assertEqual(upload_result.job.error_message, "RuntimeError")
+        self.assertEqual(self.jobs.get(upload_result.job.id).error_message, "RuntimeError")
 
     def test_worker_processes_next_queued_job(self) -> None:
         upload_result = self._upload_service().upload_pdf(
@@ -321,7 +337,10 @@ class DocumentServiceTests(unittest.TestCase):
 
         self.assertIsNotNone(claimed)
         self.assertEqual(claimed.id, upload_result.job.id)
-        self.assertEqual(upload_result.job.status, ProcessingJobStatus.RUNNING)
+        self.assertEqual(
+            self.jobs.get(upload_result.job.id).status,
+            ProcessingJobStatus.RUNNING,
+        )
 
     def test_claimed_job_is_not_claimed_twice(self) -> None:
         self._upload_service().upload_pdf(

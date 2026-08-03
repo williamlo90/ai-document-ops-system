@@ -27,6 +27,7 @@ from app.documents.repositories import (
     NotFoundError,
 )
 from app.documents.status import DocumentStatus, InvalidStatusTransition
+from app.documents.state_writer import DocumentStateWriter
 from app.documents.workflow import DocumentWorkflowService
 from app.providers.contracts import (
     DocumentSource,
@@ -57,6 +58,7 @@ class DocumentUploadService:
         workflow: DocumentWorkflowService,
         upload_scanner: UploadScanner | None = None,
         transactions: TransactionManager | None = None,
+        state_writer: DocumentStateWriter | None = None,
     ) -> None:
         self.storage = storage
         self.documents = documents
@@ -65,6 +67,12 @@ class DocumentUploadService:
         self.workflow = workflow
         self.upload_scanner = upload_scanner or SignatureUploadScanner()
         self.transactions = transactions or NoopTransactionManager()
+        self.state_writer = state_writer or DocumentStateWriter(
+            documents,
+            audits,
+            workflow,
+            self.transactions,
+        )
 
     def upload_pdf(
         self,
@@ -90,10 +98,11 @@ class DocumentUploadService:
                     )
                 )
                 self.audits.add(self.workflow.record_upload(document, actor=context.actor))
-                self.audits.add(
-                    self.workflow.transition(document, DocumentStatus.QUEUED, actor=context.actor)
+                self.state_writer.transition(
+                    document,
+                    DocumentStatus.QUEUED,
+                    actor=context.actor,
                 )
-                self.documents.add(document)
                 job = self.jobs.add(ProcessingJob(document_id=document.id))
         except Exception:
             try:
@@ -131,6 +140,7 @@ class DocumentProcessingService:
         retry_base_seconds: int = 5,
         retry_max_seconds: int = 300,
         transactions: TransactionManager | None = None,
+        state_writer: DocumentStateWriter | None = None,
     ) -> None:
         self.storage = storage
         self.documents = documents
@@ -144,6 +154,12 @@ class DocumentProcessingService:
         self.retry_base_seconds = max(1, retry_base_seconds)
         self.retry_max_seconds = max(self.retry_base_seconds, retry_max_seconds)
         self.transactions = transactions or NoopTransactionManager()
+        self.state_writer = state_writer or DocumentStateWriter(
+            documents,
+            audits,
+            workflow,
+            self.transactions,
+        )
         self.retry_policy = ProcessingRetryPolicy(
             max_attempts=self.max_processing_attempts,
             base_seconds=self.retry_base_seconds,
@@ -157,6 +173,7 @@ class DocumentProcessingService:
             workflow=self.workflow,
             retry_policy=self.retry_policy,
             transactions=self.transactions,
+            state_writer=self.state_writer,
         )
 
     def process_job(
@@ -188,15 +205,12 @@ class DocumentProcessingService:
             raise InvalidStatusTransition("Only failed documents can be retried")
         document.error_message = None
         with self.transactions.transaction():
-            self.audits.add(
-                self.workflow.transition(
-                    document,
-                    DocumentStatus.QUEUED,
-                    actor=context.actor,
-                    payload_summary="manual retry requested",
-                )
+            self.state_writer.transition(
+                document,
+                DocumentStatus.QUEUED,
+                actor=context.actor,
+                payload_summary="manual retry requested",
             )
-            self.documents.add(document)
             self.jobs.add(ProcessingJob(document_id=document.id))
         return document
 
@@ -215,15 +229,12 @@ class DocumentProcessingService:
             )
         document.error_message = None
         with self.transactions.transaction():
-            self.audits.add(
-                self.workflow.transition(
-                    document,
-                    DocumentStatus.QUEUED,
-                    actor=context.actor,
-                    payload_summary="manual reprocess requested",
-                )
+            self.state_writer.transition(
+                document,
+                DocumentStatus.QUEUED,
+                actor=context.actor,
+                payload_summary="manual reprocess requested",
             )
-            self.documents.add(document)
             self.jobs.add(ProcessingJob(document_id=document.id))
         return document
 
@@ -244,15 +255,12 @@ class DocumentProcessingService:
         with self.transactions.transaction():
             job.cancel()
             self.jobs.save(job)
-            self.audits.add(
-                self.workflow.transition(
-                    document,
-                    DocumentStatus.CANCELLED,
-                    actor=context.actor,
-                    payload_summary="intake cancelled by operator",
-                )
+            self.state_writer.transition(
+                document,
+                DocumentStatus.CANCELLED,
+                actor=context.actor,
+                payload_summary="intake cancelled by operator",
             )
-            self.documents.add(document)
         return document
 
     def _process_job(
@@ -280,13 +288,11 @@ class DocumentProcessingService:
             )
         )
         if document.status != DocumentStatus.PROCESSING:
-            with self.transactions.transaction():
-                self.audits.add(
-                    self.workflow.transition(
-                        document, DocumentStatus.PROCESSING, actor=context.actor
-                    )
-                )
-                self.documents.add(document)
+            self.state_writer.transition(
+                document,
+                DocumentStatus.PROCESSING,
+                actor=context.actor,
+            )
         try:
             result, report, security_issues = self._extract_document(document)
         except Exception as exc:

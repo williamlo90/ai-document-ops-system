@@ -210,8 +210,9 @@ class BackofficeWorkflowServiceTests(unittest.TestCase):
         self.assertEqual(response.status, "success")
         self.assertEqual(self.executor.requests[0].tool_name, AgentToolName.EXPORT_APPROVED_CSV)
         self.assertTrue(self.executor.requests[0].confirmed)
-        self.assertEqual(self.work_items.get(work_item.id).status, WorkItemStatus.RESOLVED)
-        plan = self.plans.get(work_item.current_plan_id)
+        persisted_work_item = self.work_items.get(work_item.id)
+        self.assertEqual(persisted_work_item.status, WorkItemStatus.RESOLVED)
+        plan = self.plans.get(persisted_work_item.current_plan_id)
         self.assertEqual(plan.steps[-1].status, ActionStepStatus.EXECUTED)
 
         replay = self.service.execute_approved_step(

@@ -66,7 +66,9 @@ The largest correctness paths are split by responsibility:
 - backoffice recovery owns stale and unknown-outcome reconciliation;
 - export eligibility decides membership and blockers;
 - export execution owns reservation, artifact generation, finalization, and retry;
-- export workspace code is read-only projection and filtering.
+- export workspace code is read-only projection and filtering;
+- the export service reads `ExportableInvoice` projections through an export-facing contract rather
+  than assembling rows from the document aggregate itself.
 
 The original service classes remain as compatibility facades, so API and workflow contracts do not
 depend on the internal split.
@@ -76,6 +78,10 @@ workspace checks, lease coordination, and provider orchestration. `ProcessingRet
 failure classification and backoff, while `ProcessingResultRecorder` owns atomic result, audit,
 job, and workflow writes. The public processing methods and mutable provider hooks remain unchanged
 for worker and test compatibility.
+
+`DocumentStateWriter` is the single application operation for status changes. It validates the
+transition, records the audit event, and saves the document inside one transaction. Review, retry,
+processing, integration, and export services do not persist those pieces independently.
 
 ### Provider adapters
 
@@ -114,6 +120,10 @@ indexes, and backfills live in `sqlite_schema.py`; aggregate repositories remain
 workspace-scoped SQL read models with a fixed query count instead of loading every record into the
 application process.
 
+Memory repositories follow the same explicit-save semantics as SQLite. They store and return
+snapshots, so mutating an object returned by `get()` or `list_*()` cannot change repository state
+until `save()` is called. Shared repository contract tests protect this parity.
+
 The storage interface can target an S3-compatible service, but the default demo stays
 self-contained.
 
@@ -127,14 +137,17 @@ database transaction; the token fences the transaction that stores the result.
 The main invoice lifecycle is:
 
 ```text
-uploaded -> processing -> needs_review -> approved -> exported
-                         |              |
-                         |              -> rejected
-                         -> needs_correction
+uploaded -> queued -> processing -> extracted -> needs_review -> approved -> exported
+                                                |
+                                                -> rejected
 ```
 
 Processing failures and exhausted retries are tracked separately. Approved, rejected, and exported
 records cannot be changed through the intake draft API.
+
+`needs_correction` is a business/UI projection, not a separate `DocumentStatus`. It describes a
+document that remains in `needs_review` while validation errors or a correction request still need
+attention. This keeps the persisted lifecycle small without hiding the review outcome from users.
 
 The following rules are enforced:
 
@@ -144,6 +157,13 @@ The following rules are enforced:
 4. Export requires approval.
 5. A failed delivery keeps the approval and does not mark the export as complete.
 6. Workspace checks apply to reads and writes.
+
+There are two export boundaries. The controlled batch path stores a durable run and generated
+artifact before finalizing the batch; an accounting integration records `exported` only after a
+confirmed delivery receipt. The older direct CSV endpoint is a local compatibility/download path:
+it treats successful in-process rendering as the export event. It is not evidence that a browser
+received the response or that an external accounting system accepted the file, so it is not the
+recommended production delivery path.
 
 Local backoffice commands commit their related records in one transaction. Controlled external
 execution uses two transactions: the first reserves the action as `executing`, the tool call runs

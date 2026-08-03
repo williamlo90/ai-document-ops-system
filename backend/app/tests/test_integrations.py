@@ -85,7 +85,7 @@ class InvoiceIntegrationTests(unittest.TestCase):
 
         self.assertEqual(result.integration_result.adapter_name, "mock-accounting")
         self.assertEqual(result.integration_result.external_id, "mock-ap-INV-ERP")
-        self.assertEqual(document.status, DocumentStatus.EXPORTED)
+        self.assertEqual(self.documents.get(document.id).status, DocumentStatus.EXPORTED)
         self.assertEqual(adapter.sent_payloads[0].total, "110.00")
         self.assertEqual(adapter.sent_payloads[0].line_items[0].amount, "100.00")
         self.assertEqual(
@@ -119,7 +119,7 @@ class InvoiceIntegrationTests(unittest.TestCase):
                 idempotency_key="export-inv-fail-001",
             )
 
-        self.assertEqual(document.status, DocumentStatus.APPROVED)
+        self.assertEqual(self.documents.get(document.id).status, DocumentStatus.APPROVED)
         events = self.audits.list_for_document(document.id)
         self.assertIn("integration_export_attempted", [event.event_type for event in events])
         self.assertIn("integration_export_failed", [event.event_type for event in events])
@@ -170,7 +170,7 @@ class InvoiceIntegrationTests(unittest.TestCase):
                 idempotency_key="export-wrong-workspace-001",
             )
 
-        self.assertEqual(document.status, DocumentStatus.APPROVED)
+        self.assertEqual(self.documents.get(document.id).status, DocumentStatus.APPROVED)
 
     def test_operator_cannot_send_integration_export(self) -> None:
         document = self._process_invoice()
@@ -245,7 +245,7 @@ class InvoiceIntegrationTests(unittest.TestCase):
 
         self.assertEqual(len(adapter.attempted_keys), 1)
         self.assertEqual(reconciled.status, IntegrationDeliveryStatus.SUCCEEDED)
-        self.assertEqual(document.status, DocumentStatus.EXPORTED)
+        self.assertEqual(self.documents.get(document.id).status, DocumentStatus.EXPORTED)
 
     def test_key_cannot_be_reused_for_different_document(self) -> None:
         first = self._process_invoice(self._valid_invoice("INV-A", Decimal("1.00")))
@@ -353,7 +353,7 @@ class InvoiceIntegrationTests(unittest.TestCase):
         )
         document = processor.process_job(result.job.id, context=context)
         self._review_service().approve(document.id, context=context)
-        return document
+        return self.documents.get(document.id)
 
 
 if __name__ == "__main__":

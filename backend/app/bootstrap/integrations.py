@@ -27,5 +27,6 @@ def build_integration_module(
             MockAccountingAdapter(),
             persistence.integration_deliveries,
             persistence.transactions,
+            documents.state_writer,
         )
     )

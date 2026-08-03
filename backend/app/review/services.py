@@ -14,6 +14,7 @@ from app.documents.repositories import (
     ReviewTaskRepository,
 )
 from app.documents.status import DocumentStatus, InvalidStatusTransition
+from app.documents.state_writer import DocumentStateWriter
 from app.documents.workflow import DocumentWorkflowService
 from app.extraction.schemas import InvoiceData, InvoiceExtraction
 from app.providers.contracts import ExtractionResult
@@ -32,6 +33,7 @@ class ReviewService:
         workflow: DocumentWorkflowService,
         correction_feedback: CorrectionFeedbackService | None = None,
         transactions: TransactionManager | None = None,
+        state_writer: DocumentStateWriter | None = None,
     ) -> None:
         self.documents = documents
         self.reviews = reviews
@@ -40,6 +42,12 @@ class ReviewService:
         self.workflow = workflow
         self.correction_feedback = correction_feedback
         self.transactions = transactions or NoopTransactionManager()
+        self.state_writer = state_writer or DocumentStateWriter(
+            documents,
+            audits,
+            workflow,
+            self.transactions,
+        )
 
     def list_queue(self, context: SecurityContext) -> list[DocumentRecord]:
         require_any_role(context, {"admin", "reviewer"})
@@ -126,10 +134,11 @@ class ReviewService:
             raise InvalidStatusTransition("Resolve invoice issues before approving")
         with self.transactions.transaction():
             task = self._get_or_create_task(document_id)
-            self.audits.add(
-                self.workflow.transition(document, DocumentStatus.APPROVED, context.actor)
+            self.state_writer.transition(
+                document,
+                DocumentStatus.APPROVED,
+                context.actor,
             )
-            self.documents.add(document)
             task.status = "approved"
             task.reviewed_by = context.actor
             task.reviewed_at = datetime.now(UTC)
@@ -144,15 +153,12 @@ class ReviewService:
             raise InvalidStatusTransition("Can only reject needs_review documents")
         with self.transactions.transaction():
             task = self._get_or_create_task(document_id)
-            self.audits.add(
-                self.workflow.transition(
-                    document,
-                    DocumentStatus.REJECTED,
-                    context.actor,
-                    payload_summary="document rejected",
-                )
+            self.state_writer.transition(
+                document,
+                DocumentStatus.REJECTED,
+                context.actor,
+                payload_summary="document rejected",
             )
-            self.documents.add(document)
             task.reviewer_notes = notes
             task.status = "rejected"
             task.reviewed_by = context.actor

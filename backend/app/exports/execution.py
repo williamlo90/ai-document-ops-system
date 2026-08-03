@@ -9,9 +9,9 @@ from uuid import UUID
 from app.core.security import SecurityContext, require_admin
 from app.core.transactions import TransactionManager
 from app.documents.models import DocumentRecord
-from app.documents.repositories import AuditRepository, DocumentRepository
+from app.documents.repositories import DocumentRepository
+from app.documents.state_writer import DocumentStateWriter
 from app.documents.status import DocumentStatus
-from app.documents.workflow import DocumentWorkflowService
 from app.exports.eligibility import ExportDestination, ExportEligibilityPolicy
 from app.exports.models import (
     ExportBatchNotFound,
@@ -44,8 +44,7 @@ class ExportExecutionLifecycle:
         *,
         repository: ExportBatchRepository,
         documents: DocumentRepository,
-        audits: AuditRepository,
-        workflow: DocumentWorkflowService,
+        state_writer: DocumentStateWriter,
         invoice_exports: InvoiceExportService,
         transactions: TransactionManager,
         eligibility: ExportEligibilityPolicy,
@@ -53,8 +52,7 @@ class ExportExecutionLifecycle:
     ) -> None:
         self.repository = repository
         self.documents = documents
-        self.audits = audits
-        self.workflow = workflow
+        self.state_writer = state_writer
         self.invoice_exports = invoice_exports
         self.transactions = transactions
         self.eligibility = eligibility
@@ -201,7 +199,9 @@ class ExportExecutionLifecycle:
         context: SecurityContext,
         reservation: ExportExecutionReservation,
     ) -> ExportRunRecord:
-        csv_text = self.invoice_exports.render_documents_csv(list(reservation.documents))
+        csv_text = self.invoice_exports.render_document_ids_csv(
+            tuple(document.id for document in reservation.documents)
+        )
         completed_at = datetime.now(UTC)
         succeeded = replace(
             reservation.run,
@@ -218,16 +218,13 @@ class ExportExecutionLifecycle:
             current_batch = self._batch(context.workspace_id, reservation.batch.id)
             current_run = self._run(context.workspace_id, reservation.run.id)
             self._require_ownership(current_batch, current_run)
-            for document in reservation.documents:
-                self.audits.add(
-                    self.workflow.transition(
-                        document,
-                        DocumentStatus.EXPORTED,
-                        context.actor,
-                        payload_summary=f"export_run_id={reservation.run.id}",
-                    )
-                )
-                self.documents.add(document)
+            self.state_writer.transition_many_by_id(
+                reservation.run.document_ids,
+                context.workspace_id,
+                DocumentStatus.EXPORTED,
+                context.actor,
+                payload_summary=f"export_run_id={reservation.run.id}",
+            )
             self.repository.save_run(succeeded)
             self.repository.save_batch(
                 replace(

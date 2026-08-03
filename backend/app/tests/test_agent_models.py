@@ -103,8 +103,8 @@ class AgentModelTests(unittest.TestCase):
             )
         )
 
-        self.assertIs(repository.get(acme_old.id), acme_old)
-        self.assertIs(repository.get(other.id), other)
+        self.assertEqual(repository.get(acme_old.id), acme_old)
+        self.assertEqual(repository.get(other.id), other)
         self.assertEqual(repository.list_recent("acme"), [acme_new, acme_old])
         self.assertEqual(repository.list_recent("acme", limit=1), [acme_new])
         self.assertEqual(repository.list_recent("missing"), [])

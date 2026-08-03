@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
@@ -45,23 +46,27 @@ class InMemoryNotificationRepository:
             None,
         )
         if existing:
-            return existing
-        self.records[notification.id] = notification
-        return notification
+            return deepcopy(existing)
+        stored = deepcopy(notification)
+        self.records[notification.id] = stored
+        return deepcopy(stored)
 
     def save(self, notification: Notification) -> Notification:
-        self.records[notification.id] = notification
-        return notification
+        stored = deepcopy(notification)
+        self.records[notification.id] = stored
+        return deepcopy(stored)
 
     def get(self, notification_id: UUID) -> Notification:
         try:
-            return self.records[notification_id]
+            return deepcopy(self.records[notification_id])
         except KeyError as exc:
             raise NotFoundError(f"Notification not found: {notification_id}") from exc
 
     def list_recent(self, workspace_id: str, limit: int = 100) -> list[Notification]:
         records = [item for item in self.records.values() if item.workspace_id == workspace_id]
-        return sorted(records, key=lambda item: item.created_at, reverse=True)[: max(limit, 0)]
+        return deepcopy(
+            sorted(records, key=lambda item: item.created_at, reverse=True)[: max(limit, 0)]
+        )
 
 
 class SqliteNotificationRepository:

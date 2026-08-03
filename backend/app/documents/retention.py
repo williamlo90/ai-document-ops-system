@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -392,8 +393,8 @@ class InMemoryRetentionRepository:
             reason=reason,
             deleted_records=deleted,
         )
-        self.purge_events.append(record)
-        return record
+        self.purge_events.append(deepcopy(record))
+        return deepcopy(record)
 
 
 def purge_record_response(record: PurgeRecord) -> dict[str, object]:

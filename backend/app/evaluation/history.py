@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
@@ -78,20 +79,27 @@ class InMemoryEvaluationAttemptRepository:
 
     def save(self, attempt: EvaluationAttemptRecord) -> EvaluationAttemptRecord:
         with self.lock:
-            self.records[(attempt.workspace_id, attempt.id)] = attempt
-        return attempt
+            stored = deepcopy(attempt)
+            self.records[(attempt.workspace_id, attempt.id)] = stored
+        return deepcopy(stored)
 
     def get(self, workspace_id: str, attempt_id: UUID) -> EvaluationAttemptRecord | None:
         with self.lock:
-            return self.records.get((workspace_id, attempt_id))
+            return deepcopy(self.records.get((workspace_id, attempt_id)))
 
     def list_recent(self, workspace_id: str, limit: int = 20) -> list[EvaluationAttemptRecord]:
         with self.lock:
-            return sorted(
-                (record for (scope, _), record in self.records.items() if scope == workspace_id),
-                key=lambda record: record.started_at,
-                reverse=True,
-            )[:limit]
+            return deepcopy(
+                sorted(
+                    (
+                        record
+                        for (scope, _), record in self.records.items()
+                        if scope == workspace_id
+                    ),
+                    key=lambda record: record.started_at,
+                    reverse=True,
+                )[:limit]
+            )
 
 
 class SqliteEvaluationAttemptRepository:

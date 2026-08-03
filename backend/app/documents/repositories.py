@@ -24,6 +24,8 @@ class LeaseLostError(RuntimeError):
 class DocumentRepository(Protocol):
     def add(self, document: DocumentRecord) -> DocumentRecord: ...
 
+    def save(self, document: DocumentRecord) -> DocumentRecord: ...
+
     def get(self, document_id: UUID) -> DocumentRecord: ...
 
     def list_all(self) -> list[DocumentRecord]: ...
@@ -120,34 +122,46 @@ class InMemoryDocumentRepository:
     records: dict[UUID, DocumentRecord] = field(default_factory=dict)
 
     def add(self, document: DocumentRecord) -> DocumentRecord:
-        self.records[document.id] = document
-        return document
+        return self.save(document)
+
+    def save(self, document: DocumentRecord) -> DocumentRecord:
+        stored = deepcopy(document)
+        self.records[document.id] = stored
+        return deepcopy(stored)
 
     def get(self, document_id: UUID) -> DocumentRecord:
         try:
-            return self.records[document_id]
+            return deepcopy(self.records[document_id])
         except KeyError as exc:
             raise NotFoundError(f"Document not found: {document_id}") from exc
 
     def list_all(self) -> list[DocumentRecord]:
-        return list(self.records.values())
+        return deepcopy(list(self.records.values()))
 
     def list_by_workspace(self, workspace_id: str) -> list[DocumentRecord]:
-        return [
-            document for document in self.records.values() if document.workspace_id == workspace_id
-        ]
+        return deepcopy(
+            [
+                document
+                for document in self.records.values()
+                if document.workspace_id == workspace_id
+            ]
+        )
 
     def list_by_status(self, status: DocumentStatus) -> list[DocumentRecord]:
-        return [document for document in self.records.values() if document.status == status]
+        return deepcopy(
+            [document for document in self.records.values() if document.status == status]
+        )
 
     def list_by_workspace_and_status(
         self, workspace_id: str, status: DocumentStatus
     ) -> list[DocumentRecord]:
-        return [
-            document
-            for document in self.records.values()
-            if document.workspace_id == workspace_id and document.status == status
-        ]
+        return deepcopy(
+            [
+                document
+                for document in self.records.values()
+                if document.workspace_id == workspace_id and document.status == status
+            ]
+        )
 
 
 @dataclass
@@ -155,8 +169,9 @@ class InMemoryJobRepository:
     records: dict[UUID, ProcessingJob] = field(default_factory=dict)
 
     def add(self, job: ProcessingJob) -> ProcessingJob:
-        self.records[job.id] = job
-        return job
+        stored = deepcopy(job)
+        self.records[job.id] = stored
+        return deepcopy(stored)
 
     def save(
         self,
@@ -179,11 +194,9 @@ class InMemoryJobRepository:
             current is None or current.lease_token != expected_lease_token
         ):
             raise LeaseLostError(f"Processing job lease was lost: {job.id}")
-        if current is None:
-            self.records[job.id] = job
-            return job
-        current.__dict__.update(deepcopy(job.__dict__))
-        return current
+        stored = deepcopy(job)
+        self.records[job.id] = stored
+        return deepcopy(stored)
 
     def get(self, job_id: UUID) -> ProcessingJob:
         try:
@@ -264,11 +277,12 @@ class InMemoryAuditRepository:
     records: list[AuditEvent] = field(default_factory=list)
 
     def add(self, event: AuditEvent) -> AuditEvent:
-        self.records.append(event)
-        return event
+        stored = deepcopy(event)
+        self.records.append(stored)
+        return deepcopy(stored)
 
     def list_for_document(self, document_id: UUID) -> list[AuditEvent]:
-        return [event for event in self.records if event.document_id == document_id]
+        return deepcopy([event for event in self.records if event.document_id == document_id])
 
     def count(self) -> int:
         return len(self.records)
@@ -289,21 +303,23 @@ class InMemoryExtractionRepository:
             extraction_result=extraction_result,
             validation_report=validation_report,
         )
-        self.records[document_id] = stored
-        return stored
+        self.records[document_id] = deepcopy(stored)
+        return deepcopy(stored)
 
     def get_for_document(self, document_id: UUID) -> StoredExtraction:
         try:
-            return self.records[document_id]
+            return deepcopy(self.records[document_id])
         except KeyError as exc:
             raise NotFoundError(f"Extraction not found for document: {document_id}") from exc
 
     def get_for_documents(self, document_ids: list[UUID]) -> dict[UUID, StoredExtraction]:
-        return {
-            document_id: self.records[document_id]
-            for document_id in document_ids
-            if document_id in self.records
-        }
+        return deepcopy(
+            {
+                document_id: self.records[document_id]
+                for document_id in document_ids
+                if document_id in self.records
+            }
+        )
 
     def find_by_invoice_identity(
         self,
@@ -325,17 +341,18 @@ class InMemoryReviewTaskRepository:
     records: dict[UUID, ReviewTask] = field(default_factory=dict)
 
     def save(self, task: ReviewTask) -> ReviewTask:
-        self.records[task.document_id] = task
-        return task
+        stored = deepcopy(task)
+        self.records[task.document_id] = stored
+        return deepcopy(stored)
 
     def get_for_document(self, document_id: UUID) -> ReviewTask:
         try:
-            return self.records[document_id]
+            return deepcopy(self.records[document_id])
         except KeyError as exc:
             raise NotFoundError(f"Review task not found for document: {document_id}") from exc
 
     def list_open(self) -> list[ReviewTask]:
-        return [task for task in self.records.values() if task.status == "open"]
+        return deepcopy([task for task in self.records.values() if task.status == "open"])
 
 
 def _identity_text(value: str | None) -> str:

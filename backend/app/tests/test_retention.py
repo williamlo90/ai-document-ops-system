@@ -88,6 +88,7 @@ class RetentionApiTests(unittest.TestCase):
                 document_id = upload.json()["document"]["id"]
                 document = app.state.container.documents.get(UUID(document_id))
                 document.created_at = datetime.now(UTC) - timedelta(days=2)
+                app.state.container.documents.save(document)
                 client.post(
                     f"/documents/{document_id}/cancel",
                     headers={"X-Access-Token": "admin-token"},
