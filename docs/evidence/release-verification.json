@@ -1,19 +1,20 @@
 {
   "schema_version": "release_verification_v1",
-  "generated_at": "2026-07-30T12:26:06.268854+00:00",
+  "generated_at": "2026-08-03T00:26:45.899345+00:00",
   "source": {
-    "git_commit": "8b490176ed9258ee952dc2639d856dfeaf253d16",
+    "git_commit": "75169a0f1bb111d01c1ca3f7ffe6df53d544ac1d",
     "worktree_clean_at_start": true,
     "branch": "main"
   },
   "environment": {
     "platform": "Windows-11-10.0.26200-SP0",
     "python": "3.13.6",
-    "node": "v22.22.0",
-    "npm": "10.9.4"
+    "node": "v22.19.0",
+    "npm": "11.17.0"
   },
   "counts": {
-    "backend_tests": 507,
+    "backend_tests": 512,
+    "backend_tests_skipped": 2,
     "frontend_tests": 23,
     "browser_tests": 29,
     "fullstack_browser_tests": 1
@@ -23,72 +24,72 @@
     {
       "name": "python_dependency_audit",
       "passed": true,
-      "duration_seconds": 2.122
+      "duration_seconds": 1.608
     },
     {
       "name": "python_format",
       "passed": true,
-      "duration_seconds": 0.154
+      "duration_seconds": 0.098
     },
     {
       "name": "python_lint",
       "passed": true,
-      "duration_seconds": 0.087
+      "duration_seconds": 0.098
     },
     {
       "name": "backend_types",
       "passed": true,
-      "duration_seconds": 0.356
+      "duration_seconds": 0.355
     },
     {
       "name": "backend_tests",
       "passed": true,
-      "duration_seconds": 47.86
+      "duration_seconds": 43.977
     },
     {
       "name": "coverage_gate",
       "passed": true,
-      "duration_seconds": 1.381
+      "duration_seconds": 1.399
     },
     {
       "name": "complexity_gate",
       "passed": true,
-      "duration_seconds": 0.711
+      "duration_seconds": 0.708
     },
     {
       "name": "frontend_dependency_audit",
       "passed": true,
-      "duration_seconds": 1.226
+      "duration_seconds": 1.437
     },
     {
       "name": "frontend_format",
       "passed": true,
-      "duration_seconds": 1.749
+      "duration_seconds": 1.784
     },
     {
       "name": "frontend_lint",
       "passed": true,
-      "duration_seconds": 0.411
+      "duration_seconds": 0.49
     },
     {
       "name": "frontend_tests",
       "passed": true,
-      "duration_seconds": 8.501
+      "duration_seconds": 8.277
     },
     {
       "name": "frontend_build",
       "passed": true,
-      "duration_seconds": 3.504
+      "duration_seconds": 3.9
     },
     {
       "name": "browser_tests",
       "passed": true,
-      "duration_seconds": 37.079
+      "duration_seconds": 28.07
     },
     {
       "name": "fullstack_browser_test",
       "passed": true,
-      "duration_seconds": 19.764
+      "duration_seconds": 11.05
     }
   ],
   "claim_boundary": [
