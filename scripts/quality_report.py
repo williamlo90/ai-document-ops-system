@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import subprocess
 import sys
@@ -9,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MAX_NEW_COMPLEXITY = 15
 MAX_NEW_FUNCTION_LINES = 80
+MAX_NEW_CLASS_LINES = 300
 COMPLEXITY_EXCEPTIONS = {
     "backend/app/evaluation/dashboard.py::EvaluationDashboardService._normalize_report": 30,
     "backend/app/exports/batch_service.py::ExportBatchService.workspace": 28,
@@ -41,6 +43,17 @@ FUNCTION_LENGTH_EXCEPTIONS = {
     "backend/app/exports/batch_service.py::ExportBatchService.workspace": 83,
     "backend/app/evaluation/dashboard.py::EvaluationDashboardService._normalize_report": 83,
 }
+CLASS_LENGTH_EXCEPTIONS = {
+    "backend/app/backoffice/execution.py::BackofficeExecutionCoordinator": 414,
+    "backend/app/backoffice/planning_service.py::BackofficePlanningService": 469,
+    "backend/app/backoffice/services.py::BackofficeWorkflowService": 467,
+    "backend/app/evaluation/dashboard.py::EvaluationDashboardService": 603,
+    "backend/app/exports/execution.py::ExportExecutionLifecycle": 301,
+    "backend/app/exports/workspace.py::ExportWorkspaceQuery": 420,
+    "backend/app/integrations/services.py::InvoiceIntegrationService": 335,
+    "backend/app/overview/dashboard.py::OverviewDashboardService": 535,
+    "backend/app/system/dashboard.py::SystemDashboardService": 488,
+}
 
 
 def main() -> int:
@@ -65,6 +78,7 @@ def main() -> int:
     violations = [
         *complexity_violations(report),
         *function_length_violations(report),
+        *class_length_violations(),
     ]
     scored = [
         item["complexity"]
@@ -76,7 +90,8 @@ def main() -> int:
     print(
         f"Complexity policy: {len(scored)} functions checked; "
         f"new functions must be <= {MAX_NEW_COMPLEXITY} complexity "
-        f"and <= {MAX_NEW_FUNCTION_LINES} lines."
+        f"and <= {MAX_NEW_FUNCTION_LINES} lines; "
+        f"new classes must be <= {MAX_NEW_CLASS_LINES} lines."
     )
     if violations:
         print("Complexity budget exceeded:", file=sys.stderr)
@@ -128,6 +143,28 @@ def function_length_violations(report: dict[str, list[dict[str, object]]]) -> li
             qualified_name = f"{class_name}.{name}" if class_name else name
             key = f"{path}::{qualified_name}"
             allowed = FUNCTION_LENGTH_EXCEPTIONS.get(key)
+            if allowed is None:
+                violations.append(f"{key} has {length} lines; no exception is recorded")
+            elif length > allowed:
+                violations.append(f"{key} increased from allowed {allowed} to {length} lines")
+    return violations
+
+
+def class_length_violations() -> list[str]:
+    violations = []
+    for source_path in (ROOT / "backend" / "app").rglob("*.py"):
+        path = source_path.relative_to(ROOT).as_posix()
+        if _is_test_path(path):
+            continue
+        tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef) or node.end_lineno is None:
+                continue
+            length = node.end_lineno - node.lineno + 1
+            if length <= MAX_NEW_CLASS_LINES:
+                continue
+            key = f"{path}::{node.name}"
+            allowed = CLASS_LENGTH_EXCEPTIONS.get(key)
             if allowed is None:
                 violations.append(f"{key} has {length} lines; no exception is recorded")
             elif length > allowed:

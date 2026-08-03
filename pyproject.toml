@@ -38,6 +38,9 @@ files = [
   "backend/app/exports/models.py",
   "backend/app/integrations/models.py",
   "backend/app/documents/services.py",
+  "backend/app/documents/extraction_pipeline.py",
+  "backend/app/documents/job_leases.py",
+  "backend/app/documents/lifecycle_commands.py",
   "backend/app/documents/processing_policy.py",
   "backend/app/documents/processing_results.py",
   "backend/app/documents/worker.py",
@@ -71,6 +74,12 @@ files = [
   "backend/app/bootstrap/operations.py",
   "backend/app/bootstrap/persistence.py",
   "backend/app/bootstrap/review.py",
+  "backend/app/agent/types.py",
+  "backend/app/agent/routing.py",
+  "backend/app/agent/responses.py",
+  "backend/app/agent/dispatcher.py",
+  "backend/app/agent/run_recorder.py",
+  "backend/app/agent/service.py",
 ]
 follow_imports = "silent"
 ignore_missing_imports = true
@@ -91,6 +100,9 @@ module = [
   "app.documents.sqlite_store",
   "app.documents.processing_policy",
   "app.documents.processing_results",
+  "app.documents.extraction_pipeline",
+  "app.documents.job_leases",
+  "app.documents.lifecycle_commands",
   "app.core.transactions",
   "app.review.models",
   "app.exports.models",
@@ -113,5 +125,11 @@ module = [
   "app.bootstrap.operations",
   "app.bootstrap.persistence",
   "app.bootstrap.review",
+  "app.agent.types",
+  "app.agent.routing",
+  "app.agent.responses",
+  "app.agent.dispatcher",
+  "app.agent.run_recorder",
+  "app.agent.service",
 ]
 strict = true

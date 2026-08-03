@@ -15,7 +15,11 @@ from app.documents.repositories import (
     InMemoryExtractionRepository,
     InMemoryJobRepository,
 )
-from app.documents.services import DocumentProcessingService, DocumentUploadService
+from app.documents.services import (
+    DocumentProcessingService,
+    DocumentUploadService,
+    UploadPersistenceError,
+)
 from app.documents.status import DocumentStatus
 from app.documents.worker import DocumentProcessingWorker
 from app.documents.workflow import DocumentWorkflowService
@@ -61,6 +65,33 @@ class DocumentServiceTests(unittest.TestCase):
         self.assertEqual(payload["event_type"], "document_uploaded")
         self.assertEqual(payload["document_id"], str(result.document.id))
         self.assertNotIn("%PDF-", logs.output[0])
+
+    def test_upload_preserves_metadata_and_cleanup_failures(self) -> None:
+        metadata_error = RuntimeError("metadata write failed")
+        cleanup_error = OSError("storage cleanup failed")
+        upload = DocumentUploadService(
+            storage=DeleteFailingStorage(
+                Path(self.temp_dir.name),
+                cleanup_error=cleanup_error,
+            ),
+            documents=AddFailingDocumentRepository(metadata_error),
+            jobs=self.jobs,
+            audits=self.audits,
+            workflow=self.workflow,
+        )
+
+        with self.assertRaises(UploadPersistenceError) as caught:
+            upload.upload_pdf(
+                "invoice.pdf",
+                "application/pdf",
+                [b"%PDF- invoice"],
+                context=self.context,
+            )
+
+        self.assertIs(caught.exception.metadata_error, metadata_error)
+        self.assertIs(caught.exception.cleanup_error, cleanup_error)
+        self.assertIs(caught.exception.__cause__, metadata_error)
+        self.assertTrue(caught.exception.storage_key.endswith(".pdf"))
 
     def test_process_valid_invoice_waits_for_reviewer_approval(self) -> None:
         upload_result = self._upload_service().upload_pdf(
@@ -491,6 +522,24 @@ class FailingParser:
 
     def parse(self, source: DocumentSource):
         raise ProviderError("secret raw document text should not be stored", self.provider_name)
+
+
+class AddFailingDocumentRepository(InMemoryDocumentRepository):
+    def __init__(self, error: Exception) -> None:
+        super().__init__()
+        self.error = error
+
+    def add(self, document):
+        raise self.error
+
+
+class DeleteFailingStorage(LocalStorageService):
+    def __init__(self, upload_root: Path, *, cleanup_error: Exception) -> None:
+        super().__init__(upload_root, max_upload_bytes=1000)
+        self.cleanup_error = cleanup_error
+
+    def delete(self, storage_key: str) -> None:
+        raise self.cleanup_error
 
 
 class RetryableFailingParser:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from uuid import UUID
 
 from app.core.security import (
@@ -14,7 +13,10 @@ from app.core.security import (
 from app.core.upload_scanning import SignatureUploadScanner, UploadScanner
 from app.core.observability import OperationEvent, log_operation
 from app.core.transactions import NoopTransactionManager, TransactionManager
-from app.documents.jobs import ProcessingJob, ProcessingJobStatus
+from app.documents.extraction_pipeline import DocumentExtractionPipeline
+from app.documents.job_leases import JobLeaseService
+from app.documents.jobs import ProcessingJob
+from app.documents.lifecycle_commands import DocumentLifecycleCommandService
 from app.documents.models import DocumentRecord
 from app.documents.processing_policy import ProcessingRetryPolicy
 from app.documents.processing_results import ProcessingResultRecorder
@@ -29,23 +31,28 @@ from app.documents.repositories import (
 from app.documents.status import DocumentStatus, InvalidStatusTransition
 from app.documents.state_writer import DocumentStateWriter
 from app.documents.workflow import DocumentWorkflowService
-from app.providers.contracts import (
-    DocumentSource,
-    ExtractionResult,
-    ExtractorProvider,
-    ParserProvider,
-    ProviderError,
-)
+from app.providers.contracts import ExtractorProvider, ParserProvider
 from app.providers.storage import DocumentStorage
-from app.validation.document import validate_document_invoice
-from app.validation.invoice import ValidationIssue, ValidationReport
-from app.validation.untrusted_content import validate_untrusted_extraction
 
 
 @dataclass(frozen=True)
 class UploadResult:
     document: DocumentRecord
     job: ProcessingJob
+
+
+class UploadPersistenceError(RuntimeError):
+    def __init__(
+        self,
+        *,
+        storage_key: str,
+        metadata_error: Exception,
+        cleanup_error: Exception,
+    ) -> None:
+        super().__init__("Upload metadata failed and the stored object could not be removed")
+        self.storage_key = storage_key
+        self.metadata_error = metadata_error
+        self.cleanup_error = cleanup_error
 
 
 class DocumentUploadService:
@@ -104,13 +111,15 @@ class DocumentUploadService:
                     actor=context.actor,
                 )
                 job = self.jobs.add(ProcessingJob(document_id=document.id))
-        except Exception:
+        except Exception as metadata_error:
             try:
                 self.storage.delete(stored.storage_key)
             except Exception as cleanup_exc:
-                raise RuntimeError(
-                    "Upload metadata failed and the stored object could not be removed"
-                ) from cleanup_exc
+                raise UploadPersistenceError(
+                    storage_key=stored.storage_key,
+                    metadata_error=metadata_error,
+                    cleanup_error=cleanup_exc,
+                ) from metadata_error
             raise
         log_operation(
             OperationEvent(
@@ -148,8 +157,6 @@ class DocumentProcessingService:
         self.audits = audits
         self.extractions = extractions
         self.workflow = workflow
-        self.parser = parser
-        self.extractor = extractor
         self.max_processing_attempts = max_processing_attempts
         self.retry_base_seconds = max(1, retry_base_seconds)
         self.retry_max_seconds = max(self.retry_base_seconds, retry_max_seconds)
@@ -175,6 +182,36 @@ class DocumentProcessingService:
             transactions=self.transactions,
             state_writer=self.state_writer,
         )
+        self.extraction_pipeline = DocumentExtractionPipeline(
+            storage=self.storage,
+            documents=self.documents,
+            extractions=self.extractions,
+            parser=parser,
+            extractor=extractor,
+        )
+        self.lifecycle_commands = DocumentLifecycleCommandService(
+            documents=self.documents,
+            jobs=self.jobs,
+            state_writer=self.state_writer,
+            transactions=self.transactions,
+        )
+        self.job_leases = JobLeaseService(self.jobs, self.transactions)
+
+    @property
+    def parser(self) -> ParserProvider:
+        return self.extraction_pipeline.parser
+
+    @parser.setter
+    def parser(self, parser: ParserProvider) -> None:
+        self.extraction_pipeline.parser = parser
+
+    @property
+    def extractor(self) -> ExtractorProvider:
+        return self.extraction_pipeline.extractor
+
+    @extractor.setter
+    def extractor(self, extractor: ExtractorProvider) -> None:
+        self.extraction_pipeline.extractor = extractor
 
     def process_job(
         self,
@@ -198,70 +235,13 @@ class DocumentProcessingService:
         return self._process_job(job, context)
 
     def retry_failed_document(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
-        require_admin(context)
-        document = self.documents.get(document_id)
-        _require_workspace(document, context)
-        if document.status != DocumentStatus.FAILED:
-            raise InvalidStatusTransition("Only failed documents can be retried")
-        document.error_message = None
-        with self.transactions.transaction():
-            self.state_writer.transition(
-                document,
-                DocumentStatus.QUEUED,
-                actor=context.actor,
-                payload_summary="manual retry requested",
-            )
-            self.jobs.add(ProcessingJob(document_id=document.id))
-        return document
+        return self.lifecycle_commands.retry_failed(document_id, context)
 
     def reprocess_document(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
-        require_admin(context)
-        document = self.documents.get(document_id)
-        _require_workspace(document, context)
-        if document.status not in {
-            DocumentStatus.EXTRACTED,
-            DocumentStatus.NEEDS_REVIEW,
-            DocumentStatus.FAILED,
-            DocumentStatus.CANCELLED,
-        }:
-            raise InvalidStatusTransition(
-                "Only extracted, review, failed, or cancelled documents can be reprocessed"
-            )
-        document.error_message = None
-        with self.transactions.transaction():
-            self.state_writer.transition(
-                document,
-                DocumentStatus.QUEUED,
-                actor=context.actor,
-                payload_summary="manual reprocess requested",
-            )
-            self.jobs.add(ProcessingJob(document_id=document.id))
-        return document
+        return self.lifecycle_commands.reprocess(document_id, context)
 
     def cancel_document(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
-        require_admin(context)
-        document = self.documents.get(document_id)
-        _require_workspace(document, context)
-        if document.status not in {DocumentStatus.QUEUED, DocumentStatus.FAILED}:
-            raise InvalidStatusTransition("Only queued or failed intake can be cancelled")
-        job = self.jobs.get_latest_for_document(document_id)
-        if job.status not in {
-            ProcessingJobStatus.QUEUED,
-            ProcessingJobStatus.RETRYING,
-            ProcessingJobStatus.FAILED,
-            ProcessingJobStatus.DEAD_LETTER,
-        }:
-            raise InvalidStatusTransition("Active processing cannot be cancelled")
-        with self.transactions.transaction():
-            job.cancel()
-            self.jobs.save(job)
-            self.state_writer.transition(
-                document,
-                DocumentStatus.CANCELLED,
-                actor=context.actor,
-                payload_summary="intake cancelled by operator",
-            )
-        return document
+        return self.lifecycle_commands.cancel(document_id, context)
 
     def _process_job(
         self,
@@ -272,10 +252,10 @@ class DocumentProcessingService:
     ) -> DocumentRecord:
         document = self.documents.get(job.document_id)
         _require_workspace(document, context)
-        self._require_processable_job_status(job)
+        self.job_leases.require_processable_status(job)
         if document.status not in {DocumentStatus.QUEUED, DocumentStatus.PROCESSING}:
             raise InvalidStatusTransition(f"Cannot process document with status {document.status}")
-        job, lease_token = self._active_job_lease(job, claimed_lease_token)
+        job, lease_token = self.job_leases.acquire(job, claimed_lease_token)
         log_operation(
             OperationEvent(
                 event_type="processing_started",
@@ -294,7 +274,7 @@ class DocumentProcessingService:
                 actor=context.actor,
             )
         try:
-            result, report, security_issues = self._extract_document(document)
+            result, report, security_issues = self.extraction_pipeline.extract(document)
         except Exception as exc:
             return self.result_recorder.record_failure(
                 document=document,
@@ -313,67 +293,6 @@ class DocumentProcessingService:
             lease_token=lease_token,
         )
         return document
-
-    def _require_processable_job_status(self, job: ProcessingJob) -> None:
-        if job.status not in {
-            ProcessingJobStatus.QUEUED,
-            ProcessingJobStatus.RETRYING,
-            ProcessingJobStatus.RUNNING,
-        }:
-            raise InvalidStatusTransition(f"Cannot process job with status {job.status}")
-
-    def _active_job_lease(
-        self,
-        job: ProcessingJob,
-        claimed_lease_token: str | None,
-    ) -> tuple[ProcessingJob, str]:
-        if job.status == ProcessingJobStatus.RUNNING:
-            if claimed_lease_token is None or job.lease_token != claimed_lease_token:
-                raise LeaseLostError(f"Processing job is owned by another worker: {job.id}")
-        else:
-            with self.transactions.transaction():
-                job = self.jobs.get(job.id)
-                if job.status == ProcessingJobStatus.RUNNING:
-                    raise LeaseLostError(f"Processing job is owned by another worker: {job.id}")
-                job.start()
-                self.jobs.save(job)
-            claimed_lease_token = job.lease_token
-        if claimed_lease_token is None:
-            raise LeaseLostError(f"Processing job has no active lease: {job.id}")
-        return job, claimed_lease_token
-
-    def _extract_document(
-        self,
-        document: DocumentRecord,
-    ) -> tuple[ExtractionResult, ValidationReport, tuple[ValidationIssue, ...]]:
-        source = self._document_source(document)
-        parsed = self.parser.parse(source)
-        if not parsed.text.strip():
-            raise ProviderError("empty_document_text", provider_name=self.parser.provider_name)
-        result = self.extractor.extract_invoice(parsed)
-        report = validate_document_invoice(
-            result.extraction.data,
-            document,
-            self.documents,
-            self.extractions,
-        )
-        security_issues = validate_untrusted_extraction(
-            result.extraction,
-            parsed,
-            result.provider_name,
-        )
-        if security_issues:
-            report = ValidationReport(issues=(*report.issues, *security_issues))
-        return result, report, security_issues
-
-    def _document_source(self, document: DocumentRecord) -> DocumentSource:
-        path: Path = self.storage.open_for_parser(document.storage_key)
-        return DocumentSource(
-            storage_key=document.storage_key,
-            path=path,
-            original_filename=document.original_filename,
-            content_type=document.content_type,
-        )
 
 
 def _require_workspace(document: DocumentRecord, context: SecurityContext) -> None:
