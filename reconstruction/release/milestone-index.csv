@@ -1,0 +1,16 @@
+milestone,tag,commit,purpose
+M01,reconstruction-m01,1d5d3a55c9074897a958c06aa04b1872eb01d5c3,Walking skeleton and evidence harness
+M02,reconstruction-m02,ac25b0b0c7dcdcdbe3b0cb0b71d6fccb4ba7a7b1,Invoice domain invariants
+M03,reconstruction-m03,7cdff0aec108c4124ae1079a918ec3e3db16bf40,Stable HTTP contracts
+M04,reconstruction-m04,b6874be8e4f7148543ef3ba4cc6f9eaa995760fb,Server-owned identity and access control
+M05,reconstruction-m05,2253f2864d93de893edc079adc3c05b130d5ead3,Atomic workspace persistence
+M06,reconstruction-m06,db489a13a70a14ab8d454f909857e4fb5a821041,Private PDF intake and fenced jobs
+M07,reconstruction-m07,cfd0047cd7e40a391668581cca4e71cabd5c5358,Human review correction and approval
+M08,reconstruction-m08,2f20d84e39222b8ff34708cf919fd241fcafefc5,Replaceable extraction and evaluation
+M09,reconstruction-m09,3f14e021385e92c2bd45187371de7316487ad76c,Grounded assistance and gated planning
+M10,reconstruction-m10,d95ce08a2306d3ac2bfc66cfb14d43c2f312c845,Role-based product interface
+M11,reconstruction-m11,48c145a18649ba400e9f490507820689b89af6a8,Approval-gated export
+M12,reconstruction-m12,07985acea743915e8fa4df5d73521b4db9259831,Bounded operations evidence
+M13,reconstruction-m13,35c9ad0c3b1a679ba49d8e058bc6c8e86e614fef,Maintainable capability boundaries
+M14,reconstruction-m14,bee1b8697b70e8693cad2dea16014d2391b52e0a,Final release integration
+M15,reconstruction-m15,tag-is-canonical,Acceptance handoff and cutover preparation

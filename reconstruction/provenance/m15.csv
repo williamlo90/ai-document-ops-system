@@ -1,0 +1,6 @@
+path,provenance,reference_path,reference_blob_sha,notes
+reconstruction/release/milestone-index.csv,new-from-contract,,,Maps the educational code history.
+reconstruction/evidence/m15/documentation-batch-validation.json,new-from-contract,,,Records the single curriculum batch validation.
+reconstruction/release/final-acceptance.md,new-from-contract,,,Consolidates product curriculum recovery and limitation evidence.
+reconstruction/release/cutover-plan.md,new-from-contract,,,Prepares a reversible remote handoff without pushing.
+milestones/manifest.json,new-from-contract,,,Registers the M15 handoff checkpoint.

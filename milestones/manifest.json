@@ -276,6 +276,22 @@
         "docs/architecture.md",
         "reconstruction/provenance/m14.csv"
       ]
+    },
+    {
+      "id": "M15",
+      "tag": "reconstruction-m15",
+      "slug": "acceptance-and-handoff",
+      "focused_modules": [
+        "app.tests.test_quality_gates",
+        "app.tests.test_public_artifact"
+      ],
+      "required_paths": [
+        "reconstruction/release/final-acceptance.md",
+        "reconstruction/release/cutover-plan.md",
+        "reconstruction/release/milestone-index.csv",
+        "reconstruction/evidence/m15/documentation-batch-validation.json",
+        "reconstruction/provenance/m15.csv"
+      ]
     }
   ]
 }

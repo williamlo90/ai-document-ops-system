@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "milestone": "M15",
+  "status": "passed",
+  "modules_declared": 15,
+  "modules_validated": 15,
+  "modules_failed": 0,
+  "support_rows_validated": 156,
+  "market_baseline": {
+    "hiring_records": 20,
+    "hiring_fields": 19,
+    "freelance_records": 15,
+    "freelance_fields": 23
+  },
+  "checks": [
+    "Required module artifacts exist.",
+    "CSV and JSON artifacts parse.",
+    "Milestone support rows match the locked curriculum map.",
+    "Fail-fast command contracts propagate nonzero exits."
+  ],
+  "scope_boundary": "This is one structural batch validation. It is not a separate test or review panel for each learning module."
+}
