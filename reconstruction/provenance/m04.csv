@@ -1,0 +1,16 @@
+path,provenance,reference_path,reference_blob_sha,notes
+.env.example,adapted-reference,.env.example,,Placeholder-only local configuration.
+backend/app/core/security.py,adapted-reference,backend/app/core/security.py,,Opaque sessions and server-owned identity.
+backend/app/core/http_headers.py,adapted-reference,backend/app/core/http_headers.py,,No-store response policy.
+backend/app/core/http_security.py,adapted-reference,backend/app/core/http_security.py,,Headers CSRF and bounded rate limit.
+backend/app/core/settings.py,adapted-reference,backend/app/core/settings.py,,Adds security settings without .env loading.
+backend/app/api/auth.py,adapted-reference,backend/app/api/auth.py,,Session lifecycle API.
+backend/app/api/dependencies.py,adapted-reference,backend/app/api/dependencies.py,,Protected context dependencies.
+backend/app/bootstrap/container.py,adapted-reference,backend/app/bootstrap/container.py,,Owns process-local session store.
+backend/app/main.py,adapted-reference,backend/app/main.py,,Composes middleware auth and protected reads.
+backend/app/tests/auth_helpers.py,adapted-reference,backend/app/tests/auth_helpers.py,,Test-only login helper.
+backend/app/tests/test_security.py,adapted-reference,backend/app/tests/test_security.py,,Identity and session unit tests.
+backend/app/tests/test_http_security.py,adapted-reference,backend/app/tests/test_http_security.py,,Cookie header CSRF and rate-limit tests.
+backend/app/tests/test_admin_rbac.py,adapted-reference,backend/app/tests/test_admin_rbac.py,,Positive and negative RBAC tests.
+milestones/manifest.json,new-from-contract,,,Registers cumulative M04 replay.
+pyproject.toml,adapted-reference,pyproject.toml,,Extends strict type scope.

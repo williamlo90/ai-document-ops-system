@@ -32,6 +32,13 @@ class Settings:
     environment: str = "local"
     database_ready: bool = True
     storage_ready: bool = True
+    admin_token: str = "local-admin"
+    uploader_token: str = "local-uploader"
+    reviewer_token: str = "local-reviewer"
+    workspace_id: str = "default"
+    session_ttl_seconds: int = 28_800
+    rate_limit_requests: int = 120
+    rate_limit_window_seconds: int = 60
 
     @classmethod
     def from_environment(cls, values: Mapping[str, str] | None = None) -> Settings:
@@ -41,8 +48,19 @@ class Settings:
             environment=environment,
             database_ready=_read_bool(source, "DATABASE_READY", True),
             storage_ready=_read_bool(source, "STORAGE_READY", True),
+            admin_token=source.get("APP_ADMIN_TOKEN", "local-admin"),
+            uploader_token=source.get("APP_UPLOADER_TOKEN", "local-uploader"),
+            reviewer_token=source.get("APP_REVIEWER_TOKEN", "local-reviewer"),
+            workspace_id=source.get("APP_WORKSPACE_ID", "default").strip() or "default",
+            session_ttl_seconds=int(source.get("SESSION_TTL_SECONDS", "28800")),
+            rate_limit_requests=int(source.get("RATE_LIMIT_REQUESTS", "120")),
+            rate_limit_window_seconds=int(source.get("RATE_LIMIT_WINDOW_SECONDS", "60")),
         )
 
 
 def load_settings() -> Settings:
     return Settings.from_environment()
+
+
+def is_hosted(settings: Settings) -> bool:
+    return settings.environment.strip().lower() in {"prod", "production", "public-demo"}

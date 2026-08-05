@@ -26,7 +26,13 @@ class OpenApiContractTests(unittest.TestCase):
         self.assertEqual(metadata["operationId"], "getServiceMetadata")
         self.assertIn("200", metadata["responses"])
         self.assertEqual(API_VERSION, "2026-08-05")
-        self.assertFalse(any(method in {"post", "put", "patch", "delete"} for item in self.schema["paths"].values() for method in item))
+        mutation_paths = {
+            path
+            for path, item in self.schema["paths"].items()
+            for method in item
+            if method in {"post", "put", "patch", "delete"}
+        }
+        self.assertEqual(mutation_paths, {"/auth/session"})
 
     def test_problem_response_is_declared(self) -> None:
         response = self.schema["paths"]["/meta/{key}"]["get"]["responses"]["404"]
