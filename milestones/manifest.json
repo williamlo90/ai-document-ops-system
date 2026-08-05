@@ -119,6 +119,29 @@
         "backend/app/tests/test_intake_api.py",
         "reconstruction/provenance/m06.csv"
       ]
+    },
+    {
+      "id": "M07",
+      "tag": "reconstruction-m07",
+      "slug": "review-correction-approval",
+      "focused_modules": [
+        "app.tests.test_validation",
+        "app.tests.test_review_export",
+        "app.tests.test_correction_feedback",
+        "app.tests.test_invoice_workflow_api",
+        "app.tests.test_invoice_query_contracts",
+        "app.tests.test_transaction_boundaries"
+      ],
+      "required_paths": [
+        "backend/app/validation/document.py",
+        "backend/app/review/models.py",
+        "backend/app/review/services.py",
+        "backend/app/review/sqlite_repositories.py",
+        "backend/app/api/review.py",
+        "backend/app/api/invoices.py",
+        "backend/app/tests/test_invoice_workflow_api.py",
+        "reconstruction/provenance/m07.csv"
+      ]
     }
   ]
 }

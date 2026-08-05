@@ -38,4 +38,19 @@ CREATE TABLE IF NOT EXISTS processing_jobs (
     next_attempt_at TEXT NOT NULL,
     error_code TEXT
 );
+CREATE TABLE IF NOT EXISTS review_records (
+    document_id TEXT PRIMARY KEY,
+    original_json TEXT NOT NULL,
+    current_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS correction_events (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL,
+    field_name TEXT NOT NULL,
+    before_value TEXT,
+    after_value TEXT,
+    actor TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 """

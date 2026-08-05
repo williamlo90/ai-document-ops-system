@@ -39,6 +39,9 @@ class OpenApiContractTests(unittest.TestCase):
                 "/documents/intake",
                 "/jobs/{job_id}/cancel",
                 "/jobs/{job_id}/retry",
+                "/review/{document_id}/correction",
+                "/review/{document_id}/approve",
+                "/review/{document_id}/reject",
             },
         )
 

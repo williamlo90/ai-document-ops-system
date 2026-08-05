@@ -11,6 +11,9 @@ from app.api.auth import router as auth_router
 from app.api.dependencies import SESSION_COOKIE, require_admin, require_context
 from app.api.documents import router as documents_router
 from app.api.document_commands import router as document_commands_router
+from app.api.document_workflow import router as document_workflow_router
+from app.api.invoices import router as invoices_router
+from app.api.review import router as review_router
 from app.api.serializers import (
     HealthResponse,
     ProblemResponse,
@@ -65,6 +68,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(documents_router)
     app.include_router(document_commands_router)
+    app.include_router(document_workflow_router)
+    app.include_router(invoices_router)
+    app.include_router(review_router)
 
     problem_responses: dict[int | str, dict[str, Any]] = {404: {"model": ProblemResponse}}
 

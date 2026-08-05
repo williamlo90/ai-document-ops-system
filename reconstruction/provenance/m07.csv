@@ -1,0 +1,18 @@
+path,provenance,reference_path,reference_blob_sha,notes
+backend/app/validation/document.py,adapted-reference,backend/app/validation/document.py,,Review validation entry point.
+backend/app/review/models.py,adapted-reference,backend/app/review/models.py,,Original proposal and field correction provenance.
+backend/app/review/repositories.py,adapted-reference,backend/app/review/repositories.py,,Snapshot-isolated review repositories.
+backend/app/review/sqlite_repositories.py,adapted-reference,backend/app/review/sqlite_repositories.py,,Durable proposal and correction records.
+backend/app/review/corrections.py,adapted-reference,backend/app/review/corrections.py,,Typed field correction boundary.
+backend/app/review/services.py,adapted-reference,backend/app/review/services.py,,Revalidation and human decision authority.
+backend/app/bootstrap/review.py,adapted-reference,backend/app/bootstrap/review.py,,Review composition.
+backend/app/invoices/queries.py,adapted-reference,backend/app/invoices/queries.py,,Workspace-scoped invoice read model.
+backend/app/api/review.py,adapted-reference,backend/app/api/review.py,,Reviewer correction and decision commands.
+backend/app/api/invoices.py,adapted-reference,backend/app/api/invoices.py,,Invoice list query.
+backend/app/api/document_workflow.py,adapted-reference,backend/app/api/document_workflow.py,,Workflow issue and correction read model.
+backend/app/tests/test_review_export.py,adapted-reference,backend/app/tests/test_review_export.py,,Approval blocking and human decision evidence.
+backend/app/tests/test_correction_feedback.py,adapted-reference,backend/app/tests/test_correction_feedback.py,,Durable before-after correction evidence.
+backend/app/tests/test_invoice_workflow_api.py,adapted-reference,backend/app/tests/test_invoice_workflow_api.py,,End-to-end reviewer API evidence.
+backend/app/tests/test_invoice_query_contracts.py,adapted-reference,backend/app/tests/test_invoice_query_contracts.py,,Workspace query evidence.
+milestones/manifest.json,new-from-contract,,,Registers cumulative M07 replay.
+pyproject.toml,adapted-reference,pyproject.toml,,Extends strict type scope.

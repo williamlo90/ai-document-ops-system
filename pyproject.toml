@@ -25,5 +25,7 @@ files = [
   "backend/app/documents",
   "backend/app/extraction",
   "backend/app/validation",
+  "backend/app/review",
+  "backend/app/invoices",
 ]
 strict = true
