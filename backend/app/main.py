@@ -39,6 +39,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             yield
         finally:
             application.state.accepting_traffic = False
+            container.close()
 
     app = FastAPI(
         title="Invoice Review API",

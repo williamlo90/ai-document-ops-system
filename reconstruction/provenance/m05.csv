@@ -1,0 +1,15 @@
+path,provenance,reference_path,reference_blob_sha,notes
+backend/app/core/transactions.py,adapted-reference,backend/app/core/transactions.py,,Transaction boundary protocol.
+backend/app/documents/repositories.py,adapted-reference,backend/app/documents/repositories.py,,Snapshot-isolated memory repositories.
+backend/app/documents/sqlite_schema.py,adapted-reference,backend/app/documents/sqlite_schema.py,,Replayable M05 schema.
+backend/app/documents/sqlite_store.py,adapted-reference,backend/app/documents/sqlite_store.py,,Serialized SQLite transaction owner.
+backend/app/documents/sqlite_repositories.py,adapted-reference,backend/app/documents/sqlite_repositories.py,,Explicit SQLite saves and workspace identities.
+backend/app/documents/state_writer.py,adapted-reference,backend/app/documents/state_writer.py,,Atomic state-plus-audit writer.
+backend/app/bootstrap/persistence.py,adapted-reference,backend/app/bootstrap/persistence.py,,Memory and SQLite composition.
+backend/app/bootstrap/container.py,adapted-reference,backend/app/bootstrap/container.py,,Owns persistence lifecycle.
+backend/app/main.py,adapted-reference,backend/app/main.py,,Closes persistence at lifespan exit.
+backend/app/tests/test_repository_snapshot_contracts.py,adapted-reference,backend/app/tests/test_repository_snapshot_contracts.py,,Snapshot and workspace identity contracts.
+backend/app/tests/test_sqlite_persistence.py,adapted-reference,backend/app/tests/test_sqlite_persistence.py,,Empty schema replay and reopen.
+backend/app/tests/test_transaction_boundaries.py,adapted-reference,backend/app/tests/test_transaction_boundaries.py,,Atomic commit and rollback evidence.
+milestones/manifest.json,new-from-contract,,,Registers cumulative M05 replay.
+pyproject.toml,adapted-reference,pyproject.toml,,Extends strict type scope.

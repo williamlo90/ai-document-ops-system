@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from os import environ
+from pathlib import Path
 from typing import Mapping
 
 
@@ -39,6 +40,8 @@ class Settings:
     session_ttl_seconds: int = 28_800
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
+    persistence_backend: str = "memory"
+    sqlite_path: Path = Path("runtime/invoice-review.sqlite3")
 
     @classmethod
     def from_environment(cls, values: Mapping[str, str] | None = None) -> Settings:
@@ -55,6 +58,8 @@ class Settings:
             session_ttl_seconds=int(source.get("SESSION_TTL_SECONDS", "28800")),
             rate_limit_requests=int(source.get("RATE_LIMIT_REQUESTS", "120")),
             rate_limit_window_seconds=int(source.get("RATE_LIMIT_WINDOW_SECONDS", "60")),
+            persistence_backend=source.get("PERSISTENCE_BACKEND", "memory").strip().lower(),
+            sqlite_path=Path(source.get("SQLITE_PATH", "runtime/invoice-review.sqlite3")),
         )
 
 

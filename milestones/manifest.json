@@ -74,6 +74,26 @@
         "backend/app/tests/test_admin_rbac.py",
         "reconstruction/provenance/m04.csv"
       ]
+    },
+    {
+      "id": "M05",
+      "tag": "reconstruction-m05",
+      "slug": "workspace-persistence",
+      "focused_modules": [
+        "app.tests.test_sqlite_persistence",
+        "app.tests.test_repository_snapshot_contracts",
+        "app.tests.test_transaction_boundaries"
+      ],
+      "required_paths": [
+        "backend/app/core/transactions.py",
+        "backend/app/documents/repositories.py",
+        "backend/app/documents/sqlite_schema.py",
+        "backend/app/documents/sqlite_store.py",
+        "backend/app/documents/sqlite_repositories.py",
+        "backend/app/documents/state_writer.py",
+        "backend/app/bootstrap/persistence.py",
+        "reconstruction/provenance/m05.csv"
+      ]
     }
   ]
 }
