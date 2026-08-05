@@ -1,0 +1,18 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [".git", ".venv", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B"]
+ignore = ["E501", "B008", "B017"]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "backend"
+files = [
+  "backend/app/main.py",
+  "backend/app/core/settings.py",
+  "backend/app/core/observability.py",
+]
+strict = true

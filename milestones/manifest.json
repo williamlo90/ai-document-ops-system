@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "milestones": [
+    {
+      "id": "M01",
+      "tag": "reconstruction-m01",
+      "slug": "walking-skeleton",
+      "focused_modules": [
+        "app.tests.test_api",
+        "app.tests.test_settings",
+        "app.tests.test_runtime_observability"
+      ],
+      "required_paths": [
+        "backend/app/main.py",
+        "backend/app/core/settings.py",
+        "backend/app/core/observability.py",
+        "reconstruction/provenance/m01.csv"
+      ]
+    }
+  ]
+}

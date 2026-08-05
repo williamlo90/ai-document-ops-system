@@ -1,0 +1,25 @@
+path,provenance,reference_path,reference_blob_sha,notes
+.gitattributes,new-from-contract,,,Binary and text handling for the reconstructed history.
+.gitignore,adapted-reference,.gitignore,4251805d37d2dc8dd9819b48fdae4ce4ed112c47,Reduced to introduced and known private/generated paths.
+LICENSE,adapted-reference,LICENSE,ef4f93272cc595770323b2e1089f1db3d0193618,Byte-identical MIT license from the pinned reference.
+README.md,new-from-contract,,,Describes only the M01 runnable boundary.
+requirements.in,new-from-contract,,,Minimal direct runtime inputs for M01.
+requirements-dev.in,new-from-contract,,,Minimal development and evidence inputs for M01.
+requirements.txt,dependency-lock,,,Hash-locked runtime dependency graph constrained to the pinned reference lock.
+requirements-dev.txt,dependency-lock,,,Hash-locked development dependency graph constrained to the pinned reference lock.
+pyproject.toml,adapted-reference,pyproject.toml,74e448c67182fc5f9e692b9f2ee2337a61007f99,Scoped Ruff and mypy policy for introduced files.
+run_tests.py,adapted-reference,run_tests.py,44d971225a90f9d9c599592cc6fcdefd081e79f3,Uses the source repository test discovery convention.
+backend/app/__init__.py,adapted-reference,backend/app/__init__.py,6be88a252467a947ff321b21b1faee0c4a0a20f6,Package marker.
+backend/app/core/__init__.py,adapted-reference,backend/app/core/__init__.py,e38beb57b4cb9a199739369500e7d4b3dec9843f,Package marker.
+backend/app/core/settings.py,adapted-reference,backend/app/core/settings.py,e53646f79779ff3672d6ac5a014f059f9704120d,Rewritten to the M01 configuration boundary.
+backend/app/core/observability.py,adapted-reference,backend/app/core/observability.py,949d03f2fd581ba0450ad45fa7d8878110a623d7,Reduced to request IDs metrics and readiness semantics.
+backend/app/main.py,adapted-reference,backend/app/main.py,ba4aa7a0c9b558c8379c2f866b9c50e7776aba3d,Rewritten walking skeleton without later routers.
+backend/app/tests/__init__.py,adapted-reference,backend/app/tests/__init__.py,767508ffbd71f8622e948b7801a33e2c940d136f,Test package marker.
+backend/app/tests/test_api.py,adapted-reference,backend/app/tests/test_api.py,2112e7d415bed908bf6e61abe19b927f2e54e1eb,Focused walking-skeleton behavior tests.
+backend/app/tests/test_settings.py,adapted-reference,backend/app/tests/test_settings.py,d6799ba5fae8e64506c053e793c45690fb7adcfc,Focused no-personal-env tests.
+backend/app/tests/test_runtime_observability.py,adapted-reference,backend/app/tests/test_runtime_observability.py,c046fc7181b214c9744fe272a7f60d9e6e46be95,Focused request and readiness evidence.
+scripts/setup_local_venv.ps1,new-from-contract,,,Hash-locked local setup entry point.
+scripts/start_dev.ps1,new-from-contract,,,No-env local start entry point.
+scripts/verify_milestone.py,new-from-contract,,,Tag-bound focused-test and archive replay verifier.
+milestones/manifest.json,new-from-contract,,,Machine-readable replay contract.
+reconstruction/provenance/m01.csv,new-from-contract,,,Milestone provenance ledger.
