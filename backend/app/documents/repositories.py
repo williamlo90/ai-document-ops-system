@@ -7,6 +7,7 @@ from typing import Iterator
 from uuid import UUID
 
 from app.documents.models import AuditEvent, DocumentRecord
+from app.documents.jobs import ProcessingJob
 
 
 class DuplicateInvoiceIdentity(ValueError):
@@ -63,10 +64,40 @@ class InMemoryAuditRepository:
         self._events = deepcopy(state)
 
 
+class InMemoryJobRepository:
+    def __init__(self) -> None:
+        self._jobs: dict[UUID, ProcessingJob] = {}
+
+    def add(self, job: ProcessingJob) -> None:
+        self._jobs[job.id] = deepcopy(job)
+
+    def get(self, job_id: UUID) -> ProcessingJob | None:
+        job = self._jobs.get(job_id)
+        return deepcopy(job) if job is not None else None
+
+    def save(self, job: ProcessingJob) -> None:
+        if job.id not in self._jobs:
+            raise KeyError(job.id)
+        self._jobs[job.id] = deepcopy(job)
+
+    def next_claimable(self) -> ProcessingJob | None:
+        for job in self._jobs.values():
+            if job.status.value in {"queued", "retry"}:
+                return deepcopy(job)
+        return None
+
+    def snapshot_state(self) -> dict[UUID, ProcessingJob]:
+        return deepcopy(self._jobs)
+
+    def restore_state(self, state: dict[UUID, ProcessingJob]) -> None:
+        self._jobs = deepcopy(state)
+
+
 class InMemoryTransactionManager:
-    def __init__(self, documents: InMemoryDocumentRepository, audits: InMemoryAuditRepository) -> None:
+    def __init__(self, documents: InMemoryDocumentRepository, audits: InMemoryAuditRepository, jobs: InMemoryJobRepository | None = None) -> None:
         self.documents = documents
         self.audits = audits
+        self.jobs = jobs
         self._lock = RLock()
 
     @contextmanager
@@ -74,9 +105,12 @@ class InMemoryTransactionManager:
         with self._lock:
             document_state = self.documents.snapshot_state()
             audit_state = self.audits.snapshot_state()
+            job_state = self.jobs.snapshot_state() if self.jobs is not None else None
             try:
                 yield
             except Exception:
                 self.documents.restore_state(document_state)
                 self.audits.restore_state(audit_state)
+                if self.jobs is not None and job_state is not None:
+                    self.jobs.restore_state(job_state)
                 raise

@@ -32,7 +32,15 @@ class OpenApiContractTests(unittest.TestCase):
             for method in item
             if method in {"post", "put", "patch", "delete"}
         }
-        self.assertEqual(mutation_paths, {"/auth/session"})
+        self.assertEqual(
+            mutation_paths,
+            {
+                "/auth/session",
+                "/documents/intake",
+                "/jobs/{job_id}/cancel",
+                "/jobs/{job_id}/retry",
+            },
+        )
 
     def test_problem_response_is_declared(self) -> None:
         response = self.schema["paths"]["/meta/{key}"]["get"]["responses"]["404"]

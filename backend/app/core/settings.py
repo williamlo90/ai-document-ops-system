@@ -42,6 +42,9 @@ class Settings:
     rate_limit_window_seconds: int = 60
     persistence_backend: str = "memory"
     sqlite_path: Path = Path("runtime/invoice-review.sqlite3")
+    upload_root: Path = Path("runtime/private-uploads")
+    max_upload_bytes: int = 10_000_000
+    scanner_profile: str = "signature"
 
     @classmethod
     def from_environment(cls, values: Mapping[str, str] | None = None) -> Settings:
@@ -60,6 +63,9 @@ class Settings:
             rate_limit_window_seconds=int(source.get("RATE_LIMIT_WINDOW_SECONDS", "60")),
             persistence_backend=source.get("PERSISTENCE_BACKEND", "memory").strip().lower(),
             sqlite_path=Path(source.get("SQLITE_PATH", "runtime/invoice-review.sqlite3")),
+            upload_root=Path(source.get("UPLOAD_ROOT", "runtime/private-uploads")),
+            max_upload_bytes=int(source.get("MAX_UPLOAD_BYTES", "10000000")),
+            scanner_profile=source.get("SCANNER_PROFILE", "signature").strip().lower(),
         )
 
 

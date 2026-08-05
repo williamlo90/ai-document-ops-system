@@ -4,6 +4,7 @@ import sqlite3
 from uuid import UUID
 
 from app.documents.models import AuditEvent, DocumentRecord
+from app.documents.jobs import JobStatus, ProcessingJob
 from app.documents.repositories import DuplicateInvoiceIdentity
 from app.documents.sqlite_store import SqliteStore
 from app.documents.status import DocumentStatus
@@ -57,6 +58,27 @@ class SqliteAuditRepository:
         return [AuditEvent(document_id=UUID(row["document_id"]), event_type=row["event_type"], actor=row["actor"], old_status=DocumentStatus(row["old_status"]) if row["old_status"] else None, new_status=DocumentStatus(row["new_status"]) if row["new_status"] else None, payload_summary=row["payload_summary"], id=UUID(row["id"])) for row in rows]
 
 
+class SqliteJobRepository:
+    def __init__(self, store: SqliteStore) -> None:
+        self.store = store
+
+    def add(self, job: ProcessingJob) -> None:
+        self.store.connection.execute("INSERT INTO processing_jobs VALUES (?, ?, ?, ?, ?, ?, ?, ?)", _job_values(job))
+
+    def get(self, job_id: UUID) -> ProcessingJob | None:
+        row = self.store.connection.execute("SELECT * FROM processing_jobs WHERE id=?", (str(job_id),)).fetchone()
+        return _row_to_job(row) if row is not None else None
+
+    def save(self, job: ProcessingJob) -> None:
+        cursor = self.store.connection.execute("UPDATE processing_jobs SET document_id=?, status=?, attempt_count=?, lease_token=?, lease_expires_at=?, next_attempt_at=?, error_code=? WHERE id=?", (*_job_values(job)[1:], str(job.id)))
+        if cursor.rowcount != 1:
+            raise KeyError(job.id)
+
+    def next_claimable(self) -> ProcessingJob | None:
+        row = self.store.connection.execute("SELECT * FROM processing_jobs WHERE status IN ('queued','retry') ORDER BY next_attempt_at LIMIT 1").fetchone()
+        return _row_to_job(row) if row is not None else None
+
+
 def _document_values(document: DocumentRecord) -> tuple[object, ...]:
     return (str(document.id), document.workspace_id, document.original_filename, document.storage_key, document.content_type, document.submitted_by, document.size_bytes, document.status.value, document.created_at.isoformat(), document.updated_at.isoformat(), document.error_message)
 
@@ -65,3 +87,13 @@ def _row_to_document(row: sqlite3.Row) -> DocumentRecord:
     from datetime import datetime
 
     return DocumentRecord(original_filename=row["original_filename"], storage_key=row["storage_key"], content_type=row["content_type"], workspace_id=row["workspace_id"], submitted_by=row["submitted_by"], size_bytes=row["size_bytes"], id=UUID(row["id"]), status=DocumentStatus(row["status"]), created_at=datetime.fromisoformat(row["created_at"]), updated_at=datetime.fromisoformat(row["updated_at"]), error_message=row["error_message"])
+
+
+def _job_values(job: ProcessingJob) -> tuple[object, ...]:
+    return (str(job.id), str(job.document_id), job.status.value, job.attempt_count, job.lease_token, job.lease_expires_at.isoformat() if job.lease_expires_at else None, job.next_attempt_at.isoformat(), job.error_code)
+
+
+def _row_to_job(row: sqlite3.Row) -> ProcessingJob:
+    from datetime import datetime
+
+    return ProcessingJob(document_id=UUID(row["document_id"]), id=UUID(row["id"]), status=JobStatus(row["status"]), attempt_count=row["attempt_count"], lease_token=row["lease_token"], lease_expires_at=datetime.fromisoformat(row["lease_expires_at"]) if row["lease_expires_at"] else None, next_attempt_at=datetime.fromisoformat(row["next_attempt_at"]), error_code=row["error_code"])

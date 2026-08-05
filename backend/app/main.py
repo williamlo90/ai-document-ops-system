@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from app.api.exceptions import http_problem_handler
 from app.api.auth import router as auth_router
 from app.api.dependencies import SESSION_COOKIE, require_admin, require_context
+from app.api.documents import router as documents_router
+from app.api.document_commands import router as document_commands_router
 from app.api.serializers import (
     HealthResponse,
     ProblemResponse,
@@ -61,6 +63,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(CsrfOriginMiddleware, settings=resolved, cookie_name=SESSION_COOKIE)
     app.include_router(auth_router)
+    app.include_router(documents_router)
+    app.include_router(document_commands_router)
 
     problem_responses: dict[int | str, dict[str, Any]] = {404: {"model": ProblemResponse}}
 

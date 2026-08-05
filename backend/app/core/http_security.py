@@ -17,8 +17,12 @@ from app.core.settings import Settings, is_hosted
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
-        response.headers.setdefault("Content-Security-Policy", "default-src 'self'; object-src 'none'; frame-ancestors 'none'")
-        response.headers.setdefault("X-Frame-Options", "DENY")
+        if request.url.path.startswith("/documents/") and request.url.path.endswith("/content"):
+            response.headers.setdefault("Content-Security-Policy", "default-src 'self'; frame-ancestors 'self'")
+            response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        else:
+            response.headers.setdefault("Content-Security-Policy", "default-src 'self'; object-src 'none'; frame-ancestors 'none'")
+            response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         if request.url.path.startswith(("/auth", "/workspace", "/internal")):

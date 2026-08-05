@@ -28,4 +28,14 @@ CREATE TABLE IF NOT EXISTS invoice_identities (
     invoice_key TEXT NOT NULL,
     PRIMARY KEY (workspace_id, vendor_key, invoice_key)
 );
+CREATE TABLE IF NOT EXISTS processing_jobs (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    attempt_count INTEGER NOT NULL,
+    lease_token TEXT,
+    lease_expires_at TEXT,
+    next_attempt_at TEXT NOT NULL,
+    error_code TEXT
+);
 """

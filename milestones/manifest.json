@@ -94,6 +94,31 @@
         "backend/app/bootstrap/persistence.py",
         "reconstruction/provenance/m05.csv"
       ]
+    },
+    {
+      "id": "M06",
+      "tag": "reconstruction-m06",
+      "slug": "private-pdf-intake",
+      "focused_modules": [
+        "app.tests.test_jobs",
+        "app.tests.test_storage",
+        "app.tests.test_services",
+        "app.tests.test_worker_entrypoint",
+        "app.tests.test_intake_api",
+        "app.tests.test_http_security",
+        "app.tests.test_transaction_boundaries",
+        "app.tests.test_runtime_observability"
+      ],
+      "required_paths": [
+        "backend/app/core/upload_scanning.py",
+        "backend/app/providers/storage.py",
+        "backend/app/documents/jobs.py",
+        "backend/app/documents/services.py",
+        "backend/app/documents/worker.py",
+        "backend/app/api/documents.py",
+        "backend/app/tests/test_intake_api.py",
+        "reconstruction/provenance/m06.csv"
+      ]
     }
   ]
 }

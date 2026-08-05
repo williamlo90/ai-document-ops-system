@@ -1,0 +1,18 @@
+path,provenance,reference_path,reference_blob_sha,notes
+backend/app/core/upload_scanning.py,adapted-reference,backend/app/core/upload_scanning.py,,Fail-closed PDF scanner boundary.
+backend/app/providers/storage.py,adapted-reference,backend/app/providers/storage.py,,Private atomic file storage.
+backend/app/documents/jobs.py,adapted-reference,backend/app/documents/jobs.py,,Lease-fenced durable job model.
+backend/app/documents/job_leases.py,adapted-reference,backend/app/documents/job_leases.py,,Lease commands.
+backend/app/documents/lifecycle_commands.py,adapted-reference,backend/app/documents/lifecycle_commands.py,,Cancel and retry policy.
+backend/app/documents/services.py,adapted-reference,backend/app/documents/services.py,,Atomic metadata audit job intake with file cleanup.
+backend/app/documents/worker.py,adapted-reference,backend/app/documents/worker.py,,Handler outside transaction with fenced result writes.
+backend/app/bootstrap/documents.py,adapted-reference,backend/app/bootstrap/documents.py,,Scanner storage and upload composition.
+backend/app/api/documents.py,adapted-reference,backend/app/api/documents.py,,Protected raw-PDF intake and content read.
+backend/app/api/document_commands.py,adapted-reference,backend/app/api/document_commands.py,,Protected job lifecycle commands.
+backend/app/tests/test_jobs.py,adapted-reference,backend/app/tests/test_jobs.py,,Lease and reclaim evidence.
+backend/app/tests/test_storage.py,adapted-reference,backend/app/tests/test_storage.py,,Private storage and traversal evidence.
+backend/app/tests/test_services.py,adapted-reference,backend/app/tests/test_services.py,,Intake atomicity and scanner evidence.
+backend/app/tests/test_worker_entrypoint.py,adapted-reference,backend/app/tests/test_worker_entrypoint.py,,Worker transaction and failure evidence.
+backend/app/tests/test_intake_api.py,adapted-reference,backend/app/tests/test_intake_api.py,,Role and protected-content intake evidence.
+milestones/manifest.json,new-from-contract,,,Registers cumulative M06 replay.
+pyproject.toml,adapted-reference,pyproject.toml,,Extends strict type scope.

@@ -41,3 +41,11 @@ class ProblemResponse(ContractModel):
     status: int
     detail: str
     request_id: str
+
+
+class DocumentResponse(ContractModel):
+    id: str
+    original_filename: str
+    status: str
+    workspace_id: str
+    size_bytes: int
