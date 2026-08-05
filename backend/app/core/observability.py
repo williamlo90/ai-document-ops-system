@@ -39,6 +39,7 @@ class RequestObservabilityMiddleware:
 
         request = Request(scope)
         request_id = request.headers.get("x-request-id", "").strip() or uuid4().hex
+        request.state.request_id = request_id
         started = perf_counter()
         status_code = 500
 

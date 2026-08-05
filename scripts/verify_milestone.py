@@ -193,14 +193,14 @@ def main() -> int:
         "duration_seconds": round(duration, 3),
         "recorded_at": datetime.now(UTC).isoformat(),
         "limitations": [
-            "M01 proves only local walking-skeleton behavior.",
+            f"{item['id']} proves only the capabilities declared through this local milestone.",
             "The archive replay reuses the already installed hash-locked environment.",
-            "No invoice, persistence, AI, UI, production, or customer claim is evaluated.",
+            "No production or customer-outcome claim is evaluated.",
         ],
     }
     result_path = evidence_dir / "result.json"
     result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-    print(f"M01 cumulative verification passed for {commit}")
+    print(f"{item['id']} cumulative verification passed for {commit}")
     print(f"Evidence: {result_path}")
     print(f"Snapshot: {snapshot}")
     return 0

@@ -14,6 +14,8 @@ files = [
   "backend/app/main.py",
   "backend/app/core/settings.py",
   "backend/app/core/observability.py",
+  "backend/app/api",
+  "backend/app/bootstrap",
   "backend/app/documents",
   "backend/app/extraction",
   "backend/app/validation",

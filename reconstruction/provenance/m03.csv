@@ -1,0 +1,13 @@
+path,provenance,reference_path,reference_blob_sha,notes
+backend/app/api/__init__.py,new-from-contract,,,HTTP package boundary.
+backend/app/api/exceptions.py,adapted-reference,backend/app/api/exceptions.py,60ce3d68467ec4942eb2dee91bb7efd20aa89b28,Reduced to a stable problem response handler.
+backend/app/api/serializers.py,adapted-reference,backend/app/api/serializers.py,c96524342649c1bda65980800bc0ab069e991888,Reduced to M03 read contracts.
+backend/app/bootstrap/__init__.py,adapted-reference,backend/app/bootstrap/__init__.py,dc36b1d6bf192fbc92622895dcd7aa81c2e0b71,Composition package boundary.
+backend/app/bootstrap/container.py,adapted-reference,backend/app/bootstrap/container.py,727d54123a2e6afaa28f87587eb44a9a577d4c6,Minimal explicit settings container.
+backend/app/core/observability.py,adapted-reference,backend/app/core/observability.py,949d03f2fd581ba0450ad45fa7d8878110a623d7,Exposes request ID to exception handling.
+backend/app/main.py,adapted-reference,backend/app/main.py,ba4aa7a0c9b558c8379c2f866b9c50e7776aba3d,Publishes only stable read operations.
+backend/app/tests/test_api.py,adapted-reference,backend/app/tests/test_api.py,2112e7d415bed908bf6e61abe19b927f2e54e1eb,Cumulative M01 API behavior.
+backend/app/tests/test_openapi_contract.py,adapted-reference,backend/app/tests/test_openapi_contract.py,f67be33b9cf57a3f05c6fd2f477e682b38667812,Scoped OpenAPI compatibility evidence.
+backend/app/tests/test_bootstrap_composition.py,adapted-reference,backend/app/tests/test_bootstrap_composition.py,417717fc1ad21add7005c6b616f0f9b5c40582f1,Container and request-ID behavior.
+milestones/manifest.json,new-from-contract,,,Registers cumulative M03 replay.
+pyproject.toml,adapted-reference,pyproject.toml,74e448c67182fc5f9e692b9f2ee2337a61007f99,Extends strict type scope.

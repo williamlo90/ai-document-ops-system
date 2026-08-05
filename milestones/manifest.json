@@ -36,6 +36,24 @@
         "backend/app/validation/invoice.py",
         "reconstruction/provenance/m02.csv"
       ]
+    },
+    {
+      "id": "M03",
+      "tag": "reconstruction-m03",
+      "slug": "http-contracts",
+      "focused_modules": [
+        "app.tests.test_api",
+        "app.tests.test_openapi_contract",
+        "app.tests.test_bootstrap_composition"
+      ],
+      "required_paths": [
+        "backend/app/api/exceptions.py",
+        "backend/app/api/serializers.py",
+        "backend/app/bootstrap/container.py",
+        "backend/app/tests/test_openapi_contract.py",
+        "backend/app/tests/test_bootstrap_composition.py",
+        "reconstruction/provenance/m03.csv"
+      ]
     }
   ]
 }
