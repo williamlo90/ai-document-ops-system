@@ -1,1 +1,1 @@
-"""Cross-cutting application primitives introduced by the current milestone."""
+"""Core application settings and shared helpers."""

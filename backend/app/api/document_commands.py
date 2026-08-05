@@ -2,34 +2,106 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import HTTPException, status
+from pydantic import BaseModel, Field, field_validator
 
-from app.api.dependencies import get_container, require_context
-from app.bootstrap.container import AppContainer
-from app.core.security import SecurityContext
-from app.documents.lifecycle_commands import cancel_job, retry_job
-
-
-router = APIRouter(prefix="/jobs", tags=["jobs"])
-
-
-@router.post("/{job_id}/cancel", operation_id="cancelProcessingJob")
-def cancel_processing_job(job_id: UUID, context: SecurityContext = Depends(require_context), container: AppContainer = Depends(get_container)) -> dict[str, str]:
-    job = container.persistence.jobs.get(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
-    cancel_job(job)
-    with container.persistence.transactions.transaction():
-        container.persistence.jobs.save(job)
-    return {"status": job.status.value, "actor": context.actor}
+from app.api.backoffice import _work_item_detail
+from app.api.dependencies import AppContainer
+from app.api.document_workflow import required_work_item
+from app.api.serializers import document_response
+from app.core.security import SecurityContext, UnauthorizedError, require_any_role
+from app.documents.repositories import NotFoundError
+from app.documents.status import InvalidStatusTransition
 
 
-@router.post("/{job_id}/retry", operation_id="retryProcessingJob")
-def retry_processing_job(job_id: UUID, context: SecurityContext = Depends(require_context), container: AppContainer = Depends(get_container)) -> dict[str, str]:
-    job = container.persistence.jobs.get(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
-    retry_job(job)
-    with container.persistence.transactions.transaction():
-        container.persistence.jobs.save(job)
-    return {"status": job.status.value, "actor": context.actor}
+class WorkflowCommandPayload(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 3:
+            raise ValueError("Reason must contain at least 3 non-whitespace characters")
+        return normalized
+
+
+def retry_document_command(
+    document_id: UUID,
+    context: SecurityContext,
+    container: AppContainer,
+) -> dict[str, object]:
+    try:
+        document = container.processing_service.retry_failed_document(document_id, context)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except InvalidStatusTransition as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return {"document": document_response(document)}
+
+
+def reprocess_document_command(
+    document_id: UUID,
+    context: SecurityContext,
+    container: AppContainer,
+) -> dict[str, object]:
+    try:
+        document = container.processing_service.reprocess_document(document_id, context)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except InvalidStatusTransition as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return {"document": document_response(document)}
+
+
+def cancel_document_command(
+    document_id: UUID,
+    context: SecurityContext,
+    container: AppContainer,
+) -> dict[str, object]:
+    try:
+        document = container.processing_service.cancel_document(document_id, context)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except InvalidStatusTransition as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return {"document": document_response(document)}
+
+
+def request_document_correction_command(
+    document_id: UUID,
+    payload: WorkflowCommandPayload,
+    context: SecurityContext,
+    container: AppContainer,
+) -> dict[str, object]:
+    _require_role(context, {"admin", "reviewer"})
+    work_item = required_work_item(container, context, document_id)
+    updated = container.backoffice_service.request_correction(
+        work_item_id=work_item.id,
+        context=context,
+        notes=payload.reason,
+    )
+    return {"work_item": _work_item_detail(container, context, updated)}
+
+
+def escalate_document_command(
+    document_id: UUID,
+    payload: WorkflowCommandPayload,
+    context: SecurityContext,
+    container: AppContainer,
+) -> dict[str, object]:
+    _require_role(context, {"admin", "operator", "reviewer"})
+    work_item = required_work_item(container, context, document_id)
+    updated = container.backoffice_service.escalate_work_item(
+        work_item_id=work_item.id,
+        context=context,
+        reason=payload.reason,
+    )
+    return {"work_item": _work_item_detail(container, context, updated)}
+
+
+def _require_role(context: SecurityContext, roles: set[str]) -> None:
+    try:
+        require_any_role(context, roles)
+    except UnauthorizedError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden") from exc

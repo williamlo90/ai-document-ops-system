@@ -1,6 +1,6 @@
-* text=auto
+*.pdf binary
 *.png binary
 *.jpg binary
 *.jpeg binary
-*.pdf binary
 *.mp4 binary
+*.pptx binary

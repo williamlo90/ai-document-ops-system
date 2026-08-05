@@ -1,1 +1,1 @@
-"""Human review, correction, and decision domain."""
+"""Human review workflow."""

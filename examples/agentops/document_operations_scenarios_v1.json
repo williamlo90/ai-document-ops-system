@@ -1,0 +1,181 @@
+{
+  "dataset_id": "document_operations",
+  "dataset_version": "v1",
+  "created_at": "2026-06-26",
+  "description": "Deterministic document-operation scenarios for plan, policy, escalation, and approval evaluation.",
+  "scenarios": [
+    {
+      "id": "invoice_review_read_only",
+      "title": "Review a linked invoice without mutating state",
+      "workspace_id": "default",
+      "actor_role": "operator",
+      "document_type": "invoice",
+      "operation_type": "document_review",
+      "work_type": "invoice_review",
+      "document_state": "needs_review",
+      "planning_input": {
+        "requested_outcome": "review invoice",
+        "evidence_sufficient": true,
+        "approved_for_export": false,
+        "missing_fields": []
+      },
+      "expected_plan_steps": [
+        "explain_document",
+        "recommend_review"
+      ],
+      "expected_step_statuses": [
+        "planned",
+        "planned"
+      ],
+      "expected_risk_levels": [
+        "low",
+        "low"
+      ],
+      "expected_policy_actions": [
+        "explain_document",
+        "recommend_review"
+      ],
+      "expected_requires_human": false,
+      "expected_confidence": "high",
+      "expected_escalation_reason": null
+    },
+    {
+      "id": "vendor_follow_up_draft",
+      "title": "Draft a vendor follow-up for missing invoice fields",
+      "workspace_id": "default",
+      "actor_role": "operator",
+      "document_type": "invoice",
+      "operation_type": "document_follow_up",
+      "work_type": "vendor_follow_up",
+      "document_state": "needs_review",
+      "planning_input": {
+        "requested_outcome": "follow up missing tax id",
+        "evidence_sufficient": true,
+        "approved_for_export": false,
+        "missing_fields": [
+          "tax_id"
+        ]
+      },
+      "expected_plan_steps": [
+        "explain_document",
+        "draft_vendor_message"
+      ],
+      "expected_step_statuses": [
+        "planned",
+        "planned"
+      ],
+      "expected_risk_levels": [
+        "low",
+        "medium"
+      ],
+      "expected_policy_actions": [
+        "explain_document",
+        "draft_vendor_message"
+      ],
+      "expected_requires_human": false,
+      "expected_confidence": "medium",
+      "expected_escalation_reason": null
+    },
+    {
+      "id": "approved_invoice_export_confirmation",
+      "title": "Prepare approved invoice export with human confirmation",
+      "workspace_id": "default",
+      "actor_role": "admin",
+      "document_type": "invoice",
+      "operation_type": "document_export",
+      "work_type": "invoice_export",
+      "document_state": "approved",
+      "planning_input": {
+        "requested_outcome": "export invoice",
+        "evidence_sufficient": true,
+        "approved_for_export": true,
+        "missing_fields": []
+      },
+      "expected_plan_steps": [
+        "inspect_queue",
+        "export_approved_invoice"
+      ],
+      "expected_step_statuses": [
+        "planned",
+        "waiting_for_approval"
+      ],
+      "expected_risk_levels": [
+        "low",
+        "high"
+      ],
+      "expected_policy_actions": [
+        "inspect_queue",
+        "export_approved_invoice"
+      ],
+      "expected_requires_human": true,
+      "expected_confidence": "high",
+      "expected_escalation_reason": null
+    },
+    {
+      "id": "export_without_approval_blocked",
+      "title": "Block invoice export when approval evidence is missing",
+      "workspace_id": "default",
+      "actor_role": "admin",
+      "document_type": "invoice",
+      "operation_type": "document_export",
+      "work_type": "invoice_export",
+      "document_state": "needs_review",
+      "planning_input": {
+        "requested_outcome": "export invoice",
+        "evidence_sufficient": true,
+        "approved_for_export": false,
+        "missing_fields": []
+      },
+      "expected_plan_steps": [
+        "inspect_queue",
+        "export_approved_invoice"
+      ],
+      "expected_step_statuses": [
+        "planned",
+        "blocked"
+      ],
+      "expected_risk_levels": [
+        "low",
+        "high"
+      ],
+      "expected_policy_actions": [
+        "inspect_queue",
+        "export_approved_invoice"
+      ],
+      "expected_requires_human": true,
+      "expected_confidence": "high",
+      "expected_escalation_reason": "Invoice export requires approved invoice evidence."
+    },
+    {
+      "id": "insufficient_evidence_escalation",
+      "title": "Escalate unclear document work to a human",
+      "workspace_id": "default",
+      "actor_role": "reviewer",
+      "document_type": "invoice",
+      "operation_type": "document_escalation",
+      "work_type": "insufficient_evidence",
+      "document_state": "unclear",
+      "planning_input": {
+        "requested_outcome": "decide unclear invoice",
+        "evidence_sufficient": false,
+        "approved_for_export": false,
+        "missing_fields": []
+      },
+      "expected_plan_steps": [
+        "escalate_to_human"
+      ],
+      "expected_step_statuses": [
+        "planned"
+      ],
+      "expected_risk_levels": [
+        "medium"
+      ],
+      "expected_policy_actions": [
+        "escalate_to_human"
+      ],
+      "expected_requires_human": true,
+      "expected_confidence": "low",
+      "expected_escalation_reason": "Insufficient evidence for safe planning."
+    }
+  ]
+}

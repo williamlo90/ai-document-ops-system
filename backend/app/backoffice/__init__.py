@@ -1,1 +1,1 @@
-"""Approval-gated work planning."""
+"""Back-office autonomy domain."""

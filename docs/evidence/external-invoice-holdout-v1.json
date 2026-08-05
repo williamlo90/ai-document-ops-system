@@ -1,0 +1,73 @@
+{
+  "report_version": "1.0",
+  "dataset_class": "external licensed synthetic invoices",
+  "split": "holdout",
+  "provider": "mistral_ocr+llm_json",
+  "documents_count": 10,
+  "provider_errors": 9,
+  "metrics": {
+    "provider_success_rate": 0.1,
+    "documents_succeeded": 1,
+    "field_accuracy": 0.1,
+    "fields_matched": 8,
+    "fields_total": 80,
+    "by_field": {
+      "vendor_name": 0.1,
+      "invoice_number": 0.1,
+      "invoice_date": 0.1,
+      "due_date": 0.1,
+      "subtotal": 0.1,
+      "tax": 0.1,
+      "total": 0.1,
+      "currency": 0.1
+    },
+    "document_exact_match_rate": 0.1,
+    "validation_code_exact_match_rate": 0.4,
+    "approval_blocker_accuracy": 0.4,
+    "confidence_metadata_coverage": 0.8571,
+    "source_evidence_coverage": 0.8571,
+    "correct_non_null_fields": 7,
+    "conditional_on_provider_success": {
+      "documents_count": 1,
+      "field_accuracy": 1.0,
+      "document_exact_match_rate": 1.0,
+      "validation_code_exact_match_rate": 1.0,
+      "approval_blocker_accuracy": 1.0,
+      "confidence_metadata_coverage": 0.8571,
+      "source_evidence_coverage": 0.8571
+    },
+    "duplicate_detection": {
+      "status": "not_measured_no_positive_pairs",
+      "positive_pairs_expected": 0,
+      "true_positive_pairs": 0,
+      "false_positive_pairs": 0,
+      "false_negative_pairs": 0,
+      "precision": null,
+      "recall": null
+    },
+    "latency_ms": {
+      "average": 84139.25,
+      "minimum": 2441.83,
+      "maximum": 94254.73
+    }
+  },
+  "failure_taxonomy": {
+    "missing_source_evidence": 1,
+    "provider_error": 9,
+    "unscored_fields_due_to_provider_error": 72,
+    "validation_code_mismatch": 6
+  },
+  "limitations": [
+    "The source is an external licensed synthetic dataset, not customer invoice traffic.",
+    "The result measures this fixed 25-document pack and does not establish global accuracy.",
+    "Source-evidence coverage requires both a page reference and an exact source excerpt.",
+    "Duplicate recall is not measured when the split contains no labeled duplicate pair.",
+    "Provider latency depends on the local network and hosted API conditions during the run."
+  ],
+  "generated_at": "2026-07-15T05:08:33.485502+00:00",
+  "holdout_seal_verified": true,
+  "execution": {
+    "fresh_documents": 10,
+    "reused_successful_diagnostic_documents": 0
+  }
+}

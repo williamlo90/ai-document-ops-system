@@ -1,141 +1,157 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+import logging
+from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI
+from fastapi.responses import PlainTextResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
-from app.api.exceptions import http_problem_handler
-from app.api.auth import router as auth_router
-from app.api.dependencies import SESSION_COOKIE, require_admin, require_context
-from app.api.documents import router as documents_router
-from app.api.document_commands import router as document_commands_router
-from app.api.document_workflow import router as document_workflow_router
-from app.api.invoices import router as invoices_router
-from app.api.review import router as review_router
-from app.api.serializers import (
-    HealthResponse,
-    ProblemResponse,
-    ReadinessResponse,
-    RuntimeSummaryResponse,
-    ServiceMetadataResponse,
-)
-from app.bootstrap.container import build_container
+from app.api.dependencies import build_container, require_metrics_token
 from app.core.observability import (
-    RequestMetrics,
+    HttpMetrics,
     RequestObservabilityMiddleware,
+    configure_structured_logging,
     readiness_payload,
-    request_metrics_payload,
 )
-from app.core.http_security import CsrfOriginMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
-from app.core.security import SecurityContext
-from app.core.settings import Settings, load_settings
+from app.api.agent import router as agent_router
+from app.api.agentops import router as agentops_router
+from app.api.backoffice import router as backoffice_router
+from app.api.documents import router as documents_router
+from app.api.exports import router as exports_router
+from app.api.evaluation import router as evaluation_router
+from app.api.exceptions import router as exceptions_router
+from app.api.integrations import router as integrations_router
+from app.api.invoices import router as invoices_router
+from app.api.metrics import router as metrics_router
+from app.api.providers import router as providers_router
+from app.api.operations import router as operations_router
+from app.api.overview import router as overview_router
+from app.api.system import router as system_router
+from app.api.review import router as review_router
+from app.api.auth import router as auth_router
+from app.core.security import validate_access_token_policy, validate_public_demo_provider_policy
+from app.core.upload_scanning import validate_upload_scanning_policy
+from app.core.provider_egress import validate_configured_provider_egress
+from app.core.http_security import (
+    CsrfOriginMiddleware,
+    RateLimitMiddleware,
+    SecurityHeadersMiddleware,
+    SpaHistoryFallbackMiddleware,
+)
+from app.core.settings import Settings, is_hosted, load_settings
+from app.api.legacy_redirects import router as legacy_redirect_router
+from app.documents.retention import validate_retention_policy
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    resolved = settings or load_settings()
-    container = build_container(resolved)
+    resolved_settings = settings or load_settings()
+    validate_access_token_policy(resolved_settings)
+    validate_public_demo_provider_policy(resolved_settings)
+    validate_upload_scanning_policy(resolved_settings)
+    validate_retention_policy(resolved_settings)
+    validate_configured_provider_egress(resolved_settings)
+    hosted = is_hosted(resolved_settings)
+    configure_structured_logging()
 
     @asynccontextmanager
-    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(application: FastAPI):
         application.state.accepting_traffic = True
+        logging.getLogger("docintel.lifecycle").info("application_started")
         try:
             yield
         finally:
             application.state.accepting_traffic = False
-            container.close()
+            application.state.container.close()
+            logging.getLogger("docintel.lifecycle").info("application_stopping")
 
     app = FastAPI(
         title="Invoice Review API",
-        description="Stable read-only contracts for the invoice review service.",
-        version="0.2.0-m03",
+        description=(
+            "Invoice intake, extraction, deterministic validation, human review, correction, "
+            "approval-gated export, audit evidence, and bounded reliability evaluation."
+        ),
+        version="0.1.0",
         lifespan=lifespan,
+        docs_url=None if hosted else "/docs",
+        redoc_url=None if hosted else "/redoc",
+        openapi_url=None if hosted else "/openapi.json",
     )
-    app.add_exception_handler(HTTPException, http_problem_handler)
-    app.state.settings = resolved
-    app.state.container = container
     app.state.accepting_traffic = True
-    app.state.request_metrics = RequestMetrics()
-    app.add_middleware(RequestObservabilityMiddleware, metrics=app.state.request_metrics)
+    app.state.http_metrics = HttpMetrics()
+    app.add_middleware(RequestObservabilityMiddleware, metrics=app.state.http_metrics)
+    app.state.container = build_container(resolved_settings)
+    app.state.sessions = app.state.container.sessions
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
+        CsrfOriginMiddleware,
+        settings=resolved_settings,
+        cookie_name="doc_intel_admin_token",
+    )
+    app.add_middleware(
         RateLimitMiddleware,
-        requests=resolved.rate_limit_requests,
-        window_seconds=resolved.rate_limit_window_seconds,
+        requests=resolved_settings.rate_limit_requests,
+        window_seconds=resolved_settings.rate_limit_window_seconds,
     )
-    app.add_middleware(CsrfOriginMiddleware, settings=resolved, cookie_name=SESSION_COOKIE)
-    app.include_router(auth_router)
+    app.add_middleware(SpaHistoryFallbackMiddleware)
     app.include_router(documents_router)
-    app.include_router(document_commands_router)
-    app.include_router(document_workflow_router)
-    app.include_router(invoices_router)
+    app.include_router(auth_router)
     app.include_router(review_router)
+    app.include_router(exceptions_router)
+    app.include_router(exports_router)
+    app.include_router(evaluation_router)
+    app.include_router(integrations_router)
+    app.include_router(metrics_router)
+    app.include_router(providers_router)
+    app.include_router(operations_router)
+    app.include_router(overview_router)
+    app.include_router(system_router)
+    app.include_router(agent_router)
+    app.include_router(agentops_router)
+    app.include_router(backoffice_router)
+    app.include_router(invoices_router)
+    app.include_router(legacy_redirect_router)
 
-    problem_responses: dict[int | str, dict[str, Any]] = {404: {"model": ProblemResponse}}
+    @app.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
 
-    @app.get(
-        "/health",
-        operation_id="getHealth",
-        response_model=HealthResponse,
-        responses=problem_responses,
-    )
-    def health() -> HealthResponse:
-        return HealthResponse(status="ok")
-
-    @app.get(
-        "/ready",
-        operation_id="getReadiness",
-        response_model=ReadinessResponse,
-        responses={503: {"model": ReadinessResponse}},
-    )
-    def ready() -> JSONResponse:
-        dependencies = container.readiness()
+    @app.get("/ready")
+    def ready():
+        if not app.state.accepting_traffic:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not_ready", "checks": {"lifecycle": "stopping"}},
+            )
+        checks = app.state.container.readiness()
         payload = readiness_payload(
-            lifecycle_ready=bool(app.state.accepting_traffic),
-            database_ready=dependencies["database"],
-            storage_ready=dependencies["storage"],
+            database_ready=checks["database"],
+            storage_ready=checks["storage"],
         )
         return JSONResponse(
             status_code=200 if payload["status"] == "ready" else 503,
             content=payload,
         )
 
-    @app.get(
-        "/internal/runtime-summary",
-        operation_id="getRuntimeSummary",
-        response_model=RuntimeSummaryResponse,
-    )
-    def runtime_summary() -> RuntimeSummaryResponse:
-        return RuntimeSummaryResponse(
-            environment=resolved.environment,
-            metrics=request_metrics_payload(app.state.request_metrics),
-        )
+    @app.get("/internal/metrics", response_class=PlainTextResponse)
+    def runtime_metrics(_authorized: None = Depends(require_metrics_token)) -> str:
+        return app.state.http_metrics.prometheus()
 
-    @app.get(
-        "/meta",
-        operation_id="getServiceMetadata",
-        response_model=ServiceMetadataResponse,
-        responses=problem_responses,
-    )
-    def metadata() -> ServiceMetadataResponse:
-        return ServiceMetadataResponse()
-
-    @app.get("/meta/{key}", operation_id="getMetadataValue", responses=problem_responses)
-    def metadata_value(key: str) -> dict[str, str]:
-        if key != "document-type":
-            raise HTTPException(status_code=404, detail="Metadata key not found")
-        return {"key": key, "value": "invoice"}
-
-    @app.get("/workspace", operation_id="getWorkspace")
-    def workspace(context: SecurityContext = Depends(require_context)) -> dict[str, object]:
-        return {"workspace_id": context.workspace_id, "role": context.role}
-
-    @app.get("/admin/runtime", operation_id="getAdminRuntime")
-    def admin_runtime(context: SecurityContext = Depends(require_admin)) -> dict[str, object]:
-        return {"actor": context.actor, "environment": resolved.environment}
+    frontend_dist = _frontend_dist()
+    if frontend_dist is not None:
+        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 
     return app
+
+
+def _frontend_dist() -> Path | None:
+    candidates = (
+        Path("frontend/dist"),
+        Path("../frontend/dist"),
+        Path("/app/frontend/dist"),
+    )
+    return next((path.resolve() for path in candidates if path.is_dir()), None)
 
 
 app = create_app()

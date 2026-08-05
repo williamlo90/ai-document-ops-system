@@ -1,16 +1,15 @@
-[CmdletBinding()]
-param([string]$Python = "python")
-
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent $PSScriptRoot
-$venv = Join-Path $root ".venv"
 
-if (-not (Test-Path -LiteralPath $venv)) {
-    & $Python -m venv $venv
-    if ($LASTEXITCODE -ne 0) { throw "Unable to create .venv" }
+$python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $python) {
+    throw "Python is not available on PATH. Install Python 3.11+ or use Docker Desktop with scripts\start_docker.ps1."
 }
 
-$venvPython = Join-Path $venv "Scripts\python.exe"
-& $venvPython -m pip install --require-hashes -r (Join-Path $root "requirements-dev.txt")
-if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed" }
-Write-Host "Environment ready: $venvPython"
+if (-not (Test-Path ".venv")) {
+    python -m venv .venv
+}
+
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install --require-hashes -r requirements-dev-windows.txt
+
+Write-Host "Local development environment and quality-gate tools are ready."

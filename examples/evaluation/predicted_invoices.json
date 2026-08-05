@@ -1,0 +1,24 @@
+[
+  {
+    "document_id": "invoice-001",
+    "vendor_name": "ACME Logistics",
+    "invoice_number": "INV-001",
+    "invoice_date": "2026-06-18",
+    "due_date": "2026-07-18",
+    "subtotal": "100",
+    "tax": "10.0",
+    "total": "110.00",
+    "currency": "usd"
+  },
+  {
+    "document_id": "invoice-002",
+    "vendor_name": "Northwind Freight",
+    "invoice_number": "NF-2048",
+    "invoice_date": "2026-06-20",
+    "due_date": "2026-07-21",
+    "subtotal": "250.00",
+    "tax": "0.00",
+    "total": "255.00",
+    "currency": "USD"
+  }
+]

@@ -1,1 +1,1 @@
-"""External provider and private storage adapters."""
+"""Provider contracts and adapters."""

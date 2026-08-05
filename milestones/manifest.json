@@ -255,6 +255,27 @@
         "backend/app/tests/test_contracts_capabilities.py",
         "reconstruction/provenance/m13.csv"
       ]
+    },
+    {
+      "id": "M14",
+      "tag": "reconstruction-m14",
+      "slug": "release-integration",
+      "focused_modules": [
+        "app.tests.test_review_export",
+        "app.tests.test_operations_api",
+        "app.tests.test_quality_gates",
+        "app.tests.test_public_artifact"
+      ],
+      "required_paths": [
+        "backend/app/main.py",
+        "backend/app/bootstrap/container.py",
+        "backend/app/exports/services.py",
+        "backend/app/operations/queries.py",
+        "frontend/src/App.tsx",
+        "scripts/verify_release.py",
+        "docs/architecture.md",
+        "reconstruction/provenance/m14.csv"
+      ]
     }
   ]
 }

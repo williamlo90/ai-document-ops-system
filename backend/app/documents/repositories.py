@@ -1,116 +1,359 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 from copy import deepcopy
-from threading import RLock
-from typing import Iterator
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Protocol
 from uuid import UUID
 
-from app.documents.models import AuditEvent, DocumentRecord
-from app.documents.jobs import ProcessingJob
+from app.documents.jobs import ProcessingJob, ProcessingJobStatus
+from app.documents.models import AuditEvent, DocumentRecord, ReviewTask
+from app.documents.status import DocumentStatus
+from app.providers.contracts import ExtractionResult
+from app.validation.invoice import ValidationReport
 
 
-class DuplicateInvoiceIdentity(ValueError):
+class NotFoundError(KeyError):
     pass
 
 
+class LeaseLostError(RuntimeError):
+    pass
+
+
+class DocumentRepository(Protocol):
+    def add(self, document: DocumentRecord) -> DocumentRecord: ...
+
+    def save(self, document: DocumentRecord) -> DocumentRecord: ...
+
+    def get(self, document_id: UUID) -> DocumentRecord: ...
+
+    def list_all(self) -> list[DocumentRecord]: ...
+
+    def list_by_workspace(self, workspace_id: str) -> list[DocumentRecord]: ...
+
+    def list_by_status(self, status: DocumentStatus) -> list[DocumentRecord]: ...
+
+    def list_by_workspace_and_status(
+        self, workspace_id: str, status: DocumentStatus
+    ) -> list[DocumentRecord]: ...
+
+
+class JobRepository(Protocol):
+    def add(self, job: ProcessingJob) -> ProcessingJob: ...
+
+    def save(
+        self,
+        job: ProcessingJob,
+        *,
+        expected_lease_token: str | None = None,
+    ) -> ProcessingJob: ...
+
+    def get(self, job_id: UUID) -> ProcessingJob: ...
+
+    def get_latest_for_document(self, document_id: UUID) -> ProcessingJob: ...
+
+    def list_all(self) -> list[ProcessingJob]: ...
+
+    def list_by_status(self, status: ProcessingJobStatus) -> list[ProcessingJob]: ...
+
+    def claim_next_processable(
+        self,
+        *,
+        stale_before: datetime | None = None,
+        now: datetime | None = None,
+    ) -> ProcessingJob | None: ...
+
+    def renew_lease(
+        self,
+        job_id: UUID,
+        lease_token: str,
+        *,
+        renewed_at: datetime | None = None,
+    ) -> bool: ...
+
+    def count(self) -> int: ...
+
+
+class AuditRepository(Protocol):
+    def add(self, event: AuditEvent) -> AuditEvent: ...
+
+    def list_for_document(self, document_id: UUID) -> list[AuditEvent]: ...
+
+    def count(self) -> int: ...
+
+
+@dataclass(frozen=True)
+class StoredExtraction:
+    document_id: UUID
+    extraction_result: ExtractionResult
+    validation_report: ValidationReport
+
+
+class ExtractionRepository(Protocol):
+    def save(
+        self,
+        document_id: UUID,
+        extraction_result: ExtractionResult,
+        validation_report: ValidationReport,
+    ) -> StoredExtraction: ...
+
+    def get_for_document(self, document_id: UUID) -> StoredExtraction: ...
+
+    def get_for_documents(self, document_ids: list[UUID]) -> dict[UUID, StoredExtraction]: ...
+
+    def find_by_invoice_identity(
+        self,
+        vendor_identity: str,
+        invoice_identity: str,
+    ) -> list[UUID]: ...
+
+
+class ReviewTaskRepository(Protocol):
+    def save(self, task: ReviewTask) -> ReviewTask: ...
+
+    def get_for_document(self, document_id: UUID) -> ReviewTask: ...
+
+    def list_open(self) -> list[ReviewTask]: ...
+
+
+@dataclass
 class InMemoryDocumentRepository:
-    def __init__(self) -> None:
-        self._documents: dict[UUID, DocumentRecord] = {}
-        self._identities: set[tuple[str, str, str]] = set()
+    records: dict[UUID, DocumentRecord] = field(default_factory=dict)
 
-    def add(self, document: DocumentRecord) -> None:
-        self._documents[document.id] = deepcopy(document)
+    def add(self, document: DocumentRecord) -> DocumentRecord:
+        return self.save(document)
 
-    def get(self, document_id: UUID) -> DocumentRecord | None:
-        document = self._documents.get(document_id)
-        return deepcopy(document) if document is not None else None
+    def save(self, document: DocumentRecord) -> DocumentRecord:
+        stored = deepcopy(document)
+        self.records[document.id] = stored
+        return deepcopy(stored)
 
-    def save(self, document: DocumentRecord) -> None:
-        if document.id not in self._documents:
-            raise KeyError(document.id)
-        self._documents[document.id] = deepcopy(document)
+    def get(self, document_id: UUID) -> DocumentRecord:
+        try:
+            return deepcopy(self.records[document_id])
+        except KeyError as exc:
+            raise NotFoundError(f"Document not found: {document_id}") from exc
+
+    def list_all(self) -> list[DocumentRecord]:
+        return deepcopy(list(self.records.values()))
 
     def list_by_workspace(self, workspace_id: str) -> list[DocumentRecord]:
-        return [deepcopy(item) for item in self._documents.values() if item.workspace_id == workspace_id]
+        return deepcopy(
+            [
+                document
+                for document in self.records.values()
+                if document.workspace_id == workspace_id
+            ]
+        )
 
-    def reserve_identity(self, workspace_id: str, vendor: str, invoice_number: str) -> None:
-        identity = (workspace_id, vendor.casefold(), invoice_number.casefold())
-        if identity in self._identities:
-            raise DuplicateInvoiceIdentity(invoice_number)
-        self._identities.add(identity)
+    def list_by_status(self, status: DocumentStatus) -> list[DocumentRecord]:
+        return deepcopy(
+            [document for document in self.records.values() if document.status == status]
+        )
 
-    def snapshot_state(self) -> tuple[dict[UUID, DocumentRecord], set[tuple[str, str, str]]]:
-        return deepcopy(self._documents), set(self._identities)
+    def list_by_workspace_and_status(
+        self, workspace_id: str, status: DocumentStatus
+    ) -> list[DocumentRecord]:
+        return deepcopy(
+            [
+                document
+                for document in self.records.values()
+                if document.workspace_id == workspace_id and document.status == status
+            ]
+        )
 
-    def restore_state(self, state: tuple[dict[UUID, DocumentRecord], set[tuple[str, str, str]]]) -> None:
-        self._documents, self._identities = deepcopy(state[0]), set(state[1])
+
+@dataclass
+class InMemoryJobRepository:
+    records: dict[UUID, ProcessingJob] = field(default_factory=dict)
+
+    def add(self, job: ProcessingJob) -> ProcessingJob:
+        stored = deepcopy(job)
+        self.records[job.id] = stored
+        return deepcopy(stored)
+
+    def save(
+        self,
+        job: ProcessingJob,
+        *,
+        expected_lease_token: str | None = None,
+    ) -> ProcessingJob:
+        current = self.records.get(job.id)
+        if (
+            expected_lease_token is None
+            and current is not None
+            and current.status == ProcessingJobStatus.RUNNING
+            and current.lease_token is not None
+        ):
+            if job.status == ProcessingJobStatus.RUNNING and job.lease_token == current.lease_token:
+                expected_lease_token = current.lease_token
+            else:
+                raise LeaseLostError(f"Processing job lease token is required to update: {job.id}")
+        if expected_lease_token is not None and (
+            current is None or current.lease_token != expected_lease_token
+        ):
+            raise LeaseLostError(f"Processing job lease was lost: {job.id}")
+        stored = deepcopy(job)
+        self.records[job.id] = stored
+        return deepcopy(stored)
+
+    def get(self, job_id: UUID) -> ProcessingJob:
+        try:
+            return deepcopy(self.records[job_id])
+        except KeyError as exc:
+            raise NotFoundError(f"Processing job not found: {job_id}") from exc
+
+    def get_latest_for_document(self, document_id: UUID) -> ProcessingJob:
+        matches = [job for job in self.records.values() if job.document_id == document_id]
+        if not matches:
+            raise NotFoundError(f"Processing job not found for document: {document_id}")
+        return deepcopy(max(matches, key=lambda job: job.created_at))
+
+    def list_all(self) -> list[ProcessingJob]:
+        return deepcopy(list(self.records.values()))
+
+    def list_by_status(self, status: ProcessingJobStatus) -> list[ProcessingJob]:
+        return deepcopy([job for job in self.records.values() if job.status == status])
+
+    def claim_next_processable(
+        self,
+        *,
+        stale_before: datetime | None = None,
+        now: datetime | None = None,
+    ) -> ProcessingJob | None:
+        current = now or datetime.now(UTC)
+        candidates = [
+            job
+            for job in self.records.values()
+            if job.status == ProcessingJobStatus.QUEUED
+            or (
+                job.status == ProcessingJobStatus.RETRYING
+                and (job.next_attempt_at is None or job.next_attempt_at <= current)
+            )
+            or (
+                stale_before is not None
+                and job.status == ProcessingJobStatus.RUNNING
+                and job.updated_at <= stale_before
+            )
+        ]
+        if not candidates:
+            return None
+        job = min(
+            candidates,
+            key=lambda candidate: (
+                candidate.status != ProcessingJobStatus.RUNNING,
+                candidate.created_at,
+            ),
+        )
+        if job.status == ProcessingJobStatus.RUNNING:
+            job.retry("worker_lease_expired")
+        job.start()
+        return deepcopy(job)
+
+    def renew_lease(
+        self,
+        job_id: UUID,
+        lease_token: str,
+        *,
+        renewed_at: datetime | None = None,
+    ) -> bool:
+        job = self.records.get(job_id)
+        if (
+            job is None
+            or job.status != ProcessingJobStatus.RUNNING
+            or job.lease_token != lease_token
+        ):
+            return False
+        job.updated_at = renewed_at or datetime.now(UTC)
+        return True
+
+    def count(self) -> int:
+        return len(self.records)
 
 
+@dataclass
 class InMemoryAuditRepository:
-    def __init__(self) -> None:
-        self._events: list[AuditEvent] = []
+    records: list[AuditEvent] = field(default_factory=list)
 
-    def append(self, event: AuditEvent) -> None:
-        self._events.append(deepcopy(event))
+    def add(self, event: AuditEvent) -> AuditEvent:
+        stored = deepcopy(event)
+        self.records.append(stored)
+        return deepcopy(stored)
 
     def list_for_document(self, document_id: UUID) -> list[AuditEvent]:
-        return [deepcopy(event) for event in self._events if event.document_id == document_id]
+        return deepcopy([event for event in self.records if event.document_id == document_id])
 
-    def snapshot_state(self) -> list[AuditEvent]:
-        return deepcopy(self._events)
-
-    def restore_state(self, state: list[AuditEvent]) -> None:
-        self._events = deepcopy(state)
+    def count(self) -> int:
+        return len(self.records)
 
 
-class InMemoryJobRepository:
-    def __init__(self) -> None:
-        self._jobs: dict[UUID, ProcessingJob] = {}
+@dataclass
+class InMemoryExtractionRepository:
+    records: dict[UUID, StoredExtraction] = field(default_factory=dict)
 
-    def add(self, job: ProcessingJob) -> None:
-        self._jobs[job.id] = deepcopy(job)
+    def save(
+        self,
+        document_id: UUID,
+        extraction_result: ExtractionResult,
+        validation_report: ValidationReport,
+    ) -> StoredExtraction:
+        stored = StoredExtraction(
+            document_id=document_id,
+            extraction_result=extraction_result,
+            validation_report=validation_report,
+        )
+        self.records[document_id] = deepcopy(stored)
+        return deepcopy(stored)
 
-    def get(self, job_id: UUID) -> ProcessingJob | None:
-        job = self._jobs.get(job_id)
-        return deepcopy(job) if job is not None else None
+    def get_for_document(self, document_id: UUID) -> StoredExtraction:
+        try:
+            return deepcopy(self.records[document_id])
+        except KeyError as exc:
+            raise NotFoundError(f"Extraction not found for document: {document_id}") from exc
 
-    def save(self, job: ProcessingJob) -> None:
-        if job.id not in self._jobs:
-            raise KeyError(job.id)
-        self._jobs[job.id] = deepcopy(job)
+    def get_for_documents(self, document_ids: list[UUID]) -> dict[UUID, StoredExtraction]:
+        return deepcopy(
+            {
+                document_id: self.records[document_id]
+                for document_id in document_ids
+                if document_id in self.records
+            }
+        )
 
-    def next_claimable(self) -> ProcessingJob | None:
-        for job in self._jobs.values():
-            if job.status.value in {"queued", "retry"}:
-                return deepcopy(job)
-        return None
+    def find_by_invoice_identity(
+        self,
+        vendor_identity: str,
+        invoice_identity: str,
+    ) -> list[UUID]:
+        return [
+            document_id
+            for document_id, stored in self.records.items()
+            if _identity_text(stored.extraction_result.extraction.data.vendor_name)
+            == vendor_identity
+            and _identity_text(stored.extraction_result.extraction.data.invoice_number)
+            == invoice_identity
+        ]
 
-    def snapshot_state(self) -> dict[UUID, ProcessingJob]:
-        return deepcopy(self._jobs)
 
-    def restore_state(self, state: dict[UUID, ProcessingJob]) -> None:
-        self._jobs = deepcopy(state)
+@dataclass
+class InMemoryReviewTaskRepository:
+    records: dict[UUID, ReviewTask] = field(default_factory=dict)
+
+    def save(self, task: ReviewTask) -> ReviewTask:
+        stored = deepcopy(task)
+        self.records[task.document_id] = stored
+        return deepcopy(stored)
+
+    def get_for_document(self, document_id: UUID) -> ReviewTask:
+        try:
+            return deepcopy(self.records[document_id])
+        except KeyError as exc:
+            raise NotFoundError(f"Review task not found for document: {document_id}") from exc
+
+    def list_open(self) -> list[ReviewTask]:
+        return deepcopy([task for task in self.records.values() if task.status == "open"])
 
 
-class InMemoryTransactionManager:
-    def __init__(self, documents: InMemoryDocumentRepository, audits: InMemoryAuditRepository, jobs: InMemoryJobRepository | None = None) -> None:
-        self.documents = documents
-        self.audits = audits
-        self.jobs = jobs
-        self._lock = RLock()
-
-    @contextmanager
-    def transaction(self) -> Iterator[None]:
-        with self._lock:
-            document_state = self.documents.snapshot_state()
-            audit_state = self.audits.snapshot_state()
-            job_state = self.jobs.snapshot_state() if self.jobs is not None else None
-            try:
-                yield
-            except Exception:
-                self.documents.restore_state(document_state)
-                self.audits.restore_state(audit_state)
-                if self.jobs is not None and job_state is not None:
-                    self.jobs.restore_state(job_state)
-                raise
+def _identity_text(value: str | None) -> str:
+    return "".join(character for character in (value or "").casefold() if character.isalnum())

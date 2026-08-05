@@ -1,1 +1,1 @@
-"""Synthetic invoice benchmark harness."""
+from __future__ import annotations

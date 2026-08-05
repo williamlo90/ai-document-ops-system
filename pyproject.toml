@@ -1,39 +1,135 @@
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-exclude = [".git", ".venv", "dist"]
+exclude = [
+  ".git",
+  ".venv",
+  "dist",
+  "backend/data",
+  "delegation",
+  "logs",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "B"]
-ignore = ["E501", "B008", "B017"]
+ignore = [
+  "E501",
+  "B008",
+  "B017",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402"]
+"backend/scripts/*.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.11"
 mypy_path = "backend"
 files = [
-  "backend/app/main.py",
-  "backend/app/core/settings.py",
-  "backend/app/core/observability.py",
-  "backend/app/core/security.py",
-  "backend/app/core/http_headers.py",
-  "backend/app/core/http_security.py",
+  "backend/app/documents/jobs.py",
+  "backend/app/documents/models.py",
+  "backend/app/documents/status.py",
+  "backend/app/documents/repositories.py",
+  "backend/app/documents/sqlite_repositories.py",
+  "backend/app/documents/sqlite_schema.py",
+  "backend/app/documents/sqlite_store.py",
   "backend/app/core/transactions.py",
-  "backend/app/core/upload_scanning.py",
-  "backend/app/providers",
-  "backend/app/benchmark",
-  "backend/app/evaluation",
-  "backend/app/core/provider_egress.py",
-  "backend/app/api",
-  "backend/app/bootstrap",
-  "backend/app/documents",
-  "backend/app/extraction",
-  "backend/app/validation",
-  "backend/app/review",
-  "backend/app/invoices",
-  "backend/app/agent",
-  "backend/app/backoffice",
-  "backend/app/exports",
-  "backend/app/operations",
-  "backend/app/contracts",
+  "backend/app/review/models.py",
+  "backend/app/exports/models.py",
+  "backend/app/integrations/models.py",
+  "backend/app/documents/services.py",
+  "backend/app/documents/extraction_pipeline.py",
+  "backend/app/documents/job_leases.py",
+  "backend/app/documents/lifecycle_commands.py",
+  "backend/app/documents/processing_policy.py",
+  "backend/app/documents/processing_results.py",
+  "backend/app/documents/worker.py",
+  "backend/app/review/services.py",
+  "backend/app/exports/services.py",
+  "backend/app/exports/repositories.py",
+  "backend/app/exports/eligibility.py",
+  "backend/app/exports/execution.py",
+  "backend/app/exports/workspace.py",
+  "backend/app/exports/batch_service.py",
+  "backend/app/integrations/services.py",
+  "backend/app/invoices/queries.py",
+  "backend/app/backoffice/errors.py",
+  "backend/app/backoffice/execution.py",
+  "backend/app/backoffice/planning_service.py",
+  "backend/app/backoffice/recovery.py",
+  "backend/app/backoffice/request_identity.py",
+  "backend/app/backoffice/services.py",
+  "backend/app/backoffice/sqlite_repositories.py",
+  "backend/app/metrics/queries.py",
+  "backend/app/providers/queries.py",
+  "backend/app/operations/queries.py",
+  "backend/app/api/dependencies.py",
+  "backend/app/bootstrap/agent.py",
+  "backend/app/bootstrap/backoffice.py",
+  "backend/app/bootstrap/container.py",
+  "backend/app/bootstrap/documents.py",
+  "backend/app/bootstrap/evaluation.py",
+  "backend/app/bootstrap/exports.py",
+  "backend/app/bootstrap/integrations.py",
+  "backend/app/bootstrap/operations.py",
+  "backend/app/bootstrap/persistence.py",
+  "backend/app/bootstrap/review.py",
+  "backend/app/agent/types.py",
+  "backend/app/agent/routing.py",
+  "backend/app/agent/responses.py",
+  "backend/app/agent/dispatcher.py",
+  "backend/app/agent/run_recorder.py",
+  "backend/app/agent/service.py",
+]
+follow_imports = "silent"
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = [
+  "app.documents.jobs",
+  "app.documents.models",
+  "app.documents.status",
+  "app.documents.repositories",
+  "app.documents.sqlite_repositories",
+  "app.documents.sqlite_schema",
+  "app.documents.sqlite_store",
+  "app.documents.processing_policy",
+  "app.documents.processing_results",
+  "app.documents.extraction_pipeline",
+  "app.documents.job_leases",
+  "app.documents.lifecycle_commands",
+  "app.core.transactions",
+  "app.review.models",
+  "app.exports.models",
+  "app.exports.repositories",
+  "app.integrations.models",
+  "app.invoices.queries",
+  "app.backoffice.errors",
+  "app.backoffice.planning_service",
+  "app.backoffice.request_identity",
+  "app.metrics.queries",
+  "app.providers.queries",
+  "app.operations.queries",
+  "app.bootstrap.agent",
+  "app.bootstrap.backoffice",
+  "app.bootstrap.container",
+  "app.bootstrap.documents",
+  "app.bootstrap.evaluation",
+  "app.bootstrap.exports",
+  "app.bootstrap.integrations",
+  "app.bootstrap.operations",
+  "app.bootstrap.persistence",
+  "app.bootstrap.review",
+  "app.agent.types",
+  "app.agent.routing",
+  "app.agent.responses",
+  "app.agent.dispatcher",
+  "app.agent.run_recorder",
+  "app.agent.service",
 ]
 strict = true

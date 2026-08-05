@@ -1,1 +1,1 @@
-"""Application composition boundary."""
+"""Application composition modules."""

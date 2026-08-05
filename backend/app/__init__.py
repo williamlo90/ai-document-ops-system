@@ -1,1 +1,1 @@
-"""Invoice review application package."""
+"""Invoice Review backend package."""

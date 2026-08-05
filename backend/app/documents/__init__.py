@@ -1,1 +1,1 @@
-"""Invoice document domain."""
+"""Document workflow domain."""

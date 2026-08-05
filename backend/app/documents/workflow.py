@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.documents.models import AuditEvent, DocumentRecord
-from app.documents.status import DocumentStatus, require_intake_editable, require_transition
+from app.documents.status import DocumentStatus, require_transition
 
 
 STATUS_EVENT_NAMES: dict[DocumentStatus, str] = {
@@ -31,7 +31,7 @@ class DocumentWorkflowService:
         require_transition(old_status, target_status)
         document.status = target_status
         document.updated_at = datetime.now(UTC)
-        return AuditEvent(
+        event = AuditEvent(
             document_id=document.id,
             event_type=STATUS_EVENT_NAMES[target_status],
             actor=actor,
@@ -39,17 +39,7 @@ class DocumentWorkflowService:
             new_status=target_status,
             payload_summary=payload_summary,
         )
-
-    def save_intake_draft(self, document: DocumentRecord, *, actor: str) -> AuditEvent:
-        require_intake_editable(document.status)
-        document.updated_at = datetime.now(UTC)
-        return AuditEvent(
-            document_id=document.id,
-            event_type="intake_draft_saved",
-            actor=actor,
-            old_status=document.status,
-            new_status=document.status,
-        )
+        return event
 
     def record_upload(self, document: DocumentRecord, actor: str) -> AuditEvent:
         return AuditEvent(

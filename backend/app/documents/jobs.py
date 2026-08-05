@@ -3,70 +3,91 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from secrets import token_urlsafe
 from uuid import UUID, uuid4
 
+_last_timestamp: datetime | None = None
 
-class JobStatus(StrEnum):
+
+def _monotonic_timestamp() -> datetime:
+    global _last_timestamp
+    current = datetime.now(UTC)
+    if _last_timestamp is not None and current <= _last_timestamp:
+        current = _last_timestamp + timedelta(microseconds=1)
+    _last_timestamp = current
+    return current
+
+
+class ProcessingJobStatus(StrEnum):
     QUEUED = "queued"
-    PROCESSING = "processing"
-    RETRY = "retry"
-    COMPLETED = "completed"
+    RUNNING = "running"
+    RETRYING = "retrying"
+    SUCCEEDED = "succeeded"
     FAILED = "failed"
+    DEAD_LETTER = "dead_letter"
     CANCELLED = "cancelled"
 
 
-class StaleLeaseError(RuntimeError):
-    pass
-
-
-@dataclass(slots=True)
+@dataclass
 class ProcessingJob:
     document_id: UUID
     id: UUID = field(default_factory=uuid4)
-    status: JobStatus = JobStatus.QUEUED
+    status: ProcessingJobStatus = ProcessingJobStatus.QUEUED
     attempt_count: int = 0
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    error_message: str | None = None
+    provider_name: str | None = None
+    provider_trace_id: str | None = None
+    next_attempt_at: datetime | None = None
     lease_token: str | None = None
-    lease_expires_at: datetime | None = None
-    next_attempt_at: datetime = field(default_factory=lambda: datetime.now(UTC))
-    error_code: str | None = None
+    created_at: datetime = field(default_factory=_monotonic_timestamp)
+    updated_at: datetime = field(default_factory=_monotonic_timestamp)
 
-    def claim(self, lease_seconds: int, now: datetime | None = None) -> str:
-        current = now or datetime.now(UTC)
-        if self.status not in {JobStatus.QUEUED, JobStatus.RETRY} or self.next_attempt_at > current:
-            raise StaleLeaseError("Job is not claimable")
-        self.status = JobStatus.PROCESSING
+    def start(self, *, lease_token: str | None = None) -> None:
+        self.status = ProcessingJobStatus.RUNNING
         self.attempt_count += 1
-        self.lease_token = token_urlsafe(24)
-        self.lease_expires_at = current + timedelta(seconds=lease_seconds)
-        return self.lease_token
+        self.started_at = datetime.now(UTC)
+        self.finished_at = None
+        self.next_attempt_at = None
+        self.lease_token = lease_token or uuid4().hex
+        self.updated_at = self.started_at
 
-    def require_lease(self, token: str) -> None:
-        if self.status != JobStatus.PROCESSING or self.lease_token != token:
-            raise StaleLeaseError("Worker lease is stale")
-
-    def heartbeat(self, token: str, lease_seconds: int) -> None:
-        self.require_lease(token)
-        self.lease_expires_at = datetime.now(UTC) + timedelta(seconds=lease_seconds)
-
-    def complete(self, token: str) -> None:
-        self.require_lease(token)
-        self.status = JobStatus.COMPLETED
+    def succeed(self) -> None:
+        self.status = ProcessingJobStatus.SUCCEEDED
+        self.error_message = None
+        self.finished_at = datetime.now(UTC)
+        self.next_attempt_at = None
         self.lease_token = None
-        self.lease_expires_at = None
+        self.updated_at = self.finished_at
 
-    def fail(self, token: str, *, retryable: bool, error_code: str) -> None:
-        self.require_lease(token)
-        self.status = JobStatus.RETRY if retryable else JobStatus.FAILED
-        self.error_code = error_code
+    def fail(self, message: str) -> None:
+        self.status = ProcessingJobStatus.FAILED
+        self.error_message = message
+        self.finished_at = datetime.now(UTC)
+        self.next_attempt_at = None
         self.lease_token = None
-        self.lease_expires_at = None
+        self.updated_at = self.finished_at
 
-    def reclaim_if_expired(self, now: datetime | None = None) -> bool:
-        current = now or datetime.now(UTC)
-        if self.status == JobStatus.PROCESSING and self.lease_expires_at and self.lease_expires_at <= current:
-            self.status = JobStatus.RETRY
-            self.lease_token = None
-            self.lease_expires_at = None
-            return True
-        return False
+    def retry(self, message: str, *, next_attempt_at: datetime | None = None) -> None:
+        self.status = ProcessingJobStatus.RETRYING
+        self.error_message = message
+        self.finished_at = None
+        self.next_attempt_at = next_attempt_at
+        self.lease_token = None
+        self.updated_at = datetime.now(UTC)
+
+    def dead_letter(self, message: str) -> None:
+        self.status = ProcessingJobStatus.DEAD_LETTER
+        self.error_message = message
+        self.finished_at = datetime.now(UTC)
+        self.next_attempt_at = None
+        self.lease_token = None
+        self.updated_at = self.finished_at
+
+    def cancel(self) -> None:
+        self.status = ProcessingJobStatus.CANCELLED
+        self.error_message = None
+        self.finished_at = datetime.now(UTC)
+        self.next_attempt_at = None
+        self.lease_token = None
+        self.updated_at = self.finished_at

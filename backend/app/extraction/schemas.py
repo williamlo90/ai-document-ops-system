@@ -8,7 +8,7 @@ from decimal import Decimal
 SCHEMA_VERSION = "invoice_v1"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class InvoiceLineItem:
     description: str | None = None
     quantity: Decimal | None = None
@@ -16,7 +16,7 @@ class InvoiceLineItem:
     amount: Decimal | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class InvoiceData:
     vendor_name: str | None = None
     invoice_number: str | None = None
@@ -29,7 +29,7 @@ class InvoiceData:
     line_items: tuple[InvoiceLineItem, ...] = field(default_factory=tuple)
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class FieldConfidence:
     field_name: str
     score: float | None
@@ -37,7 +37,7 @@ class FieldConfidence:
     source_text: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class InvoiceExtraction:
     data: InvoiceData
     schema_version: str = SCHEMA_VERSION

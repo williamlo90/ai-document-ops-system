@@ -1,1 +1,1 @@
-"""Grounded read-only invoice assistance."""
+"""Agentic copilot contracts and orchestration."""

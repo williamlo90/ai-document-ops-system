@@ -1,33 +1,123 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
-from app.core.security import SecurityContext, SessionStore, UnauthorizedError, authenticate_access_token, require_role
+from app.core.security import (
+    SecurityContext,
+    UnauthorizedError,
+    authenticate_access_token,
+    authenticate_metrics_token,
+    require_admin,
+    require_any_role,
+    validate_access_token_policy,
+)
 from app.core.settings import Settings
 
 
 class SecurityTests(unittest.TestCase):
-    def test_tokens_map_to_server_owned_identity(self) -> None:
-        settings = Settings(admin_token="admin-secret", uploader_token="upload-secret", reviewer_token="review-secret", workspace_id="acme")
-        context = authenticate_access_token("review-secret", settings)
-        self.assertEqual((context.user_id, context.role, context.workspace_id), ("reviewer", "reviewer", "acme"))
+    def test_admin_access_token_maps_to_server_owned_identity(self) -> None:
+        context = authenticate_access_token(
+            "secret",
+            Settings(
+                app_env="test",
+                admin_token="secret",
+                upload_root=Path("uploads"),
+                max_upload_bytes=1000,
+            ),
+        )
 
-    def test_caller_cannot_supply_identity_to_authenticator(self) -> None:
+        self.assertEqual(context, SecurityContext(actor="Administrator", is_admin=True))
+
+    def test_access_token_maps_to_server_owned_reviewer_identity(self) -> None:
+        context = authenticate_access_token(
+            "review-secret",
+            Settings(
+                app_env="test",
+                admin_token="admin-secret",
+                uploader_token="upload-secret",
+                reviewer_token="review-secret",
+                workspace_id="acme",
+                upload_root=Path("uploads"),
+                max_upload_bytes=1000,
+            ),
+        )
+
+        self.assertEqual(context.workspace_id, "acme")
+        self.assertEqual(context.user_id, "reviewer")
+        self.assertEqual(context.actor, "Invoice Reviewer")
+        self.assertEqual(context.role, "reviewer")
+        self.assertFalse(context.is_admin)
+
+    def test_access_token_rejects_missing_or_wrong_token(self) -> None:
+        settings = Settings(
+            app_env="test",
+            admin_token="secret",
+            upload_root=Path("uploads"),
+            max_upload_bytes=1000,
+        )
         with self.assertRaises(UnauthorizedError):
-            authenticate_access_token("forged", Settings(admin_token="admin-secret"))
-
-    def test_session_is_opaque_and_revocable(self) -> None:
-        store = SessionStore(60)
-        context = SecurityContext("Operator", "operator", "uploader", "alpha")
-        session_id = store.create(context)
-        self.assertNotIn("operator", session_id)
-        self.assertEqual(store.get(session_id), context)
-        store.revoke(session_id)
-        self.assertIsNone(store.get(session_id))
-
-    def test_role_boundary_is_explicit(self) -> None:
+            authenticate_access_token(None, settings)
         with self.assertRaises(UnauthorizedError):
-            require_role(SecurityContext("Reviewer", "reviewer", "reviewer", "alpha"), "admin")
+            authenticate_access_token("wrong", settings)
+
+    def test_duplicate_role_tokens_are_rejected(self) -> None:
+        settings = Settings(
+            app_env="local",
+            admin_token="same-token",
+            uploader_token="same-token",
+            upload_root=Path("uploads"),
+            max_upload_bytes=1000,
+        )
+
+        with self.assertRaises(ValueError):
+            validate_access_token_policy(settings)
+
+    def test_metrics_token_is_separate_from_business_access(self) -> None:
+        settings = Settings(
+            app_env="local",
+            admin_token="admin-token",
+            metrics_token="metrics-token",
+            upload_root=Path("uploads"),
+            max_upload_bytes=1000,
+        )
+
+        authenticate_metrics_token("metrics-token", settings)
+        with self.assertRaises(UnauthorizedError):
+            authenticate_metrics_token("admin-token", settings)
+        with self.assertRaises(UnauthorizedError):
+            authenticate_access_token("metrics-token", settings)
+
+    def test_hosted_mode_requires_strong_unique_metrics_token(self) -> None:
+        base = {
+            "app_env": "production",
+            "admin_token": "admin-token-with-24-characters",
+            "upload_root": Path("uploads"),
+            "max_upload_bytes": 1000,
+        }
+        for metrics_token in (None, "metrics-123", "admin-token-with-24-characters"):
+            with self.subTest(metrics_token=metrics_token):
+                with self.assertRaises(ValueError):
+                    validate_access_token_policy(
+                        Settings(**base, metrics_token=metrics_token)  # type: ignore[arg-type]
+                    )
+
+    def test_require_admin_rejects_non_admin_context(self) -> None:
+        with self.assertRaises(UnauthorizedError):
+            require_admin(SecurityContext(actor="viewer", is_admin=False))
+
+    def test_require_any_role_rejects_fake_admin_role_without_admin_access(self) -> None:
+        with self.assertRaises(UnauthorizedError):
+            require_any_role(
+                SecurityContext(actor="viewer", is_admin=False),
+                {"admin", "reviewer"},
+            )
+
+    def test_require_any_role_allows_reviewer_role(self) -> None:
+        require_any_role(
+            SecurityContext(actor="reviewer", is_admin=False, role="reviewer"),
+            {"admin", "reviewer"},
+        )
 
 
 if __name__ == "__main__":

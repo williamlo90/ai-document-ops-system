@@ -1,69 +1,151 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
+import time
 import unittest
-from typing import Iterator
-
-from app.documents.jobs import JobStatus, ProcessingJob, StaleLeaseError
-from app.documents.repositories import InMemoryAuditRepository, InMemoryDocumentRepository, InMemoryJobRepository, InMemoryTransactionManager
-from app.documents.worker import DocumentProcessingWorker, HandlerFailure
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
-
-class RecordingHandler:
-    def __init__(self, transactions: "ObservedTransactions", failure: HandlerFailure | None = None) -> None:
-        self.transactions = transactions
-        self.failure = failure
-
-    def handle(self, document_id) -> None:
-        if self.transactions.active:
-            raise AssertionError("provider handler ran inside write transaction")
-        if self.failure:
-            raise self.failure
-
-
-class ObservedTransactions:
-    def __init__(self, delegate: InMemoryTransactionManager) -> None:
-        self.delegate = delegate
-        self.active = False
-
-    @contextmanager
-    def transaction(self) -> Iterator[None]:
-        with self.delegate.transaction():
-            self.active = True
-            try:
-                yield
-            finally:
-                self.active = False
+from app.core.security import SecurityContext
+from app.core.settings import Settings
+from app.documents.jobs import ProcessingJob
+from app.documents.models import DocumentRecord
+from app.documents.repositories import InMemoryJobRepository
+from app.documents.worker import DocumentProcessingWorker
+from app.worker import run_once, run_single
+from app.worker_loop import run_forever
 
 
 class WorkerEntrypointTests(unittest.TestCase):
-    def test_handler_runs_outside_transaction_and_completion_is_fenced(self) -> None:
-        documents = InMemoryDocumentRepository()
-        audits = InMemoryAuditRepository()
+    def test_worker_renews_lease_during_long_processing(self) -> None:
         jobs = InMemoryJobRepository()
-        observed = ObservedTransactions(InMemoryTransactionManager(documents, audits, jobs))
-        job = ProcessingJob(uuid4())
-        jobs.add(job)
-        self.assertTrue(DocumentProcessingWorker(jobs, observed, RecordingHandler(observed)).run_once())
-        self.assertEqual(jobs.get(job.id).status, JobStatus.COMPLETED)  # type: ignore[union-attr]
-        with self.assertRaises(StaleLeaseError):
-            stale = jobs.get(job.id)
-            assert stale is not None
-            stale.complete("old-token")
+        job = jobs.add(ProcessingJob(document_id=uuid4()))
+        processing_service = Mock()
+        claimed_at = []
 
-    def test_retryable_and_terminal_failures_remain_distinct(self) -> None:
-        for retryable, expected in ((True, JobStatus.RETRY), (False, JobStatus.FAILED)):
-            with self.subTest(retryable=retryable):
-                documents = InMemoryDocumentRepository()
-                audits = InMemoryAuditRepository()
-                jobs = InMemoryJobRepository()
-                observed = ObservedTransactions(InMemoryTransactionManager(documents, audits, jobs))
-                job = ProcessingJob(uuid4())
-                jobs.add(job)
-                handler = RecordingHandler(observed, HandlerFailure("provider-error", retryable=retryable))
-                DocumentProcessingWorker(jobs, observed, handler).run_once()
-                self.assertEqual(jobs.get(job.id).status, expected)  # type: ignore[union-attr]
+        def process(*_args, **_kwargs) -> DocumentRecord:
+            claimed_at.append(jobs.get(job.id).updated_at)
+            time.sleep(1.15)
+            return DocumentRecord(
+                original_filename="invoice.pdf",
+                storage_key="invoice.pdf",
+                content_type="application/pdf",
+                id=job.document_id,
+            )
+
+        processing_service.process_job.side_effect = process
+        worker = DocumentProcessingWorker(
+            jobs,
+            processing_service,
+            lease_seconds=1,
+        )
+
+        worker.run_once(SecurityContext(actor="worker", is_admin=True))
+
+        self.assertGreater(jobs.get(job.id).updated_at, claimed_at[0])
+
+    def test_terminal_job_does_not_turn_a_successful_run_into_a_lease_failure(self) -> None:
+        jobs = InMemoryJobRepository()
+        job = jobs.add(ProcessingJob(document_id=uuid4()))
+        processing_service = Mock()
+
+        def process(*_args, **_kwargs) -> DocumentRecord:
+            running = jobs.get(job.id)
+            lease_token = running.lease_token
+            self.assertIsNotNone(lease_token)
+            running.succeed()
+            jobs.save(running, expected_lease_token=lease_token)
+            time.sleep(1.15)
+            return DocumentRecord(
+                original_filename="invoice.pdf",
+                storage_key="invoice.pdf",
+                content_type="application/pdf",
+                id=job.document_id,
+            )
+
+        processing_service.process_job.side_effect = process
+        worker = DocumentProcessingWorker(jobs, processing_service, lease_seconds=1)
+
+        result = worker.run_once(SecurityContext(actor="worker", is_admin=True))
+
+        self.assertEqual(result.id, job.document_id)
+
+    def test_worker_uses_the_configured_workspace(self) -> None:
+        settings = Settings(
+            app_env="test",
+            admin_token="test-token",
+            upload_root=Path("uploads"),
+            max_upload_bytes=1_000,
+            workspace_id="finance-ops",
+        )
+        worker_service = Mock()
+        worker_service.run_once.return_value = object()
+        container = SimpleNamespace(worker_service=worker_service, settings=settings)
+
+        processed = run_once(container)
+
+        self.assertTrue(processed)
+        context = worker_service.run_once.call_args.kwargs["context"]
+        self.assertEqual(context.workspace_id, "finance-ops")
+        self.assertEqual(context.role, "admin")
+        self.assertTrue(context.is_admin)
+
+    def test_single_run_closes_its_container(self) -> None:
+        settings = Settings(
+            app_env="test",
+            admin_token="test-token",
+            upload_root=Path("uploads"),
+            max_upload_bytes=1_000,
+        )
+        worker_service = Mock()
+        worker_service.run_once.return_value = object()
+        container = SimpleNamespace(worker_service=worker_service, close=Mock())
+
+        with (
+            patch("app.worker.load_settings", return_value=settings),
+            patch("app.worker.build_container", return_value=container),
+        ):
+            processed = run_single()
+
+        self.assertTrue(processed)
+        container.close.assert_called_once_with()
+
+    def test_worker_loop_builds_one_container_and_closes_it(self) -> None:
+        settings = Settings(
+            app_env="test",
+            admin_token="test-token",
+            upload_root=Path("uploads"),
+            max_upload_bytes=1_000,
+        )
+        container = SimpleNamespace(close=Mock())
+
+        class OneIterationEvent:
+            def __init__(self) -> None:
+                self.check_count = 0
+
+            def is_set(self) -> bool:
+                self.check_count += 1
+                return self.check_count > 1
+
+            def set(self) -> None:
+                self.check_count = 2
+
+            def wait(self, _timeout: float) -> bool:
+                return False
+
+        with (
+            patch("app.worker_loop.threading.Event", return_value=OneIterationEvent()),
+            patch("app.worker_loop.signal.signal"),
+            patch("app.worker_loop.load_settings", return_value=settings),
+            patch("app.worker_loop.build_container", return_value=container) as build,
+            patch("app.worker_loop.run_once", return_value=False) as process,
+        ):
+            run_forever(poll_seconds=0.1)
+
+        build.assert_called_once_with(settings)
+        process.assert_called_once_with(container, settings)
+        container.close.assert_called_once_with()
 
 
 if __name__ == "__main__":

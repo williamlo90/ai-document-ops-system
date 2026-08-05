@@ -8,37 +8,71 @@ from urllib.parse import urlsplit
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse, Response
-from starlette.types import ASGIApp
 
-from app.core.http_headers import NO_STORE_HEADERS
 from app.core.settings import Settings, is_hosted
+
+
+_PRODUCT_PAGE_PATHS = {
+    "/overview",
+    "/invoices",
+    "/review-queue",
+    "/exceptions",
+    "/exports",
+    "/evaluation",
+    "/system",
+    "/settings",
+}
+
+
+class SpaHistoryFallbackMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if _is_product_page_navigation(request):
+            request.scope["path"] = "/"
+            request.scope["raw_path"] = b"/"
+        return await call_next(request)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         response = await call_next(request)
-        if request.url.path.startswith("/documents/") and request.url.path.endswith("/content"):
-            response.headers.setdefault("Content-Security-Policy", "default-src 'self'; frame-ancestors 'self'")
+        if _is_document_content_path(request.url.path):
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; base-uri 'self'; frame-ancestors 'self'",
+            )
             response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         else:
-            response.headers.setdefault("Content-Security-Policy", "default-src 'self'; object-src 'none'; frame-ancestors 'none'")
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+                "script-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; "
+                "frame-ancestors 'none'",
+            )
             response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
-        if request.url.path.startswith(("/auth", "/workspace", "/internal")):
-            for name, value in NO_STORE_HEADERS.items():
-                response.headers.setdefault(name, value)
+        response.headers.setdefault(
+            "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
+        )
+        if _is_sensitive_response_path(request.url.path):
+            response.headers.setdefault("Cache-Control", "no-store, private")
+            response.headers.setdefault("Pragma", "no-cache")
+            response.headers.setdefault("Expires", "0")
         return response
 
 
 class CsrfOriginMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: ASGIApp, settings: Settings, cookie_name: str) -> None:
+    def __init__(self, app: object, settings: Settings, cookie_name: str) -> None:
         super().__init__(app)
         self.enabled = is_hosted(settings)
         self.cookie_name = cookie_name
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if self.enabled and request.method not in {"GET", "HEAD", "OPTIONS"} and request.cookies.get(self.cookie_name):
+        if (
+            self.enabled
+            and request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}
+            and request.cookies.get(self.cookie_name)
+        ):
             source = request.headers.get("origin") or request.headers.get("referer")
             if not source or not _same_origin(source, str(request.base_url)):
                 return JSONResponse({"detail": "CSRF validation failed"}, status_code=403)
@@ -46,7 +80,7 @@ class CsrfOriginMiddleware(BaseHTTPMiddleware):
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: ASGIApp, requests: int, window_seconds: int) -> None:
+    def __init__(self, app: object, requests: int, window_seconds: int) -> None:
         super().__init__(app)
         self.limit = max(1, requests)
         self.window = max(1, window_seconds)
@@ -63,7 +97,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             while hits and hits[0] <= now - self.window:
                 hits.popleft()
             if len(hits) >= self.limit:
-                return JSONResponse({"detail": "Rate limit exceeded"}, status_code=429, headers={"Retry-After": str(self.window)})
+                return JSONResponse(
+                    {"detail": "Rate limit exceeded"},
+                    status_code=429,
+                    headers={"Retry-After": str(self.window)},
+                )
             hits.append(now)
         return await call_next(request)
 
@@ -71,3 +109,45 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 def _same_origin(source: str, target: str) -> bool:
     left, right = urlsplit(source), urlsplit(target)
     return (left.scheme, left.hostname, left.port) == (right.scheme, right.hostname, right.port)
+
+
+def _is_product_page_navigation(request: Request) -> bool:
+    if request.method != "GET" or "text/html" not in request.headers.get("accept", ""):
+        return False
+    path = request.url.path.rstrip("/") or "/"
+    return path in _PRODUCT_PAGE_PATHS or (
+        path.startswith("/review/") and len(path.split("/")) == 3
+    )
+
+
+def _is_document_content_path(path: str) -> bool:
+    parts = [part for part in path.split("/") if part]
+    return (
+        len(parts) == 3
+        and parts[0] == "documents"
+        and parts[2] == "content"
+        or len(parts) == 4
+        and parts[0] == "ui"
+        and parts[1] == "documents"
+        and parts[3] == "preview"
+    )
+
+
+def _is_sensitive_response_path(path: str) -> bool:
+    prefixes = (
+        "/agent",
+        "/agentops",
+        "/auth",
+        "/backoffice",
+        "/documents",
+        "/exports",
+        "/integrations",
+        "/internal",
+        "/invoices",
+        "/metrics",
+        "/operations",
+        "/overview",
+        "/providers",
+        "/review",
+    )
+    return path.startswith(prefixes)

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "milestone": "M14",
+  "source_pin": "7af439f3ba7753c21bdad12e851ad90579dcdae5",
+  "status": "passed",
+  "platform": "Windows",
+  "dependency_lock": "requirements-dev-windows.txt",
+  "results": {
+    "source_files_compared": 478,
+    "source_file_mismatches": 0,
+    "backend_tests_passed": 521,
+    "backend_tests_skipped": 2,
+    "ruff": "passed",
+    "mypy": "passed",
+    "frontend_test_files_passed": 6,
+    "frontend_tests_passed": 23,
+    "frontend_format": "passed",
+    "frontend_lint": "passed",
+    "frontend_build": "passed",
+    "frontend_dependency_audit": "passed"
+  },
+  "observations": [
+    "The generic development lock does not include the Windows-only Psycopg tzdata dependency; the repository's Windows lock installed successfully.",
+    "The local Node 22.19 runtime is below the declared 22.22 minimum, although lint, tests, and build passed."
+  ],
+  "limitations": [
+    "No live-provider call was made.",
+    "Playwright browser workflows were not rerun at this checkpoint.",
+    "The checks demonstrate local release behavior, not production load or customer outcomes."
+  ]
+}

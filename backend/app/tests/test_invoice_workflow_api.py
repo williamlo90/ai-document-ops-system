@@ -1,32 +1,265 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
-from app.documents.models import DocumentRecord
+from app.core.settings import Settings
 from app.documents.status import DocumentStatus
+from app.extraction.schemas import SCHEMA_VERSION
 from app.main import create_app
-from app.review.datasets import sample_invoice
+from app.tests.auth_helpers import session_headers
+
+
+TOKEN = "test-token"
+HEADERS = {"X-Admin-Token": TOKEN}
 
 
 class InvoiceWorkflowApiTests(unittest.TestCase):
-    def test_reviewer_corrects_and_approves_with_auditable_state(self) -> None:
-        app = create_app()
-        document = DocumentRecord("invoice.pdf", "key", "application/pdf", status=DocumentStatus.NEEDS_REVIEW)
-        with app.state.container.persistence.transactions.transaction():
-            app.state.container.persistence.documents.add(document)
-        app.state.container.review_module.service.seed(document.id, sample_invoice(total="111.00"))
-        client = TestClient(app)
-        client.post("/auth/session", json={"access_token": "local-reviewer"})
-        blocked = client.post(f"/review/{document.id}/approve", json={"note": "Checked"})
-        self.assertEqual(blocked.status_code, 409)
-        corrected = client.patch(f"/review/{document.id}/correction", json={"field_name": "total", "value": "110.00", "reason": "Matched PDF"})
-        self.assertEqual(corrected.status_code, 200)
-        approved = client.post(f"/review/{document.id}/approve", json={"note": "Verified"})
-        self.assertEqual(approved.json()["status"], "approved")
-        workflow = client.get(f"/invoices/{document.id}/workflow").json()
-        self.assertEqual((workflow["status"], workflow["correction_count"]), ("approved", 1))
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        settings = Settings(
+            app_env="test",
+            admin_token=TOKEN,
+            upload_root=Path(self.temp_dir.name),
+            max_upload_bytes=1000,
+        )
+        self.app = create_app(settings)
+        self.client = TestClient(self.app)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_workflow_aggregate_merges_document_and_backoffice_activity(self) -> None:
+        document_id, work_item_id = self._approved_invoice_with_plan()
+
+        response = self.client.get(f"/invoices/{document_id}/workflow", headers=HEADERS)
+
+        self.assertEqual(response.status_code, 200)
+        workflow = response.json()
+        self.assertEqual(workflow["document"]["status"], "approved")
+        self.assertEqual(workflow["document"]["document_type"], "invoice")
+        self.assertEqual(workflow["document"]["supported_extraction_schema"], SCHEMA_VERSION)
+        self.assertEqual(workflow["extraction"]["document_type"], "invoice")
+        self.assertEqual(workflow["extraction"]["schema_version"], SCHEMA_VERSION)
+        self.assertEqual(workflow["work_item"]["id"], work_item_id)
+        self.assertEqual(workflow["current_stage"], "planning")
+        self.assertEqual(workflow["current_owner"], "AI Workflow")
+        event_types = [event["event_type"] for event in workflow["activity"]]
+        self.assertIn("document_uploaded", event_types)
+        self.assertIn("processing_finished", event_types)
+        self.assertIn("work_item_created", event_types)
+        self.assertIn("plan_generated", event_types)
+        timestamps = [event["created_at"] for event in workflow["activity"]]
+        self.assertEqual(timestamps, sorted(timestamps))
+
+    def test_invoice_library_returns_extracted_fields_and_unpaged_summary(self) -> None:
+        document_id, _work_item_id = self._approved_invoice_with_plan()
+
+        response = self.client.get(
+            "/invoices?page=1&page_size=1&sort=vendor&direction=asc",
+            headers=HEADERS,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["summary"]["all"], 1)
+        self.assertEqual(payload["summary"]["approved"], 1)
+        self.assertEqual(payload["items"][0]["id"], document_id)
+        self.assertIn("invoice_number", payload["items"][0])
+        self.assertIn("invoice_date", payload["items"][0])
+        self.assertIn("due_date", payload["items"][0])
+        self.assertEqual(payload["items"][0]["export_state"], "eligible")
+        self.assertIn("flagged", payload["insights"])
+
+    def test_document_workflow_matches_invoice_alias_for_invoice_documents(self) -> None:
+        document_id, _work_item_id = self._approved_invoice_with_plan()
+
+        invoice_response = self.client.get(f"/invoices/{document_id}/workflow", headers=HEADERS)
+        document_response = self.client.get(f"/documents/{document_id}/workflow", headers=HEADERS)
+
+        self.assertEqual(invoice_response.status_code, 200)
+        self.assertEqual(document_response.status_code, 200)
+        self.assertEqual(document_response.json(), invoice_response.json())
+
+    def test_correction_and_escalation_are_durable_workflow_actions(self) -> None:
+        document_id, _work_item_id = self._approved_invoice_with_plan()
+
+        correction = self.client.post(
+            f"/invoices/{document_id}/request-correction",
+            headers=HEADERS,
+            json={"reason": "Confirm the purchase order reference."},
+        )
+        escalation = self.client.post(
+            f"/invoices/{document_id}/escalate",
+            headers=HEADERS,
+            json={"reason": "Senior reviewer decision required."},
+        )
+        workflow = self.client.get(f"/invoices/{document_id}/workflow", headers=HEADERS).json()
+
+        self.assertEqual(correction.status_code, 200)
+        self.assertEqual(escalation.status_code, 200)
+        self.assertEqual(workflow["current_stage"], "needs_attention")
+        event_types = [event["event_type"] for event in workflow["activity"]]
+        self.assertIn("correction_requested", event_types)
+        self.assertIn("workflow_escalated", event_types)
+
+    def test_document_correction_and_escalation_are_generic_workflow_actions(self) -> None:
+        document_id, _work_item_id = self._approved_invoice_with_plan()
+
+        correction = self.client.post(
+            f"/documents/{document_id}/request-correction",
+            headers=HEADERS,
+            json={"reason": "Confirm the receiving evidence."},
+        )
+        escalation = self.client.post(
+            f"/documents/{document_id}/escalate",
+            headers=HEADERS,
+            json={"reason": "Route this exception to a senior reviewer."},
+        )
+        workflow = self.client.get(f"/documents/{document_id}/workflow", headers=HEADERS).json()
+
+        self.assertEqual(correction.status_code, 200)
+        self.assertEqual(escalation.status_code, 200)
+        self.assertEqual(workflow["current_stage"], "needs_attention")
+        event_types = [event["event_type"] for event in workflow["activity"]]
+        self.assertIn("correction_requested", event_types)
+        self.assertIn("workflow_escalated", event_types)
+
+    def test_failed_document_can_be_queued_for_one_manual_retry(self) -> None:
+        upload = self.client.post(
+            "/documents/upload",
+            headers=HEADERS,
+            files={"file": ("invoice.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+        )
+        document_id = upload.json()["document"]["id"]
+        document = self.app.state.container.documents.get(UUID(document_id))
+        document.status = DocumentStatus.FAILED
+        document.error_message = "provider_error:test"
+        self.app.state.container.documents.add(document)
+
+        retry = self.client.post(f"/invoices/{document_id}/retry", headers=HEADERS)
+        duplicate = self.client.post(f"/invoices/{document_id}/retry", headers=HEADERS)
+        workflow = self.client.get(f"/invoices/{document_id}/workflow", headers=HEADERS).json()
+
+        self.assertEqual(retry.status_code, 200)
+        self.assertEqual(retry.json()["document"]["status"], "queued")
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertEqual(workflow["current_stage"], "extracting")
+        self.assertIn(
+            "manual retry requested",
+            [event["summary"] for event in workflow["activity"]],
+        )
+
+    def test_failed_document_can_be_queued_by_generic_retry(self) -> None:
+        upload = self.client.post(
+            "/documents/upload",
+            headers=HEADERS,
+            files={"file": ("invoice.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+        )
+        document_id = upload.json()["document"]["id"]
+        document = self.app.state.container.documents.get(UUID(document_id))
+        document.status = DocumentStatus.FAILED
+        document.error_message = "provider_error:test"
+        self.app.state.container.documents.add(document)
+
+        retry = self.client.post(f"/documents/{document_id}/retry", headers=HEADERS)
+        duplicate = self.client.post(f"/documents/{document_id}/retry", headers=HEADERS)
+        workflow = self.client.get(f"/documents/{document_id}/workflow", headers=HEADERS).json()
+
+        self.assertEqual(retry.status_code, 200)
+        self.assertEqual(retry.json()["document"]["status"], "queued")
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertEqual(workflow["current_stage"], "extracting")
+        self.assertIn(
+            "manual retry requested",
+            [event["summary"] for event in workflow["activity"]],
+        )
+
+    def test_document_cancel_and_reprocess_are_generic_workflow_actions(self) -> None:
+        upload = self.client.post(
+            "/documents/upload",
+            headers=HEADERS,
+            files={"file": ("cancel-me.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+        )
+        document_id = upload.json()["document"]["id"]
+
+        cancelled = self.client.post(f"/documents/{document_id}/cancel", headers=HEADERS)
+        repeated_cancel = self.client.post(f"/documents/{document_id}/cancel", headers=HEADERS)
+        reprocessed = self.client.post(f"/documents/{document_id}/reprocess", headers=HEADERS)
+        workflow = self.client.get(f"/documents/{document_id}/workflow", headers=HEADERS).json()
+
+        self.assertEqual(cancelled.status_code, 200)
+        self.assertEqual(cancelled.json()["document"]["status"], "cancelled")
+        self.assertEqual(repeated_cancel.status_code, 409)
+        self.assertEqual(reprocessed.status_code, 200)
+        self.assertEqual(reprocessed.json()["document"]["status"], "queued")
+        self.assertIn(
+            "intake cancelled by operator",
+            [event["summary"] for event in workflow["activity"]],
+        )
+
+    def test_workflow_is_workspace_scoped(self) -> None:
+        document_id, _work_item_id = self._approved_invoice_with_plan()
+
+        response = self.client.get(
+            f"/invoices/{document_id}/workflow",
+            headers=session_headers(
+                self.client,
+                actor="other-admin",
+                workspace_id="other",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_document_workflow_is_workspace_scoped(self) -> None:
+        document_id, _work_item_id = self._approved_invoice_with_plan()
+
+        response = self.client.get(
+            f"/documents/{document_id}/workflow",
+            headers=session_headers(
+                self.client,
+                actor="other-admin",
+                workspace_id="other",
+            ),
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def _approved_invoice_with_plan(self) -> tuple[str, str]:
+        upload = self.client.post(
+            "/documents/upload",
+            headers=HEADERS,
+            files={"file": ("invoice.pdf", b"%PDF-1.4\n%%EOF", "application/pdf")},
+        )
+        document_id = upload.json()["document"]["id"]
+        process = self.client.post(f"/documents/{document_id}/process", headers=HEADERS)
+        self.assertEqual(process.json()["document"]["status"], "needs_review")
+        approved = self.client.post(f"/review/{document_id}/approve", headers=HEADERS)
+        self.assertEqual(approved.status_code, 200)
+        created = self.client.post(
+            "/backoffice/work-items",
+            headers={**HEADERS, "Idempotency-Key": f"create:{document_id}"},
+            json={
+                "title": "Review approved invoice",
+                "work_type": "invoice_review",
+                "linked_document_ids": [document_id],
+                "requested_outcome": "review invoice",
+            },
+        )
+        work_item_id = created.json()["work_item"]["id"]
+        planned = self.client.post(
+            f"/backoffice/work-items/{work_item_id}/plan",
+            headers={**HEADERS, "Idempotency-Key": f"plan:{document_id}"},
+            json={"requested_outcome": "review invoice"},
+        )
+        self.assertEqual(planned.status_code, 200)
+        return document_id, work_item_id
 
 
 if __name__ == "__main__":

@@ -1,29 +1,46 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass, field
+from typing import Protocol
 from uuid import UUID
 
-from app.review.models import CorrectionEvent, ReviewRecord
+from app.review.models import CorrectionEvent
 
 
-class InMemoryReviewRepository:
-    def __init__(self) -> None:
-        self._records: dict[UUID, ReviewRecord] = {}
+class CorrectionEventRepository(Protocol):
+    def add(self, event: CorrectionEvent) -> CorrectionEvent: ...
 
-    def save(self, record: ReviewRecord) -> None:
-        self._records[record.document_id] = deepcopy(record)
+    def list_for_document(self, workspace_id: str, document_id: UUID) -> list[CorrectionEvent]: ...
 
-    def get(self, document_id: UUID) -> ReviewRecord | None:
-        record = self._records.get(document_id)
-        return deepcopy(record) if record is not None else None
+    def list_by_workspace(self, workspace_id: str) -> list[CorrectionEvent]: ...
 
 
-class InMemoryCorrectionRepository:
-    def __init__(self) -> None:
-        self._events: list[CorrectionEvent] = []
+@dataclass
+class InMemoryCorrectionEventRepository:
+    records: list[CorrectionEvent] = field(default_factory=list)
 
-    def append(self, event: CorrectionEvent) -> None:
-        self._events.append(deepcopy(event))
+    def add(self, event: CorrectionEvent) -> CorrectionEvent:
+        stored = deepcopy(event)
+        self.records.append(stored)
+        return deepcopy(stored)
 
-    def list_for_document(self, document_id: UUID) -> list[CorrectionEvent]:
-        return [deepcopy(event) for event in self._events if event.document_id == document_id]
+    def list_for_document(self, workspace_id: str, document_id: UUID) -> list[CorrectionEvent]:
+        return deepcopy(
+            sorted(
+                (
+                    event
+                    for event in self.records
+                    if event.workspace_id == workspace_id and event.document_id == document_id
+                ),
+                key=lambda event: event.created_at,
+            )
+        )
+
+    def list_by_workspace(self, workspace_id: str) -> list[CorrectionEvent]:
+        return deepcopy(
+            sorted(
+                (event for event in self.records if event.workspace_id == workspace_id),
+                key=lambda event: event.created_at,
+            )
+        )

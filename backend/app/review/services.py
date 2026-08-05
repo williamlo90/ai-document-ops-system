@@ -1,88 +1,177 @@
 from __future__ import annotations
 
-from typing import Protocol
+from datetime import UTC, datetime
 from uuid import UUID
 
-from app.core.transactions import TransactionManager
-from app.documents.models import AuditEvent
-from app.documents.models import DocumentRecord
-from app.documents.status import DocumentStatus
+from app.core.security import SecurityContext, require_any_role
+from app.core.transactions import NoopTransactionManager, TransactionManager
+from app.documents.models import AuditEvent, DocumentRecord, ReviewTask
+from app.documents.repositories import (
+    AuditRepository,
+    DocumentRepository,
+    ExtractionRepository,
+    NotFoundError,
+    ReviewTaskRepository,
+)
+from app.documents.status import DocumentStatus, InvalidStatusTransition
+from app.documents.state_writer import DocumentStateWriter
 from app.documents.workflow import DocumentWorkflowService
-from app.extraction.schemas import InvoiceData
-from app.review.corrections import apply_correction
-from app.review.models import CorrectionEvent, ReviewRecord
-from app.validation.document import validate_for_review
-
-
-class ApprovalBlocked(ValueError):
-    pass
-
-
-class DocumentRepository(Protocol):
-    def get(self, document_id: UUID) -> DocumentRecord | None: ...
-    def save(self, document: DocumentRecord) -> None: ...
-
-
-class AuditRepository(Protocol):
-    def append(self, event: AuditEvent) -> None: ...
-
-
-class ReviewRepository(Protocol):
-    def save(self, record: ReviewRecord) -> None: ...
-    def get(self, document_id: UUID) -> ReviewRecord | None: ...
-
-
-class CorrectionRepository(Protocol):
-    def append(self, event: CorrectionEvent) -> None: ...
+from app.extraction.schemas import InvoiceData, InvoiceExtraction
+from app.providers.contracts import ExtractionResult
+from app.validation.document import validate_document_invoice
+from app.review.corrections import CorrectionFeedbackService
+from app.review.models import CorrectionSource
 
 
 class ReviewService:
-    def __init__(self, *, documents: DocumentRepository, audits: AuditRepository, reviews: ReviewRepository, corrections: CorrectionRepository, transactions: TransactionManager) -> None:
+    def __init__(
+        self,
+        documents: DocumentRepository,
+        reviews: ReviewTaskRepository,
+        extractions: ExtractionRepository,
+        audits: AuditRepository,
+        workflow: DocumentWorkflowService,
+        correction_feedback: CorrectionFeedbackService | None = None,
+        transactions: TransactionManager | None = None,
+        state_writer: DocumentStateWriter | None = None,
+    ) -> None:
         self.documents = documents
-        self.audits = audits
         self.reviews = reviews
-        self.corrections = corrections
-        self.transactions = transactions
-        self.workflow = DocumentWorkflowService()
+        self.extractions = extractions
+        self.audits = audits
+        self.workflow = workflow
+        self.correction_feedback = correction_feedback
+        self.transactions = transactions or NoopTransactionManager()
+        self.state_writer = state_writer or DocumentStateWriter(
+            documents,
+            audits,
+            workflow,
+            self.transactions,
+        )
 
-    def seed(self, document_id: UUID, proposal: InvoiceData) -> ReviewRecord:
-        record = ReviewRecord(document_id, proposal, proposal)
-        with self.transactions.transaction():
-            self.reviews.save(record)
-        return record
+    def list_queue(self, context: SecurityContext) -> list[DocumentRecord]:
+        require_any_role(context, {"admin", "reviewer"})
+        return self.documents.list_by_workspace_and_status(
+            context.workspace_id, DocumentStatus.NEEDS_REVIEW
+        )
 
-    def correct(self, document_id: UUID, *, field_name: str, value: str | None, actor: str, reason: str) -> ReviewRecord:
-        if not reason.strip():
-            raise ValueError("Correction reason is required")
-        record = self._required_record(document_id)
-        before = getattr(record.current, field_name)
-        current = apply_correction(record.current, field_name, value)
-        validate_for_review(current)
-        updated = ReviewRecord(record.document_id, record.original, current)
-        with self.transactions.transaction():
-            self.reviews.save(updated)
-            self.corrections.append(CorrectionEvent(document_id, field_name, str(before) if before is not None else None, str(getattr(current, field_name)) if getattr(current, field_name) is not None else None, actor, reason))
-        return updated
-
-    def decide(self, document_id: UUID, *, approve: bool, actor: str, note: str) -> AuditEvent:
-        if not note.strip():
-            raise ValueError("Decision note is required")
+    def save_review(
+        self,
+        document_id: UUID,
+        notes: str,
+        context: SecurityContext,
+        corrected_data: InvoiceData | None = None,
+    ) -> ReviewTask:
+        require_any_role(context, {"admin", "reviewer"})
         document = self.documents.get(document_id)
-        if document is None:
-            raise KeyError(document_id)
-        record = self._required_record(document_id)
-        report = validate_for_review(record.current)
-        if approve and report.has_errors:
-            raise ApprovalBlocked("Blocking validation issues must be corrected")
-        target = DocumentStatus.APPROVED if approve else DocumentStatus.REJECTED
-        event = self.workflow.transition(document, target, actor, note)
+        self._require_workspace(document, context)
+        if document.status != DocumentStatus.NEEDS_REVIEW:
+            raise InvalidStatusTransition("Can only save review notes for needs_review documents")
         with self.transactions.transaction():
-            self.documents.save(document)
-            self.audits.append(event)
-        return event
+            if corrected_data is not None:
+                stored = self.extractions.get_for_document(document_id)
+                if self.correction_feedback is not None:
+                    self.correction_feedback.capture(
+                        workspace_id=document.workspace_id,
+                        document_id=document_id,
+                        before=stored.extraction_result.extraction.data,
+                        after=corrected_data,
+                        actor=context.actor,
+                        reason=notes,
+                        source=CorrectionSource.REVIEWER_EDIT,
+                    )
+                updated_result = ExtractionResult(
+                    extraction=InvoiceExtraction(
+                        data=corrected_data,
+                        schema_version=stored.extraction_result.extraction.schema_version,
+                        confidence=stored.extraction_result.extraction.confidence,
+                    ),
+                    provider_name=stored.extraction_result.provider_name,
+                    provider_trace_id=stored.extraction_result.provider_trace_id,
+                )
+                report = validate_document_invoice(
+                    corrected_data,
+                    document,
+                    self.documents,
+                    self.extractions,
+                )
+                self.extractions.save(document_id, updated_result, report)
+                self.audits.add(
+                    AuditEvent(
+                        document_id=document_id,
+                        event_type="extraction_updated",
+                        actor=context.actor,
+                        old_status=document.status,
+                        new_status=document.status,
+                        payload_summary="corrected extraction saved",
+                    )
+                )
+            task = self._get_or_create_task(document_id)
+            task.reviewer_notes = notes
+            task.reviewed_by = context.actor
+            task.reviewed_at = datetime.now(UTC)
+            task.updated_at = task.reviewed_at
+            self.audits.add(
+                AuditEvent(
+                    document_id=document_id,
+                    event_type="review_saved",
+                    actor=context.actor,
+                    old_status=document.status,
+                    new_status=document.status,
+                    payload_summary="review notes saved",
+                )
+            )
+            return self.reviews.save(task)
 
-    def _required_record(self, document_id: UUID) -> ReviewRecord:
-        record = self.reviews.get(document_id)
-        if record is None:
-            raise KeyError(document_id)
-        return record
+    def approve(self, document_id: UUID, context: SecurityContext) -> ReviewTask:
+        require_any_role(context, {"admin", "reviewer"})
+        document = self.documents.get(document_id)
+        self._require_workspace(document, context)
+        if document.status != DocumentStatus.NEEDS_REVIEW:
+            raise InvalidStatusTransition("Can only approve needs_review documents through review")
+        stored = self.extractions.get_for_document(document_id)
+        if stored.validation_report.has_errors:
+            raise InvalidStatusTransition("Resolve invoice issues before approving")
+        with self.transactions.transaction():
+            task = self._get_or_create_task(document_id)
+            self.state_writer.transition(
+                document,
+                DocumentStatus.APPROVED,
+                context.actor,
+            )
+            task.status = "approved"
+            task.reviewed_by = context.actor
+            task.reviewed_at = datetime.now(UTC)
+            task.updated_at = task.reviewed_at
+            return self.reviews.save(task)
+
+    def reject(self, document_id: UUID, notes: str, context: SecurityContext) -> ReviewTask:
+        require_any_role(context, {"admin", "reviewer"})
+        document = self.documents.get(document_id)
+        self._require_workspace(document, context)
+        if document.status != DocumentStatus.NEEDS_REVIEW:
+            raise InvalidStatusTransition("Can only reject needs_review documents")
+        with self.transactions.transaction():
+            task = self._get_or_create_task(document_id)
+            self.state_writer.transition(
+                document,
+                DocumentStatus.REJECTED,
+                context.actor,
+                payload_summary="document rejected",
+            )
+            task.reviewer_notes = notes
+            task.status = "rejected"
+            task.reviewed_by = context.actor
+            task.reviewed_at = datetime.now(UTC)
+            task.updated_at = task.reviewed_at
+            return self.reviews.save(task)
+
+    def _get_or_create_task(self, document_id: UUID) -> ReviewTask:
+        try:
+            return self.reviews.get_for_document(document_id)
+        except NotFoundError:
+            return ReviewTask(document_id=document_id)
+
+    def _require_workspace(self, document: DocumentRecord, context: SecurityContext) -> None:
+        if document.workspace_id != context.workspace_id:
+            raise NotFoundError(f"Document not found: {document.id}")

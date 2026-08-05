@@ -2,62 +2,579 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import json
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
-from app.core.upload_scanning import ScannerUnavailable, SignaturePdfScanner, UnavailableClamAvScanner, UploadRejected
-from app.documents.models import AuditEvent
-from app.documents.repositories import InMemoryAuditRepository, InMemoryDocumentRepository, InMemoryJobRepository, InMemoryTransactionManager
-from app.documents.services import DocumentUploadService
-from app.documents.extraction_pipeline import InvoiceExtractionPipeline
+from app.core.security import SecurityContext, UnauthorizedError
+from app.documents.jobs import ProcessingJobStatus
+from app.documents.repositories import (
+    InMemoryAuditRepository,
+    InMemoryDocumentRepository,
+    InMemoryExtractionRepository,
+    InMemoryJobRepository,
+)
+from app.documents.services import (
+    DocumentProcessingService,
+    DocumentUploadService,
+    UploadPersistenceError,
+)
 from app.documents.status import DocumentStatus
-from app.bootstrap.container import build_container
-from app.core.settings import Settings
-from app.providers.mock import MockInvoiceExtractor
-from app.providers.storage import PrivateDocumentStorage
+from app.documents.worker import DocumentProcessingWorker
+from app.documents.workflow import DocumentWorkflowService
+from app.extraction.schemas import InvoiceData
+from app.providers.contracts import DocumentSource, ProviderError
+from app.providers.mock import MockInvoiceExtractor, MockParserProvider
+from app.providers.storage import LocalStorageService
 
 
-class FailingAuditRepository(InMemoryAuditRepository):
-    def append(self, event: AuditEvent) -> None:
-        raise RuntimeError("audit failed")
+class DocumentServiceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.storage = LocalStorageService(Path(self.temp_dir.name), max_upload_bytes=1000)
+        self.documents = InMemoryDocumentRepository()
+        self.jobs = InMemoryJobRepository()
+        self.audits = InMemoryAuditRepository()
+        self.extractions = InMemoryExtractionRepository()
+        self.workflow = DocumentWorkflowService()
+        self.context = SecurityContext(actor="tester", is_admin=True)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_upload_creates_document_job_and_audit_events(self) -> None:
+        upload = self._upload_service()
+
+        with self.assertLogs("docintel.operations", level="INFO") as logs:
+            result = upload.upload_pdf(
+                "invoice.pdf",
+                "application/pdf",
+                [b"%PDF- invoice"],
+                context=self.context,
+            )
+
+        self.assertEqual(result.document.status, DocumentStatus.QUEUED)
+        self.assertEqual(result.document.workspace_id, "default")
+        self.assertEqual(result.job.document_id, result.document.id)
+        self.assertEqual(
+            [event.event_type for event in self.audits.list_for_document(result.document.id)],
+            ["document_uploaded", "processing_queued"],
+        )
+        payload = json.loads(logs.output[0].split("INFO:docintel.operations:", 1)[1])
+        self.assertEqual(payload["event_type"], "document_uploaded")
+        self.assertEqual(payload["document_id"], str(result.document.id))
+        self.assertNotIn("%PDF-", logs.output[0])
+
+    def test_upload_preserves_metadata_and_cleanup_failures(self) -> None:
+        metadata_error = RuntimeError("metadata write failed")
+        cleanup_error = OSError("storage cleanup failed")
+        upload = DocumentUploadService(
+            storage=DeleteFailingStorage(
+                Path(self.temp_dir.name),
+                cleanup_error=cleanup_error,
+            ),
+            documents=AddFailingDocumentRepository(metadata_error),
+            jobs=self.jobs,
+            audits=self.audits,
+            workflow=self.workflow,
+        )
+
+        with self.assertRaises(UploadPersistenceError) as caught:
+            upload.upload_pdf(
+                "invoice.pdf",
+                "application/pdf",
+                [b"%PDF- invoice"],
+                context=self.context,
+            )
+
+        self.assertIs(caught.exception.metadata_error, metadata_error)
+        self.assertIs(caught.exception.cleanup_error, cleanup_error)
+        self.assertIs(caught.exception.__cause__, metadata_error)
+        self.assertTrue(caught.exception.storage_key.endswith(".pdf"))
+
+    def test_process_valid_invoice_waits_for_reviewer_approval(self) -> None:
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        processor = self._processing_service()
+
+        with self.assertLogs("docintel.operations", level="INFO") as logs:
+            document = processor.process_job(upload_result.job.id, context=self.context)
+
+        self.assertEqual(document.status, DocumentStatus.NEEDS_REVIEW)
+        self.assertEqual(
+            self.jobs.get(upload_result.job.id).status,
+            ProcessingJobStatus.SUCCEEDED,
+        )
+        self.assertFalse(
+            self.extractions.get_for_document(document.id).validation_report.has_errors
+        )
+        self.assertIn("processing_started", logs.output[0])
+        self.assertIn("processing_succeeded", logs.output[-1])
+        self.assertIn(
+            "Invoice is ready for reviewer approval.",
+            [event.payload_summary for event in self.audits.list_for_document(document.id)],
+        )
+
+    def test_process_invalid_invoice_routes_to_review(self) -> None:
+        invalid_invoice = InvoiceData(
+            vendor_name="Acme",
+            invoice_number="INV-002",
+            invoice_date=date(2026, 6, 18),
+            total=Decimal("0"),
+        )
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        processor = self._processing_service(extractor=MockInvoiceExtractor(invalid_invoice))
+
+        document = processor.process_job(upload_result.job.id, context=self.context)
+
+        self.assertEqual(document.status, DocumentStatus.NEEDS_REVIEW)
+        self.assertEqual(
+            self.jobs.get(upload_result.job.id).status,
+            ProcessingJobStatus.SUCCEEDED,
+        )
+        self.assertTrue(self.extractions.get_for_document(document.id).validation_report.has_errors)
+
+    def test_duplicate_vendor_and_invoice_number_is_flagged_within_workspace(self) -> None:
+        processor = self._processing_service()
+        first = self._upload_service().upload_pdf(
+            "first.pdf",
+            "application/pdf",
+            [b"%PDF- first invoice"],
+            context=self.context,
+        )
+        second = self._upload_service().upload_pdf(
+            "second.pdf",
+            "application/pdf",
+            [b"%PDF- second invoice"],
+            context=self.context,
+        )
+
+        processor.process_job(first.job.id, context=self.context)
+        processor.process_job(second.job.id, context=self.context)
+
+        first_codes = {
+            issue.code
+            for issue in self.extractions.get_for_document(
+                first.document.id
+            ).validation_report.issues
+        }
+        second_codes = {
+            issue.code
+            for issue in self.extractions.get_for_document(
+                second.document.id
+            ).validation_report.issues
+        }
+        self.assertNotIn("duplicate_invoice", first_codes)
+        self.assertIn("duplicate_invoice", second_codes)
+
+    def test_duplicate_check_is_workspace_scoped(self) -> None:
+        processor = self._processing_service()
+        first_context = SecurityContext(
+            actor="first-admin",
+            is_admin=True,
+            workspace_id="first",
+        )
+        second_context = SecurityContext(
+            actor="second-admin",
+            is_admin=True,
+            workspace_id="second",
+        )
+        first = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- first workspace"],
+            context=first_context,
+        )
+        second = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- second workspace"],
+            context=second_context,
+        )
+
+        processor.process_job(first.job.id, context=first_context)
+        processor.process_job(second.job.id, context=second_context)
+
+        codes = {
+            issue.code
+            for issue in self.extractions.get_for_document(
+                second.document.id
+            ).validation_report.issues
+        }
+        self.assertNotIn("duplicate_invoice", codes)
+
+    def test_reprocessing_same_document_does_not_flag_itself_as_duplicate(self) -> None:
+        processor = self._processing_service()
+        uploaded = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        processor.process_job(uploaded.job.id, context=self.context)
+
+        processor.reprocess_document(uploaded.document.id, context=self.context)
+        retry_job = self.jobs.get_latest_for_document(uploaded.document.id)
+        processor.process_job(retry_job.id, context=self.context)
+
+        codes = {
+            issue.code
+            for issue in self.extractions.get_for_document(
+                uploaded.document.id
+            ).validation_report.issues
+        }
+        self.assertNotIn("duplicate_invoice", codes)
+
+    def test_provider_error_fails_document_and_job_safely(self) -> None:
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        processor = self._processing_service(parser=FailingParser())
+
+        document = processor.process_job(upload_result.job.id, context=self.context)
+
+        self.assertEqual(document.status, DocumentStatus.FAILED)
+        persisted_job = self.jobs.get(upload_result.job.id)
+        self.assertEqual(persisted_job.status, ProcessingJobStatus.FAILED)
+        self.assertEqual(persisted_job.error_message, "provider_error:failing_parser")
+
+    def test_retryable_provider_error_requeues_document_and_job(self) -> None:
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        processor = self._processing_service(parser=RetryableFailingParser())
+
+        document = processor.process_job(upload_result.job.id, context=self.context)
+
+        self.assertEqual(document.status, DocumentStatus.QUEUED)
+        persisted_job = self.jobs.get(upload_result.job.id)
+        self.assertEqual(persisted_job.status, ProcessingJobStatus.RETRYING)
+        self.assertEqual(persisted_job.attempt_count, 1)
+        self.assertEqual(persisted_job.error_message, "provider_error:retryable_parser")
+
+    def test_retrying_job_can_succeed_on_later_attempt(self) -> None:
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        parser = FlakyParser()
+        processor = self._processing_service(parser=parser)
+
+        first_document = processor.process_job(upload_result.job.id, context=self.context)
+        self.assertEqual(first_document.status, DocumentStatus.QUEUED)
+        self.assertEqual(
+            self.jobs.get(upload_result.job.id).status,
+            ProcessingJobStatus.RETRYING,
+        )
+
+        second_document = processor.process_job(upload_result.job.id, context=self.context)
+
+        self.assertEqual(second_document.status, DocumentStatus.NEEDS_REVIEW)
+        persisted_job = self.jobs.get(upload_result.job.id)
+        self.assertEqual(persisted_job.status, ProcessingJobStatus.SUCCEEDED)
+        self.assertEqual(persisted_job.attempt_count, 2)
+
+    def test_retryable_provider_error_dead_letters_after_limit(self) -> None:
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        processor = self._processing_service(
+            parser=RetryableFailingParser(),
+            max_processing_attempts=1,
+        )
+
+        document = processor.process_job(upload_result.job.id, context=self.context)
+
+        self.assertEqual(document.status, DocumentStatus.FAILED)
+        persisted_job = self.jobs.get(upload_result.job.id)
+        self.assertEqual(persisted_job.status, ProcessingJobStatus.DEAD_LETTER)
+        self.assertEqual(persisted_job.attempt_count, 1)
+
+    def test_empty_parser_text_fails_document_and_job_safely(self) -> None:
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        processor = self._processing_service(parser=MockParserProvider(text=""))
+
+        document = processor.process_job(upload_result.job.id, context=self.context)
+
+        self.assertEqual(document.status, DocumentStatus.FAILED)
+        self.assertEqual(
+            self.jobs.get(upload_result.job.id).error_message,
+            "provider_error:mock_parser",
+        )
+
+    def test_non_provider_exception_stores_class_name_only(self) -> None:
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        processor = self._processing_service(extractor=ExplodingExtractor())
+
+        document = processor.process_job(upload_result.job.id, context=self.context)
+
+        self.assertEqual(document.status, DocumentStatus.FAILED)
+        self.assertEqual(self.jobs.get(upload_result.job.id).error_message, "RuntimeError")
+
+    def test_worker_processes_next_queued_job(self) -> None:
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        worker = DocumentProcessingWorker(self.jobs, self._processing_service())
+
+        document = worker.run_once(context=self.context)
+
+        self.assertIsNotNone(document)
+        self.assertEqual(document.id, upload_result.document.id)
+        self.assertEqual(document.status, DocumentStatus.NEEDS_REVIEW)
+
+    def test_worker_claims_job_before_processing(self) -> None:
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        claimed = self.jobs.claim_next_processable()
+
+        self.assertIsNotNone(claimed)
+        self.assertEqual(claimed.id, upload_result.job.id)
+        self.assertEqual(
+            self.jobs.get(upload_result.job.id).status,
+            ProcessingJobStatus.RUNNING,
+        )
+
+    def test_claimed_job_is_not_claimed_twice(self) -> None:
+        self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+
+        first_claim = self.jobs.claim_next_processable()
+        second_claim = self.jobs.claim_next_processable()
+
+        self.assertIsNotNone(first_claim)
+        self.assertIsNone(second_claim)
+
+    def test_expired_running_job_is_reclaimed(self) -> None:
+        upload = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        first_claim = self.jobs.claim_next_processable()
+        assert first_claim is not None
+        assert first_claim.lease_token is not None
+        self.jobs.renew_lease(
+            first_claim.id,
+            first_claim.lease_token,
+            renewed_at=datetime.now(UTC) - timedelta(minutes=10),
+        )
+
+        reclaimed = self.jobs.claim_next_processable(
+            stale_before=datetime.now(UTC) - timedelta(minutes=5)
+        )
+
+        self.assertIsNotNone(reclaimed)
+        assert reclaimed is not None
+        self.assertEqual(reclaimed.id, upload.job.id)
+        self.assertEqual(reclaimed.status, ProcessingJobStatus.RUNNING)
+        self.assertEqual(reclaimed.attempt_count, 2)
+        self.assertEqual(reclaimed.error_message, "worker_lease_expired")
+
+    def test_worker_returns_none_when_no_processable_job_exists(self) -> None:
+        worker = DocumentProcessingWorker(self.jobs, self._processing_service())
+
+        document = worker.run_once(context=self.context)
+
+        self.assertIsNone(document)
+
+    def test_failed_processing_creates_single_failed_audit_event(self) -> None:
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=self.context,
+        )
+        processor = self._processing_service(parser=FailingParser())
+
+        processor.process_job(upload_result.job.id, context=self.context)
+
+        events = self.audits.list_for_document(upload_result.document.id)
+        self.assertEqual(
+            [event.event_type for event in events],
+            ["document_uploaded", "processing_queued", "processing_started", "processing_failed"],
+        )
+
+    def test_invalid_upload_has_no_repository_side_effects(self) -> None:
+        upload = self._upload_service()
+
+        with self.assertRaises(Exception):
+            upload.upload_pdf(
+                "invoice.txt",
+                "application/pdf",
+                [b"%PDF- invoice"],
+                context=self.context,
+            )
+
+        self.assertEqual(self.documents.records, {})
+        self.assertEqual(self.jobs.records, {})
+        self.assertEqual(self.audits.records, [])
+
+    def test_upload_requires_admin_context(self) -> None:
+        upload = self._upload_service()
+
+        with self.assertRaises(UnauthorizedError):
+            upload.upload_pdf(
+                "invoice.pdf",
+                "application/pdf",
+                [b"%PDF- invoice"],
+                context=SecurityContext(actor="viewer", is_admin=False),
+            )
+
+    def test_processing_rejects_cross_workspace_document(self) -> None:
+        acme_context = SecurityContext(
+            actor="acme-admin",
+            is_admin=True,
+            workspace_id="acme",
+            user_id="acme-admin",
+            role="admin",
+        )
+        other_context = SecurityContext(
+            actor="other-admin",
+            is_admin=True,
+            workspace_id="other",
+            user_id="other-admin",
+            role="admin",
+        )
+        upload_result = self._upload_service().upload_pdf(
+            "invoice.pdf",
+            "application/pdf",
+            [b"%PDF- invoice"],
+            context=acme_context,
+        )
+
+        with self.assertRaises(KeyError):
+            self._processing_service().process_job(upload_result.job.id, context=other_context)
+
+    def _upload_service(self) -> DocumentUploadService:
+        return DocumentUploadService(
+            storage=self.storage,
+            documents=self.documents,
+            jobs=self.jobs,
+            audits=self.audits,
+            workflow=self.workflow,
+        )
+
+    def _processing_service(
+        self,
+        parser: MockParserProvider | None = None,
+        extractor: MockInvoiceExtractor | None = None,
+        max_processing_attempts: int = 3,
+    ) -> DocumentProcessingService:
+        return DocumentProcessingService(
+            storage=self.storage,
+            documents=self.documents,
+            jobs=self.jobs,
+            audits=self.audits,
+            extractions=self.extractions,
+            workflow=self.workflow,
+            parser=parser or MockParserProvider(),
+            extractor=extractor or MockInvoiceExtractor(),
+            max_processing_attempts=max_processing_attempts,
+        )
 
 
-class ServiceTests(unittest.TestCase):
-    def test_mock_pipeline_reaches_needs_review(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            container = build_container(Settings(upload_root=Path(temp_dir)))
-            intake = container.document_module.upload_service.upload(b"%PDF-invoice", filename="invoice.pdf", workspace_id="alpha", actor="Uploader")
-            InvoiceExtractionPipeline(persistence=container.persistence, storage=container.document_module.storage, extractor=MockInvoiceExtractor(), reviews=container.review_module.service).process(intake.document.id)
-            self.assertEqual(container.persistence.documents.get(intake.document.id).status, DocumentStatus.NEEDS_REVIEW)  # type: ignore[union-attr]
+class FailingParser:
+    provider_name = "failing_parser"
 
-    def test_upload_creates_document_audit_job_and_private_file(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            documents = InMemoryDocumentRepository()
-            audits = InMemoryAuditRepository()
-            jobs = InMemoryJobRepository()
-            service = DocumentUploadService(documents=documents, audits=audits, jobs=jobs, transactions=InMemoryTransactionManager(documents, audits, jobs), storage=PrivateDocumentStorage(Path(temp_dir)), scanner=SignaturePdfScanner(), max_bytes=1000)
-            result = service.upload(b"%PDF-invoice", filename="invoice.pdf", workspace_id="alpha", actor="Uploader")
-            self.assertIsNotNone(documents.get(result.document.id))
-            self.assertEqual(len(audits.list_for_document(result.document.id)), 1)
-            self.assertIsNotNone(jobs.get(result.job.id))
-            self.assertEqual(service.storage.read(result.document.storage_key), b"%PDF-invoice")
+    def parse(self, source: DocumentSource):
+        raise ProviderError("secret raw document text should not be stored", self.provider_name)
 
-    def test_failed_intake_leaves_no_metadata_or_file(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            documents = InMemoryDocumentRepository()
-            tracked_audits = InMemoryAuditRepository()
-            jobs = InMemoryJobRepository()
-            storage = PrivateDocumentStorage(Path(temp_dir))
-            service = DocumentUploadService(documents=documents, audits=FailingAuditRepository(), jobs=jobs, transactions=InMemoryTransactionManager(documents, tracked_audits, jobs), storage=storage, scanner=SignaturePdfScanner(), max_bytes=1000)
-            with self.assertRaises(RuntimeError):
-                service.upload(b"%PDF-invoice", filename="invoice.pdf", workspace_id="alpha", actor="Uploader")
-            self.assertEqual(documents.list_by_workspace("alpha"), [])
-            self.assertEqual(list(storage.root.iterdir()), [])
 
-    def test_invalid_pdf_and_unavailable_required_scanner_fail_closed(self) -> None:
-        with self.assertRaises(UploadRejected):
-            SignaturePdfScanner().scan(b"not-pdf")
-        with self.assertRaises(ScannerUnavailable):
-            UnavailableClamAvScanner().scan(b"%PDF-invoice")
+class AddFailingDocumentRepository(InMemoryDocumentRepository):
+    def __init__(self, error: Exception) -> None:
+        super().__init__()
+        self.error = error
+
+    def add(self, document):
+        raise self.error
+
+
+class DeleteFailingStorage(LocalStorageService):
+    def __init__(self, upload_root: Path, *, cleanup_error: Exception) -> None:
+        super().__init__(upload_root, max_upload_bytes=1000)
+        self.cleanup_error = cleanup_error
+
+    def delete(self, storage_key: str) -> None:
+        raise self.cleanup_error
+
+
+class RetryableFailingParser:
+    provider_name = "retryable_parser"
+
+    def parse(self, source: DocumentSource):
+        raise ProviderError(
+            "temporary provider outage",
+            self.provider_name,
+            retryable=True,
+        )
+
+
+class FlakyParser:
+    provider_name = "flaky_parser"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def parse(self, source: DocumentSource):
+        self.calls += 1
+        if self.calls == 1:
+            raise ProviderError(
+                "temporary provider outage",
+                self.provider_name,
+                retryable=True,
+            )
+        return MockParserProvider().parse(source)
+
+
+class ExplodingExtractor:
+    provider_name = "exploding_extractor"
+
+    def extract_invoice(self, parsed_document):
+        raise RuntimeError("secret raw OCR text should not be stored")
 
 
 if __name__ == "__main__":

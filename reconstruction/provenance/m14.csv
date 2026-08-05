@@ -1,0 +1,8 @@
+path,provenance,reference_path,reference_blob_sha,notes
+backend,release-integration,backend,7af439f3ba7753c21bdad12e851ad90579dcdae5,Final audited backend snapshot integrated over the educational history.
+frontend,release-integration,frontend,7af439f3ba7753c21bdad12e851ad90579dcdae5,Final audited frontend snapshot integrated over the educational history.
+docs,release-integration,docs,7af439f3ba7753c21bdad12e851ad90579dcdae5,Public architecture security and portfolio documentation.
+examples,release-integration,examples,7af439f3ba7753c21bdad12e851ad90579dcdae5,Public synthetic benchmark fixtures and labels.
+scripts,release-integration,scripts,7af439f3ba7753c21bdad12e851ad90579dcdae5,Release evaluation and operations utilities while preserving reconstruction verification.
+README.md,release-integration,README.md,7af439f3ba7753c21bdad12e851ad90579dcdae5,Final product-facing entry point.
+milestones/manifest.json,new-from-contract,,,Registers the M14 release checkpoint.

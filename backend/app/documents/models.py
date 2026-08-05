@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 from app.documents.status import DocumentStatus
 
 
-@dataclass(slots=True)
+@dataclass
 class DocumentRecord:
     original_filename: str
     storage_key: str
@@ -22,7 +22,7 @@ class DocumentRecord:
     error_message: str | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class AuditEvent:
     document_id: UUID
     event_type: str
@@ -34,7 +34,7 @@ class AuditEvent:
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
-@dataclass(slots=True)
+@dataclass
 class ReviewTask:
     document_id: UUID
     status: str = "open"

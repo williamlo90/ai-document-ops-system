@@ -1,0 +1,8 @@
+title = "AI Document Operations System Gitleaks Configuration"
+
+[allowlist]
+description = "Exact local demo credential placeholder documented for loopback-only examples"
+regexTarget = "secret"
+regexes = [
+  '''^dev-admin-token-change-me$''',
+]

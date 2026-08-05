@@ -1,1 +1,1 @@
-"""Provider-neutral extraction contracts and schemas."""
+"""Extraction schemas and services."""

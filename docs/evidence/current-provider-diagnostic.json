@@ -1,0 +1,153 @@
+{
+  "report_version": "1.0",
+  "dataset_class": "deterministic synthetic invoice scenarios",
+  "split": "diagnostic",
+  "provider": "mistral_ocr+llm_json",
+  "documents_count": 20,
+  "provider_errors": 0,
+  "metrics": {
+    "provider_success_rate": 1.0,
+    "documents_succeeded": 20,
+    "field_accuracy": 1.0,
+    "fields_matched": 160,
+    "fields_total": 160,
+    "by_field": {
+      "vendor_name": 1.0,
+      "invoice_number": 1.0,
+      "invoice_date": 1.0,
+      "due_date": 1.0,
+      "subtotal": 1.0,
+      "tax": 1.0,
+      "total": 1.0,
+      "currency": 1.0
+    },
+    "document_exact_match_rate": 1.0,
+    "validation_code_exact_match_rate": 1.0,
+    "approval_blocker_accuracy": 1.0,
+    "confidence_metadata_coverage": 0.9935,
+    "source_evidence_coverage": 0.871,
+    "correct_non_null_fields": 155,
+    "conditional_on_provider_success": {
+      "documents_count": 20,
+      "field_accuracy": 1.0,
+      "document_exact_match_rate": 1.0,
+      "validation_code_exact_match_rate": 1.0,
+      "approval_blocker_accuracy": 1.0,
+      "confidence_metadata_coverage": 0.9935,
+      "source_evidence_coverage": 0.871
+    },
+    "duplicate_detection": {
+      "status": "measured",
+      "positive_pairs_expected": 1,
+      "true_positive_pairs": 1,
+      "false_positive_pairs": 0,
+      "false_negative_pairs": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "latency_ms": {
+      "average": 3689.81,
+      "minimum": 3056.59,
+      "maximum": 5173.05
+    }
+  },
+  "failure_taxonomy": {
+    "missing_source_evidence": 20
+  },
+  "limitations": [
+    "Results use a small deterministic synthetic invoice set, not customer traffic.",
+    "The configured safety cap may evaluate only part of the 20-document suite.",
+    "Cost is a list-price estimate from provider-reported usage, not a billing record.",
+    "Latency depends on the local network and hosted provider conditions.",
+    "This current-provider run is a diagnostic on a previously used synthetic set, not a blind holdout.",
+    "A passing local run does not substitute for the manual credentialed CI workflow.",
+    "Provider behavior and list-price estimates can change after this observation."
+  ],
+  "dataset_id": "invoice_scenarios_v1",
+  "dataset_version": "1.0",
+  "workspace_id": "default",
+  "generated_at": "2026-07-28T08:15:47.238311+00:00",
+  "provider_economics": {
+    "usage": {
+      "ocr_pages_processed": 21,
+      "ocr_document_size_bytes": 51114,
+      "extractor_input_tokens": 13496,
+      "extractor_cached_input_tokens": 0,
+      "extractor_output_tokens": 7859,
+      "extractor_total_tokens": 21355
+    },
+    "attempts": {
+      "total": 40,
+      "succeeded": 40,
+      "failed": 0,
+      "failure_codes": {}
+    },
+    "cost": {
+      "status": "estimated_from_provider_reported_usage",
+      "parser_model": "mistral-ocr-latest",
+      "extractor_model": "gpt-5.4-mini-2026-03-17",
+      "ocr_usd": 0.084,
+      "extractor_input_usd": 0.010122,
+      "extractor_cached_input_usd": 0.0,
+      "extractor_output_usd": 0.035366,
+      "estimated_total_usd": 0.129488,
+      "claim_boundary": "List-price estimate from provider-reported usage; provider billing records remain the source of truth. Failed attempts without usage metadata may be billed but are not included."
+    },
+    "pricing_snapshot": {
+      "effective_date": "2026-07-20",
+      "currency": "USD",
+      "sources": {
+        "openai": "https://developers.openai.com/api/docs/models/gpt-5.4-mini",
+        "mistral": "https://docs.mistral.ai/models/model-cards/ocr-4-0"
+      },
+      "extractor": {
+        "gpt-5.4-mini": {
+          "input_per_million_tokens": 0.75,
+          "cached_input_per_million_tokens": 0.075,
+          "output_per_million_tokens": 4.5
+        },
+        "gpt-5.4-mini-2026-03-17": {
+          "input_per_million_tokens": 0.75,
+          "cached_input_per_million_tokens": 0.075,
+          "output_per_million_tokens": 4.5
+        }
+      },
+      "ocr": {
+        "mistral-ocr-latest": {
+          "per_thousand_pages": 4.0
+        },
+        "mistral-ocr-4-0": {
+          "per_thousand_pages": 4.0
+        }
+      }
+    }
+  },
+  "experiment": {
+    "experiment_id": "97ba567f-bd40-446e-8808-11706e50a54a",
+    "started_at": "2026-07-28T08:14:29.470763+00:00",
+    "dataset_fingerprint_sha256": "d22119263dea7332f39202c825cecbf23cde8b33dff6fbe7b8b9f8089f96dbb2",
+    "release_kind": "current_provider_diagnostic",
+    "source": {
+      "git_commit": "952e5574ab51963972ad1e2908d68ec5bdd5406e",
+      "git_branch": "main",
+      "worktree_dirty": false,
+      "critical_code_sha256": "d2e38708f34644cf11063c63c206328f041be28b18ceb93c5a54a43de406e982"
+    },
+    "providers": {
+      "parser": {
+        "name": "mistral_ocr",
+        "requested_model": "mistral-ocr-latest",
+        "endpoint_host": "api.mistral.ai"
+      },
+      "extractor": {
+        "name": "llm_json",
+        "requested_model": "gpt-5.4-mini-2026-03-17",
+        "endpoint_host": "api.openai.com",
+        "prompt_version": "invoice-extraction-v3",
+        "prompt_sha256": "da0e73b938c035c198befcf68245e13586a07040149887e60b70b5e412b47d5f"
+      }
+    }
+  },
+  "holdout_seal_verified": false,
+  "release_status": "diagnostic_not_holdout"
+}

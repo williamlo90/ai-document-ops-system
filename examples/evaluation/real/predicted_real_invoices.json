@@ -1,0 +1,13 @@
+[
+  {
+    "document_id": "sample_invoice",
+    "vendor_name": "DEMO - Sliced Invoices",
+    "invoice_number": "INV-3337",
+    "invoice_date": "2016-01-25",
+    "due_date": "2016-01-31",
+    "subtotal": "85.0",
+    "tax": "8.5",
+    "total": "93.5",
+    "currency": "USD"
+  }
+]

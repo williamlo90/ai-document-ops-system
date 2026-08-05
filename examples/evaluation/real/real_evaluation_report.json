@@ -1,0 +1,17 @@
+{
+  "documents_total": 1,
+  "fields_total": 8,
+  "fields_matched": 8,
+  "field_accuracy": 1.0,
+  "by_field": {
+    "vendor_name": 1.0,
+    "invoice_number": 1.0,
+    "invoice_date": 1.0,
+    "due_date": 1.0,
+    "subtotal": 1.0,
+    "tax": 1.0,
+    "total": 1.0,
+    "currency": 1.0
+  },
+  "failures": []
+}

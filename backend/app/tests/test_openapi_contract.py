@@ -1,18 +1,28 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
-from app.api.serializers import API_VERSION
+from app.core.settings import Settings
 from app.main import create_app
 
 
 class OpenApiContractTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.schema = create_app().openapi()
+        self.schema = create_app(
+            Settings(
+                app_env="test",
+                admin_token="test-token",
+                upload_root=Path("uploads"),
+                max_upload_bytes=1_000,
+            )
+        ).openapi()
 
-    def test_operations_have_unique_explicit_ids_and_responses(self) -> None:
+    def test_every_api_operation_has_a_unique_operation_id_and_response_contract(self) -> None:
         operation_ids: list[str] = []
         for path, path_item in self.schema["paths"].items():
+            if path.startswith("/ui"):
+                continue
             for method, operation in path_item.items():
                 if method not in {"get", "post", "put", "patch", "delete"}:
                     continue
@@ -21,34 +31,70 @@ class OpenApiContractTests(unittest.TestCase):
                 operation_ids.append(operation["operationId"])
         self.assertEqual(len(operation_ids), len(set(operation_ids)))
 
-    def test_metadata_publishes_versioned_read_only_contract(self) -> None:
-        metadata = self.schema["paths"]["/meta"]["get"]
-        self.assertEqual(metadata["operationId"], "getServiceMetadata")
-        self.assertIn("200", metadata["responses"])
-        self.assertEqual(API_VERSION, "2026-08-05")
-        mutation_paths = {
-            path
+    def test_product_metadata_describes_the_supported_invoice_workflow(self) -> None:
+        info = self.schema["info"]
+        self.assertEqual(info["title"], "Invoice Review API")
+        self.assertEqual(info["version"], "0.1.0")
+        self.assertIn("approval-gated export", info["description"])
+
+    def test_critical_aggregate_and_mutation_contracts_are_published(self) -> None:
+        expected = {
+            ("/backoffice/workspace", "get"),
+            ("/backoffice/work-items", "post"),
+            ("/backoffice/work-items/{work_item_id}", "get"),
+            ("/backoffice/work-items/{work_item_id}", "patch"),
+            ("/backoffice/work-items/{work_item_id}/plan", "post"),
+            ("/backoffice/approvals/{approval_id}/approve", "post"),
+            ("/backoffice/approvals/{approval_id}/reject", "post"),
+            ("/backoffice/work-items/{work_item_id}/steps/{action_step_id}/execute", "post"),
+            (
+                "/backoffice/work-items/{work_item_id}/steps/{action_step_id}/reconcile",
+                "post",
+            ),
+            ("/documents/{document_id}/workflow", "get"),
+            ("/documents/{document_id}/retry", "post"),
+            ("/documents/{document_id}/reprocess", "post"),
+            ("/documents/{document_id}/cancel", "post"),
+            ("/documents/{document_id}/request-correction", "post"),
+            ("/documents/{document_id}/escalate", "post"),
+            ("/invoices/{document_id}/workflow", "get"),
+            ("/invoices/{document_id}/retry", "post"),
+            ("/invoices/{document_id}/request-correction", "post"),
+            ("/invoices/{document_id}/escalate", "post"),
+            ("/operations/jobs/{job_id}/retry", "post"),
+        }
+        published = {
+            (path, method)
             for path, item in self.schema["paths"].items()
             for method in item
-            if method in {"post", "put", "patch", "delete"}
+            if method in {"get", "post", "put", "patch", "delete"}
         }
-        self.assertEqual(
-            mutation_paths,
-            {
-                "/auth/session",
-                "/documents/intake",
-                "/jobs/{job_id}/cancel",
-                "/jobs/{job_id}/retry",
-                "/review/{document_id}/correction",
-                "/review/{document_id}/approve",
-                "/review/{document_id}/reject",
-            },
-        )
+        self.assertTrue(expected.issubset(published), expected - published)
 
-    def test_problem_response_is_declared(self) -> None:
-        response = self.schema["paths"]["/meta/{key}"]["get"]["responses"]["404"]
-        schema = response["content"]["application/json"]["schema"]
-        self.assertEqual(schema["$ref"], "#/components/schemas/ProblemResponse")
+    def test_mutations_declare_json_or_validation_responses(self) -> None:
+        for path, item in self.schema["paths"].items():
+            for method in {"post", "put", "patch", "delete"}.intersection(item):
+                operation = item[method]
+                responses = operation["responses"]
+                self.assertTrue(
+                    any(code.startswith("2") for code in responses),
+                    f"{method.upper()} {path} has no success response",
+                )
+                if operation.get("requestBody"):
+                    self.assertIn("422", responses, f"{method.upper()} {path}")
+
+    def test_document_command_aliases_are_explicitly_deprecated(self) -> None:
+        for command in (
+            "retry",
+            "reprocess",
+            "cancel",
+            "request-correction",
+            "escalate",
+        ):
+            operation = self.schema["paths"][f"/documents/{{document_id}}/{command}"]["post"]
+            self.assertTrue(operation["deprecated"])
+            self.assertIn("/invoices/{document_id}/", operation["description"])
+            self.assertIn("2026-10-31", operation["description"])
 
 
 if __name__ == "__main__":

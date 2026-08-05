@@ -1,1 +1,1 @@
-"""Invoice read models."""
+"""Invoice query models and persistence adapters."""

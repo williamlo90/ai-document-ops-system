@@ -1,0 +1,44 @@
+services:
+  api:
+    image: ${DOCINTEL_IMAGE:?Set DOCINTEL_IMAGE to an immutable image digest}
+    build: null
+    ports: []
+    expose:
+      - "8000"
+    env_file:
+      - ${DOC_INTEL_ENV_FILE:-.env.production}
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION:-ap-southeast-1}
+        awslogs-group: ${API_LOG_GROUP:-/docintel/api}
+        awslogs-stream: api
+
+  worker:
+    image: ${DOCINTEL_IMAGE:?Set DOCINTEL_IMAGE to an immutable image digest}
+    build: null
+    env_file:
+      - ${DOC_INTEL_ENV_FILE:-.env.production}
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION:-ap-southeast-1}
+        awslogs-group: ${WORKER_LOG_GROUP:-/docintel/worker}
+        awslogs-stream: worker
+
+  postgres-target:
+    profiles: ["disabled-in-production"]
