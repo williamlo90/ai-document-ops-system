@@ -1,0 +1,16 @@
+path,provenance,reference_path,reference_blob_sha,notes
+backend/app/validation/untrusted_content.py,adapted-reference,backend/app/validation/untrusted_content.py,,Marks document text as untrusted evidence.
+backend/app/agent/models.py,adapted-reference,backend/app/agent/models.py,,Grounded citation response model.
+backend/app/agent/repositories.py,adapted-reference,backend/app/agent/repositories.py,,Recorded assistance runs.
+backend/app/agent/tools.py,adapted-reference,backend/app/agent/tools.py,,Read-only invoice field access.
+backend/app/agent/service.py,adapted-reference,backend/app/agent/service.py,,Cite or abstain behavior.
+backend/app/backoffice/models.py,adapted-reference,backend/app/backoffice/models.py,,Work plan and approval records.
+backend/app/backoffice/planner.py,adapted-reference,backend/app/backoffice/planner.py,,Deterministic bounded plan.
+backend/app/backoffice/policy.py,adapted-reference,backend/app/backoffice/policy.py,,M09 execution denial.
+backend/app/backoffice/repositories.py,adapted-reference,backend/app/backoffice/repositories.py,,Workspace planning records.
+backend/app/tests/test_prompt_injection_security.py,adapted-reference,backend/app/tests/test_prompt_injection_security.py,,Untrusted instruction evidence.
+backend/app/tests/test_agent_copilot.py,adapted-reference,backend/app/tests/test_agent_copilot.py,,Grounding and run recording evidence.
+backend/app/tests/test_backoffice_planner.py,adapted-reference,backend/app/tests/test_backoffice_planner.py,,Deterministic no-authority plan evidence.
+backend/app/tests/test_backoffice_policy.py,adapted-reference,backend/app/tests/test_backoffice_policy.py,,Execution boundary evidence.
+milestones/manifest.json,new-from-contract,,,Registers M09 targeted gate.
+pyproject.toml,adapted-reference,pyproject.toml,,Extends strict type scope.

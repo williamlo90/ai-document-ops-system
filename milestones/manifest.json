@@ -169,6 +169,26 @@
         "backend/app/benchmark/service.py",
         "reconstruction/provenance/m08.csv"
       ]
+    },
+    {
+      "id": "M09",
+      "tag": "reconstruction-m09",
+      "slug": "grounded-planning",
+      "focused_modules": [
+        "app.tests.test_prompt_injection_security",
+        "app.tests.test_agent_copilot",
+        "app.tests.test_backoffice_planner",
+        "app.tests.test_backoffice_policy"
+      ],
+      "required_paths": [
+        "backend/app/validation/untrusted_content.py",
+        "backend/app/agent/models.py",
+        "backend/app/agent/service.py",
+        "backend/app/backoffice/models.py",
+        "backend/app/backoffice/planner.py",
+        "backend/app/backoffice/policy.py",
+        "reconstruction/provenance/m09.csv"
+      ]
     }
   ]
 }
