@@ -1,0 +1,18 @@
+path,provenance,reference_path,reference_blob_sha,notes
+backend/app/core/provider_egress.py,adapted-reference,backend/app/core/provider_egress.py,,HTTPS exact-host provider boundary.
+backend/app/providers/contracts.py,adapted-reference,backend/app/providers/contracts.py,,Replaceable extraction provider contract.
+backend/app/providers/mock.py,adapted-reference,backend/app/providers/mock.py,,Credential-free deterministic provider.
+backend/app/providers/factory.py,adapted-reference,backend/app/providers/factory.py,,Mock-only M08 factory.
+backend/app/providers/http_transport.py,adapted-reference,backend/app/providers/http_transport.py,,Redirect-disabled transport policy.
+backend/app/documents/extraction_pipeline.py,adapted-reference,backend/app/documents/extraction_pipeline.py,,Mock extraction validation and review transition.
+backend/app/documents/processing_policy.py,adapted-reference,backend/app/documents/processing_policy.py,,Retryable provider distinction.
+backend/app/evaluation/invoice.py,adapted-reference,backend/app/evaluation/invoice.py,,Separate field and validation metrics.
+backend/app/evaluation/provider_costs.py,adapted-reference,backend/app/evaluation/provider_costs.py,,Deterministic cost estimate.
+backend/app/benchmark/datasets.py,adapted-reference,backend/app/benchmark/datasets.py,,Versioned synthetic scenarios.
+backend/app/benchmark/service.py,adapted-reference,backend/app/benchmark/service.py,,Repeatable benchmark runner.
+backend/app/benchmark/report.py,adapted-reference,backend/app/benchmark/report.py,,Version-named result report.
+backend/app/tests/test_provider_factory.py,adapted-reference,backend/app/tests/test_provider_factory.py,,Provider construction evidence.
+backend/app/tests/test_provider_egress.py,adapted-reference,backend/app/tests/test_provider_egress.py,,Egress rejection evidence.
+backend/app/tests/test_evaluation.py,adapted-reference,backend/app/tests/test_evaluation.py,,Separated metric evidence.
+milestones/manifest.json,new-from-contract,,,Registers M08 targeted gate.
+pyproject.toml,adapted-reference,pyproject.toml,,Extends strict type scope.

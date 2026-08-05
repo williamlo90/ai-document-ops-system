@@ -8,6 +8,11 @@ from app.core.upload_scanning import ScannerUnavailable, SignaturePdfScanner, Un
 from app.documents.models import AuditEvent
 from app.documents.repositories import InMemoryAuditRepository, InMemoryDocumentRepository, InMemoryJobRepository, InMemoryTransactionManager
 from app.documents.services import DocumentUploadService
+from app.documents.extraction_pipeline import InvoiceExtractionPipeline
+from app.documents.status import DocumentStatus
+from app.bootstrap.container import build_container
+from app.core.settings import Settings
+from app.providers.mock import MockInvoiceExtractor
 from app.providers.storage import PrivateDocumentStorage
 
 
@@ -17,6 +22,13 @@ class FailingAuditRepository(InMemoryAuditRepository):
 
 
 class ServiceTests(unittest.TestCase):
+    def test_mock_pipeline_reaches_needs_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            container = build_container(Settings(upload_root=Path(temp_dir)))
+            intake = container.document_module.upload_service.upload(b"%PDF-invoice", filename="invoice.pdf", workspace_id="alpha", actor="Uploader")
+            InvoiceExtractionPipeline(persistence=container.persistence, storage=container.document_module.storage, extractor=MockInvoiceExtractor(), reviews=container.review_module.service).process(intake.document.id)
+            self.assertEqual(container.persistence.documents.get(intake.document.id).status, DocumentStatus.NEEDS_REVIEW)  # type: ignore[union-attr]
+
     def test_upload_creates_document_audit_job_and_private_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             documents = InMemoryDocumentRepository()

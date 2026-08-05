@@ -142,6 +142,33 @@
         "backend/app/tests/test_invoice_workflow_api.py",
         "reconstruction/provenance/m07.csv"
       ]
+    },
+    {
+      "id": "M08",
+      "tag": "reconstruction-m08",
+      "slug": "replaceable-extraction",
+      "focused_modules": [
+        "app.tests.test_provider_factory",
+        "app.tests.test_provider_egress",
+        "app.tests.test_services",
+        "app.tests.test_evaluation",
+        "app.tests.test_benchmark_datasets",
+        "app.tests.test_benchmark_service",
+        "app.tests.test_benchmark_metrics",
+        "app.tests.test_benchmark_report",
+        "app.tests.test_provider_costs"
+      ],
+      "required_paths": [
+        "backend/app/core/provider_egress.py",
+        "backend/app/providers/contracts.py",
+        "backend/app/providers/factory.py",
+        "backend/app/providers/mock.py",
+        "backend/app/documents/extraction_pipeline.py",
+        "backend/app/evaluation/invoice.py",
+        "backend/app/benchmark/datasets.py",
+        "backend/app/benchmark/service.py",
+        "reconstruction/provenance/m08.csv"
+      ]
     }
   ]
 }

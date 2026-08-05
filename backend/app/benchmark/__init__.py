@@ -1,0 +1,1 @@
+"""Synthetic invoice benchmark harness."""
