@@ -101,7 +101,9 @@ def _safe_replace_directory(path: Path, parent: Path) -> None:
     resolved_path.mkdir(parents=True)
 
 
-def _write_snapshot(item: dict[str, Any], commit: str, snapshot_root: Path) -> tuple[Path, str]:
+def _write_snapshot(
+    item: dict[str, Any], commit: str, snapshot_root: Path, previous_tag: str | None
+) -> tuple[Path, str]:
     destination = snapshot_root / f"{item['id']}-{item['slug']}"
     snapshot_root.mkdir(parents=True, exist_ok=True)
     _safe_replace_directory(destination, snapshot_root)
@@ -114,11 +116,13 @@ def _write_snapshot(item: dict[str, Any], commit: str, snapshot_root: Path) -> t
     archive_hash = sha256(archive.read_bytes()).hexdigest()
     (destination / "source.sha256").write_text(f"{archive_hash}\n", encoding="ascii")
     (destination / "commit.txt").write_text(f"{commit}\n", encoding="ascii")
-    (destination / "changed-files.txt").write_text(
-        _git("ls-tree", "-r", "--name-only", item["tag"]) + "\n",
-        encoding="utf-8",
-    )
-    patch = _git("show", "--binary", "--format=", "--root", item["tag"])
+    if previous_tag is None:
+        changed = _git("ls-tree", "-r", "--name-only", item["tag"])
+        patch = _git("show", "--binary", "--format=", "--root", item["tag"])
+    else:
+        changed = _git("diff", "--name-status", previous_tag, item["tag"])
+        patch = _git("diff", "--binary", previous_tag, item["tag"])
+    (destination / "changed-files.txt").write_text(changed + "\n", encoding="utf-8")
     (destination / "milestone.patch").write_text(patch + "\n", encoding="utf-8")
 
     replay_root = snapshot_root / f".replay-{item['id'].lower()}-{uuid4().hex}"
@@ -155,19 +159,21 @@ def main() -> int:
     parser.add_argument("--snapshot-root", type=Path, required=True)
     args = parser.parse_args()
 
-    if args.through != 1:
-        raise VerificationError("This repository state can verify only M01")
-
     manifest = _load_manifest()
     item = _milestone(manifest, args.through)
     if args.tag != item["tag"]:
         raise VerificationError(f"Expected tag {item['tag']}; received {args.tag}")
 
     commit = _assert_clean_tag(args.tag)
-    _assert_required_paths(item, ROOT)
+    selected = [_milestone(manifest, number) for number in range(1, args.through + 1)]
+    for selected_item in selected:
+        _assert_required_paths(selected_item, ROOT)
     started = perf_counter()
-    command = _focused_command(item, ROOT)
-    snapshot, archive_hash = _write_snapshot(item, commit, args.snapshot_root.resolve())
+    commands = [_focused_command(selected_item, ROOT) for selected_item in selected]
+    previous_tag = selected[-2]["tag"] if len(selected) > 1 else None
+    snapshot, archive_hash = _write_snapshot(
+        item, commit, args.snapshot_root.resolve(), previous_tag
+    )
     duration = perf_counter() - started
 
     evidence_dir = args.evidence_root.resolve() / item["id"]
@@ -178,7 +184,7 @@ def main() -> int:
         "tag": item["tag"],
         "commit": commit,
         "status": "passed",
-        "command": command,
+        "commands": commands,
         "python": sys.version,
         "platform": sys.platform,
         "environment_file": r"C:\__codex_no_env__",

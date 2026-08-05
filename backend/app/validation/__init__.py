@@ -1,0 +1,1 @@
+"""Deterministic invoice validation rules."""

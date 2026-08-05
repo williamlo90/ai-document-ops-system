@@ -1,0 +1,1 @@
+"""Invoice document domain."""

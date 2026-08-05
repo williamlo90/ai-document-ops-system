@@ -1,0 +1,17 @@
+path,provenance,reference_path,reference_blob_sha,notes
+backend/app/documents/__init__.py,adapted-reference,backend/app/documents/__init__.py,3d575fc89f758bd7e481138e5025862492f0e143,Package boundary.
+backend/app/documents/models.py,adapted-reference,backend/app/documents/models.py,48206612603d4cd1a737b7e0eb9154436d262217,Domain records retained without persistence.
+backend/app/documents/status.py,adapted-reference,backend/app/documents/status.py,e79d04f88e143d8622efbb80534dc8234de7c136,Adds explicit intake-edit lock.
+backend/app/documents/workflow.py,adapted-reference,backend/app/documents/workflow.py,3bcdc02c58a6d5ad97bcd55e66375c8a2718a2c6,In-memory transition orchestration only.
+backend/app/extraction/__init__.py,adapted-reference,backend/app/extraction/__init__.py,8c66d98c8c436b4a3e5a3dce4bf1b8e99af4cc3,Provider-neutral package boundary.
+backend/app/extraction/contracts.py,new-from-contract,,,Extraction proposal has no workflow authority.
+backend/app/extraction/schemas.py,adapted-reference,backend/app/extraction/schemas.py,2093287f0e068336a89bb78d81fd935809d0ffc4,Immutable invoice value objects.
+backend/app/validation/__init__.py,adapted-reference,backend/app/validation/__init__.py,034b95be04716b3b5772145522241489742374b79,Validation package boundary.
+backend/app/validation/invoice.py,adapted-reference,backend/app/validation/invoice.py,450a97098eecafc057e4a66fc143956eed4365a1,Deterministic validation rules.
+backend/app/tests/test_status.py,adapted-reference,backend/app/tests/test_status.py,71dc1ca01bc3cf654f5107e22e545ec403b8b537,Transition and edit-lock tests.
+backend/app/tests/test_workflow.py,adapted-reference,backend/app/tests/test_workflow.py,6181129ea7de65053c51396aa4f2b8fa12b6a351,Mutation and confidence-boundary tests.
+backend/app/tests/test_validation.py,adapted-reference,backend/app/tests/test_validation.py,cc64aac724fd0e2fbb0dda264e0af4cfa0489d24,Deterministic invoice-rule tests.
+backend/app/tests/test_module_boundaries.py,new-from-contract,,,Import-boundary characterization.
+milestones/manifest.json,new-from-contract,,,Registers cumulative M02 replay.
+scripts/verify_milestone.py,new-from-contract,,,Generalizes cumulative replay and incremental snapshots.
+pyproject.toml,adapted-reference,pyproject.toml,74e448c67182fc5f9e692b9f2ee2337a61007f99,Extends strict type scope to M02 domain modules.

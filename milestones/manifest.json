@@ -16,6 +16,26 @@
         "backend/app/core/observability.py",
         "reconstruction/provenance/m01.csv"
       ]
+    },
+    {
+      "id": "M02",
+      "tag": "reconstruction-m02",
+      "slug": "invoice-domain",
+      "focused_modules": [
+        "app.tests.test_status",
+        "app.tests.test_workflow",
+        "app.tests.test_validation",
+        "app.tests.test_module_boundaries"
+      ],
+      "required_paths": [
+        "backend/app/documents/status.py",
+        "backend/app/documents/models.py",
+        "backend/app/documents/workflow.py",
+        "backend/app/extraction/contracts.py",
+        "backend/app/extraction/schemas.py",
+        "backend/app/validation/invoice.py",
+        "reconstruction/provenance/m02.csv"
+      ]
     }
   ]
 }
