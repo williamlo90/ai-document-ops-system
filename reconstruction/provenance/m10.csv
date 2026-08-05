@@ -1,0 +1,10 @@
+path,provenance,reference_path,reference_blob_sha,notes
+frontend/package.json,exact-reference,frontend/package.json,,Pinned frontend toolchain and quality commands.
+frontend/package-lock.json,exact-reference,frontend/package-lock.json,,Reproducible npm dependency graph.
+frontend/src,exact-reference,frontend/src,,Audited role-based invoice product interface.
+frontend/public,exact-reference,frontend/public,,Static product assets.
+frontend/e2e,exact-reference,frontend/e2e,,Browser workflow and accessibility evidence.
+frontend/scripts,exact-reference,frontend/scripts,,Dependency and capture utilities.
+frontend/index.html,exact-reference,frontend/index.html,,Vite application entry document.
+frontend/vite.config.ts,exact-reference,frontend/vite.config.ts,,Frontend build configuration.
+milestones/manifest.json,new-from-contract,,,Registers the M10 checkpoint.

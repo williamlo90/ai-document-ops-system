@@ -1,0 +1,219 @@
+.ops-app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+.ops-sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  height: 100vh;
+  flex-direction: column;
+  border-right: 1px solid var(--ops-border);
+  background: #fff;
+}
+.ops-brand {
+  display: flex;
+  height: 66px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--ops-border);
+  color: var(--ops-navy);
+}
+.ops-brand > img {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+}
+.ops-brand > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.ops-brand strong {
+  font-size: 20px;
+  letter-spacing: 0;
+}
+.ops-brand small {
+  color: var(--ops-muted);
+  font-size: 12px;
+}
+.ops-sidebar nav {
+  display: grid;
+  gap: 5px;
+  padding: 20px 12px;
+}
+.ops-nav-label {
+  padding: 0 12px 6px;
+  color: var(--ops-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.ops-nav-item {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 13px;
+  padding: 0 13px;
+  border-radius: 6px;
+  color: var(--ops-text);
+  text-decoration: none;
+  font-size: 14px;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+}
+.ops-nav-item:hover {
+  background: #f4f7fa;
+  color: var(--ops-navy);
+}
+.ops-nav-item.is-active {
+  color: #006f81;
+  background: #e9f5f6;
+  box-shadow: inset 3px 0 var(--ops-teal);
+}
+.ops-nav-divider {
+  height: 1px;
+  margin: 12px 2px;
+  background: var(--ops-border);
+}
+.ops-workspace {
+  min-width: 0;
+}
+.ops-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  height: 66px;
+  align-items: center;
+  gap: 18px;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--ops-border);
+  background: rgb(255 255 255 / 96%);
+  backdrop-filter: blur(10px);
+}
+.ops-icon-button {
+  position: relative;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--ops-navy);
+  background: transparent;
+  cursor: pointer;
+}
+.ops-icon-button:hover {
+  background: #f0f4f8;
+}
+.ops-icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ops-icon-button i {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid white;
+  border-radius: 50%;
+  background: var(--ops-blue);
+}
+.ops-global-search {
+  display: flex;
+  width: min(390px, 40vw);
+  height: 38px;
+  align-items: center;
+  gap: 9px;
+  margin-left: auto;
+  padding: 0 13px;
+  border: 1px solid var(--ops-border);
+  border-radius: 6px;
+  background: #fff;
+}
+.ops-global-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--ops-text);
+  background: transparent;
+  font-size: 13px;
+}
+.ops-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ops-avatar {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  margin-left: 4px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--ops-teal);
+  font-size: 12px;
+  font-weight: 750;
+}
+.ops-account-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.ops-mobile-close {
+  display: none;
+  margin-left: auto;
+}
+.ops-main {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 24px 28px 40px;
+}
+.ops-page {
+  display: grid;
+  gap: 16px;
+}
+.ops-page-header {
+  display: flex;
+  min-height: 62px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+.ops-page-header h1 {
+  margin: 0;
+  color: var(--ops-navy);
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+.ops-page-header p {
+  max-width: 700px;
+  margin: 7px 0 0;
+  color: var(--ops-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ops-eyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ops-blue);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.ops-page-action {
+  flex: 0 0 auto;
+}

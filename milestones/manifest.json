@@ -189,6 +189,23 @@
         "backend/app/backoffice/policy.py",
         "reconstruction/provenance/m09.csv"
       ]
+    },
+    {
+      "id": "M10",
+      "tag": "reconstruction-m10",
+      "slug": "role-based-product-ui",
+      "focused_modules": [
+        "app.tests.test_api"
+      ],
+      "required_paths": [
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "frontend/src/App.tsx",
+        "frontend/src/app/router.tsx",
+        "frontend/src/app/shell/AppShell.tsx",
+        "frontend/src/pages/overview/OverviewPage.tsx",
+        "reconstruction/provenance/m10.csv"
+      ]
     }
   ]
 }
