@@ -32,5 +32,6 @@ files = [
   "backend/app/invoices",
   "backend/app/agent",
   "backend/app/backoffice",
+  "backend/app/exports",
 ]
 strict = true

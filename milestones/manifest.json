@@ -206,6 +206,22 @@
         "frontend/src/pages/overview/OverviewPage.tsx",
         "reconstruction/provenance/m10.csv"
       ]
+    },
+    {
+      "id": "M11",
+      "tag": "reconstruction-m11",
+      "slug": "approval-gated-export",
+      "focused_modules": [
+        "app.tests.test_export_service"
+      ],
+      "required_paths": [
+        "backend/app/exports/models.py",
+        "backend/app/exports/csv_renderer.py",
+        "backend/app/exports/repositories.py",
+        "backend/app/exports/service.py",
+        "backend/app/tests/test_export_service.py",
+        "reconstruction/provenance/m11.csv"
+      ]
     }
   ]
 }
