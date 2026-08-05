@@ -222,6 +222,21 @@
         "backend/app/tests/test_export_service.py",
         "reconstruction/provenance/m11.csv"
       ]
+    },
+    {
+      "id": "M12",
+      "tag": "reconstruction-m12",
+      "slug": "bounded-operations-evidence",
+      "focused_modules": [
+        "app.tests.test_operations_summary"
+      ],
+      "required_paths": [
+        "backend/app/operations/models.py",
+        "backend/app/operations/repositories.py",
+        "backend/app/operations/service.py",
+        "backend/app/tests/test_operations_summary.py",
+        "reconstruction/provenance/m12.csv"
+      ]
     }
   ]
 }

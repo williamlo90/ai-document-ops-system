@@ -1,0 +1,7 @@
+path,provenance,reference_path,reference_blob_sha,notes
+backend/app/operations/models.py,adapted-reference,backend/app/operations/models.py,,Stable operations summary values.
+backend/app/operations/repositories.py,new-from-contract,,,Aggregate and bounded read-port contract.
+backend/app/operations/service.py,adapted-reference,backend/app/operations/service.py,,Status evaluation and provider-cost summary.
+backend/app/tests/test_operations_summary.py,new-from-contract,,,Bounded-query and invalid-data evidence.
+milestones/manifest.json,new-from-contract,,,Registers the M12 checkpoint.
+pyproject.toml,adapted-reference,pyproject.toml,,Extends strict type scope.
