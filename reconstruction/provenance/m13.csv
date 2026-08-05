@@ -1,0 +1,9 @@
+path,provenance,reference_path,reference_blob_sha,notes
+backend/app/contracts/documents.py,new-from-contract,,,Document audit job and transaction ports.
+backend/app/contracts/review.py,new-from-contract,,,Review and correction ports.
+backend/app/contracts/exports.py,new-from-contract,,,Approved-export capability contract.
+backend/app/contracts/evaluation.py,new-from-contract,,,Evaluation and operations capability contracts.
+backend/app/tests/test_contracts_architecture.py,new-from-contract,,,Dependency-direction architecture evidence.
+backend/app/tests/test_contracts_capabilities.py,new-from-contract,,,Structural capability evidence.
+milestones/manifest.json,new-from-contract,,,Registers the M13 checkpoint.
+pyproject.toml,adapted-reference,pyproject.toml,,Extends strict type scope.

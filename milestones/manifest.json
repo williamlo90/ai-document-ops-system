@@ -237,6 +237,24 @@
         "backend/app/tests/test_operations_summary.py",
         "reconstruction/provenance/m12.csv"
       ]
+    },
+    {
+      "id": "M13",
+      "tag": "reconstruction-m13",
+      "slug": "maintainable-capability-boundaries",
+      "focused_modules": [
+        "app.tests.test_contracts_architecture",
+        "app.tests.test_contracts_capabilities"
+      ],
+      "required_paths": [
+        "backend/app/contracts/documents.py",
+        "backend/app/contracts/review.py",
+        "backend/app/contracts/exports.py",
+        "backend/app/contracts/evaluation.py",
+        "backend/app/tests/test_contracts_architecture.py",
+        "backend/app/tests/test_contracts_capabilities.py",
+        "reconstruction/provenance/m13.csv"
+      ]
     }
   ]
 }
