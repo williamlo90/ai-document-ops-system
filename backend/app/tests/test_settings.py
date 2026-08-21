@@ -37,6 +37,13 @@ class SettingsTests(unittest.TestCase):
                 "PARSER_CACHE_RETENTION_HOURS",
                 "MISTRAL_ALLOWED_HOSTS",
                 "EXTRACTOR_ALLOWED_HOSTS",
+                "ERPNEXT_BASE_URL",
+                "ERPNEXT_SITE",
+                "ERPNEXT_API_USER",
+                "ERPNEXT_API_KEY",
+                "ERPNEXT_API_SECRET",
+                "ERPNEXT_TIMEOUT_SECONDS",
+                "ERPNEXT_ALLOWED_HOSTS",
             )
         }
         for key in self.original_env:
@@ -79,6 +86,13 @@ class SettingsTests(unittest.TestCase):
                         "EXTRACTOR_ENDPOINT=https://api.openai.com/v1/chat/completions",
                         "EXTRACTOR_MODEL=gpt-5.4-mini-2026-03-17",
                         "EXTRACTOR_ALLOWED_HOSTS=api.openai.com",
+                        "ERPNEXT_BASE_URL=http://127.0.0.1:8080",
+                        "ERPNEXT_SITE=frontend",
+                        "ERPNEXT_API_USER=invoice.integration@local.test",
+                        "ERPNEXT_API_KEY=erp-key",
+                        "ERPNEXT_API_SECRET=erp-secret",
+                        "ERPNEXT_TIMEOUT_SECONDS=45",
+                        "ERPNEXT_ALLOWED_HOSTS=127.0.0.1,localhost",
                     ]
                 ),
                 encoding="utf-8",
@@ -120,6 +134,13 @@ class SettingsTests(unittest.TestCase):
         )
         self.assertEqual(settings.extractor_model, "gpt-5.4-mini-2026-03-17")
         self.assertEqual(settings.extractor_allowed_hosts, ("api.openai.com",))
+        self.assertEqual(settings.erpnext_base_url, "http://127.0.0.1:8080")
+        self.assertEqual(settings.erpnext_site, "frontend")
+        self.assertEqual(settings.erpnext_api_user, "invoice.integration@local.test")
+        self.assertEqual(settings.erpnext_api_key, "erp-key")
+        self.assertEqual(settings.erpnext_api_secret, "erp-secret")
+        self.assertEqual(settings.erpnext_timeout_seconds, 45)
+        self.assertEqual(settings.erpnext_allowed_hosts, ("127.0.0.1", "localhost"))
 
     def test_environment_variable_overrides_env_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

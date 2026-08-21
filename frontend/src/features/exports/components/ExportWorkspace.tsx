@@ -45,6 +45,12 @@ export type ExportWorkspaceProps = {
   setFilter: (values: Record<string, string | null>) => void
   openBatch: (id: string, trigger?: HTMLElement) => void
   registerBatchTrigger: (id: string, node: HTMLButtonElement | null) => void
+  erpEnabled: boolean
+  erpAction: {
+    pendingDocumentId: string | null
+    error: Error | null
+    run: (documentId: string, action: 'create' | 'reconcile') => void
+  }
 }
 
 export function ExportWorkspace({
@@ -61,6 +67,8 @@ export function ExportWorkspace({
   setFilter,
   openBatch,
   registerBatchTrigger,
+  erpEnabled,
+  erpAction,
 }: ExportWorkspaceProps) {
   if (error) return <ErrorState message={error.message} retry={retry} />
 
@@ -106,7 +114,7 @@ export function ExportWorkspace({
             ))}
           </select>
         </div>
-        {selection.ids.size ? (
+        {!erpEnabled && selection.ids.size ? (
           <div className="export-selection-bar" role="status">
             <span>
               <CheckCircle2 size={16} />
@@ -133,24 +141,30 @@ export function ExportWorkspace({
         ) : data?.items.length ? (
           <ExportTable
             items={data.items}
-            selectable={view === 'ready'}
+            selectable={!erpEnabled && view === 'ready'}
             selectedIds={selection.ids}
             allSelected={selection.allSelected}
             toggle={selection.toggle}
             toggleAll={selection.toggleAll}
             openBatch={openBatch}
             registerBatchTrigger={registerBatchTrigger}
+            erpEnabled={erpEnabled}
+            erpAction={erpAction}
           />
         ) : (
           <EmptyState
             title={
               view === 'ready'
-                ? 'No invoices are ready to export'
+                ? erpEnabled
+                  ? 'No invoices are ready for ERPNext'
+                  : 'No invoices are ready to export'
                 : `No ${view.replace('_', ' ')} invoices found`
             }
             body={
               view === 'ready'
-                ? 'Approved invoices without blockers will appear here.'
+                ? erpEnabled
+                  ? 'Approved invoices without blockers will appear here.'
+                  : 'Approved invoices without blockers will appear here.'
                 : 'Try another status or clear the current filters.'
             }
             action={

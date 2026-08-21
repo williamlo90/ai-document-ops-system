@@ -23,6 +23,10 @@ class IntegrationDeliveryRepository(Protocol):
         self, workspace_id: str, adapter_name: str, idempotency_key: str
     ) -> IntegrationDeliveryRecord | None: ...
 
+    def get_for_document(
+        self, workspace_id: str, adapter_name: str, document_id: UUID
+    ) -> IntegrationDeliveryRecord | None: ...
+
     def claim_retry(self, record_id: UUID) -> IntegrationDeliveryRecord | None: ...
 
 
@@ -52,6 +56,20 @@ class InMemoryIntegrationDeliveryRepository:
     ) -> IntegrationDeliveryRecord | None:
         with self.lock:
             return deepcopy(self.records.get((workspace_id, adapter_name, idempotency_key)))
+
+    def get_for_document(
+        self, workspace_id: str, adapter_name: str, document_id: UUID
+    ) -> IntegrationDeliveryRecord | None:
+        with self.lock:
+            matches = [
+                record
+                for record in self.records.values()
+                if record.workspace_id == workspace_id
+                and record.adapter_name == adapter_name
+                and record.document_id == document_id
+            ]
+            latest = max(matches, key=lambda item: item.updated_at, default=None)
+            return deepcopy(latest)
 
     def claim_retry(self, record_id: UUID) -> IntegrationDeliveryRecord | None:
         with self.lock:
@@ -150,6 +168,20 @@ class SqliteIntegrationDeliveryRepository:
         )
         return _record_from_dict(json.loads(row["payload"])) if row is not None else None
 
+    def get_for_document(
+        self, workspace_id: str, adapter_name: str, document_id: UUID
+    ) -> IntegrationDeliveryRecord | None:
+        row = self.store.query_one(
+            """
+            SELECT payload FROM integration_deliveries
+            WHERE workspace_id = ? AND adapter_name = ? AND document_id = ?
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 1
+            """,
+            (workspace_id, adapter_name, str(document_id)),
+        )
+        return _record_from_dict(json.loads(row["payload"])) if row is not None else None
+
     def claim_retry(self, record_id: UUID) -> IntegrationDeliveryRecord | None:
         connection = self.store.connection
         with self.store.transaction():
@@ -209,6 +241,7 @@ def _record_to_dict(record: IntegrationDeliveryRecord) -> dict[str, object]:
     value["status"] = record.status.value
     value["created_at"] = record.created_at.isoformat()
     value["updated_at"] = record.updated_at.isoformat()
+    value["reconciled_at"] = record.reconciled_at.isoformat() if record.reconciled_at else None
     return value
 
 
@@ -222,7 +255,22 @@ def _record_from_dict(value: dict[str, object]) -> IntegrationDeliveryRecord:
         payload_hash=str(value["payload_hash"]),
         status=IntegrationDeliveryStatus(str(value["status"])),
         external_id=str(value["external_id"]) if value.get("external_id") else None,
+        external_url=str(value["external_url"]) if value.get("external_url") else None,
+        provider_docstatus=(
+            int(value["provider_docstatus"])
+            if value.get("provider_docstatus") is not None
+            else None
+        ),
+        provider_updated_at=(
+            str(value["provider_updated_at"]) if value.get("provider_updated_at") else None
+        ),
+        reconciled_at=(
+            datetime.fromisoformat(str(value["reconciled_at"]))
+            if value.get("reconciled_at")
+            else None
+        ),
         error_code=str(value["error_code"]) if value.get("error_code") else None,
+        error_detail=str(value["error_detail"]) if value.get("error_detail") else None,
         retryable=bool(value.get("retryable", False)),
         attempt_count=int(value.get("attempt_count", 1)),
         created_at=datetime.fromisoformat(str(value["created_at"])),

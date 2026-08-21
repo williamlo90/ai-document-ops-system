@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-import json
 import re
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from hashlib import sha256
 from uuid import UUID
 
-from app.core.observability import OperationEvent, log_operation
 from app.core.security import SecurityContext, require_admin
 from app.core.transactions import NoopTransactionManager, TransactionManager
-from app.documents.models import AuditEvent, DocumentRecord
+from app.documents.models import DocumentRecord, ReviewTask
 from app.documents.repositories import (
     AuditRepository,
     DocumentRepository,
     ExtractionRepository,
     NotFoundError,
+    ReviewTaskRepository,
 )
 from app.documents.status import DocumentStatus, InvalidStatusTransition
 from app.documents.state_writer import DocumentStateWriter
@@ -25,7 +24,6 @@ from app.extraction.schemas import InvoiceData
 from app.integrations.models import (
     AccountingIntegrationAdapter,
     IntegrationDeliveryRecord,
-    IntegrationDeliveryError,
     IntegrationDeliveryStatus,
     IntegrationExportResult,
     IntegrationIdempotencyConflict,
@@ -34,6 +32,12 @@ from app.integrations.models import (
     IntegrationOutcomeUnknown,
 )
 from app.integrations.repositories import IntegrationDeliveryRepository
+from app.integrations.delivery_executor import (
+    IntegrationDeliveryExecutor,
+    integration_audit,
+    key_fingerprint,
+    safe_error_detail,
+)
 
 
 IDEMPOTENCY_KEY_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
@@ -52,6 +56,7 @@ class InvoiceIntegrationService:
         self,
         documents: DocumentRepository,
         extractions: ExtractionRepository,
+        reviews: ReviewTaskRepository,
         audits: AuditRepository,
         workflow: DocumentWorkflowService,
         adapter: AccountingIntegrationAdapter,
@@ -61,16 +66,24 @@ class InvoiceIntegrationService:
     ) -> None:
         self.documents = documents
         self.extractions = extractions
+        self.reviews = reviews
         self.audits = audits
         self.workflow = workflow
         self.adapter = adapter
         self.deliveries = deliveries
         self.transactions = transactions or NoopTransactionManager()
-        self.state_writer = state_writer or DocumentStateWriter(
+        resolved_state_writer = state_writer or DocumentStateWriter(
             documents,
             audits,
             workflow,
             self.transactions,
+        )
+        self.delivery_executor = IntegrationDeliveryExecutor(
+            adapter=adapter,
+            deliveries=deliveries,
+            audits=audits,
+            transactions=self.transactions,
+            state_writer=resolved_state_writer,
         )
 
     def send_approved_invoice(
@@ -78,13 +91,22 @@ class InvoiceIntegrationService:
         document_id: UUID,
         context: SecurityContext,
         *,
-        idempotency_key: str,
+        idempotency_key: str | None = None,
     ) -> IntegrationSendResult:
         require_admin(context)
         document = self.documents.get(document_id)
         if document.workspace_id != context.workspace_id:
             raise NotFoundError(f"Document not found: {document_id}")
-        normalized_key = normalize_idempotency_key(idempotency_key)
+        try:
+            review = self._require_approval_evidence(document)
+        except InvalidStatusTransition as exc:
+            self._audit_blocked(document, context.actor, str(exc))
+            raise
+        normalized_key = normalize_idempotency_key(
+            _derived_delivery_key(document, review.id)
+            if self.adapter.event_prefix == "erp_draft"
+            else idempotency_key
+        )
         existing = self.deliveries.get_by_key(
             context.workspace_id, self.adapter.name, normalized_key
         )
@@ -94,8 +116,12 @@ class InvoiceIntegrationService:
             raise InvalidStatusTransition(
                 "Only approved documents can be sent to outbound integrations"
             )
-        payload = self._payload_for_document(document)
-        payload_hash = _payload_hash(payload)
+        try:
+            payload = self._payload_for_document(document)
+            payload_hash = self.adapter.payload_hash(payload)
+        except (InvalidStatusTransition, ValueError) as exc:
+            self._audit_blocked(document, context.actor, str(exc))
+            raise
         if existing is not None:
             return self._handle_existing_delivery(
                 existing,
@@ -118,6 +144,15 @@ class InvoiceIntegrationService:
                 document=document,
                 payload_hash=payload_hash,
                 context=context,
+            )
+        if self.adapter.event_prefix == "erp_draft":
+            self.audits.add(
+                integration_audit(
+                    document,
+                    event_type="erp_draft_requested",
+                    actor=context.actor,
+                    payload_summary=f"key={key_fingerprint(normalized_key)}",
+                )
             )
         return self._deliver(document, payload, delivery, context)
 
@@ -156,6 +191,7 @@ class InvoiceIntegrationService:
                 status=IntegrationDeliveryStatus.SUCCEEDED,
                 external_id=normalized_external_id[:200],
                 error_code=None,
+                error_detail=None,
                 retryable=False,
                 updated_at=datetime.now(UTC),
             )
@@ -170,6 +206,7 @@ class InvoiceIntegrationService:
                 status=IntegrationDeliveryStatus.FAILED,
                 external_id=None,
                 error_code="manually_confirmed_not_delivered",
+                error_detail="Provider delivery was manually confirmed as not delivered.",
                 retryable=True,
                 updated_at=datetime.now(UTC),
             )
@@ -177,14 +214,14 @@ class InvoiceIntegrationService:
         with self.transactions.transaction():
             self.deliveries.save(reconciled)
             if succeeded:
-                self._mark_document_exported(document, reconciled, context.actor)
+                self.delivery_executor.mark_document_exported(document, reconciled, context.actor)
             self.audits.add(
-                _integration_audit(
+                integration_audit(
                     document,
                     event_type=event_type,
                     actor=context.actor,
                     payload_summary=(
-                        f"adapter={self.adapter.name}; key={_key_fingerprint(normalized_key)}; "
+                        f"adapter={self.adapter.name}; key={key_fingerprint(normalized_key)}; "
                         f"reason={normalized_reason}"
                     ),
                 )
@@ -206,12 +243,18 @@ class InvoiceIntegrationService:
         if delivery.status == IntegrationDeliveryStatus.SUCCEEDED:
             if not delivery.external_id:
                 raise IntegrationOutcomeUnknown("Stored success is missing its external id")
-            self._mark_document_exported(document, delivery, context.actor)
+            self.delivery_executor.mark_document_exported(document, delivery, context.actor)
             return IntegrationSendResult(
                 document=document,
                 integration_result=IntegrationExportResult(
                     adapter_name=delivery.adapter_name,
                     external_id=delivery.external_id,
+                    external_url=delivery.external_url,
+                    provider_docstatus=delivery.provider_docstatus,
+                    provider_updated_at=delivery.provider_updated_at,
+                    status=(
+                        "draft_created" if self.adapter.event_prefix == "erp_draft" else "sent"
+                    ),
                 ),
                 delivery=delivery,
                 replayed=True,
@@ -231,9 +274,23 @@ class InvoiceIntegrationService:
             raise InvalidStatusTransition(
                 "Only approved documents can be sent to outbound integrations"
             )
+        if delivery.attempt_count >= 3:
+            raise IntegrationIdempotencyConflict("The delivery reached its maximum attempt count")
         claimed = self.deliveries.claim_retry(delivery.id)
         if claimed is None:
             raise IntegrationOutcomeUnknown("Another request already claimed this retry")
+        if self.adapter.event_prefix == "erp_draft":
+            self.audits.add(
+                integration_audit(
+                    document,
+                    event_type="erp_draft_retry_claimed",
+                    actor=context.actor,
+                    payload_summary=(
+                        f"attempt={claimed.attempt_count}; "
+                        f"key={key_fingerprint(claimed.idempotency_key)}"
+                    ),
+                )
+            )
         payload = self._payload_for_document(document)
         return self._deliver(document, payload, claimed, context)
 
@@ -244,112 +301,11 @@ class InvoiceIntegrationService:
         delivery: IntegrationDeliveryRecord,
         context: SecurityContext,
     ) -> IntegrationSendResult:
-        key_fingerprint = _key_fingerprint(delivery.idempotency_key)
-        with self.transactions.transaction():
-            self.audits.add(
-                _integration_audit(
-                    document,
-                    event_type="integration_export_attempted",
-                    actor=context.actor,
-                    payload_summary=(
-                        f"adapter={self.adapter.name}; key={key_fingerprint}; "
-                        f"attempt={delivery.attempt_count}"
-                    ),
-                )
-            )
-        log_operation(
-            OperationEvent(
-                event_type="integration_export_attempted",
-                workspace_id=context.workspace_id,
-                actor=context.actor,
-                document_id=str(document.id),
-                provider_name=self.adapter.name,
-                status="attempted",
-            )
-        )
-        try:
-            result = self.adapter.send_invoice(
-                payload,
-                idempotency_key=delivery.idempotency_key,
-            )
-            if result.adapter_name != self.adapter.name or not result.external_id.strip():
-                raise IntegrationDeliveryError(
-                    "Integration returned an invalid delivery receipt",
-                    code="invalid_delivery_receipt",
-                    retryable=False,
-                    outcome_unknown=True,
-                )
-        except IntegrationDeliveryError as exc:
-            failed_delivery = replace(
-                delivery,
-                status=(
-                    IntegrationDeliveryStatus.UNKNOWN
-                    if exc.outcome_unknown
-                    else IntegrationDeliveryStatus.FAILED
-                ),
-                error_code=exc.code,
-                retryable=exc.retryable and not exc.outcome_unknown,
-                updated_at=datetime.now(UTC),
-            )
-            with self.transactions.transaction():
-                self.deliveries.save(failed_delivery)
-                self.audits.add(
-                    _integration_audit(
-                        document,
-                        event_type="integration_export_failed",
-                        actor=context.actor,
-                        payload_summary=(
-                            f"adapter={self.adapter.name}; code={exc.code}; "
-                            f"retryable={str(exc.retryable).lower()}; "
-                            f"outcome_unknown={str(exc.outcome_unknown).lower()}; "
-                            f"key={key_fingerprint}"
-                        ),
-                    )
-                )
-            log_operation(
-                OperationEvent(
-                    event_type="integration_export_failed",
-                    workspace_id=context.workspace_id,
-                    actor=context.actor,
-                    document_id=str(document.id),
-                    provider_name=self.adapter.name,
-                    status="failed",
-                    error_code=exc.code,
-                    retryable=exc.retryable,
-                )
-            )
-            raise
-        succeeded_delivery = replace(
+        result, succeeded_delivery = self.delivery_executor.deliver(
+            document,
+            payload,
             delivery,
-            status=IntegrationDeliveryStatus.SUCCEEDED,
-            external_id=result.external_id,
-            error_code=None,
-            retryable=False,
-            updated_at=datetime.now(UTC),
-        )
-        with self.transactions.transaction():
-            self.deliveries.save(succeeded_delivery)
-            self.audits.add(
-                _integration_audit(
-                    document,
-                    event_type="integration_export_succeeded",
-                    actor=context.actor,
-                    payload_summary=(
-                        f"adapter={result.adapter_name}; external_id={result.external_id}; "
-                        f"key={key_fingerprint}"
-                    ),
-                )
-            )
-            self._mark_document_exported(document, succeeded_delivery, context.actor)
-        log_operation(
-            OperationEvent(
-                event_type="integration_export_succeeded",
-                workspace_id=context.workspace_id,
-                actor=context.actor,
-                document_id=str(document.id),
-                provider_name=result.adapter_name,
-                status="sent",
-            )
+            context,
         )
         return IntegrationSendResult(
             document=document,
@@ -357,31 +313,78 @@ class InvoiceIntegrationService:
             delivery=succeeded_delivery,
         )
 
-    def _mark_document_exported(
+    def get_delivery(
         self,
-        document: DocumentRecord,
-        delivery: IntegrationDeliveryRecord,
-        actor: str,
-    ) -> None:
-        if document.status == DocumentStatus.EXPORTED:
-            return
-        if document.status != DocumentStatus.APPROVED:
-            raise InvalidStatusTransition(
-                "A delivered invoice can only finalize from approved status"
-            )
-        self.state_writer.transition(
+        document_id: UUID,
+        context: SecurityContext,
+    ) -> IntegrationDeliveryRecord | None:
+        require_admin(context)
+        document = self.documents.get(document_id)
+        if document.workspace_id != context.workspace_id:
+            raise NotFoundError(f"Document not found: {document_id}")
+        return self.deliveries.get_for_document(
+            context.workspace_id,
+            self.adapter.name,
+            document_id,
+        )
+
+    def reconcile_provider_delivery(
+        self,
+        document_id: UUID,
+        context: SecurityContext,
+    ) -> IntegrationDeliveryRecord:
+        require_admin(context)
+        document = self.documents.get(document_id)
+        if document.workspace_id != context.workspace_id:
+            raise NotFoundError(f"Document not found: {document_id}")
+        delivery = self.deliveries.get_for_document(
+            context.workspace_id,
+            self.adapter.name,
+            document_id,
+        )
+        if delivery is None:
+            raise NotFoundError("Integration delivery not found")
+        if delivery.status == IntegrationDeliveryStatus.SUCCEEDED:
+            return delivery
+        payload = self._payload_for_document(document)
+        return self.delivery_executor.reconcile_provider(
             document,
-            DocumentStatus.EXPORTED,
-            actor,
-            payload_summary=(
-                f"adapter={delivery.adapter_name}; external_id={delivery.external_id}"
-            ),
+            payload,
+            delivery,
+            context,
         )
 
     def _payload_for_document(self, document: DocumentRecord) -> IntegrationInvoicePayload:
         stored = self.extractions.get_for_document(document.id)
+        if stored.validation_report.has_errors:
+            raise InvalidStatusTransition("Resolve invoice issues before creating an ERP draft")
         data = stored.extraction_result.extraction.data
         return _payload(document, data)
+
+    def _require_approval_evidence(self, document: DocumentRecord) -> ReviewTask:
+        if document.status not in {DocumentStatus.APPROVED, DocumentStatus.EXPORTED}:
+            raise InvalidStatusTransition(
+                "Only approved documents can be sent to outbound integrations"
+            )
+        try:
+            review = self.reviews.get_for_document(document.id)
+        except NotFoundError as exc:
+            raise InvalidStatusTransition("Human approval evidence is missing") from exc
+        if review.status != "approved" or not review.reviewed_by or review.reviewed_at is None:
+            raise InvalidStatusTransition("Human approval evidence is incomplete")
+        return review
+
+    def _audit_blocked(self, document: DocumentRecord, actor: str, reason: str) -> None:
+        if self.adapter.event_prefix != "erp_draft":
+            return
+        self.audits.add(
+            integration_audit(
+                document,
+                event_type="erp_draft_blocked",
+                actor=actor,
+                payload_summary=safe_error_detail(ValueError(reason)),
+            )
+        )
 
 
 def _payload(document: DocumentRecord, data: InvoiceData) -> IntegrationInvoicePayload:
@@ -421,27 +424,6 @@ def normalize_idempotency_key(value: str | None) -> str:
     return normalized
 
 
-def _payload_hash(payload: IntegrationInvoicePayload) -> str:
-    canonical = json.dumps(asdict(payload), sort_keys=True, separators=(",", ":"))
-    return sha256(canonical.encode("utf-8")).hexdigest()
-
-
-def _key_fingerprint(value: str) -> str:
-    return sha256(value.encode("utf-8")).hexdigest()[:12]
-
-
-def _integration_audit(
-    document: DocumentRecord,
-    *,
-    event_type: str,
-    actor: str,
-    payload_summary: str,
-) -> AuditEvent:
-    return AuditEvent(
-        document_id=document.id,
-        event_type=event_type,
-        actor=actor,
-        old_status=document.status,
-        new_status=document.status,
-        payload_summary=payload_summary,
-    )
+def _derived_delivery_key(document: DocumentRecord, review_id: UUID) -> str:
+    identity = f"{document.workspace_id}\0{document.id}\0{review_id}"
+    return f"erpnext:{sha256(identity.encode('utf-8')).hexdigest()}"

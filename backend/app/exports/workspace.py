@@ -19,6 +19,11 @@ from app.exports.models import (
     ExportRunStatus,
 )
 from app.exports.repositories import ExportBatchRepository
+from app.integrations.projections import erp_delivery_projection
+from app.integrations.repositories import IntegrationDeliveryRepository
+
+
+ERPNEXT_ADAPTER = "erpnext-purchase-invoice-draft"
 
 
 class ExportWorkspaceQuery:
@@ -30,12 +35,14 @@ class ExportWorkspaceQuery:
         documents: DocumentRepository,
         audits: AuditRepository,
         eligibility: ExportEligibilityPolicy,
+        integration_deliveries: IntegrationDeliveryRepository,
     ) -> None:
         self.settings = settings
         self.repository = repository
         self.documents = documents
         self.audits = audits
         self.eligibility = eligibility
+        self.integration_deliveries = integration_deliveries
 
     def workspace(
         self,
@@ -163,25 +170,7 @@ class ExportWorkspaceQuery:
         }
 
     def capabilities(self) -> dict[str, object]:
-        configured = self.settings.accounting_provider.strip().casefold()
-        destination: ExportDestination | None = (
-            {
-                "id": "csv_download",
-                "label": "CSV download",
-                "formats": ["csv"],
-                "mode": "file_download",
-            }
-            if configured == "csv_download"
-            else None
-        )
-        return {
-            "destinations": [destination] if destination else [],
-            "scheduling": False,
-            "drafts": True,
-            "retry": True,
-            "configured_provider": configured,
-            "destination_available": destination is not None,
-        }
+        return _export_capabilities(self.settings)
 
     def destinations(self) -> list[ExportDestination]:
         configured = self.settings.accounting_provider.strip().casefold()
@@ -344,6 +333,11 @@ class ExportWorkspaceQuery:
             if active_batch_id or draft_batch_id
             else None,
             "updated_at": document.updated_at.isoformat(),
+            "erp_delivery": _erp_delivery(
+                document,
+                settings=self.settings,
+                deliveries=self.integration_deliveries,
+            ),
         }
 
     @staticmethod
@@ -441,3 +435,52 @@ class ExportWorkspaceQuery:
         if run is None:
             raise ExportRunNotFound("Export run not found.")
         return run
+
+
+def _export_capabilities(settings: Settings) -> dict[str, object]:
+    configured = settings.accounting_provider.strip().casefold()
+    destination: ExportDestination | None
+    if configured == "csv_download":
+        destination = {
+            "id": "csv_download",
+            "label": "CSV download",
+            "formats": ["csv"],
+            "mode": "file_download",
+        }
+    elif configured == "erpnext":
+        destination = {
+            "id": "erpnext",
+            "label": "ERPNext draft",
+            "formats": ["purchase_invoice_draft"],
+            "mode": "provider_draft",
+        }
+    else:
+        destination = None
+    available = destination is not None
+    if configured == "erpnext":
+        available = bool(settings.erpnext_api_key and settings.erpnext_api_secret)
+    return {
+        "destinations": [destination] if destination else [],
+        "scheduling": False,
+        "drafts": True,
+        "retry": True,
+        "configured_provider": configured,
+        "destination_available": available,
+        "erp_draft_delivery": configured == "erpnext",
+    }
+
+
+def _erp_delivery(
+    document: DocumentRecord,
+    *,
+    settings: Settings,
+    deliveries: IntegrationDeliveryRepository,
+) -> dict[str, object] | None:
+    if settings.accounting_provider.strip().casefold() != "erpnext":
+        return None
+    record = deliveries.get_for_document(
+        document.workspace_id,
+        ERPNEXT_ADAPTER,
+        document.id,
+    )
+    return erp_delivery_projection(record, document_status=document.status)

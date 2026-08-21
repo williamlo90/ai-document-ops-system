@@ -739,6 +739,113 @@ describe('exports workspace', () => {
     const panel = screen.getByRole('dialog', { name: 'Export batch' })
     expect(within(panel).getByRole('button', { name: 'Create export' })).toBeEnabled()
   })
+
+  it('creates ERPNext drafts per invoice without exposing batch controls', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/exports')
+    const erpInvoice: ExportInvoiceItem = {
+      id: 'doc-erp-1',
+      invoice_label: 'INV-ERP-001',
+      filename: 'erp-invoice.pdf',
+      vendor_name: 'Acme Logistics',
+      approved_by: 'Reviewer',
+      approved_at: now,
+      total: '1250.00',
+      currency: 'USD',
+      status: 'ready',
+      issue: null,
+      batch_id: null,
+      updated_at: now,
+      erp_delivery: {
+        status: 'ready',
+        label: 'Ready to create ERP draft',
+        can_create: true,
+        can_reconcile: false,
+        can_retry: false,
+        attempt_count: 0,
+        external_id: null,
+        external_url: null,
+        provider_docstatus: null,
+        error_code: null,
+        error_message: null,
+        updated_at: null,
+      },
+    }
+    const data: ExportWorkspaceResponse = {
+      capabilities: {
+        destinations: [
+          {
+            id: 'erpnext',
+            label: 'ERPNext draft',
+            formats: ['purchase_invoice_draft'],
+            mode: 'provider_draft',
+          },
+        ],
+        scheduling: false,
+        drafts: true,
+        retry: true,
+        configured_provider: 'erpnext',
+        destination_available: true,
+        erp_draft_delivery: true,
+      },
+      summary: {
+        ready: { count: 1, amount: '1250.00', currency: 'USD' },
+        in_batch: { count: 0, amount: '0', currency: null },
+        exported: { count: 0, amount: '0', currency: null },
+        blocked: { count: 0, amount: '0', currency: null },
+      },
+      items: [erpInvoice],
+      page: 1,
+      page_size: 10,
+      total: 1,
+      total_pages: 1,
+      filters: { vendors: ['Acme Logistics'], currencies: ['USD'], approvers: ['Reviewer'] },
+      batch: null,
+      recent_runs: [],
+    }
+    let draftRequested = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input)
+        if (path === '/auth/session')
+          return json({
+            authenticated: true,
+            actor: 'Administrator',
+            user_id: 'admin',
+            workspace_id: 'default',
+            role: 'administrator',
+            is_admin: true,
+          })
+        if (path === '/backoffice/workspace') return json(workspace)
+        if (path.startsWith('/exports/workspace?')) return json(data)
+        if (path === '/integrations/erpnext/documents/doc-erp-1/draft' && init?.method === 'POST') {
+          draftRequested = true
+          return json({
+            document_id: 'doc-erp-1',
+            delivery: {
+              ...erpInvoice.erp_delivery,
+              status: 'succeeded',
+              label: 'ERP draft created',
+              can_create: false,
+              external_id: 'ACC-PINV-2026-00001',
+              external_url: 'http://127.0.0.1:8080/app/purchase-invoice/ACC-PINV-2026-00001',
+              provider_docstatus: 0,
+            },
+          })
+        }
+        return json({ detail: `Unexpected request: ${path}` }, 404)
+      }),
+    )
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Exports' })).toBeInTheDocument()
+    const createDraft = await screen.findByRole('button', { name: 'Create ERP draft' })
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add to export/i })).not.toBeInTheDocument()
+    await user.click(createDraft)
+    expect(await screen.findByText('ERP draft created')).toBeInTheDocument()
+    expect(draftRequested).toBe(true)
+  })
 })
 
 describe('evaluation workspace', () => {

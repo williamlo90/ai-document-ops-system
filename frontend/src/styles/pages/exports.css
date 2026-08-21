@@ -134,6 +134,28 @@
   width: 38px;
   text-align: center;
 }
+.export-table.is-erp td:first-child,
+.export-table.is-erp th:first-child {
+  width: auto;
+  text-align: left;
+}
+.export-table.is-erp td:nth-child(7) {
+  max-width: 220px;
+}
+.export-inline-error {
+  padding: 10px 13px;
+  border-bottom: 1px solid #f2bec2;
+  color: var(--ops-red);
+  background: #fff8f8;
+  font-size: 12px;
+}
+.erp-delivery-action {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
 .export-table td:nth-child(8) {
   max-width: 160px;
   overflow: hidden;

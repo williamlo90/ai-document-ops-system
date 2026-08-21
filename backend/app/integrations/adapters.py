@@ -4,11 +4,13 @@ from app.integrations.models import (
     IntegrationDeliveryError,
     IntegrationExportResult,
     IntegrationInvoicePayload,
+    integration_payload_hash,
 )
 
 
 class MockAccountingAdapter:
     name = "mock-accounting"
+    event_prefix = "integration_export"
 
     def __init__(
         self,
@@ -25,6 +27,9 @@ class MockAccountingAdapter:
         self.sent_payloads: list[IntegrationInvoicePayload] = []
         self.attempted_keys: list[str] = []
         self.results_by_key: dict[str, IntegrationExportResult] = {}
+
+    def payload_hash(self, payload: IntegrationInvoicePayload) -> str:
+        return integration_payload_hash(payload)
 
     def send_invoice(
         self,
@@ -67,3 +72,13 @@ class MockAccountingAdapter:
         )
         self.results_by_key[idempotency_key] = result
         return result
+
+    def find_invoice(
+        self,
+        payload: IntegrationInvoicePayload,
+        *,
+        idempotency_key: str,
+        payload_hash: str,
+    ) -> IntegrationExportResult | None:
+        del payload, payload_hash
+        return self.results_by_key.get(idempotency_key)

@@ -1,85 +1,84 @@
-# Integration Boundary
+# Accounting Integration Boundary
 
-Outbound integration is kept separate from CSV export and document processing.
+Approved invoices can leave the application through one of two explicit paths:
 
-The first supported target is a mock accounting adapter. It represents the shape of an ERP/accounting handoff without requiring real third-party credentials in the portfolio artifact.
+- a credential-free CSV download; or
+- an ERPNext Purchase Invoice created in Draft state (`docstatus = 0`).
 
-## Current Flow
+Neither path submits, posts, pays, cancels, or deletes an accounting transaction.
+
+## ERPNext Draft Flow
 
 ```text
-approved document
--> integration service
--> invoice payload mapping
+approved invoice
+-> deterministic ERP mapping
 -> durable delivery reservation
--> accounting adapter
--> audit attempt
--> audit success or failure
--> exported status only after successful delivery
+-> ERPNext Draft create
+-> response and total verification
+-> provider ID and URL persisted
+-> local invoice marked exported
 ```
 
-## Endpoint
+The runtime sends normalized invoice values only. It never sends raw PDF bytes, OCR text, storage
+keys, admin credentials, or provider traces to ERPNext.
+
+Administrator-only endpoints:
+
+```http
+GET  /integrations/erpnext/documents/{document_id}/delivery
+POST /integrations/erpnext/documents/{document_id}/draft
+POST /integrations/erpnext/documents/{document_id}/delivery/reconcile
+```
+
+The create endpoint accepts no caller-supplied idempotency key. The server derives one from the
+workspace, document, and approved review record, then stores the same key and mapped-payload hash
+in ERPNext custom fields. Repeating a confirmed request returns the stored result without a second
+provider POST.
+
+If a create response is lost, the delivery becomes `unknown`. The application queries ERPNext by
+the stable key before any retry. A missing provider record becomes a retryable known failure; one
+exact matching Draft becomes a reconciled success; duplicate or mismatched provider records are
+rejected.
+
+## Safety Checks
+
+Delivery is blocked unless all of these remain true at send time:
+
+- the caller is an administrator;
+- the document and review record are both approved;
+- reviewer identity and review time are present;
+- current validation has no error;
+- supplier, currency, account, tax, date, and amount mappings are deterministic;
+- ERPNext returns the same business and identity values;
+- ERPNext returns Draft state and a matching calculated total.
+
+The dedicated ERPNext role can read required master data and create/read Draft Purchase Invoices.
+It cannot submit, cancel, delete, or manage schema.
+
+## Delivery Evidence
+
+The durable ledger stores the adapter, server delivery key, mapped payload hash, attempt count,
+provider ID, provider URL, provider `docstatus`, provider update time, reconciliation time, and a
+sanitized failure code. Key audit events include:
+
+- `erp_draft_requested`
+- `erp_draft_create_started`
+- `erp_draft_created`
+- `erp_draft_outcome_unknown`
+- `erp_draft_reconciled`
+- `erp_draft_retry_claimed`
+- `erp_draft_failed`
+- `erp_draft_blocked`
+- `erp_draft_unsafe_state_detected`
+
+## Legacy Adapter Contract
+
+The generic adapter endpoint remains for isolated adapter tests:
 
 ```http
 POST /integrations/accounting/documents/{document_id}/export
+Idempotency-Key: caller-generated stable key
 ```
 
-Required headers:
-
-```text
-X-Admin-Token: ...
-Idempotency-Key: caller-generated stable key, 8-128 safe characters
-```
-
-An authenticated admin session can replace `X-Admin-Token`. Identity, role, and workspace are resolved
-from the server-owned credential or session, not caller-asserted identity headers.
-
-Only `approved` documents can start a delivery. A successful send marks the document `exported`.
-Replaying the same key and payload returns the stored success without invoking the adapter again.
-
-## Payload Boundary
-
-The integration payload contains normalized invoice fields only:
-
-- document id
-- workspace id
-- vendor name
-- invoice number
-- invoice and due dates
-- subtotal, tax, total, and currency
-- line items
-
-The adapter does not receive raw PDF bytes, OCR text, storage keys, admin tokens, or provider traces.
-
-## Audit Events
-
-Every integration attempt records audit events:
-
-- `integration_export_attempted`
-- `integration_export_succeeded`
-- `integration_export_failed`
-- `document_exported` after successful delivery
-
-Failed delivery keeps the document `approved` so the export can be retried.
-
-## Idempotency And Reconciliation
-
-- The ledger reserves the workspace, adapter, document, payload hash, and key before outbound I/O.
-- A known pre-acceptance failure may be retried only with the same key.
-- A timeout or crash with an uncertain provider outcome is marked `unknown` or remains `pending`.
-- Pending and unknown records cannot be resent automatically.
-- An admin must verify the provider ledger and call
-  `POST /integrations/accounting/deliveries/reconcile` with the same `Idempotency-Key`, a reason, and
-  the confirmed outcome.
-- A successful delivery record is persisted before the local document transition, allowing a replay
-  to finish local recovery after a process interruption.
-
-The current mock adapter honors keys. A future real adapter is not acceptable until the external
-provider also binds the same key or exposes a reliable lookup/reconciliation contract.
-
-## Deferred
-
-- real webhook adapter
-- real accounting/ERP credentials
-- exponential retry scheduler
-- real-provider idempotency and reconciliation verification
-- signed callback verification
+Its mock implementation does not represent a configured production accounting provider. CSV and
+ERPNext are the user-facing export modes.

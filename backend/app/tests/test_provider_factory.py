@@ -639,6 +639,81 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         )
         self.assertEqual(total_evidence.source_text, "TOTAL : 104.00 USD")
 
+    def test_table_total_grounds_total_and_currency_evidence(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret",
+            endpoint="https://example.test/extract",
+            model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {
+                "data": {
+                    "vendor_name": "Acme Logistics",
+                    "invoice_number": "PHASE8-PRACTICE-001",
+                    "invoice_date": "2026-07-01",
+                    "subtotal": "100.00",
+                    "tax": "10.00",
+                    "total": "110.00",
+                    "currency": "USD",
+                }
+            },
+        )
+
+        result = extractor.extract_invoice(
+            ParsedDocument(
+                text=("| Subtotal | 100.00 |\n| Tax (10%) | 10.00 |\n| Total | USD 110.00 |")
+            )
+        )
+
+        total_evidence = next(
+            item for item in result.extraction.confidence if item.field_name == "total"
+        )
+        currency_evidence = next(
+            item for item in result.extraction.confidence if item.field_name == "currency"
+        )
+        self.assertEqual(total_evidence.source_text, "| Total | USD 110.00 |")
+        self.assertEqual(currency_evidence.source_text, "| Total | USD 110.00 |")
+
+    def test_mistral_markdown_total_and_separate_currency_are_grounded(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret",
+            endpoint="https://example.test/extract",
+            model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {
+                "data": {
+                    "vendor_name": "Acme Logistics",
+                    "invoice_number": "AC-1001",
+                    "invoice_date": "2026-07-01",
+                    "due_date": "2026-07-31",
+                    "subtotal": "100.00",
+                    "tax": "10.00",
+                    "total": "110.00",
+                    "currency": "USD",
+                }
+            },
+        )
+
+        result = extractor.extract_invoice(
+            ParsedDocument(
+                text=(
+                    "| Invoice number | AC-1001 |\n"
+                    "| Invoice date | 2026-07-01 |\n"
+                    "| Due date | 2026-07-31 |\n"
+                    "| Currency | USD |\n\n"
+                    "| Subtotal | 100.00 |\n"
+                    "| Tax | 10.00 |\n"
+                    "| **Total** | **110.00** |"
+                )
+            )
+        )
+
+        total_evidence = next(
+            item for item in result.extraction.confidence if item.field_name == "total"
+        )
+        currency_evidence = next(
+            item for item in result.extraction.confidence if item.field_name == "currency"
+        )
+        self.assertEqual(total_evidence.source_text, "| **Total** | **110.00** |")
+        self.assertEqual(currency_evidence.source_text, "| Currency | USD |")
+
     def test_inferred_tax_is_removed_without_labeled_tax(self) -> None:
         extractor = LlmJsonInvoiceExtractor(
             api_key="secret",

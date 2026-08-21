@@ -27,6 +27,7 @@ from app.exports.models import (
 from app.exports.repositories import ExportBatchRepository
 from app.exports.services import InvoiceExportService
 from app.exports.workspace import ExportWorkspaceQuery
+from app.integrations.repositories import IntegrationDeliveryRepository
 
 
 class ExportBatchService:
@@ -40,6 +41,7 @@ class ExportBatchService:
         audits: AuditRepository,
         workflow: DocumentWorkflowService,
         invoice_exports: InvoiceExportService,
+        integration_deliveries: IntegrationDeliveryRepository,
         transactions: TransactionManager | None = None,
         state_writer: DocumentStateWriter | None = None,
     ) -> None:
@@ -69,6 +71,7 @@ class ExportBatchService:
             documents=documents,
             audits=audits,
             eligibility=self._eligibility,
+            integration_deliveries=integration_deliveries,
         )
         self._execution = ExportExecutionLifecycle(
             repository=repository,

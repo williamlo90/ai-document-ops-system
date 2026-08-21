@@ -215,41 +215,7 @@ class SystemDashboardService:
     def _export_service(
         self, export_runs: list[ExportRunRecord], observed_at: datetime
     ) -> dict[str, object]:
-        configured = self.settings.accounting_provider.strip().casefold()
-        available = configured in {"csv_download", "mock"}
-        latest = max(export_runs, key=lambda run: run.updated_at, default=None)
-        if not available:
-            status = "unavailable"
-            evidence = "The configured accounting destination is not supported by this build."
-        elif latest and latest.status == ExportRunStatus.FAILED:
-            status = "degraded"
-            evidence = "The latest export run failed; approved invoices remain unchanged."
-        else:
-            status = "operational"
-            evidence = (
-                "The latest export file was generated successfully."
-                if latest
-                else "The configured local export capability is available; no run has been observed yet."
-            )
-        return {
-            "id": "accounting_export",
-            "name": "Accounting export",
-            "provider": configured,
-            "status": status,
-            "uptime": None,
-            "uptime_label": "Not enough history",
-            "observed_at": (latest.updated_at if latest else observed_at).isoformat(),
-            "activity": (
-                f"{len(export_runs)} recorded export runs"
-                if export_runs
-                else "No recorded export run"
-            ),
-            "evidence": evidence,
-            "affected_capability": "Creating new accounting exports"
-            if status != "operational"
-            else None,
-            "unaffected_capability": "Invoice review and stored records remain available",
-        }
+        return _accounting_export_service(self.settings, export_runs, observed_at)
 
     @staticmethod
     def _current_service(
@@ -514,3 +480,54 @@ class SystemDashboardService:
         if "dead" in normalized:
             return "The retry limit was reached."
         return "Invoice processing did not complete."
+
+
+def _accounting_export_service(
+    settings: Settings,
+    export_runs: list[ExportRunRecord],
+    observed_at: datetime,
+) -> dict[str, object]:
+    configured = settings.accounting_provider.strip().casefold()
+    available = configured in {"csv_download", "mock"} or (
+        configured == "erpnext"
+        and bool(settings.erpnext_api_key)
+        and bool(settings.erpnext_api_secret)
+    )
+    latest = max(export_runs, key=lambda run: run.updated_at, default=None)
+    if not available:
+        status = "unavailable"
+        evidence = "The configured accounting destination is not supported by this build."
+    elif configured != "erpnext" and latest and latest.status == ExportRunStatus.FAILED:
+        status = "degraded"
+        evidence = "The latest export run failed; approved invoices remain unchanged."
+    else:
+        status = "operational"
+        evidence = _accounting_export_evidence(configured, latest)
+    return {
+        "id": "accounting_export",
+        "name": "Accounting export",
+        "provider": configured,
+        "status": status,
+        "uptime": None,
+        "uptime_label": "Not enough history",
+        "observed_at": (latest.updated_at if latest else observed_at).isoformat(),
+        "activity": (
+            f"{len(export_runs)} recorded export runs" if export_runs else "No recorded export run"
+        ),
+        "evidence": evidence,
+        "affected_capability": "Creating new accounting exports"
+        if status != "operational"
+        else None,
+        "unaffected_capability": "Invoice review and stored records remain available",
+    }
+
+
+def _accounting_export_evidence(
+    configured: str,
+    latest: ExportRunRecord | None,
+) -> str:
+    if configured == "erpnext":
+        return "ERPNext draft credentials and the controlled delivery adapter are loaded."
+    if latest:
+        return "The latest export file was generated successfully."
+    return "The configured local export capability is available; no run has been observed yet."

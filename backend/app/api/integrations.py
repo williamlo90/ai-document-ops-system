@@ -15,6 +15,7 @@ from app.integrations.models import (
     IntegrationIdempotencyConflict,
     IntegrationOutcomeUnknown,
 )
+from app.integrations.projections import erp_delivery_projection
 
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -47,9 +48,18 @@ def integration_status(
         _status(
             "accounting",
             settings.accounting_provider,
-            settings.accounting_provider in {"csv_download", "mock"},
+            settings.accounting_provider in {"csv_download", "mock"}
+            or (
+                settings.accounting_provider == "erpnext"
+                and bool(settings.erpnext_api_key)
+                and bool(settings.erpnext_api_secret)
+            ),
             settings.accounting_sandbox_mode,
-            "Approved invoices can be downloaded through the audited CSV export contract.",
+            (
+                "Approved invoices can create verified ERPNext drafts."
+                if settings.accounting_provider == "erpnext"
+                else "Approved invoices can be downloaded through the audited CSV export contract."
+            ),
         ),
         _status(
             "document_storage",
@@ -126,6 +136,11 @@ def export_document_to_accounting(
     context: SecurityContext = Depends(require_admin_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
+    if idempotency_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Idempotency-Key header is required",
+        )
     try:
         result = container.integration_service.send_approved_invoice(
             document_id,
@@ -159,10 +174,92 @@ def export_document_to_accounting(
             "external_id": result.integration_result.external_id,
             "status": result.integration_result.status,
             "retryable": result.integration_result.retryable,
+            "external_url": result.integration_result.external_url,
+            "provider_docstatus": result.integration_result.provider_docstatus,
             "delivery_status": result.delivery.status.value,
             "attempt_count": result.delivery.attempt_count,
             "replayed": result.replayed,
         },
+    }
+
+
+@router.get("/erpnext/documents/{document_id}/delivery")
+def erpnext_delivery(
+    document_id: UUID,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    _require_erpnext(container)
+    try:
+        document = container.documents.get(document_id)
+        if document.workspace_id != context.workspace_id:
+            raise NotFoundError("Document not found")
+        delivery = container.integration_service.get_delivery(document_id, context)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    return {
+        "document_id": str(document_id),
+        "delivery": erp_delivery_projection(delivery, document_status=document.status),
+    }
+
+
+@router.post("/erpnext/documents/{document_id}/draft")
+def create_erpnext_draft(
+    document_id: UUID,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    _require_erpnext(container)
+    try:
+        result = container.integration_service.send_approved_invoice(
+            document_id,
+            context,
+        )
+    except (NotFoundError, KeyError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except InvalidStatusTransition as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except (IntegrationIdempotencyConflict, IntegrationOutcomeUnknown) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except IntegrationDeliveryError as exc:
+        raise _erpnext_delivery_error(exc) from exc
+    document = container.documents.get(document_id)
+    return {
+        "document_id": str(document_id),
+        "delivery": {
+            **erp_delivery_projection(result.delivery, document_status=document.status),
+            "replayed": result.replayed,
+        },
+    }
+
+
+@router.post("/erpnext/documents/{document_id}/delivery/reconcile")
+def reconcile_erpnext_delivery(
+    document_id: UUID,
+    context: SecurityContext = Depends(require_admin_context),
+    container: AppContainer = Depends(get_container),
+) -> dict[str, object]:
+    _require_erpnext(container)
+    try:
+        delivery = container.integration_service.reconcile_provider_delivery(
+            document_id,
+            context,
+        )
+        document = container.documents.get(document_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
+    except (IntegrationIdempotencyConflict, IntegrationOutcomeUnknown) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except IntegrationDeliveryError as exc:
+        raise _erpnext_delivery_error(exc) from exc
+    return {
+        "document_id": str(document_id),
+        "delivery": erp_delivery_projection(delivery, document_status=document.status),
     }
 
 
@@ -202,3 +299,27 @@ def reconcile_accounting_delivery(
             "updated_at": delivery.updated_at.isoformat(),
         }
     }
+
+
+def _require_erpnext(container: AppContainer) -> None:
+    if container.integration_service.adapter.name != "erpnext-purchase-invoice-draft":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="ERPNext draft delivery is not configured",
+        )
+
+
+def _erpnext_delivery_error(exc: IntegrationDeliveryError) -> HTTPException:
+    return HTTPException(
+        status_code=(
+            status.HTTP_409_CONFLICT
+            if not exc.retryable and not exc.outcome_unknown
+            else status.HTTP_502_BAD_GATEWAY
+        ),
+        detail={
+            "message": str(exc),
+            "code": exc.code,
+            "retryable": exc.retryable,
+            "outcome_unknown": exc.outcome_unknown,
+        },
+    )

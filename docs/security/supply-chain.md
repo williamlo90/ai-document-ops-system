@@ -59,3 +59,8 @@ Node.js 22.22 or newer, so the frontend engine and CI runtime enforce that minim
 The dependency-audit allowlist is empty. `npm run audit` still evaluates the complete npm audit
 report and fails on every high or critical finding unless a future, documented, time-limited
 exception is reviewed and added explicitly.
+
+On 14 August 2026, the gate detected two newly published high-severity advisories. The direct
+`pdfjs-dist` dependency moved to `6.2.108` to close `GHSA-hq66-cqwq-w95j`, and the transitive
+`nanoid` dependency is overridden to `3.3.18` to close `GHSA-2v37-7h3g-55p8`. Both patched versions
+were available, so neither finding received a temporary exception.

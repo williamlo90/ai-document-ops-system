@@ -1,0 +1,136 @@
+{
+  "schema_version": 3,
+  "adapter_name": "erpnext-purchase-invoice-draft",
+  "provider": "erpnext",
+  "resource": {
+    "create_method": "POST",
+    "create_path": "/api/resource/Purchase%20Invoice",
+    "lookup_method": "GET",
+    "lookup_doctype": "Purchase Invoice",
+    "allowed_operations": [
+      "create_draft",
+      "read_draft",
+      "lookup_by_delivery_key"
+    ],
+    "forbidden_operations": ["submit", "post", "pay", "cancel", "delete"]
+  },
+  "safety": {
+    "required_application_role": "admin",
+    "required_document_status": "approved",
+    "required_review_status": "approved",
+    "required_review_evidence": ["reviewed_by", "reviewed_at"],
+    "required_validation_errors": 0,
+    "provider_docstatus": 0,
+    "success_copy": "ERP draft created"
+  },
+  "identity": {
+    "delivery_key_algorithm": "erpnext:{sha256(workspace_id + NUL + document_id + NUL + review_task_id)}",
+    "payload_hash_algorithm": "sha256(canonical_mapped_payload_json)",
+    "provider_delivery_key_field": "custom_invoice_review_delivery_key",
+    "provider_document_id_field": "custom_invoice_review_document_id",
+    "provider_payload_hash_field": "custom_invoice_review_payload_hash"
+  },
+  "benchmark_mapping": {
+    "company": "Invoice Review Assisted Benchmark",
+    "payable_accounts": {
+      "USD": "Creditors - IRA",
+      "EUR": "Creditors EUR - IRA"
+    },
+    "expense_account": "Professional Services - IRA",
+    "item_code": "BENCH-PROF-SVC",
+    "item_name": "Professional Services",
+    "uom": "Nos",
+    "posting_date_policy": "trial_date",
+    "currency_rates": {
+      "USD": 1.0,
+      "EUR@2026-07-03": 1.1
+    },
+    "tax_templates": {
+      "0": null,
+      "10": "Benchmark Input Tax 10% - IRA",
+      "20": "Benchmark Input Tax 20% - IRA"
+    }
+  },
+  "request_example": {
+    "doctype": "Purchase Invoice",
+    "company": "Invoice Review Assisted Benchmark",
+    "supplier": "Acme Logistics - Assisted Benchmark",
+    "posting_date": "2026-08-21",
+    "set_posting_time": 1,
+    "bill_no": "AC-1001",
+    "bill_date": "2026-07-01",
+    "due_date": "2026-07-31",
+    "currency": "USD",
+    "conversion_rate": 1.0,
+    "credit_to": "Creditors - IRA",
+    "taxes_and_charges": "Benchmark Input Tax 10% - IRA",
+    "taxes": [
+      {
+        "category": "Total",
+        "add_deduct_tax": "Add",
+        "charge_type": "On Net Total",
+        "account_head": "Benchmark Input Tax - IRA",
+        "description": "Benchmark input tax 10%",
+        "rate": 10.0
+      }
+    ],
+    "items": [
+      {
+        "item_code": "BENCH-PROF-SVC",
+        "item_name": "Professional Services",
+        "description": "Invoice AC-1001",
+        "qty": 1,
+        "uom": "Nos",
+        "conversion_factor": 1,
+        "rate": 100.0,
+        "expense_account": "Professional Services - IRA"
+      }
+    ],
+    "custom_invoice_review_delivery_key": "erpnext:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "custom_invoice_review_document_id": "11111111-1111-4111-8111-111111111111",
+    "custom_invoice_review_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "docstatus": 0
+  },
+  "required_response_fields": [
+    "name",
+    "doctype",
+    "docstatus",
+    "company",
+    "supplier",
+    "bill_no",
+    "currency",
+    "grand_total",
+    "custom_invoice_review_delivery_key",
+    "custom_invoice_review_document_id",
+    "custom_invoice_review_payload_hash",
+    "creation",
+    "modified"
+  ],
+  "response_invariants": {
+    "doctype": "Purchase Invoice",
+    "docstatus": 0,
+    "company": "Invoice Review Assisted Benchmark",
+    "identity_fields_must_match_request": true,
+    "business_fields_must_match_approved_payload": true
+  },
+  "delivery_states": [
+    "ready",
+    "pending",
+    "succeeded",
+    "failed_retryable",
+    "failed_permanent",
+    "unknown",
+    "blocked"
+  ],
+  "audit_events": [
+    "erp_draft_requested",
+    "erp_draft_create_started",
+    "erp_draft_created",
+    "erp_draft_reconciled",
+    "erp_draft_retry_claimed",
+    "erp_draft_failed",
+    "erp_draft_outcome_unknown",
+    "erp_draft_blocked",
+    "erp_draft_unsafe_state_detected"
+  ]
+}

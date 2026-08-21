@@ -102,6 +102,16 @@ Upload -> Check source and fields -> Resolve blockers -> Decide -> Export approv
 
 ## Next validation work
 
+### Completed milestone: ERPNext draft integration and workflow pilot
+
+The implementation and pilot are complete. The application creates and verifies ERPNext Purchase
+Invoice Drafts without submitting, posting, or paying them. Approval, mapping, duplicate, timeout,
+reconciliation, restart, field-match, permission, and log-redaction boundaries passed technical
+verification. The 20-trial local pilot produced a 39.6% lower median elapsed time across six matched
+draft pairs and correct assisted outcomes in all 10 cases. See the
+[ERPNext benchmark result](docs/erpnext-workflow-benchmark-results.md) and
+[integration SDLC](docs/erpnext-integration-sdlc.md).
+
 Before processing real client data:
 
 1. Run the documented usability study with 3–5 finance users. Record task failures and assistance
@@ -121,5 +131,6 @@ Before processing real client data:
 - payment execution;
 - chatbot or document Q&A;
 - production multi-tenancy and billing;
-- live ERP delivery without an approved integration;
+- ERP submission, posting, payment, or live production delivery beyond the approved draft-only
+  sandbox integration;
 - customer-impact, time-saving, or production-accuracy claims without observed data.

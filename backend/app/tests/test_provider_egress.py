@@ -52,6 +52,20 @@ class ProviderEndpointPolicyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_configured_provider_egress(settings)
 
+    def test_configured_erpnext_host_is_validated_at_startup_boundary(self) -> None:
+        settings = Settings(
+            app_env="local",
+            admin_token="test-token",
+            upload_root=Path("uploads"),
+            max_upload_bytes=1_000,
+            accounting_provider="erpnext",
+            erpnext_base_url="https://erp.attacker.test",
+            erpnext_allowed_hosts=("erp.example.test",),
+        )
+
+        with self.assertRaises(ValueError):
+            validate_configured_provider_egress(settings)
+
 
 class ProviderHttpTransportTests(unittest.TestCase):
     def test_transport_installs_redirect_rejection_and_does_not_retry_redirect(self) -> None:
