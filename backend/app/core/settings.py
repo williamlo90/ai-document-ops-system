@@ -47,6 +47,13 @@ class Settings:
     email_test_recipient: str | None = None
     accounting_provider: str = "csv_download"
     accounting_sandbox_mode: bool = True
+    erpnext_base_url: str = "http://127.0.0.1:8080"
+    erpnext_site: str = "frontend"
+    erpnext_api_user: str | None = None
+    erpnext_api_key: str | None = None
+    erpnext_api_secret: str | None = None
+    erpnext_timeout_seconds: int = 30
+    erpnext_allowed_hosts: tuple[str, ...] = ("127.0.0.1", "localhost")
     session_ttl_seconds: int = 28_800
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
@@ -127,6 +134,15 @@ def load_settings() -> Settings:
         email_test_recipient=_setting(config, "EMAIL_TEST_RECIPIENT"),
         accounting_provider=_setting(config, "ACCOUNTING_PROVIDER", "csv_download"),
         accounting_sandbox_mode=_boolean(_setting(config, "ACCOUNTING_SANDBOX_MODE", "true")),
+        erpnext_base_url=_setting(config, "ERPNEXT_BASE_URL", "http://127.0.0.1:8080"),
+        erpnext_site=_setting(config, "ERPNEXT_SITE", "frontend"),
+        erpnext_api_user=_setting(config, "ERPNEXT_API_USER"),
+        erpnext_api_key=_setting(config, "ERPNEXT_API_KEY"),
+        erpnext_api_secret=_setting(config, "ERPNEXT_API_SECRET"),
+        erpnext_timeout_seconds=int(_setting(config, "ERPNEXT_TIMEOUT_SECONDS", "30")),
+        erpnext_allowed_hosts=_csv(
+            _setting(config, "ERPNEXT_ALLOWED_HOSTS", "127.0.0.1,localhost")
+        ),
         session_ttl_seconds=int(_setting(config, "SESSION_TTL_SECONDS", "28800")),
         rate_limit_requests=int(_setting(config, "RATE_LIMIT_REQUESTS", "120")),
         rate_limit_window_seconds=int(_setting(config, "RATE_LIMIT_WINDOW_SECONDS", "60")),

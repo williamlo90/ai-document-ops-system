@@ -11,6 +11,7 @@ import { isExportReady, isExportView, type ExportView } from '../features/export
 import type {
   ExportBatch,
   ExportBatchMutationResponse,
+  ERPDeliveryMutationResponse,
   ExportRun,
   ExportWorkspaceResponse,
 } from '../features/exports/types'
@@ -66,6 +67,7 @@ export function ExportsPage() {
     queryFn: () => api<ExportWorkspaceResponse>(`/exports/workspace?${queryString}`),
     refetchInterval: 15_000,
   })
+  const erpEnabled = workspace.data?.capabilities.erp_draft_delivery === true
   const selectedItems = useMemo(
     () => workspace.data?.items.filter((item) => selectedIds.has(item.id)) ?? [],
     [selectedIds, workspace.data?.items],
@@ -128,6 +130,19 @@ export function ExportsPage() {
       void queryClient.invalidateQueries({ queryKey: ['export-workspace'] })
     },
   })
+  const erpDelivery = useMutation({
+    mutationFn: ({ documentId, action }: { documentId: string; action: 'create' | 'reconcile' }) =>
+      api<ERPDeliveryMutationResponse>(
+        action === 'create'
+          ? `/integrations/erpnext/documents/${documentId}/draft`
+          : `/integrations/erpnext/documents/${documentId}/delivery/reconcile`,
+        { method: 'POST' },
+      ),
+    onSuccess: (result) => {
+      setToast(result.delivery.label)
+      void queryClient.invalidateQueries({ queryKey: ['export-workspace'] })
+    },
+  })
 
   const batch = workspace.data?.batch ?? localBatch
   const allChecksPassed =
@@ -169,7 +184,11 @@ export function ExportsPage() {
     <div className="ops-page exports-page">
       <PageHeader
         title="Exports"
-        description="Select approved invoices, verify eligibility, and create a controlled export."
+        description={
+          erpEnabled
+            ? 'Create verified ERPNext drafts from approved invoices. Nothing is posted or paid automatically.'
+            : 'Select approved invoices, verify eligibility, and create a controlled export.'
+        }
       />
       <div className={`export-page-layout ${batch || selectedIds.size ? 'has-batch' : ''}`}>
         <ExportWorkspace
@@ -201,8 +220,16 @@ export function ExportsPage() {
             if (node) batchTriggers.current.set(id, node)
             else batchTriggers.current.delete(id)
           }}
+          erpEnabled={erpEnabled}
+          erpAction={{
+            pendingDocumentId: erpDelivery.isPending
+              ? (erpDelivery.variables?.documentId ?? null)
+              : null,
+            error: erpDelivery.error as Error | null,
+            run: (documentId, action) => erpDelivery.mutate({ documentId, action }),
+          }}
         />
-        {!workspace.error && batch ? (
+        {!erpEnabled && !workspace.error && batch ? (
           <ExportBatchPanel
             batch={batch}
             selectedItems={selectedItems}
@@ -224,7 +251,7 @@ export function ExportsPage() {
           />
         ) : null}
       </div>
-      {confirmOpen && batch ? (
+      {!erpEnabled && confirmOpen && batch ? (
         <ConfirmExport
           batch={batch}
           pending={executeBatch.isPending}

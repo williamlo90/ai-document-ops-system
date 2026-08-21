@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+import json
+from hashlib import sha256
 from typing import Protocol
 from uuid import UUID, uuid4
 
@@ -36,6 +38,9 @@ class IntegrationExportResult:
     external_id: str
     status: str = "sent"
     retryable: bool = False
+    external_url: str | None = None
+    provider_docstatus: int | None = None
+    provider_updated_at: str | None = None
 
 
 class IntegrationDeliveryStatus(StrEnum):
@@ -54,7 +59,12 @@ class IntegrationDeliveryRecord:
     payload_hash: str
     status: IntegrationDeliveryStatus = IntegrationDeliveryStatus.PENDING
     external_id: str | None = None
+    external_url: str | None = None
+    provider_docstatus: int | None = None
+    provider_updated_at: str | None = None
+    reconciled_at: datetime | None = None
     error_code: str | None = None
+    error_detail: str | None = None
     retryable: bool = False
     attempt_count: int = 1
     id: UUID = field(default_factory=uuid4)
@@ -85,8 +95,15 @@ class IntegrationOutcomeUnknown(RuntimeError):
     pass
 
 
+class IntegrationMappingError(ValueError):
+    pass
+
+
 class AccountingIntegrationAdapter(Protocol):
     name: str
+    event_prefix: str
+
+    def payload_hash(self, payload: IntegrationInvoicePayload) -> str: ...
 
     def send_invoice(
         self,
@@ -94,3 +111,16 @@ class AccountingIntegrationAdapter(Protocol):
         *,
         idempotency_key: str,
     ) -> IntegrationExportResult: ...
+
+    def find_invoice(
+        self,
+        payload: IntegrationInvoicePayload,
+        *,
+        idempotency_key: str,
+        payload_hash: str,
+    ) -> IntegrationExportResult | None: ...
+
+
+def integration_payload_hash(payload: IntegrationInvoicePayload) -> str:
+    canonical = json.dumps(asdict(payload), sort_keys=True, separators=(",", ":"))
+    return sha256(canonical.encode("utf-8")).hexdigest()

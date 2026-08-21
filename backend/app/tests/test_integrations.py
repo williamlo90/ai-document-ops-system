@@ -3,7 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from dataclasses import replace
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -275,6 +275,9 @@ class InvoiceIntegrationTests(unittest.TestCase):
                 record,
                 status=IntegrationDeliveryStatus.SUCCEEDED,
                 external_id="ledger-persisted",
+                external_url="http://127.0.0.1:8080/app/purchase-invoice/ledger-persisted",
+                provider_docstatus=0,
+                reconciled_at=datetime(2026, 8, 14, tzinfo=UTC),
             )
         )
         store.connection.close()
@@ -287,6 +290,8 @@ class InvoiceIntegrationTests(unittest.TestCase):
 
         self.assertIsNotNone(recreated)
         self.assertEqual(recreated.external_id, "ledger-persisted")
+        self.assertEqual(recreated.provider_docstatus, 0)
+        self.assertEqual(recreated.reconciled_at, datetime(2026, 8, 14, tzinfo=UTC))
 
     def _integration_service(
         self,
@@ -295,6 +300,7 @@ class InvoiceIntegrationTests(unittest.TestCase):
         return InvoiceIntegrationService(
             self.documents,
             self.extractions,
+            self.reviews,
             self.audits,
             self.workflow,
             adapter or MockAccountingAdapter(),

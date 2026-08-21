@@ -1,5 +1,28 @@
 export type ExportMetric = { count: number; amount: string | null; currency: string | null }
 
+export type ERPDelivery = {
+  status:
+    | 'ready'
+    | 'not_ready'
+    | 'pending'
+    | 'unknown'
+    | 'failed_retryable'
+    | 'failed_permanent'
+    | 'succeeded'
+  label: string
+  can_create: boolean
+  can_reconcile: boolean
+  can_retry: boolean
+  attempt_count: number
+  external_id: string | null
+  external_url: string | null
+  provider_docstatus: number | null
+  error_code: string | null
+  error_message: string | null
+  updated_at: string | null
+  replayed?: boolean
+}
+
 export type ExportInvoiceItem = {
   id: string
   invoice_label: string
@@ -13,6 +36,7 @@ export type ExportInvoiceItem = {
   issue: string | null
   batch_id: string | null
   updated_at: string
+  erp_delivery?: ERPDelivery | null
 }
 
 export type ExportCheck = {
@@ -70,6 +94,7 @@ export type ExportWorkspaceResponse = {
     retry: boolean
     configured_provider: string
     destination_available: boolean
+    erp_draft_delivery?: boolean
   }
   summary: {
     ready: ExportMetric
@@ -85,6 +110,11 @@ export type ExportWorkspaceResponse = {
   filters: { vendors: string[]; currencies: string[]; approvers: string[] }
   batch: ExportBatch | null
   recent_runs: ExportRun[]
+}
+
+export type ERPDeliveryMutationResponse = {
+  document_id: string
+  delivery: ERPDelivery
 }
 
 export type ExportBatchMutationResponse = {

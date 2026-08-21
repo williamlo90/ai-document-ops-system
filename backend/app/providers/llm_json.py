@@ -288,6 +288,13 @@ class _MoneyEvidence:
     source_text: str
 
 
+@dataclass(frozen=True)
+class _CurrencyEvidence:
+    currency: str
+    page_number: int
+    source_text: str
+
+
 def _ground_extraction(
     invoice: InvoiceData,
     confidence: tuple[FieldConfidence, ...],
@@ -298,6 +305,11 @@ def _ground_extraction(
     subtotal = _find_labeled_money(parsed_document, "subtotal")
     tax = _find_labeled_money(parsed_document, "tax")
     total = _find_labeled_money(parsed_document, "total")
+    labeled_currency = _find_labeled_currency(parsed_document)
+    money_currency = next(
+        (evidence for evidence in (total, subtotal, tax) if evidence and evidence.currency),
+        None,
+    )
 
     invoice = replace(
         invoice,
@@ -305,9 +317,8 @@ def _ground_extraction(
         tax=tax.amount if tax else None,
         total=total.amount if total else invoice.total,
         currency=(
-            (total.currency if total else None)
-            or (subtotal.currency if subtotal else None)
-            or (tax.currency if tax else None)
+            (labeled_currency.currency if labeled_currency else None)
+            or (money_currency.currency if money_currency else None)
             or invoice.currency
         ),
     )
@@ -325,7 +336,7 @@ def _ground_extraction(
                     source_text=evidence.source_text,
                 )
             )
-    currency_evidence = total or subtotal or tax
+    currency_evidence = labeled_currency or money_currency
     grounded_confidence = [item for item in grounded_confidence if item.field_name != "currency"]
     if currency_evidence is not None and invoice.currency is not None:
         grounded_confidence.append(
@@ -364,7 +375,7 @@ def _find_labeled_money(
     for pattern in patterns:
         for page_number, page_text in _document_pages(parsed_document):
             for raw_line in page_text.splitlines():
-                line = raw_line.strip().strip("#*| ")
+                line = _plain_markdown_line(raw_line)
                 if not pattern.match(line):
                     continue
                 amounts = re.findall(r"-?\d[\d,. ]*\d|-?\d", line)
@@ -380,6 +391,27 @@ def _find_labeled_money(
                     source_text=raw_line.strip(),
                 )
     return None
+
+
+def _find_labeled_currency(parsed_document: ParsedDocument) -> _CurrencyEvidence | None:
+    pattern = re.compile(r"^currency(?:\s*:|\s*\|)", flags=re.IGNORECASE)
+    for page_number, page_text in _document_pages(parsed_document):
+        for raw_line in page_text.splitlines():
+            line = _plain_markdown_line(raw_line)
+            if not pattern.match(line):
+                continue
+            currency = _source_currency(line)
+            if currency is not None:
+                return _CurrencyEvidence(
+                    currency=currency,
+                    page_number=page_number,
+                    source_text=raw_line.strip(),
+                )
+    return None
+
+
+def _plain_markdown_line(raw_line: str) -> str:
+    return re.sub(r"[*_`]", "", raw_line).strip().strip("#| ")
 
 
 def _money_label_patterns(field_name: str) -> tuple[re.Pattern[str], ...]:
@@ -399,7 +431,7 @@ def _money_label_patterns(field_name: str) -> tuple[re.Pattern[str], ...]:
                 r"^amount[\s_-]*due\b",
                 r"^grand[\s_-]*total\b",
                 r"^invoice[\s_-]*total\b",
-                r"^total\s*:",
+                r"^total(?:\s*:|\s*\|)",
             )
         )
     raise ValueError(f"Unsupported money field: {field_name}")

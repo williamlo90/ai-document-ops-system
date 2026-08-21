@@ -38,6 +38,7 @@ def build_export_module(
         audits=repositories.audits,
         workflow=documents.workflow,
         invoice_exports=service,
+        integration_deliveries=persistence.integration_deliveries,
         transactions=persistence.transactions,
         state_writer=documents.state_writer,
     )

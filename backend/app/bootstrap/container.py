@@ -252,7 +252,7 @@ def build_container(settings: Settings) -> AppContainer:
     documents = build_document_module(settings, persistence)
     review = build_review_module(documents, persistence)
     exports = build_export_module(settings, documents, persistence)
-    integration = build_integration_module(documents, persistence)
+    integration = build_integration_module(settings, documents, persistence)
     evaluation = build_evaluation_module(settings, documents, persistence)
     operations = build_operations_module(settings, documents, persistence)
     agent = build_agent_module(

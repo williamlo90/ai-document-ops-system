@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "dataset_id": "invoice-manual-benchmark-t01-t10",
+  "dataset_source_task": "019fd72c-a003-77d0-bfcf-57313c964d32",
+  "dataset_fingerprint_sha256": "ca37538cd0f823acf811f23b92ffcda9e74c56000ed7f580def37bee75420407",
+  "fingerprint_algorithm": "sha256(alias_utf8 + NUL + pdf_bytes + NUL), sorted by alias",
+  "default_item_code": "BENCH-PROF-SVC",
+  "default_item_name": "Professional Services",
+  "base_currency": "USD",
+  "fixed_exchange_rates": [
+    {
+      "date": "2026-07-03",
+      "from_currency": "EUR",
+      "to_currency": "USD",
+      "exchange_rate": "1.10"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "T01",
+      "alias": "01_standard_usd.pdf",
+      "source_document_id": "standard_usd",
+      "source_file": "examples/benchmark/datasets/invoice_scenarios_v1/documents/standard_usd.pdf",
+      "source_sha256": "55a105e5562ad359c3d0ee127786e5b3cf40c35259312a7787d21849e330f4b2",
+      "supplier_name": "Acme Logistics",
+      "supplier_country": "United States",
+      "currency": "USD",
+      "tax_rate": "10.00",
+      "erp_outcome": "draft_eligible"
+    },
+    {
+      "case_id": "T02",
+      "alias": "02_zero_tax_usd.pdf",
+      "source_document_id": "zero_tax_usd",
+      "source_file": "examples/benchmark/datasets/invoice_scenarios_v1/documents/zero_tax_usd.pdf",
+      "source_sha256": "2b7e8e9cf704237bab8856c232dec3d4b3fda20f7206c6c6670fd02b02cd2ccf",
+      "supplier_name": "Northwind Freight",
+      "supplier_country": "United States",
+      "currency": "USD",
+      "tax_rate": "0.00",
+      "erp_outcome": "draft_eligible"
+    },
+    {
+      "case_id": "T03",
+      "alias": "03_european_number_format.pdf",
+      "source_document_id": "european_number_format",
+      "source_file": "examples/benchmark/datasets/invoice_scenarios_v1/documents/european_number_format.pdf",
+      "source_sha256": "d7171318cdf02551b0013439a8fa15b844f22c748750e40266acb36a5df17af1",
+      "supplier_name": "Rhein Handel GmbH",
+      "supplier_country": "Germany",
+      "currency": "EUR",
+      "tax_rate": "20.00",
+      "erp_outcome": "draft_eligible"
+    },
+    {
+      "case_id": "T04",
+      "alias": "04_missing_vendor.pdf",
+      "source_document_id": "missing_vendor",
+      "source_file": "examples/benchmark/datasets/invoice_scenarios_v1/documents/missing_vendor.pdf",
+      "source_sha256": "cf9fd6d0b43d347e394909db88b580c6da5d37727c8f3220a1d48efd4c1050ae",
+      "supplier_name": null,
+      "supplier_country": null,
+      "currency": "USD",
+      "tax_rate": "10.00",
+      "erp_outcome": "blocked_missing_supplier"
+    },
+    {
+      "case_id": "T05",
+      "alias": "05_total_mismatch.pdf",
+      "source_document_id": "total_mismatch",
+      "source_file": "examples/benchmark/datasets/invoice_scenarios_v1/documents/total_mismatch.pdf",
+      "source_sha256": "ba7bebdb76ac9f04baa54393be953e383e124cb61a08cbe3682e4ec7dce29e57",
+      "supplier_name": "Keystone Manufacturing",
+      "supplier_country": "United States",
+      "currency": "USD",
+      "tax_rate": "10.00",
+      "erp_outcome": "blocked_total_mismatch"
+    },
+    {
+      "case_id": "T06",
+      "alias": "06_invalid_date_order.pdf",
+      "source_document_id": "invalid_date_order",
+      "source_file": "examples/benchmark/datasets/invoice_scenarios_v1/documents/invalid_date_order.pdf",
+      "source_sha256": "795340de55f74c67caa196f63a52827e2115f2c6af42ab655cf049fcb7c42111",
+      "supplier_name": "Meridian Consulting",
+      "supplier_country": "United States",
+      "currency": "USD",
+      "tax_rate": "10.00",
+      "erp_outcome": "blocked_invalid_date_order"
+    },
+    {
+      "case_id": "T07",
+      "alias": "07_duplicate_original.pdf",
+      "source_document_id": "duplicate_original",
+      "source_file": "examples/benchmark/datasets/invoice_scenarios_v1/documents/duplicate_original.pdf",
+      "source_sha256": "0e241881c8074c6a43b74c75e6c1275abd9c98e31802c2a559b1a7a7f6ef8388",
+      "supplier_name": "Summit Industrial Parts",
+      "supplier_country": "United States",
+      "currency": "USD",
+      "tax_rate": "10.00",
+      "erp_outcome": "draft_eligible"
+    },
+    {
+      "case_id": "T08",
+      "alias": "08_duplicate_copy.pdf",
+      "source_document_id": "duplicate_copy",
+      "source_file": "examples/benchmark/datasets/invoice_scenarios_v1/documents/duplicate_copy.pdf",
+      "source_sha256": "59dda3eaae9f5d5bcf8baeaca3835873890ad4a693b49e601c94fc01da106b19",
+      "supplier_name": "Summit Industrial Parts",
+      "supplier_country": "United States",
+      "currency": "USD",
+      "tax_rate": "10.00",
+      "erp_outcome": "blocked_duplicate"
+    },
+    {
+      "case_id": "T09",
+      "alias": "09_low_contrast_scan.pdf",
+      "source_document_id": "low_contrast_scan",
+      "source_file": "examples/benchmark/datasets/invoice_scenarios_v1/documents/low_contrast_scan.pdf",
+      "source_sha256": "84c8b68cf2719191f752efc314d887389fae9e067463f971870cced51de431e5",
+      "supplier_name": "Faded Paper Services",
+      "supplier_country": "United States",
+      "currency": "USD",
+      "tax_rate": "10.00",
+      "erp_outcome": "draft_eligible"
+    },
+    {
+      "case_id": "T10",
+      "alias": "10_rotated_invoice.pdf",
+      "source_document_id": "rotated_invoice",
+      "source_file": "examples/benchmark/datasets/invoice_scenarios_v1/documents/rotated_invoice.pdf",
+      "source_sha256": "121f7f96840a2ce66f28c5062f758d936fc07684c551813081693708cdad7872",
+      "supplier_name": "Sideways Shipping Co",
+      "supplier_country": "United States",
+      "currency": "USD",
+      "tax_rate": "10.00",
+      "erp_outcome": "draft_eligible"
+    }
+  ]
+}

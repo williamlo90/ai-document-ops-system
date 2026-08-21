@@ -57,27 +57,47 @@ configuration uses Mistral OCR and an OpenAI structured extraction model.
 
 ## Results
 
-- The committed evaluation set contains 20 synthetic invoices covering clean cases, missing fields,
-  mismatches, duplicates, low-contrast scans, rotation, and multiple pages.
-- A clean-commit provider diagnostic matched 160 of 160 fields and all 20 expected validation
-  outcomes.
-- A separate sealed holdout of 10 licensed synthetic invoices reached 98.75% field match and 100%
-  validation match. One unsupported due date was still generated and remains documented.
+- The sealed holdout of 10 licensed synthetic invoices reached **98.75% exact field match
+  (79/80)**.
+- The same holdout reached **100% validation-code match** and **100% approval-blocker match**.
+- In a 10-invoice local ERPNext workflow pilot, the six matched draft-eligible cases reduced median
+  elapsed time from **74.5 seconds to 45 seconds (39.6%)**. The application produced the correct
+  expected outcome in **10/10 cases**, compared with **9/10** for direct manual entry.
+- The recorded clean release passed its backend coverage gate with at least **91.21% line
+  coverage**.
+- A separate clean provider diagnostic matched 160 of 160 fields and all 20 expected validation
+  outcomes. This was a diagnostic on a previously used deterministic synthetic set, not the primary
+  holdout result.
 - Reviewer corrections retain the original extraction, actor, reason, timestamp, and field-level
   diff.
-- The release command checks the backend, frontend, dependencies, production build, fixture-based
-  browser tests, and one browser test against the local full stack.
+- Supporting release evidence records 521 backend tests, 23 frontend tests, 29 fixture-browser
+  tests, and one browser journey against the local full stack.
 
-Exact release counts and environment details are stored in
-[release verification](docs/evidence/release-verification.json). Provider results, including failed
-runs, are recorded in the [evaluation log](docs/evaluation-experiment-log.md).
+One unsupported due date remained in the sealed holdout and is documented in the evaluation
+record. These results describe fixed synthetic datasets and local verification, not production
+accuracy or customer outcomes.
+
+## Evidence at a glance
+
+| Evidence                                | Direct record                                                                                    |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| External evaluation summary             | [External Invoice Evaluation V2](docs/external-invoice-evaluation-v2.md)                         |
+| Sealed holdout result                   | [Holdout JSON](docs/evidence/external-invoice-v2-holdout-final.json)                             |
+| Clean release checks and counts         | [Release verification JSON](docs/evidence/release-verification.json)                             |
+| ERPNext workflow-time pilot             | [Benchmark results](docs/erpnext-workflow-benchmark-results.md)                                  |
+| ERPNext machine-readable result         | [Benchmark JSON](docs/evidence/erpnext-workflow-benchmark-v1.json)                               |
+| Experiment history and failure analysis | [Evaluation experiment log](docs/evaluation-experiment-log.md)                                   |
+| Retained localized-number failure       | [Failed diagnostic JSON](docs/evidence/current-provider-diagnostic.failed-20260728T080824Z.json) |
+| One-minute evidence path                | [Recruiter evidence pack](docs/recruiter-evidence-pack.md)                                       |
+| Product walkthrough                     | [Captioned demo video](docs/assets/demo/invoice-review-demo.mp4)                                 |
 
 ## Current limitations
 
-The evaluation uses a small synthetic dataset. Production accuracy, reviewer time savings, cost
-savings, and customer impact have not been measured. Invoice is the only complete document
-workflow. SQLite, local storage, and seeded roles are used for local evaluation; they are not a
-production tenancy setup. Every approval still requires a reviewer.
+The evaluation uses small synthetic datasets. Workflow time was measured only in a single-operator
+local ERPNext pilot; production accuracy, multi-user time savings, cost savings, and customer
+impact have not been measured. Invoice is the only complete document workflow. SQLite, local
+storage, and seeded roles are used for local evaluation; they are not a production tenancy setup.
+Every approval still requires a reviewer.
 
 ## Quick start
 

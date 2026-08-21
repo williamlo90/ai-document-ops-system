@@ -3,6 +3,7 @@ from __future__ import annotations
 from urllib.parse import urlsplit
 
 from app.core.settings import Settings
+from app.integrations.erpnext_client import validate_erpnext_base_url
 
 
 def validate_configured_provider_egress(settings: Settings) -> None:
@@ -19,6 +20,11 @@ def validate_configured_provider_egress(settings: Settings) -> None:
             settings.extractor_endpoint,
             settings.extractor_allowed_hosts,
             label="invoice extractor",
+        )
+    if settings.accounting_provider.strip().casefold() == "erpnext":
+        validate_erpnext_base_url(
+            settings.erpnext_base_url,
+            settings.erpnext_allowed_hosts,
         )
 
 

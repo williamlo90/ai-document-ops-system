@@ -153,6 +153,12 @@ class ApiTests(unittest.TestCase):
             ("get", "/exports/invoices.csv"),
             ("get", "/exports/predictions.json"),
             ("post", f"/integrations/accounting/documents/{document_id}/export"),
+            ("get", f"/integrations/erpnext/documents/{document_id}/delivery"),
+            ("post", f"/integrations/erpnext/documents/{document_id}/draft"),
+            (
+                "post",
+                f"/integrations/erpnext/documents/{document_id}/delivery/reconcile",
+            ),
             ("get", "/metrics/summary"),
             ("get", "/evaluation/dashboard"),
             ("post", "/evaluation/runs"),
