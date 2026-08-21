@@ -1,10 +1,6 @@
 export type ExceptionRisk = 'high' | 'medium'
 export type ExceptionCategory =
-  | 'vendor_invoice'
-  | 'tax_amount'
-  | 'duplicate'
-  | 'dates_details'
-  | 'other'
+  'vendor_invoice' | 'tax_amount' | 'duplicate' | 'dates_details' | 'other'
 
 export type ExceptionItem = {
   id: string
