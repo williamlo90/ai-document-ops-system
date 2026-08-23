@@ -135,18 +135,14 @@ a localized amount such as `1.250,00` and the decimal parser rejected it. The fa
 retained, deterministic number normalization was added, and a regression test covered the case
 before the diagnostic ran again. No partial score was promoted as a pass.
 
-### ERPNext workflow pilot
+### ERPNext draft integration
 
-One operator processed the same 10 generated synthetic invoices through direct ERPNext entry and
-the application-assisted workflow. Six cases were eligible to become drafts; four were expected
-safe blockers. Among the six matched draft pairs, median elapsed time fell from **74.5 seconds to
-45 seconds**, a **39.6% reduction**. The application produced the expected safe or draft outcome in
-**10/10 cases**, compared with **9/10** for manual entry, and all six assisted drafts passed on their
-first creation.
-
-The integration created only ERPNext Purchase Invoice Drafts. It did not submit, post, pay, cancel,
-or delete accounting transactions. Full method, case outcomes, and scope are in the
-[ERPNext workflow benchmark](docs/erpnext-workflow-benchmark-results.md).
+The integration creates ERPNext Purchase Invoice Drafts only after reviewer approval. Supplier and
+currency mapping, idempotency, retries, reconciliation, and restricted ERP permissions are covered
+by automated and local sandbox checks. It cannot submit, post, pay, cancel, or delete accounting
+transactions. The implementation boundary and verification procedure are documented in the
+[ERPNext integration design](docs/erpnext-integration-design.md) and
+[Phase 7 verification](docs/erpnext-phase7-verification.md).
 
 ## Review and workflow checks
 
@@ -211,8 +207,8 @@ approve or export an invoice.
 - Provider availability interrupted the first external holdout. The second still produced one
   unsupported due date.
 - No finance user has completed the planned usability study.
-- Workflow time was measured only in a single-operator local pilot; production savings, cost
-  savings, and customer impact have not been measured.
+- No valid workflow-time comparison, production savings, cost savings, or customer impact has been
+  measured.
 - Provider behavior may change when hosted models change.
 - Invoice is the only complete document schema.
 - Local authentication, SQLite, and file storage are not a production tenancy setup.

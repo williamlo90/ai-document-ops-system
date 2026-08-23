@@ -18,9 +18,8 @@ contains reproducible technical evidence and deeper implementation notes.
 
 ## Workflow Evidence
 
-- [ERPNext workflow benchmark results](erpnext-workflow-benchmark-results.md)
-- [ERPNext workflow benchmark JSON](evidence/erpnext-workflow-benchmark-v1.json)
 - [ERPNext controlled benchmark protocol](erpnext-benchmark-protocol.md)
+- [ERPNext technical verification](erpnext-phase7-verification.md)
 - [ERPNext integration SDLC](erpnext-integration-sdlc.md)
 - [Reviewer correction feedback](reviewer-correction-feedback.md)
 - [Project tour](recruiter-evidence-pack.md)

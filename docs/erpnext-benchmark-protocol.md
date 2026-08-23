@@ -2,7 +2,7 @@
 
 Protocol version: 1.2
 Frozen: 2026-08-21
-Status: method frozen; local pilot completed 2026-08-22
+Status: method frozen; formal comparison pending
 
 ## Question
 
@@ -12,8 +12,8 @@ workflow compare with direct manual entry when producing a verified ERPNext draf
 The benchmark measures workflow time and draft correctness. It does not measure production impact,
 multi-user usability, or new extraction accuracy.
 
-The completed outcome is published in
-[ERPNext Workflow Benchmark Results](erpnext-workflow-benchmark-results.md).
+Results are published only after both workflows complete this protocol. Private timing records and
+screen recordings remain outside Git.
 
 ## Test Set
 

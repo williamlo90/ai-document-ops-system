@@ -11,8 +11,8 @@ remain.
    [external evaluation summary](external-invoice-evaluation-v2.md).
 3. Check the [recorded clean release](evidence/release-verification.json) and the retained
    [failed diagnostic](evidence/current-provider-diagnostic.failed-20260728T080824Z.json).
-4. Review the [ERPNext workflow pilot](erpnext-workflow-benchmark-results.md) for the draft delivery
-   benchmark.
+4. Review the [ERPNext technical verification](erpnext-phase7-verification.md) for the controlled
+   draft-delivery boundary.
 5. Read the [evaluation log](evaluation-experiment-log.md) for the experiment chronology.
 
 ## Evidence summary
@@ -24,8 +24,7 @@ remain.
 | Backend coverage                 |                                              **At least 91.21% lines** | Recorded clean local release source; coverage gate passed      | [Release JSON](evidence/release-verification.json)              |
 | Engineering verification         | **521 backend, 23 frontend, 29 fixture-browser, 1 full-stack journey** | Clean local release on the recorded Windows environment        | [Release JSON](evidence/release-verification.json)              |
 | Known extraction failure         |                                             **1 unsupported due date** | Same sealed holdout; no blocker mismatch                       | [Evaluation summary](external-invoice-evaluation-v2.md)         |
-| ERPNext workflow time            |                                  **74.5s to 45s median (39.6% lower)** | Six matched draft-eligible cases; one operator; local sandbox  | [Benchmark result](erpnext-workflow-benchmark-results.md)       |
-| ERPNext expected outcomes        |                                        **10/10 assisted; 9/10 manual** | Six draft cases and four intentional blockers                  | [Benchmark JSON](evidence/erpnext-workflow-benchmark-v1.json)   |
+| ERPNext delivery boundary        |                                               **Approved drafts only** | Local sandbox; no submit, post, payment, cancel, or delete     | [Technical verification](erpnext-phase7-verification.md)        |
 
 ## The problem
 
@@ -61,8 +60,8 @@ approval or export, so the model is not allowed to make that decision.
 
 - The committed 20-document dataset is deterministic and synthetic.
 - The external FATURA packs are licensed synthetic documents, not customer traffic.
-- No formal finance-user usability study or production business-impact measurement has been
-  completed. The workflow-time result is a single-operator local pilot.
+- No formal finance-user usability study, valid workflow-time comparison, or production
+  business-impact measurement has been completed.
 - SQLite, local sessions, and seeded role tokens are part of the portfolio setup, not a production
   tenancy model.
 - Processing untrusted or real client documents still requires the security work listed in the

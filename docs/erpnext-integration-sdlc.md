@@ -143,8 +143,7 @@ retained outside Git for manual inspection and must be removed during the Phase 
       extraction, reviewer correction, approval, and verified ERPNext Draft creation.
 - [x] Reset the Phase 8 practice Draft before measurement.
 - [x] Confirm timer rules and evidence capture are practical.
-- [ ] Freeze code, configuration, and procedure before measurement. The completed work is therefore
-      reported as a local pilot rather than a production-impact study.
+- [ ] Freeze code, configuration, and procedure before the formal comparison.
 
 The exact operator procedure and commands are recorded in
 [ERPNext Phase 8 Dry Run](erpnext-phase8-dry-run.md). Dry-run PDFs, timings, ERP IDs, and the freeze
@@ -152,29 +151,26 @@ manifest remain under ignored `_private_data/` storage.
 
 ### Phase 9 - Benchmark Execution
 
-- [x] Run both workflows for all 10 invoices.
-- [x] Use the planned crossover order for 19 of 20 trials; retain the ERP-01 order variation in the
-      evidence record.
-- [x] Record elapsed time, corrections, draft correctness, failures, and ERP ID.
-- [ ] Record active human time separately. Only combined elapsed time was captured.
-- [x] Retain the manual ERP-06 failure as observed instead of replacing it with a clean rerun.
+- [ ] Run both workflows for all 10 invoices under the frozen protocol.
+- [ ] Use the planned crossover order for all 20 trials.
+- [ ] Record elapsed time, active human time, corrections, draft correctness, failures, and ERP ID.
+- [ ] Retain interrupted or failed formal outcomes according to the protocol.
 
 ### Phase 10 - Analysis
 
-- [x] Calculate median manual and assisted elapsed time.
-- [ ] Calculate median manual and assisted active human time. This metric is unavailable because
-      active time was not captured separately.
-- [x] Calculate time reduction, draft accuracy, first-pass success, correction rate, integration
+- [ ] Calculate median manual and assisted elapsed time.
+- [ ] Calculate median manual and assisted active human time.
+- [ ] Calculate time reduction, draft accuracy, first-pass success, correction rate, integration
       failure rate, and duplicate-prevention result.
-- [ ] Separate provider wait, ERP wait, and human work. The timing record does not permit this split.
-- [x] Explain outliers and failed cases.
+- [ ] Separate provider wait, ERP wait, and human work.
+- [ ] Explain outliers and failed cases.
 
 ### Phase 11 - Documentation and Release
 
-- [x] Publish the protocol, aggregate results, limitations, and selected non-sensitive evidence.
-- [x] Update the README and case study without exposing private documents or secrets.
+- [ ] Publish aggregate results, limitations, and selected non-sensitive evidence.
+- [ ] Update the README and case study without exposing private documents or secrets.
 - [x] Run final regression and packaging checks.
-- [x] Freeze the ERP milestone after one final benchmark push.
+- [ ] Freeze the benchmark after one final results push.
 
 ## Commit and Push Strategy
 
@@ -196,13 +192,6 @@ benchmark worksheets containing sensitive paths or source content.
 
 ## Permitted Final Claim
 
-Use this measured claim with its linked scope:
-
-> In a local pilot conducted by one operator with 10 generated synthetic invoices, the application
-> reduced median elapsed time from 74.5 seconds to 45 seconds (39.6%) across the six matched
-> draft-eligible cases. It produced the correct expected draft or blocker outcome in 10/10 cases,
-> compared with 9/10 for direct manual entry.
-
-This is not a production outcome, multi-user study, or new extraction-accuracy holdout. The detailed
-scope and execution notes are retained in
-[ERPNext Workflow Benchmark Results](erpnext-workflow-benchmark-results.md).
+No workflow-time claim is currently permitted. After a valid formal run, use the scoped reporting
+template in the [controlled benchmark protocol](erpnext-benchmark-protocol.md) and link the
+machine-readable evidence beside the claim.
