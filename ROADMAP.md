@@ -107,8 +107,11 @@ Upload -> Check source and fields -> Resolve blockers -> Decide -> Export approv
 The application creates and verifies ERPNext Purchase Invoice Drafts without submitting, posting,
 or paying them. Approval, mapping, duplicate, timeout, reconciliation, restart, field-match,
 permission, and log-redaction boundaries passed technical verification. A workflow-time comparison
-will be published only after both methods are run under the controlled protocol. See the
-[technical verification](docs/erpnext-phase7-verification.md) and
+for the six draft-eligible cases was rerun with source verification included in both methods. The
+four intentional blocker outcomes retain their earlier recorded values and remain excluded from the
+draft-time median. See the
+[paired timing result](docs/erpnext-paired-draft-timing-results.md),
+[technical verification](docs/erpnext-phase7-verification.md), and
 [integration SDLC](docs/erpnext-integration-sdlc.md).
 
 Before processing real client data:

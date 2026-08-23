@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "erpnext-paired-draft-timing-v2",
+  "status": "completed_paired_timing_with_retained_blocker_outcomes",
+  "paired_timing_run_date": "2026-08-23",
+  "retained_blocker_run_dates": ["2026-08-21", "2026-08-22"],
+  "scope": {
+    "operator_count": 1,
+    "document_count": 10,
+    "paired_draft_case_count": 6,
+    "retained_blocker_case_count": 4,
+    "document_source": "generated synthetic invoices",
+    "dataset_fingerprint": "ca37538cd0f823acf811f23b92ffcda9e74c56000ed7f580def37bee75420407",
+    "protocol_version": "1.2",
+    "target": "local ERPNext Purchase Invoice Draft",
+    "retained_blocker_cases": ["ERP-04", "ERP-05", "ERP-06", "ERP-08"]
+  },
+  "method": {
+    "timing_unit": "elapsed_seconds",
+    "manual_workflow": "Open the PDF, enter the invoice into ERPNext, check the entered values against the source, save and verify the draft.",
+    "assisted_workflow": "Upload the PDF, review the extracted values, approve the invoice, create and verify the ERPNext draft.",
+    "manual_check_time_note": "The source check took approximately 10 to 15 seconds per case and is included in elapsed time, but was not timed separately.",
+    "blocker_evidence_note": "The four blocker timings and outcomes retain the previously recorded values. The operator reran the blockers and reported the same outcomes with timing differences of approximately zero to two seconds, but did not record exact replacement timings.",
+    "active_human_time_recorded_separately": false
+  },
+  "primary_results": {
+    "paired_verified_draft_n": 6,
+    "manual_median_elapsed_seconds": 153,
+    "assisted_median_elapsed_seconds": 49,
+    "median_elapsed_reduction_rate": 0.6797385621,
+    "manual_expected_outcome_success": {
+      "count": 9,
+      "total": 10,
+      "rate": 0.9
+    },
+    "assisted_expected_outcome_success": {
+      "count": 10,
+      "total": 10,
+      "rate": 1.0
+    },
+    "manual_outcome_failures": 1,
+    "assisted_outcome_failures": 0,
+    "duplicate_drafts_created": 0,
+    "unsafe_non_draft_states_created": 0
+  },
+  "cases": [
+    {
+      "id": "ERP-01",
+      "scenario": "standard_usd",
+      "manual_seconds": 145,
+      "assisted_seconds": 48,
+      "manual_outcome": "verified_draft",
+      "assisted_outcome": "verified_draft",
+      "evidence_source": "corrected_paired_timing_rerun"
+    },
+    {
+      "id": "ERP-02",
+      "scenario": "no_tax",
+      "manual_seconds": 150,
+      "assisted_seconds": 50,
+      "manual_outcome": "verified_draft",
+      "assisted_outcome": "verified_draft",
+      "evidence_source": "corrected_paired_timing_rerun"
+    },
+    {
+      "id": "ERP-03",
+      "scenario": "eur_currency",
+      "manual_seconds": 255,
+      "assisted_seconds": 46,
+      "manual_outcome": "verified_draft",
+      "assisted_outcome": "verified_draft",
+      "evidence_source": "corrected_paired_timing_rerun"
+    },
+    {
+      "id": "ERP-04",
+      "scenario": "missing_supplier",
+      "manual_seconds": 75,
+      "assisted_seconds": 30,
+      "manual_outcome": "safe_blocker",
+      "assisted_outcome": "safe_blocker",
+      "evidence_source": "retained_blocker_observation"
+    },
+    {
+      "id": "ERP-05",
+      "scenario": "total_mismatch",
+      "manual_seconds": 32,
+      "assisted_seconds": 27,
+      "manual_outcome": "safe_blocker",
+      "assisted_outcome": "safe_blocker",
+      "evidence_source": "retained_blocker_observation"
+    },
+    {
+      "id": "ERP-06",
+      "scenario": "invalid_date_order",
+      "manual_seconds": 68,
+      "assisted_seconds": 27,
+      "manual_outcome": "manual_entry_error",
+      "assisted_outcome": "safe_blocker",
+      "evidence_source": "retained_blocker_observation"
+    },
+    {
+      "id": "ERP-07",
+      "scenario": "duplicate_original",
+      "manual_seconds": 156,
+      "assisted_seconds": 45,
+      "manual_outcome": "verified_draft",
+      "assisted_outcome": "verified_draft",
+      "evidence_source": "corrected_paired_timing_rerun"
+    },
+    {
+      "id": "ERP-08",
+      "scenario": "duplicate_copy",
+      "manual_seconds": 76,
+      "assisted_seconds": 40,
+      "manual_outcome": "safe_blocker",
+      "assisted_outcome": "safe_blocker",
+      "evidence_source": "retained_blocker_observation"
+    },
+    {
+      "id": "ERP-09",
+      "scenario": "low_contrast",
+      "manual_seconds": 182,
+      "assisted_seconds": 51,
+      "manual_outcome": "verified_draft",
+      "assisted_outcome": "verified_draft",
+      "evidence_source": "corrected_paired_timing_rerun"
+    },
+    {
+      "id": "ERP-10",
+      "scenario": "rotated",
+      "manual_seconds": 143,
+      "assisted_seconds": 55,
+      "manual_outcome": "verified_draft",
+      "assisted_outcome": "verified_draft",
+      "evidence_source": "corrected_paired_timing_rerun"
+    }
+  ],
+  "calculation": {
+    "manual_sorted_seconds": [143, 145, 150, 156, 182, 255],
+    "assisted_sorted_seconds": [45, 46, 48, 50, 51, 55],
+    "manual_median_formula": "(150 + 156) / 2",
+    "assisted_median_formula": "(48 + 50) / 2",
+    "reduction_formula": "(153 - 49) / 153"
+  },
+  "claim_boundary": [
+    "single operator",
+    "six paired draft-eligible cases only",
+    "generated synthetic invoices",
+    "known test set",
+    "local ERPNext sandbox",
+    "paired timing uses the six corrected draft-case reruns only",
+    "10-case outcome rates combine six corrected draft reruns with four retained blocker observations",
+    "retained blocker timings are excluded from the paired draft median",
+    "active human time and unattended wait were not recorded separately",
+    "not production savings or customer impact"
+  ]
+}

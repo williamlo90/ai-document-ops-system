@@ -144,6 +144,14 @@ transactions. The implementation boundary and verification procedure are documen
 [ERPNext integration design](docs/erpnext-integration-design.md) and
 [Phase 7 verification](docs/erpnext-phase7-verification.md).
 
+The six draft-eligible invoices were rerun with source verification included in both workflows.
+Median elapsed time was **153 seconds for direct ERPNext entry** and **49 seconds through the
+application**, a **68.0% reduction** in this single-operator local comparison. The four intentional
+blocker cases retained their earlier recorded outcomes and were excluded from the draft-time
+median. Across the combined outcome record, the application produced the expected result in
+**10/10 cases**, compared with **9/10** for direct manual entry. The calculation, provenance, and
+individual timings are in the [paired draft timing result](docs/erpnext-paired-draft-timing-results.md).
+
 ## Review and workflow checks
 
 The tested workflow showed that:
@@ -207,8 +215,9 @@ approve or export an invoice.
 - Provider availability interrupted the first external holdout. The second still produced one
   unsupported due date.
 - No finance user has completed the planned usability study.
-- No valid workflow-time comparison, production savings, cost savings, or customer impact has been
-  measured.
+- Workflow timing covers one operator and six known synthetic draft cases. The outcome record uses
+  four retained blocker observations; production savings, cost savings, and customer impact were
+  not measured.
 - Provider behavior may change when hosted models change.
 - Invoice is the only complete document schema.
 - Local authentication, SQLite, and file storage are not a production tenancy setup.

@@ -12,7 +12,8 @@ remain.
 3. Check the [recorded clean release](evidence/release-verification.json) and the retained
    [failed diagnostic](evidence/current-provider-diagnostic.failed-20260728T080824Z.json).
 4. Review the [ERPNext technical verification](erpnext-phase7-verification.md) for the controlled
-   draft-delivery boundary.
+   draft-delivery boundary and the [paired timing result](erpnext-paired-draft-timing-results.md)
+   for the six-case workflow comparison.
 5. Read the [evaluation log](evaluation-experiment-log.md) for the experiment chronology.
 
 ## Evidence summary
@@ -25,6 +26,8 @@ remain.
 | Engineering verification         | **521 backend, 23 frontend, 29 fixture-browser, 1 full-stack journey** | Clean local release on the recorded Windows environment        | [Release JSON](evidence/release-verification.json)              |
 | Known extraction failure         |                                             **1 unsupported due date** | Same sealed holdout; no blocker mismatch                       | [Evaluation summary](external-invoice-evaluation-v2.md)         |
 | ERPNext delivery boundary        |                                               **Approved drafts only** | Local sandbox; no submit, post, payment, cancel, or delete     | [Technical verification](erpnext-phase7-verification.md)        |
+| ERPNext paired draft timing      |                                   **153s to 49s median (68.0% lower)** | Six draft-eligible cases; one operator; local sandbox          | [Timing result](erpnext-paired-draft-timing-results.md)         |
+| ERPNext recorded outcomes        |                                        **10/10 assisted; 9/10 manual** | Six corrected draft reruns plus four retained blocker outcomes | [Timing result](erpnext-paired-draft-timing-results.md)         |
 
 ## The problem
 
@@ -60,8 +63,9 @@ approval or export, so the model is not allowed to make that decision.
 
 - The committed 20-document dataset is deterministic and synthetic.
 - The external FATURA packs are licensed synthetic documents, not customer traffic.
-- No formal finance-user usability study, valid workflow-time comparison, or production
-  business-impact measurement has been completed.
+- No formal finance-user usability study or production business-impact measurement has been
+  completed. Workflow timing covers one operator and six known synthetic draft cases; the 10-case
+  outcome record includes four retained blocker observations.
 - SQLite, local sessions, and seeded role tokens are part of the portfolio setup, not a production
   tenancy model.
 - Processing untrusted or real client documents still requires the security work listed in the

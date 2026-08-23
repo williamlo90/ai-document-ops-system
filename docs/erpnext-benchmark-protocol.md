@@ -2,7 +2,7 @@
 
 Protocol version: 1.2
 Frozen: 2026-08-21
-Status: method frozen; formal comparison pending
+Status: six-case paired draft timing completed 2026-08-23; prior blocker outcomes retained
 
 ## Question
 
@@ -12,8 +12,10 @@ workflow compare with direct manual entry when producing a verified ERPNext draf
 The benchmark measures workflow time and draft correctness. It does not measure production impact,
 multi-user usability, or new extraction accuracy.
 
-Results are published only after both workflows complete this protocol. Private timing records and
-screen recordings remain outside Git.
+The six-case paired draft timing is published in
+[ERPNext Paired Draft Timing Results](erpnext-paired-draft-timing-results.md). The outcome summary
+combines those six reruns with four retained blocker observations. Private timing records and screen
+recordings remain outside Git.
 
 ## Test Set
 

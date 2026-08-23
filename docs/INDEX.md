@@ -19,6 +19,8 @@ contains reproducible technical evidence and deeper implementation notes.
 ## Workflow Evidence
 
 - [ERPNext controlled benchmark protocol](erpnext-benchmark-protocol.md)
+- [ERPNext paired draft timing results](erpnext-paired-draft-timing-results.md)
+- [ERPNext paired draft timing JSON](evidence/erpnext-paired-draft-timing-v2.json)
 - [ERPNext technical verification](erpnext-phase7-verification.md)
 - [ERPNext integration SDLC](erpnext-integration-sdlc.md)
 - [Reviewer correction feedback](reviewer-correction-feedback.md)

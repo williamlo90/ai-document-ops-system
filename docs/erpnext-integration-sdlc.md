@@ -152,23 +152,29 @@ manifest remain under ignored `_private_data/` storage.
 ### Phase 9 - Benchmark Execution
 
 - [ ] Run both workflows for all 10 invoices under the frozen protocol.
+- [x] Rerun both workflows for the six draft-eligible invoices with source verification included.
+- [x] Retain the four previously recorded blocker outcomes; exclude their times from the paired
+      draft median.
 - [ ] Use the planned crossover order for all 20 trials.
-- [ ] Record elapsed time, active human time, corrections, draft correctness, failures, and ERP ID.
+- [x] Record elapsed time and verified-draft completion for the six paired draft cases.
+- [ ] Record active human time, corrections, failures, and ERP ID for the full 10-case run.
 - [ ] Retain interrupted or failed formal outcomes according to the protocol.
 
 ### Phase 10 - Analysis
 
-- [ ] Calculate median manual and assisted elapsed time.
+- [x] Calculate median manual and assisted elapsed time for the six paired draft cases.
 - [ ] Calculate median manual and assisted active human time.
-- [ ] Calculate time reduction, draft accuracy, first-pass success, correction rate, integration
-      failure rate, and duplicate-prevention result.
+- [x] Calculate paired elapsed-time reduction.
+- [x] Calculate the combined 10-case expected-outcome rate with explicit mixed-run provenance.
+- [ ] Calculate draft accuracy, first-pass success, correction rate, integration failure rate, and
+      duplicate-prevention result for the full run.
 - [ ] Separate provider wait, ERP wait, and human work.
 - [ ] Explain outliers and failed cases.
 
 ### Phase 11 - Documentation and Release
 
-- [ ] Publish aggregate results, limitations, and selected non-sensitive evidence.
-- [ ] Update the README and case study without exposing private documents or secrets.
+- [x] Publish the paired draft timing, limitations, and non-sensitive evidence.
+- [x] Update the README and case study without exposing private documents or secrets.
 - [x] Run final regression and packaging checks.
 - [ ] Freeze the benchmark after one final results push.
 
@@ -192,6 +198,14 @@ benchmark worksheets containing sensitive paths or source content.
 
 ## Permitted Final Claim
 
-No workflow-time claim is currently permitted. After a valid formal run, use the scoped reporting
-template in the [controlled benchmark protocol](erpnext-benchmark-protocol.md) and link the
-machine-readable evidence beside the claim.
+The current permitted claim is:
+
+> In a local run by one operator using six draft-eligible generated invoices, median elapsed time
+> from opening the source to a verified ERPNext draft was 153 seconds for direct entry and 49
+> seconds through the application, a 68.0% reduction.
+
+The outcome record may be reported separately as 10/10 expected outcomes for the application and
+9/10 for manual entry. Always state that this combines six corrected draft reruns with four retained
+blocker observations. Do not present it as one same-session 20-trial run, production saving,
+multi-user result, or customer impact. Link the [paired timing result](erpnext-paired-draft-timing-results.md)
+beside the claim.

@@ -60,8 +60,14 @@ configuration uses Mistral OCR and an OpenAI structured extraction model.
 - The sealed holdout of 10 licensed synthetic invoices reached **98.75% exact field match
   (79/80)**.
 - The same holdout reached **100% validation-code match** and **100% approval-blocker match**.
-- ERPNext draft delivery is covered by approval, mapping, idempotency, permission, reconciliation,
-  and retry checks. No workflow-time comparison is currently published.
+- Across six paired draft-eligible synthetic invoices, median elapsed time from opening the source
+  to a verified ERPNext draft was **153 seconds for direct entry** and **49 seconds through the
+  application**, a **68.0% reduction** for this single-operator local run.
+- In the combined 10-case outcome record, the application produced the expected draft or blocker
+  outcome in **10/10 cases**, compared with **9/10** for direct manual entry. The four blocker
+  observations were retained from the earlier run and excluded from the draft-time median.
+- ERPNext draft delivery is also covered by approval, mapping, idempotency, permission,
+  reconciliation, and retry checks.
 - The recorded clean release passed its backend coverage gate with at least **91.21% line
   coverage**.
 - A separate clean provider diagnostic matched 160 of 160 fields and all 20 expected validation
@@ -84,6 +90,7 @@ accuracy or customer outcomes.
 | Sealed holdout result                   | [Holdout JSON](docs/evidence/external-invoice-v2-holdout-final.json)                             |
 | Clean release checks and counts         | [Release verification JSON](docs/evidence/release-verification.json)                             |
 | ERPNext integration verification        | [Phase 7 verification](docs/erpnext-phase7-verification.md)                                      |
+| ERPNext paired draft timing             | [Timing results](docs/erpnext-paired-draft-timing-results.md)                                    |
 | ERPNext benchmark method                | [Controlled benchmark protocol](docs/erpnext-benchmark-protocol.md)                              |
 | Experiment history and failure analysis | [Evaluation experiment log](docs/evaluation-experiment-log.md)                                   |
 | Retained localized-number failure       | [Failed diagnostic JSON](docs/evidence/current-provider-diagnostic.failed-20260728T080824Z.json) |
@@ -92,10 +99,12 @@ accuracy or customer outcomes.
 
 ## Current limitations
 
-The evaluation uses small synthetic datasets. No valid workflow-time comparison, production
-accuracy, multi-user time savings, cost savings, or customer impact has been measured. Invoice is
-the only complete document workflow. SQLite, local storage, and seeded roles are used for local
-evaluation; they are not a production tenancy setup. Every approval still requires a reviewer.
+The evaluation uses small synthetic datasets. The workflow-time comparison covers one operator and
+six known synthetic draft cases. The 10-case outcome record combines those reruns with four
+retained blocker observations; it is not one same-session 20-trial run and does not measure
+production accuracy, multi-user time savings, cost savings, or customer impact. Invoice is the only
+complete document workflow. SQLite, local storage, and seeded roles are used for local evaluation;
+they are not a production tenancy setup. Every approval still requires a reviewer.
 
 ## Quick start
 
