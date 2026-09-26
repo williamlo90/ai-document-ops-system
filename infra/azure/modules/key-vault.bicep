@@ -24,7 +24,6 @@ resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       family: 'A'
       name: 'standard'
     }
-    enablePurgeProtection: false
     enableRbacAuthorization: true
     enableSoftDelete: true
     publicNetworkAccess: 'Enabled'
