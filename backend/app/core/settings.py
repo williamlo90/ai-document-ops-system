@@ -19,11 +19,27 @@ class Settings:
     storage_backend: str = "memory"
     sqlite_path: Path = Path("backend/data/doc_intel.sqlite3")
     database_url: str | None = None
+    database_pool_size: int = 5
+    database_connect_timeout_seconds: int = 5
+    database_acquire_timeout_seconds: float = 5.0
     s3_endpoint_url: str | None = None
     s3_bucket: str | None = None
     s3_region: str | None = None
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
+    azure_storage_account_url: str | None = None
+    azure_storage_connection_string: str | None = None
+    azure_storage_container: str = "documents"
+    azure_managed_identity_client_id: str | None = None
+    azure_storage_timeout_seconds: int = 30
+    azure_storage_create_container: bool = False
+    processing_queue_backend: str = "none"
+    azure_service_bus_namespace: str | None = None
+    azure_service_bus_connection_string: str | None = None
+    azure_service_bus_queue_name: str = "document-processing"
+    azure_service_bus_timeout_seconds: int = 30
+    azure_service_bus_max_lock_renewal_seconds: int = 300
+    azure_service_bus_max_delivery_count: int = 5
     parser_provider: str = "mock"
     extractor_provider: str = "mock"
     mistral_api_key: str | None = None
@@ -96,11 +112,41 @@ def load_settings() -> Settings:
         storage_backend=_setting(config, "STORAGE_BACKEND", "memory"),
         sqlite_path=Path(_setting(config, "SQLITE_PATH", "backend/data/doc_intel.sqlite3")),
         database_url=_setting(config, "DATABASE_URL"),
+        database_pool_size=int(_setting(config, "DATABASE_POOL_SIZE", "5")),
+        database_connect_timeout_seconds=int(
+            _setting(config, "DATABASE_CONNECT_TIMEOUT_SECONDS", "5")
+        ),
+        database_acquire_timeout_seconds=float(
+            _setting(config, "DATABASE_ACQUIRE_TIMEOUT_SECONDS", "5")
+        ),
         s3_endpoint_url=_setting(config, "S3_ENDPOINT_URL"),
         s3_bucket=_setting(config, "S3_BUCKET"),
         s3_region=_setting(config, "S3_REGION"),
         s3_access_key_id=_setting(config, "S3_ACCESS_KEY_ID"),
         s3_secret_access_key=_setting(config, "S3_SECRET_ACCESS_KEY"),
+        azure_storage_account_url=_setting(config, "AZURE_STORAGE_ACCOUNT_URL"),
+        azure_storage_connection_string=_setting(config, "AZURE_STORAGE_CONNECTION_STRING"),
+        azure_storage_container=_setting(config, "AZURE_STORAGE_CONTAINER", "documents"),
+        azure_managed_identity_client_id=_setting(config, "AZURE_MANAGED_IDENTITY_CLIENT_ID"),
+        azure_storage_timeout_seconds=int(_setting(config, "AZURE_STORAGE_TIMEOUT_SECONDS", "30")),
+        azure_storage_create_container=_boolean(
+            _setting(config, "AZURE_STORAGE_CREATE_CONTAINER", "false")
+        ),
+        processing_queue_backend=_setting(config, "PROCESSING_QUEUE_BACKEND", "none"),
+        azure_service_bus_namespace=_setting(config, "AZURE_SERVICE_BUS_NAMESPACE"),
+        azure_service_bus_connection_string=_setting(config, "AZURE_SERVICE_BUS_CONNECTION_STRING"),
+        azure_service_bus_queue_name=_setting(
+            config, "AZURE_SERVICE_BUS_QUEUE_NAME", "document-processing"
+        ),
+        azure_service_bus_timeout_seconds=int(
+            _setting(config, "AZURE_SERVICE_BUS_TIMEOUT_SECONDS", "30")
+        ),
+        azure_service_bus_max_lock_renewal_seconds=int(
+            _setting(config, "AZURE_SERVICE_BUS_MAX_LOCK_RENEWAL_SECONDS", "300")
+        ),
+        azure_service_bus_max_delivery_count=int(
+            _setting(config, "AZURE_SERVICE_BUS_MAX_DELIVERY_COUNT", "5")
+        ),
         parser_provider=_setting(config, "PARSER_PROVIDER", "mock"),
         extractor_provider=_setting(config, "EXTRACTOR_PROVIDER", "mock"),
         mistral_api_key=_setting(config, "MISTRAL_API_KEY"),

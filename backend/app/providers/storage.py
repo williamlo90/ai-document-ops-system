@@ -5,7 +5,7 @@ from datetime import datetime
 from os import PathLike
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Iterable, Protocol
+from typing import Iterable, Protocol, cast
 from uuid import uuid4
 
 
@@ -13,6 +13,14 @@ PDF_SIGNATURE = b"%PDF-"
 
 
 class StorageError(ValueError):
+    pass
+
+
+class StorageNotFoundError(StorageError):
+    pass
+
+
+class StorageTransientError(StorageError):
     pass
 
 
@@ -30,6 +38,8 @@ class DocumentStorage(Protocol):
         original_filename: str,
         content_type: str,
         content: bytes,
+        *,
+        workspace_id: str = "default",
     ) -> StoredFile: ...
 
     def save_upload_stream(
@@ -37,6 +47,8 @@ class DocumentStorage(Protocol):
         original_filename: str,
         content_type: str,
         chunks: Iterable[bytes],
+        *,
+        workspace_id: str = "default",
     ) -> StoredFile: ...
 
     def open_for_parser(self, storage_key: str) -> Path: ...
@@ -54,7 +66,14 @@ class LocalStorageService:
         self.max_upload_bytes = max_upload_bytes
         self.upload_root.mkdir(parents=True, exist_ok=True)
 
-    def save_upload(self, original_filename: str, content_type: str, content: bytes) -> StoredFile:
+    def save_upload(
+        self,
+        original_filename: str,
+        content_type: str,
+        content: bytes,
+        *,
+        workspace_id: str = "default",
+    ) -> StoredFile:
         self._validate_upload(original_filename, content_type, content)
         storage_key = f"{uuid4()}.pdf"
         target_path = self._resolve_storage_key(storage_key)
@@ -71,6 +90,8 @@ class LocalStorageService:
         original_filename: str,
         content_type: str,
         chunks: Iterable[bytes],
+        *,
+        workspace_id: str = "default",
     ) -> StoredFile:
         if Path(original_filename).suffix.lower() != ".pdf":
             raise StorageError("Only PDF files are accepted")
@@ -182,11 +203,25 @@ class S3CompatibleStorageService:
             aws_secret_access_key=secret_access_key,
         )
 
-    def save_upload(self, original_filename: str, content_type: str, content: bytes) -> StoredFile:
-        return self.save_upload_stream(original_filename, content_type, (content,))
+    def save_upload(
+        self,
+        original_filename: str,
+        content_type: str,
+        content: bytes,
+        *,
+        workspace_id: str = "default",
+    ) -> StoredFile:
+        return self.save_upload_stream(
+            original_filename, content_type, (content,), workspace_id=workspace_id
+        )
 
     def save_upload_stream(
-        self, original_filename: str, content_type: str, chunks: Iterable[bytes]
+        self,
+        original_filename: str,
+        content_type: str,
+        chunks: Iterable[bytes],
+        *,
+        workspace_id: str = "default",
     ) -> StoredFile:
         if Path(original_filename).suffix.lower() != ".pdf" or content_type != "application/pdf":
             raise StorageError("Only PDF files are accepted")
@@ -222,10 +257,13 @@ class S3CompatibleStorageService:
     def create_download_url(self, storage_key: str, expires_seconds: int = 300) -> str:
         if Path(storage_key).name != storage_key:
             raise StorageError("Invalid storage key")
-        return self.client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": self.bucket, "Key": storage_key},
-            ExpiresIn=min(max(expires_seconds, 60), 900),
+        return cast(
+            str,
+            self.client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self.bucket, "Key": storage_key},
+                ExpiresIn=min(max(expires_seconds, 60), 900),
+            ),
         )
 
     def delete(self, storage_key: str) -> None:
@@ -261,6 +299,12 @@ def build_document_storage(
     s3_region: str = "auto",
     s3_access_key_id: str = "",
     s3_secret_access_key: str = "",
+    azure_account_url: str = "",
+    azure_connection_string: str = "",
+    azure_container: str = "",
+    azure_managed_identity_client_id: str = "",
+    azure_operation_timeout_seconds: int = 30,
+    azure_create_container: bool = False,
 ) -> DocumentStorage:
     normalized = backend.strip().lower()
     if normalized == "local":
@@ -274,5 +318,18 @@ def build_document_storage(
             secret_access_key=s3_secret_access_key,
             cache_root=upload_root,
             max_upload_bytes=max_upload_bytes,
+        )
+    if normalized in {"azure", "azure-blob", "azure_blob"}:
+        from app.providers.azure_blob_storage import AzureBlobStorageService
+
+        return AzureBlobStorageService(
+            container=azure_container,
+            cache_root=upload_root,
+            max_upload_bytes=max_upload_bytes,
+            account_url=azure_account_url,
+            connection_string=azure_connection_string,
+            managed_identity_client_id=azure_managed_identity_client_id,
+            operation_timeout_seconds=azure_operation_timeout_seconds,
+            create_container=azure_create_container,
         )
     raise StorageError(f"Unsupported document storage backend: {backend}")

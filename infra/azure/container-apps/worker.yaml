@@ -1,0 +1,87 @@
+# Phase E runtime contract. Phase F replaces placeholders and manages this resource with Bicep.
+location: <AZURE_REGION>
+name: ai-document-worker
+type: Microsoft.App/containerApps
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    "<RUNTIME_IDENTITY_RESOURCE_ID>": {}
+properties:
+  environmentId: <CONTAINER_APPS_ENVIRONMENT_RESOURCE_ID>
+  configuration:
+    activeRevisionsMode: Single
+    maxInactiveRevisions: 3
+    registries:
+      - server: <ACR_LOGIN_SERVER>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+    secrets:
+      - name: database-url
+        keyVaultUrl: <DATABASE_URL_KEY_VAULT_SECRET_URI>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+      - name: mistral-api-key
+        keyVaultUrl: <MISTRAL_API_KEY_VAULT_SECRET_URI>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+      - name: extractor-api-key
+        keyVaultUrl: <EXTRACTOR_API_KEY_VAULT_SECRET_URI>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+  template:
+    containers:
+      - name: worker
+        image: <ACR_LOGIN_SERVER>/ai-document-ops@sha256:<IMAGE_DIGEST>
+        command: [python, -m, app.worker_loop]
+        env:
+          - name: APP_ENV
+            value: production
+          - name: STORAGE_BACKEND
+            value: postgres
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: DOCUMENT_STORAGE_BACKEND
+            value: azure-blob
+          - name: AZURE_STORAGE_ACCOUNT_URL
+            value: <AZURE_STORAGE_ACCOUNT_URL>
+          - name: AZURE_STORAGE_CONTAINER
+            value: documents
+          - name: PROCESSING_QUEUE_BACKEND
+            value: azure-service-bus
+          - name: AZURE_SERVICE_BUS_NAMESPACE
+            value: <SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE>
+          - name: AZURE_SERVICE_BUS_QUEUE_NAME
+            value: document-processing
+          - name: AZURE_MANAGED_IDENTITY_CLIENT_ID
+            value: <RUNTIME_IDENTITY_CLIENT_ID>
+          - name: PARSER_PROVIDER
+            value: mistral_ocr
+          - name: MISTRAL_API_KEY
+            secretRef: mistral-api-key
+          - name: MISTRAL_ALLOWED_HOSTS
+            value: api.mistral.ai
+          - name: EXTRACTOR_PROVIDER
+            value: llm_json
+          - name: EXTRACTOR_API_KEY
+            secretRef: extractor-api-key
+          - name: EXTRACTOR_ALLOWED_HOSTS
+            value: api.openai.com
+          - name: PROVIDER_TIMEOUT_SECONDS
+            value: "60"
+          - name: WORKER_POLL_SECONDS
+            value: "1"
+          - name: WORKER_MAX_IDLE_POLL_SECONDS
+            value: "30"
+        resources:
+          cpu: 1.0
+          memory: 2Gi
+    scale:
+      minReplicas: 0
+      maxReplicas: 5
+      pollingInterval: 15
+      cooldownPeriod: 60
+      rules:
+        - name: service-bus-backlog
+          custom:
+            type: azure-servicebus
+            identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+            metadata:
+              queueName: document-processing
+              namespace: <SERVICE_BUS_NAMESPACE_NAME>
+              messageCount: "5"

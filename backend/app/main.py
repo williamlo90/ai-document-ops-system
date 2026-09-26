@@ -128,6 +128,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         payload = readiness_payload(
             database_ready=checks["database"],
             storage_ready=checks["storage"],
+            queue_ready=checks["queue"],
         )
         return JSONResponse(
             status_code=200 if payload["status"] == "ready" else 503,

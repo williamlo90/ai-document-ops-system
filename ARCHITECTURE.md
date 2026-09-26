@@ -15,7 +15,10 @@ flowchart TB
     API --> AUTH["Session, role, workspace, and CSRF checks"]
     API --> DOCS["Document and workflow services"]
     DOCS --> FILES["Private document storage"]
-    DOCS --> DB["SQLite repositories"]
+    DOCS --> DB["SQLite / PostgreSQL repositories"]
+    DOCS --> BUS["Service Bus wake-up queue"]
+    BUS --> WORKER["Lease-fenced processing worker"]
+    WORKER --> DB
     DOCS --> OCR["OCR provider adapter"]
     OCR --> EXTRACT["Structured extraction adapter"]
     EXTRACT --> VALIDATE["Deterministic invoice validation"]
@@ -109,7 +112,9 @@ Validation errors send the invoice to correction and block approval.
 
 ### Persistence and storage
 
-The local profile stores application state in SQLite and invoice files in private local storage.
+The default local profile stores application state in SQLite and invoice files in private local
+storage. The PostgreSQL profile implements the same repository protocols for deployment-oriented
+API and worker state.
 Persisted records include documents, extracted fields, source information, jobs, retries, workflow
 state, decisions, audit events, and evaluation runs. In-memory metadata storage is limited to
 disposable local tests; hosted modes refuse to start with it.
@@ -120,17 +125,32 @@ indexes, and backfills live in `sqlite_schema.py`; aggregate repositories remain
 workspace-scoped SQL read models with a fixed query count instead of loading every record into the
 application process.
 
+PostgreSQL uses a bounded psycopg pool, ordered SQL migrations, database-specific aggregate query
+adapters, and `FOR UPDATE SKIP LOCKED` for atomic worker claims. Existing write serializers are
+shared through a narrow SQL compatibility layer, while PostgreSQL concurrency behavior is tested
+against a real PostgreSQL 16 container.
+
 Memory repositories follow the same explicit-save semantics as SQLite. They store and return
 snapshots, so mutating an object returned by `get()` or `list_*()` cannot change repository state
 until `save()` is called. Shared repository contract tests protect this parity.
 
-The storage interface can target an S3-compatible service, but the default demo stays
-self-contained.
+The storage interface can target local disk, an S3-compatible service, or a private Azure Blob
+container. Azure Blob object keys are partitioned by a one-way workspace identity and carry object
+ID, content hash, size, and original-filename metadata. Production authentication uses Managed
+Identity through `DefaultAzureCredential`; local integration tests use Azurite. Blob reads remain
+behind the application's workspace authorization boundary.
 
 Workers claim one queued job atomically and receive a unique lease token. Heartbeats and terminal
 writes must present that token. A running job can be reclaimed with a new token only after its lease
 expires, and the former holder can no longer renew or finalize it. Provider work stays outside the
 database transaction; the token fences the transaction that stores the result.
+
+Azure Service Bus is an optional wake-up transport, not the job ledger. Upload, retry, and reprocess
+commands first commit the document and job to PostgreSQL and then publish a versioned message that
+contains only job, document, workspace, schema, and trace identifiers. Queue consumers atomically
+claim that exact job ID before provider work. Duplicate or already-completed messages therefore do
+not repeat business effects. Invalid envelopes are dead-lettered; transient publish failures leave
+the committed job available to the bounded database-polling recovery path.
 
 ## State and decision model
 
@@ -192,15 +212,25 @@ identity, secrets, network controls, monitoring, and tenant lifecycle management
 
 ## Deployment boundary
 
-The implemented runtime is a single-node modular monolith. SQLite is the only persistent metadata
-adapter, and browser sessions and request rate limits are process-local. Multiple worker processes
-sharing the same database are protected by lease fencing, but SQLite remains a single-writer
-bottleneck. The export workspace projection still filters and enriches records in the application
-process, so it is not presented as a high-volume read model.
+The runtime supports SQLite for the self-contained local profile and PostgreSQL for a shared API and
+worker metadata plane. PostgreSQL removes SQLite's single-writer bottleneck, and lease fencing plus
+row locking protects multiple workers. Browser sessions and request rate limits are still
+process-local, so the supported production topology is one API replica with one or more workers.
+Horizontal API scaling requires shared session and rate-limit state. The export workspace projection
+still filters and enriches records in the application process, so it is not presented as a
+high-volume read model.
 
-The Compose PostgreSQL profile is a target dependency for future work, not an implemented
-repository adapter. Horizontal deployment requires PostgreSQL repositories, shared session and
-rate-limit state, durable delivery coordination, and multi-process failure tests.
+The API, worker, and PostgreSQL migration command share one immutable container image. The image
+runs as a non-root user; local and CI runtime contracts also enforce a read-only root filesystem,
+drop all Linux capabilities, and allow writes only to bounded temporary/data mounts. OCI labels bind
+a release image to its source URL, build time, and exact Git revision. Release builds refuse dirty
+container build inputs, and deployment references use registry digests rather than `latest`.
+
+Azure Container Apps keeps the API on a single active revision with HTTP liveness/readiness probes.
+The worker has no ingress and scales on Service Bus backlog with Managed Identity authentication.
+The migration path is a manual, single-replica Container Apps Job; PostgreSQL advisory locking is
+the final concurrency fence. A user-assigned identity pulls from ACR and accesses Blob, Service Bus,
+and Key Vault, while database/provider credentials remain Key Vault-backed secrets.
 
 ## Reliability and evaluation
 

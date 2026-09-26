@@ -50,8 +50,8 @@ Invoke-WebRequest http://127.0.0.1:8000/internal/metrics `
 
 Hosted modes require `APP_METRICS_TOKEN` to contain at least 24 non-default characters and to be
 different from every user-role credential. Keep the route off public ingress even with this control.
-They also require `STORAGE_BACKEND=sqlite`; the in-memory backend is disposable test state and is
-rejected during hosted startup.
+They also require a persistent `STORAGE_BACKEND` (`sqlite` or `postgres`); the in-memory backend is
+disposable test state and is rejected during hosted startup.
 
 ## Real Provider Profile
 
@@ -244,8 +244,160 @@ Review the generated directory before sharing it.
 ```
 
 The default compose profile runs the API, worker, SQLite metadata, and local private document
-storage. The optional Postgres service documents a target topology; it is not the active runtime
-repository implementation.
+storage. API, worker, and migration services use the same image as the non-root `docintel` user,
+drop Linux capabilities, enable `no-new-privileges`, and use a read-only root filesystem with
+bounded writable mounts for `/tmp` and `/data`.
+
+To exercise the PostgreSQL runtime locally:
+
+```powershell
+docker compose --profile postgres-target up -d postgres-target
+$env:DATABASE_URL = 'postgresql://docintel:docintel@127.0.0.1:5432/docintel'
+.\.venv\Scripts\python.exe scripts\postgres_migrate.py
+Remove-Item Env:DATABASE_URL
+```
+
+The migration command reads `DATABASE_URL` from the environment so credentials do not appear in
+the process command line. The equivalent one-shot Compose mode is:
+
+```powershell
+docker compose --profile migrate run --rm migrate
+```
+
+Then set `STORAGE_BACKEND=postgres` and `DATABASE_URL` before starting the API and worker. Apply
+migrations before either process starts. `DATABASE_POOL_SIZE`,
+`DATABASE_CONNECT_TIMEOUT_SECONDS`, and `DATABASE_ACQUIRE_TIMEOUT_SECONDS` bound database resource
+use and wait time.
+
+The PostgreSQL adapter supports shared API/worker state and atomic job claims. Sessions and request
+rate limits remain process-local, so production must run exactly one API replica until those two
+controls move to a shared store. Multiple worker replicas are supported.
+
+### Immutable image and runtime verification
+
+Every image carries OCI source, revision, and creation labels. A release candidate must be built
+from clean container build inputs so its content maps to one Git commit. Untracked files outside
+the explicit Dockerfile inputs do not affect the image:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\build_release_image.py
+```
+
+The command refuses modified or untracked build inputs and tags the image with the full commit SHA.
+After pushing to ACR, deploy the registry digest (`repository@sha256:...`), never a mutable tag.
+
+Verify all three runtime modes, read-only filesystems, liveness/readiness behavior during a
+PostgreSQL outage, and graceful API/worker `SIGTERM` handling:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\container_runtime_smoke.py `
+  --image ai-document-ops-system:<full-git-sha> `
+  --expected-revision <full-git-sha>
+```
+
+The script creates isolated, randomly named Docker resources and removes them on completion. CI
+runs the same smoke before scanning the frozen image with Trivy. Fixed HIGH or CRITICAL findings
+fail the build; unfixed findings are reported but cannot be remediated in the image and follow the
+documented dependency-review process.
+
+The Phase E Azure runtime templates are under `infra/azure/container-apps/`. They define a
+single-revision API, Service Bus-scaled worker, and manual single-replica migration job. A
+user-assigned Managed Identity is the contract for ACR pull, Blob, Service Bus, and Key Vault.
+The templates require an image digest and contain no deployable secret values. Phase F will render
+the same contract as parameterized Bicep with concrete role assignments.
+
+### Azure Blob storage profile
+
+Run the local Azure Blob emulator without an Azure account:
+
+```powershell
+docker compose --profile azure-blob up -d azure-blob-emulator
+```
+
+For a host-run API, configure the ignored `.env` with:
+
+```dotenv
+DOCUMENT_STORAGE_BACKEND=azure-blob
+AZURE_STORAGE_CONNECTION_STRING=UseDevelopmentStorage=true
+AZURE_STORAGE_CONTAINER=documents
+AZURE_STORAGE_CREATE_CONTAINER=true
+```
+
+Production uses a pre-created private container and Managed Identity:
+
+```dotenv
+DOCUMENT_STORAGE_BACKEND=azure-blob
+AZURE_STORAGE_ACCOUNT_URL=https://<account>.blob.core.windows.net
+AZURE_STORAGE_CONNECTION_STRING=
+AZURE_STORAGE_CONTAINER=documents
+AZURE_STORAGE_CREATE_CONTAINER=false
+```
+
+Assign the runtime identity Blob Data Contributor access at container scope. The adapter uses
+`DefaultAzureCredential`; no storage account key or connection string is required in the production
+container. Browser downloads continue through the authenticated application route rather than an
+anonymous blob URL.
+
+Source invoices are removed through the application retention workflow so blob deletion and the
+audited metadata tombstone remain coordinated. `DOCUMENT_RETENTION_DAYS` controls source retention,
+and `PARSER_CACHE_RETENTION_HOURS` controls the bounded local parser cache. Do not apply an
+independent lifecycle deletion rule to source invoice prefixes.
+
+### Azure Service Bus processing profile
+
+The processing queue carries wake-up commands only. PostgreSQL remains authoritative for job
+status, attempts, retry deadlines, and worker leases. A queue outage therefore degrades event-driven
+wake-ups but does not discard committed jobs; the worker continues using database polling.
+
+Production uses Managed Identity:
+
+```dotenv
+PROCESSING_QUEUE_BACKEND=azure-service-bus
+AZURE_SERVICE_BUS_NAMESPACE=<namespace>.servicebus.windows.net
+AZURE_SERVICE_BUS_CONNECTION_STRING=
+AZURE_SERVICE_BUS_QUEUE_NAME=document-processing
+AZURE_SERVICE_BUS_TIMEOUT_SECONDS=30
+AZURE_SERVICE_BUS_MAX_LOCK_RENEWAL_SECONDS=300
+AZURE_SERVICE_BUS_MAX_DELIVERY_COUNT=5
+```
+
+Grant the API/worker identity Azure Service Bus Data Sender and Data Receiver roles at queue or
+namespace scope. Configure the queue with a one-minute lock, maximum delivery count `5`, and a
+one-hour default TTL. Messages contain identifiers and a trace ID, never filenames, OCR text, or
+invoice fields.
+
+The optional local emulator requires Docker, at least 2 GB free RAM, and explicit acceptance of
+Microsoft's Service Bus Emulator and SQL Server license terms. After reviewing those terms, put a
+strong local-only SQL password and the acceptance flag in an ignored `.env`, then run:
+
+```powershell
+docker compose --profile service-bus up -d service-bus-sql service-bus-emulator
+```
+
+For an API/worker running on the host, use this documented emulator connection string in the
+ignored `.env`:
+
+```dotenv
+PROCESSING_QUEUE_BACKEND=azure-service-bus
+AZURE_SERVICE_BUS_CONNECTION_STRING=Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+AZURE_SERVICE_BUS_QUEUE_NAME=document-processing
+```
+
+For application containers on the Compose network, replace `localhost` with
+`service-bus-emulator`. The emulator is development-only, has no SLA, does not persist queue state
+across restarts, and does not validate Managed Identity behavior.
+
+Run the broker integration contract explicitly:
+
+```powershell
+$env:SERVICE_BUS_TEST_CONNECTION_STRING='Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;'
+.\.venv\Scripts\python.exe -m unittest backend.app.tests.test_azure_service_bus -v
+Remove-Item Env:SERVICE_BUS_TEST_CONNECTION_STRING
+```
+
+Inspect poison messages in the queue's dead-letter subqueue. A valid duplicate message should
+complete without increasing the PostgreSQL job attempt count. Retryable provider failures are
+recorded in PostgreSQL with a bounded retry time and are recovered by the polling path.
 
 See `docs/docker_profile.md` for the local service boundary and `docs/aws_deployment.md` for an
 explicitly unimplemented hosted target architecture.

@@ -147,15 +147,28 @@ jobs:
   container-security:
     runs-on: ubuntu-latest
     needs: [quality, frontend]
+    env:
+      IMAGE_TAG: ai-document-ops-system:${{ github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build immutable candidate image
-        run: docker build --tag ai-document-ops-system:ci .
+        run: |
+          docker build \
+            --build-arg "BUILD_CREATED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --build-arg "SOURCE_REVISION=${GITHUB_SHA}" \
+            --build-arg "SOURCE_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --tag "${IMAGE_TAG}" \
+            .
+      - name: Verify hardened API, worker, and migration runtime modes
+        run: |
+          python scripts/container_runtime_smoke.py \
+            --image "${IMAGE_TAG}" \
+            --expected-revision "${GITHUB_SHA}"
       - name: Scan image for high and critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          version: v0.72.0
-          image-ref: ai-document-ops-system:ci
+          version: v0.74.0
+          image-ref: ${{ env.IMAGE_TAG }}
           format: table
           exit-code: "1"
           ignore-unfixed: true

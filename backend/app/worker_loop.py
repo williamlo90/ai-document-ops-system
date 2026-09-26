@@ -1,26 +1,32 @@
 from __future__ import annotations
 
+import logging
 import os
 import signal
 import threading
 
 from app.api.dependencies import build_container
+from app.core.observability import configure_structured_logging
 from app.core.settings import load_settings
 from app.worker import run_once
 
 
 def run_forever(*, poll_seconds: float | None = None) -> None:
+    configure_structured_logging()
+    logger = logging.getLogger("docintel.worker.lifecycle")
     delay = poll_seconds if poll_seconds is not None else _poll_seconds()
     max_idle_delay = max(delay, _max_idle_poll_seconds())
     stopping = threading.Event()
 
     def request_stop(_signum: int, _frame: object) -> None:
+        logger.info("worker_stop_requested", extra={"signal": _signum})
         stopping.set()
 
     signal.signal(signal.SIGTERM, request_stop)
     signal.signal(signal.SIGINT, request_stop)
     settings = load_settings()
     container = build_container(settings)
+    logger.info("worker_started")
     current_delay = delay
     try:
         while not stopping.is_set():
@@ -29,6 +35,7 @@ def run_forever(*, poll_seconds: float | None = None) -> None:
             current_delay = delay if processed else min(max_idle_delay, current_delay * 2)
     finally:
         container.close()
+        logger.info("worker_stopped")
 
 
 def _poll_seconds() -> float:

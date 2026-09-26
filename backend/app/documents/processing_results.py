@@ -101,6 +101,7 @@ class ProcessingResultRecorder:
                 provider_name=job.provider_name,
                 status=job.status.value,
                 attempt_count=job.attempt_count,
+                trace_id=context.trace_id,
             )
         )
 
@@ -150,6 +151,7 @@ class ProcessingResultRecorder:
                 error_code=error_code,
                 retryable=isinstance(error, ProviderError) and error.retryable,
                 attempt_count=job.attempt_count,
+                trace_id=context.trace_id,
             )
         )
         return document

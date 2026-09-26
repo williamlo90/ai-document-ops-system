@@ -106,6 +106,7 @@ class SystemDashboardService:
     ) -> list[dict[str, object]]:
         storage_ready = bool(readiness.get("storage"))
         database_ready = bool(readiness.get("database"))
+        queue_ready = bool(readiness.get("queue", True))
         return [
             self._current_service(
                 service_id="uploads",
@@ -148,6 +149,23 @@ class SystemDashboardService:
                 ),
                 evidence="Current storage readiness check; historical uptime is not recorded.",
                 affected="Document access" if not storage_ready else None,
+            ),
+            self._current_service(
+                service_id="processing-queue",
+                name="Processing queue",
+                status="operational" if queue_ready else "degraded",
+                observed_at=observed_at,
+                activity=(
+                    "Wake-up transport ready"
+                    if queue_ready
+                    else "Database polling fallback remains active"
+                ),
+                evidence=(
+                    "Queue readiness passed; PostgreSQL owns job lifecycle state."
+                    if queue_ready
+                    else "Queue readiness failed; queued jobs remain recoverable from PostgreSQL."
+                ),
+                affected="Event-driven wake-ups" if not queue_ready else None,
             ),
             self._export_service(export_runs, observed_at),
         ]

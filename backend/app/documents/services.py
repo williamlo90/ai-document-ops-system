@@ -18,6 +18,11 @@ from app.documents.job_leases import JobLeaseService
 from app.documents.jobs import ProcessingJob
 from app.documents.lifecycle_commands import DocumentLifecycleCommandService
 from app.documents.models import DocumentRecord
+from app.documents.processing_queue import (
+    NullProcessingQueue,
+    ProcessingQueue,
+    publish_wakeup,
+)
 from app.documents.processing_policy import ProcessingRetryPolicy
 from app.documents.processing_results import ProcessingResultRecorder
 from app.documents.repositories import (
@@ -66,6 +71,7 @@ class DocumentUploadService:
         upload_scanner: UploadScanner | None = None,
         transactions: TransactionManager | None = None,
         state_writer: DocumentStateWriter | None = None,
+        processing_queue: ProcessingQueue | None = None,
     ) -> None:
         self.storage = storage
         self.documents = documents
@@ -80,6 +86,7 @@ class DocumentUploadService:
             workflow,
             self.transactions,
         )
+        self.processing_queue = processing_queue or NullProcessingQueue()
 
     def upload_pdf(
         self,
@@ -90,7 +97,10 @@ class DocumentUploadService:
     ) -> UploadResult:
         require_any_role(context, {"admin", *INTAKE_ROLES})
         stored = self.storage.save_upload_stream(
-            original_filename, content_type, self.upload_scanner.scan(chunks)
+            original_filename,
+            content_type,
+            self.upload_scanner.scan(chunks),
+            workspace_id=context.workspace_id,
         )
         try:
             with self.transactions.transaction():
@@ -129,8 +139,10 @@ class DocumentUploadService:
                 document_id=str(document.id),
                 job_id=str(job.id),
                 status=document.status.value,
+                trace_id=context.trace_id,
             )
         )
+        publish_wakeup(self.processing_queue, job, document, context)
         return UploadResult(document=document, job=job)
 
 
@@ -150,6 +162,7 @@ class DocumentProcessingService:
         retry_max_seconds: int = 300,
         transactions: TransactionManager | None = None,
         state_writer: DocumentStateWriter | None = None,
+        processing_queue: ProcessingQueue | None = None,
     ) -> None:
         self.storage = storage
         self.documents = documents
@@ -167,6 +180,7 @@ class DocumentProcessingService:
             workflow,
             self.transactions,
         )
+        self.processing_queue = processing_queue or NullProcessingQueue()
         self.retry_policy = ProcessingRetryPolicy(
             max_attempts=self.max_processing_attempts,
             base_seconds=self.retry_base_seconds,
@@ -194,6 +208,7 @@ class DocumentProcessingService:
             jobs=self.jobs,
             state_writer=self.state_writer,
             transactions=self.transactions,
+            processing_queue=self.processing_queue,
         )
         self.job_leases = JobLeaseService(self.jobs, self.transactions)
 
@@ -234,11 +249,23 @@ class DocumentProcessingService:
         job = self.jobs.get_latest_for_document(document_id)
         return self._process_job(job, context)
 
-    def retry_failed_document(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
-        return self.lifecycle_commands.retry_failed(document_id, context)
+    def retry_failed_document(
+        self,
+        document_id: UUID,
+        context: SecurityContext,
+        *,
+        reason: str = "manual retry requested",
+    ) -> DocumentRecord:
+        return self.lifecycle_commands.retry_failed(document_id, context, reason=reason)
 
-    def reprocess_document(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
-        return self.lifecycle_commands.reprocess(document_id, context)
+    def reprocess_document(
+        self,
+        document_id: UUID,
+        context: SecurityContext,
+        *,
+        reason: str = "manual reprocess requested",
+    ) -> DocumentRecord:
+        return self.lifecycle_commands.reprocess(document_id, context, reason=reason)
 
     def cancel_document(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
         return self.lifecycle_commands.cancel(document_id, context)
@@ -265,6 +292,7 @@ class DocumentProcessingService:
                 job_id=str(job.id),
                 status=job.status.value,
                 attempt_count=job.attempt_count,
+                trace_id=context.trace_id,
             )
         )
         if document.status != DocumentStatus.PROCESSING:

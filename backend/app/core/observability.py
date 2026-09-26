@@ -144,6 +144,7 @@ class OperationEvent:
     error_code: str | None = None
     retryable: bool | None = None
     attempt_count: int | None = None
+    trace_id: str | None = None
     created_at: str = ""
 
 
@@ -154,12 +155,20 @@ def log_operation(event: OperationEvent) -> None:
     logging.getLogger(LOGGER_NAME).info(json.dumps(clean_payload, sort_keys=True))
 
 
-def readiness_payload(*, database_ready: bool, storage_ready: bool) -> dict[str, Any]:
+def readiness_payload(
+    *,
+    database_ready: bool,
+    storage_ready: bool,
+    queue_ready: bool = True,
+) -> dict[str, Any]:
+    # Queue delivery accelerates processing, but PostgreSQL polling is the recovery path.
+    # Keep uploads available when only the wake-up transport is degraded.
     status = "ready" if database_ready and storage_ready else "not_ready"
     return {
         "status": status,
         "checks": {
             "database": "ok" if database_ready else "failed",
             "storage": "ok" if storage_ready else "failed",
+            "queue": "ok" if queue_ready else "failed",
         },
     }

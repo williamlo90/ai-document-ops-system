@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 import unittest
+from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
 
@@ -70,6 +71,29 @@ class RuntimeObservabilityTests(unittest.TestCase):
         response = self.client.get("/ready")
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json()["checks"]["lifecycle"], "stopping")
+
+    def test_database_or_storage_failure_removes_readiness_but_not_liveness(self) -> None:
+        for failed_dependency in ("database", "storage"):
+            with self.subTest(failed_dependency=failed_dependency):
+                checks = {"database": True, "storage": True, "queue": True}
+                checks[failed_dependency] = False
+                self.client.app.state.container.readiness = Mock(return_value=checks)
+
+                self.assertEqual(self.client.get("/health").status_code, 200)
+                response = self.client.get("/ready")
+                self.assertEqual(response.status_code, 503)
+                self.assertEqual(response.json()["checks"][failed_dependency], "failed")
+
+    def test_queue_failure_is_visible_while_database_polling_keeps_api_ready(self) -> None:
+        self.client.app.state.container.readiness = Mock(
+            return_value={"database": True, "storage": True, "queue": False}
+        )
+
+        response = self.client.get("/ready")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "ready")
+        self.assertEqual(response.json()["checks"]["queue"], "failed")
 
     def test_json_formatter_emits_context(self) -> None:
         record = logging.LogRecord(

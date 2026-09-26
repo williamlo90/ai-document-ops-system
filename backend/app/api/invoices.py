@@ -563,19 +563,31 @@ def _invoice_business_status(status_value: DocumentStatus, has_errors: bool) -> 
 @router.post("/{document_id}/retry")
 def retry_invoice(
     document_id: UUID,
+    payload: WorkflowCommandPayload | None = None,
     context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    return retry_document_command(document_id, context, container)
+    return retry_document_command(
+        document_id,
+        context,
+        container,
+        payload.reason if payload else "manual retry requested",
+    )
 
 
 @router.post("/{document_id}/reprocess")
 def reprocess_invoice(
     document_id: UUID,
+    payload: WorkflowCommandPayload | None = None,
     context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    return reprocess_document_command(document_id, context, container)
+    return reprocess_document_command(
+        document_id,
+        context,
+        container,
+        payload.reason if payload else "manual reprocess requested",
+    )
 
 
 @router.post("/{document_id}/cancel")

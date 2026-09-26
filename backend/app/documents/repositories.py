@@ -64,6 +64,14 @@ class JobRepository(Protocol):
         now: datetime | None = None,
     ) -> ProcessingJob | None: ...
 
+    def claim_processable(
+        self,
+        job_id: UUID,
+        *,
+        stale_before: datetime | None = None,
+        now: datetime | None = None,
+    ) -> ProcessingJob | None: ...
+
     def renew_lease(
         self,
         job_id: UUID,
@@ -246,6 +254,36 @@ class InMemoryJobRepository:
                 candidate.created_at,
             ),
         )
+        if job.status == ProcessingJobStatus.RUNNING:
+            job.retry("worker_lease_expired")
+        job.start()
+        return deepcopy(job)
+
+    def claim_processable(
+        self,
+        job_id: UUID,
+        *,
+        stale_before: datetime | None = None,
+        now: datetime | None = None,
+    ) -> ProcessingJob | None:
+        current = now or datetime.now(UTC)
+        job = self.records.get(job_id)
+        if job is None:
+            raise NotFoundError(f"Processing job not found: {job_id}")
+        processable = (
+            job.status == ProcessingJobStatus.QUEUED
+            or (
+                job.status == ProcessingJobStatus.RETRYING
+                and (job.next_attempt_at is None or job.next_attempt_at <= current)
+            )
+            or (
+                stale_before is not None
+                and job.status == ProcessingJobStatus.RUNNING
+                and job.updated_at <= stale_before
+            )
+        )
+        if not processable:
+            return None
         if job.status == ProcessingJobStatus.RUNNING:
             job.retry("worker_lease_expired")
         job.start()

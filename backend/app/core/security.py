@@ -24,6 +24,7 @@ class SecurityContext:
     workspace_id: str = "default"
     user_id: str = "admin"
     role: str = "admin"
+    trace_id: str | None = None
 
 
 INTAKE_ROLES = {"intake", "operator", "uploader"}

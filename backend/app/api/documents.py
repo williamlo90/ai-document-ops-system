@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -55,6 +56,7 @@ def upload_policy(
 
 @router.post("/upload")
 def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
@@ -62,11 +64,12 @@ def upload_document(
     try:
         file.file.seek(0)
         chunks = iter(lambda: file.file.read(1024 * 1024), b"")
+        traced_context = replace(context, trace_id=getattr(request.state, "trace_id", None))
         result = container.upload_service.upload_pdf(
             original_filename=file.filename or "upload.pdf",
             content_type=file.content_type or "",
             chunks=chunks,
-            context=context,
+            context=traced_context,
         )
     except UploadScannerUnavailable as exc:
         raise HTTPException(
@@ -145,10 +148,16 @@ def document_workflow(
 )
 def retry_document(
     document_id: UUID,
+    payload: WorkflowCommandPayload | None = None,
     context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    return retry_document_command(document_id, context, container)
+    return retry_document_command(
+        document_id,
+        context,
+        container,
+        payload.reason if payload else "manual retry requested",
+    )
 
 
 @router.post(
@@ -161,10 +170,16 @@ def retry_document(
 )
 def reprocess_document(
     document_id: UUID,
+    payload: WorkflowCommandPayload | None = None,
     context: SecurityContext = Depends(require_authenticated_context),
     container: AppContainer = Depends(get_container),
 ) -> dict[str, object]:
-    return reprocess_document_command(document_id, context, container)
+    return reprocess_document_command(
+        document_id,
+        context,
+        container,
+        payload.reason if payload else "manual reprocess requested",
+    )
 
 
 @router.post(

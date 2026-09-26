@@ -16,7 +16,7 @@ class LocalStorageServiceTests(unittest.TestCase):
 
             self.assertTrue(storage.open_for_parser(stored.storage_key).exists())
 
-    def test_s3_storage_backend_is_reserved_until_adapter_exists(self) -> None:
+    def test_s3_storage_backend_requires_complete_configuration(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaises(StorageError):
                 build_document_storage("s3", Path(temp_dir), max_upload_bytes=100)

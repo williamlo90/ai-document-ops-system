@@ -3,6 +3,12 @@ services:
     build: .
     restart: unless-stopped
     init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,uid=100,gid=101,mode=1770,size=64m
     stop_grace_period: 35s
     ports:
       - "8000:8000"
@@ -27,6 +33,12 @@ services:
     build: .
     restart: unless-stopped
     init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,uid=100,gid=101,mode=1770,size=64m
     stop_grace_period: 35s
     command: ["python", "-m", "app.worker_loop"]
     volumes:
@@ -39,6 +51,20 @@ services:
       api:
         condition: service_started
 
+  migrate:
+    build: .
+    profiles: ["migrate"]
+    init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,uid=100,gid=101,mode=1770,size=64m
+    command: ["python", "scripts/postgres_migrate.py"]
+    env_file:
+      - ${DOC_INTEL_ENV_FILE:-.env.example}
+
   postgres-target:
     image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
     profiles: ["postgres-target"]
@@ -47,9 +73,68 @@ services:
       POSTGRES_DB: docintel
       POSTGRES_USER: docintel
       POSTGRES_PASSWORD: docintel
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docintel -d docintel"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     volumes:
       - docintel-postgres:/var/lib/postgresql/data
+
+  azure-blob-emulator:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0@sha256:647c63a91102a9d8e8000aab803436e1fc85fbb285e7ce830a82ee5d6661cf37
+    profiles: ["azure-blob"]
+    restart: unless-stopped
+    command: ["azurite-blob", "--blobHost", "0.0.0.0", "--location", "/data"]
+    ports:
+      - "${AZURITE_BLOB_PORT:-10000}:10000"
+    volumes:
+      - docintel-azurite:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:10000/devstoreaccount1',r=>process.exit(r.statusCode?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  service-bus-emulator:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest@sha256:5a96d893b245031740f7d46e0fe5ff282d24b78c4b7d761dd57590f3f010a9b3
+    profiles: ["service-bus"]
+    restart: unless-stopped
+    volumes:
+      - ./infra/servicebus-emulator/config.json:/ServiceBus_Emulator/ConfigFiles/Config.json:ro
+    ports:
+      - "${SERVICE_BUS_EMULATOR_AMQP_PORT:-5672}:5672"
+      - "${SERVICE_BUS_EMULATOR_HTTP_PORT:-5300}:5300"
+    environment:
+      SQL_SERVER: service-bus-sql
+      MSSQL_SA_PASSWORD: ${SERVICE_BUS_EMULATOR_SQL_PASSWORD:-}
+      ACCEPT_EULA: ${SERVICE_BUS_EMULATOR_ACCEPT_EULA:-N}
+      EMULATOR_HTTP_PORT: "5300"
+      SQL_WAIT_INTERVAL: "5"
+    depends_on:
+      service-bus-sql:
+        condition: service_started
+
+  service-bus-sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest@sha256:4402d880dd4c34bfa7d8705e56a86cd6c88da80a1f6bbbe741f999e76264a090
+    profiles: ["service-bus"]
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: ${SERVICE_BUS_EMULATOR_ACCEPT_EULA:-N}
+      MSSQL_SA_PASSWORD: ${SERVICE_BUS_EMULATOR_SQL_PASSWORD:-}
+    volumes:
+      - docintel-service-bus-sql:/var/opt/mssql
 
 volumes:
   docintel-data:
   docintel-postgres:
+  docintel-azurite:
+  docintel-service-bus-sql:

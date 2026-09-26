@@ -6,7 +6,17 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.11-slim-bookworm@sha256:2e32f7d302adc1c37428355c1e646897c0c53f4fd60b6a551245fb90ee129f91
+FROM python:3.11-slim-bookworm@sha256:a36c24f9cbdf4fd0f52d67f0823eeac19c2028c637cecc392d97f980d4fec56b
+
+ARG BUILD_CREATED_AT="unknown"
+ARG SOURCE_REVISION="unknown"
+ARG SOURCE_URL="https://github.com/williamlo90/ai-document-ops-system"
+
+LABEL org.opencontainers.image.created="${BUILD_CREATED_AT}" \
+      org.opencontainers.image.description="AI-assisted invoice intake and review runtime" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.title="AI Document Ops System"
 
 WORKDIR /app
 
@@ -20,13 +30,15 @@ RUN pip install --no-cache-dir --require-hashes -r requirements.txt \
     && python -m pip uninstall --yes pip
 
 COPY backend/ .
+COPY scripts/postgres_migrate.py ./scripts/postgres_migrate.py
 COPY examples/ ./examples/
 COPY --from=frontend-build /frontend/dist /app/frontend/dist
 
 RUN addgroup --system docintel \
     && adduser --system --ingroup docintel docintel \
-    && mkdir -p /data \
-    && chown -R docintel:docintel /app /data
+    && mkdir -p /data /tmp \
+    && chown -R docintel:docintel /data /tmp \
+    && chmod -R a-w /app
 
 USER docintel
 EXPOSE 8000

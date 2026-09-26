@@ -25,6 +25,7 @@ jobs:
           EXTRACTOR_ENDPOINT: https://api.openai.com/v1/chat/completions
           EXTRACTOR_MODEL: gpt-5.4-mini-2026-03-17
           EXTRACTOR_ALLOWED_HOSTS: api.openai.com
+          RUN_REAL_PROVIDER_TESTS: "1"
           PYTHONPATH: backend
         run: |
           test -n "$MISTRAL_API_KEY" || { echo "MISTRAL_API_KEY is not configured"; exit 1; }

@@ -1,0 +1,124 @@
+# Phase E runtime contract. Phase F replaces placeholders and manages this resource with Bicep.
+location: <AZURE_REGION>
+name: ai-document-api
+type: Microsoft.App/containerApps
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    "<RUNTIME_IDENTITY_RESOURCE_ID>": {}
+properties:
+  environmentId: <CONTAINER_APPS_ENVIRONMENT_RESOURCE_ID>
+  configuration:
+    activeRevisionsMode: Single
+    maxInactiveRevisions: 3
+    registries:
+      - server: <ACR_LOGIN_SERVER>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+    ingress:
+      external: true
+      allowInsecure: false
+      targetPort: 8000
+      transport: auto
+    secrets:
+      - name: database-url
+        keyVaultUrl: <DATABASE_URL_KEY_VAULT_SECRET_URI>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+      - name: admin-token
+        keyVaultUrl: <ADMIN_TOKEN_KEY_VAULT_SECRET_URI>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+      - name: uploader-token
+        keyVaultUrl: <UPLOADER_TOKEN_KEY_VAULT_SECRET_URI>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+      - name: reviewer-token
+        keyVaultUrl: <REVIEWER_TOKEN_KEY_VAULT_SECRET_URI>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+      - name: metrics-token
+        keyVaultUrl: <METRICS_TOKEN_KEY_VAULT_SECRET_URI>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+      - name: mistral-api-key
+        keyVaultUrl: <MISTRAL_API_KEY_VAULT_SECRET_URI>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+      - name: extractor-api-key
+        keyVaultUrl: <EXTRACTOR_API_KEY_VAULT_SECRET_URI>
+        identity: <RUNTIME_IDENTITY_RESOURCE_ID>
+  template:
+    containers:
+      - name: api
+        image: <ACR_LOGIN_SERVER>/ai-document-ops@sha256:<IMAGE_DIGEST>
+        env:
+          - name: APP_ENV
+            value: production
+          - name: STORAGE_BACKEND
+            value: postgres
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: DOCUMENT_STORAGE_BACKEND
+            value: azure-blob
+          - name: AZURE_STORAGE_ACCOUNT_URL
+            value: <AZURE_STORAGE_ACCOUNT_URL>
+          - name: AZURE_STORAGE_CONTAINER
+            value: documents
+          - name: PROCESSING_QUEUE_BACKEND
+            value: azure-service-bus
+          - name: AZURE_SERVICE_BUS_NAMESPACE
+            value: <SERVICE_BUS_FULLY_QUALIFIED_NAMESPACE>
+          - name: AZURE_MANAGED_IDENTITY_CLIENT_ID
+            value: <RUNTIME_IDENTITY_CLIENT_ID>
+          - name: APP_ADMIN_TOKEN
+            secretRef: admin-token
+          - name: APP_UPLOADER_TOKEN
+            secretRef: uploader-token
+          - name: APP_REVIEWER_TOKEN
+            secretRef: reviewer-token
+          - name: APP_METRICS_TOKEN
+            secretRef: metrics-token
+          - name: MALWARE_SCANNING_ENABLED
+            value: "true"
+          - name: MALWARE_SCANNER_BACKEND
+            value: clamav
+          - name: CLAMAV_HOST
+            value: <PRIVATE_CLAMAV_HOST>
+          - name: PARSER_PROVIDER
+            value: mistral_ocr
+          - name: MISTRAL_API_KEY
+            secretRef: mistral-api-key
+          - name: MISTRAL_ALLOWED_HOSTS
+            value: api.mistral.ai
+          - name: EXTRACTOR_PROVIDER
+            value: llm_json
+          - name: EXTRACTOR_API_KEY
+            secretRef: extractor-api-key
+          - name: EXTRACTOR_ALLOWED_HOSTS
+            value: api.openai.com
+          - name: PROVIDER_TIMEOUT_SECONDS
+            value: "60"
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          - type: Readiness
+            httpGet:
+              path: /ready
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+    scale:
+      minReplicas: 1
+      maxReplicas: 3
+      rules:
+        - name: http-concurrency
+          http:
+            metadata:
+              concurrentRequests: "50"

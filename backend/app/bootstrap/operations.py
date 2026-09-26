@@ -11,6 +11,8 @@ from app.documents.retention import (
     RetentionRepository,
     SqliteRetentionRepository,
 )
+from app.postgres.repositories import PostgresRetentionRepository
+from app.postgres.store import PostgresStore
 from app.metrics.services import MetricsService
 
 
@@ -56,6 +58,8 @@ def _build_retention_service(
 
 
 def _retention_repository(persistence: PersistenceModule) -> RetentionRepository:
+    if isinstance(persistence.store, PostgresStore):
+        return PostgresRetentionRepository(persistence.store)
     if persistence.store is not None:
         return SqliteRetentionRepository(persistence.store)
     documents = persistence.documents

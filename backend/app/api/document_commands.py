@@ -30,9 +30,12 @@ def retry_document_command(
     document_id: UUID,
     context: SecurityContext,
     container: AppContainer,
+    reason: str = "manual retry requested",
 ) -> dict[str, object]:
     try:
-        document = container.processing_service.retry_failed_document(document_id, context)
+        document = container.processing_service.retry_failed_document(
+            document_id, context, reason=reason
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
     except InvalidStatusTransition as exc:
@@ -44,9 +47,12 @@ def reprocess_document_command(
     document_id: UUID,
     context: SecurityContext,
     container: AppContainer,
+    reason: str = "manual reprocess requested",
 ) -> dict[str, object]:
     try:
-        document = container.processing_service.reprocess_document(document_id, context)
+        document = container.processing_service.reprocess_document(
+            document_id, context, reason=reason
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found") from exc
     except InvalidStatusTransition as exc:

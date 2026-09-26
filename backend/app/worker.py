@@ -7,6 +7,9 @@ from app.core.settings import Settings, load_settings
 
 def run_once(container: AppContainer, settings: Settings | None = None) -> bool:
     resolved_settings = settings or container.settings
+    queue_worker = getattr(container, "queue_worker_service", None)
+    if queue_worker is not None and queue_worker.run_once(max_wait_seconds=0.5):
+        return True
     result = container.worker_service.run_once(
         context=SecurityContext(
             actor="worker",

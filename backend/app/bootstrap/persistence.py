@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from app.agent.repositories import (
     AgentRunRepository,
@@ -91,6 +92,14 @@ from app.review.repositories import (
     InMemoryCorrectionEventRepository,
 )
 from app.review.sqlite_repositories import SqliteCorrectionEventRepository
+from app.postgres.queries import (
+    PostgresInvoiceQueryRepository,
+    PostgresMetricsQueryRepository,
+    PostgresOperationsQueryRepository,
+    PostgresProviderHealthQueryRepository,
+)
+from app.postgres.repositories import PostgresJobRepository
+from app.postgres.store import PostgresStore
 
 
 @dataclass(frozen=True)
@@ -115,7 +124,7 @@ class BackofficeRepositories:
 
 @dataclass(frozen=True)
 class PersistenceModule:
-    store: SqliteStore | None
+    store: SqliteStore | PostgresStore | None
     transactions: TransactionManager
     documents: DocumentRepositories
     backoffice: BackofficeRepositories
@@ -136,6 +145,8 @@ def build_persistence_module(settings: Settings) -> PersistenceModule:
     backend = _metadata_backend(settings)
     if backend == "sqlite":
         return _sqlite_module(settings)
+    if backend in {"postgres", "postgresql"}:
+        return _postgres_module(settings)
     if backend == "memory":
         return _memory_module()
     raise ValueError(f"Unsupported storage backend: {backend}")
@@ -145,7 +156,7 @@ def _metadata_backend(settings: Settings) -> str:
     backend = settings.storage_backend.strip().lower()
     if backend == "memory" and is_hosted(settings):
         raise ValueError(
-            "Hosted mode requires persistent sqlite storage; "
+            "Hosted mode requires persistent sqlite storage or PostgreSQL storage; "
             "memory storage is for local tests only."
         )
     return backend
@@ -185,6 +196,51 @@ def _sqlite_module(settings: Settings) -> PersistenceModule:
         metrics_queries=SqliteMetricsQueryRepository(store),
         provider_health_queries=SqliteProviderHealthQueryRepository(store),
         operations_queries=SqliteOperationsQueryRepository(store),
+    )
+
+
+def _postgres_module(settings: Settings) -> PersistenceModule:
+    if not settings.database_url:
+        raise ValueError("DATABASE_URL is required when STORAGE_BACKEND=postgres")
+    store = PostgresStore(
+        settings.database_url,
+        pool_size=settings.database_pool_size,
+        connect_timeout_seconds=settings.database_connect_timeout_seconds,
+        acquire_timeout_seconds=settings.database_acquire_timeout_seconds,
+    )
+    compatible_store = cast(SqliteStore, cast(object, store))
+    documents = DocumentRepositories(
+        documents=SqliteDocumentRepository(compatible_store),
+        jobs=PostgresJobRepository(compatible_store),
+        audits=SqliteAuditRepository(compatible_store),
+        extractions=SqliteExtractionRepository(compatible_store),
+        reviews=SqliteReviewTaskRepository(compatible_store),
+        correction_events=SqliteCorrectionEventRepository(compatible_store),
+    )
+    backoffice = BackofficeRepositories(
+        work_items=SqliteWorkItemRepository(compatible_store),
+        plans=SqliteTaskPlanRepository(compatible_store),
+        drafts=SqliteActionDraftRepository(compatible_store),
+        approvals=SqliteApprovalRepository(compatible_store),
+        policy_decisions=SqlitePolicyDecisionRepository(compatible_store),
+        workflow_events=SqliteWorkflowEventRepository(compatible_store),
+    )
+    return PersistenceModule(
+        store=store,
+        transactions=store,
+        documents=documents,
+        backoffice=backoffice,
+        benchmark_history=SqliteBenchmarkHistoryRepository(compatible_store),
+        evaluation_attempts=SqliteEvaluationAttemptRepository(compatible_store),
+        agent_runs=SqliteAgentRunRepository(compatible_store),
+        scenario_evaluations=SqliteScenarioEvaluationRepository(compatible_store),
+        notifications=SqliteNotificationRepository(compatible_store),
+        integration_deliveries=SqliteIntegrationDeliveryRepository(compatible_store),
+        export_batches=SqliteExportBatchRepository(compatible_store),
+        invoice_queries=PostgresInvoiceQueryRepository(compatible_store),
+        metrics_queries=PostgresMetricsQueryRepository(store),
+        provider_health_queries=PostgresProviderHealthQueryRepository(store),
+        operations_queries=PostgresOperationsQueryRepository(store),
     )
 
 

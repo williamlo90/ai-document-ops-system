@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
+from typing import Mapping
 
 from app.core.settings import Settings, load_settings
 from app.providers.contracts import DocumentSource
@@ -12,8 +14,20 @@ CONFIGURED_SETTINGS = load_settings()
 MISTRAL_KEY = CONFIGURED_SETTINGS.mistral_api_key or ""
 EXTRACTOR_KEY = CONFIGURED_SETTINGS.extractor_api_key or ""
 EXTRACTOR_ENDPOINT = CONFIGURED_SETTINGS.extractor_endpoint
-HAVE_REAL_OCR = bool(MISTRAL_KEY)
-HAVE_REAL_LLM = bool(EXTRACTOR_KEY and EXTRACTOR_ENDPOINT)
+
+
+def _real_provider_tests_enabled(environment: Mapping[str, str]) -> bool:
+    return environment.get("RUN_REAL_PROVIDER_TESTS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+REAL_PROVIDER_TESTS_ENABLED = _real_provider_tests_enabled(os.environ)
+HAVE_REAL_OCR = REAL_PROVIDER_TESTS_ENABLED and bool(MISTRAL_KEY)
+HAVE_REAL_LLM = REAL_PROVIDER_TESTS_ENABLED and bool(EXTRACTOR_KEY and EXTRACTOR_ENDPOINT)
 SAMPLE_INVOICE = Path(__file__).resolve().parents[3] / "sample_invoice.pdf"
 
 
@@ -39,7 +53,17 @@ def _settings(**overrides) -> Settings:
     return Settings(**values)
 
 
-@unittest.skipIf(not HAVE_REAL_OCR, "MISTRAL_API_KEY not set")
+class RealProviderOptInTests(unittest.TestCase):
+    def test_real_provider_tests_require_explicit_opt_in(self) -> None:
+        self.assertFalse(_real_provider_tests_enabled({}))
+        self.assertFalse(_real_provider_tests_enabled({"RUN_REAL_PROVIDER_TESTS": "0"}))
+        self.assertTrue(_real_provider_tests_enabled({"RUN_REAL_PROVIDER_TESTS": "1"}))
+
+
+@unittest.skipIf(
+    not HAVE_REAL_OCR,
+    "RUN_REAL_PROVIDER_TESTS=1 and MISTRAL_API_KEY are required",
+)
 class RealMistralOcrTests(unittest.TestCase):
     def test_parse_real_pdf(self) -> None:
         parser = build_parser_provider(_settings(parser_provider="mistral_ocr"))
@@ -55,7 +79,10 @@ class RealMistralOcrTests(unittest.TestCase):
         self.assertGreater(len(parsed.pages), 0)
 
 
-@unittest.skipIf(not HAVE_REAL_LLM, "EXTRACTOR_API_KEY or EXTRACTOR_ENDPOINT not set")
+@unittest.skipIf(
+    not HAVE_REAL_LLM,
+    "RUN_REAL_PROVIDER_TESTS=1, EXTRACTOR_API_KEY, and EXTRACTOR_ENDPOINT are required",
+)
 class RealLlmJsonExtractorTests(unittest.TestCase):
     def test_extract_from_text(self) -> None:
         extractor = build_extractor_provider(

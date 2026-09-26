@@ -40,7 +40,8 @@ from app.documents.repositories import (
 )
 from app.documents.retention import DocumentRetentionService
 from app.documents.services import DocumentProcessingService, DocumentUploadService
-from app.documents.worker import DocumentProcessingWorker
+from app.documents.processing_queue import ProcessingQueue
+from app.documents.worker import DocumentProcessingWorker, QueueProcessingWorker
 from app.documents.workflow import DocumentWorkflowService
 from app.evaluation.dashboard import EvaluationDashboardService
 from app.evaluation.history import EvaluationAttemptRepository
@@ -130,6 +131,14 @@ class AppContainer:
     @property
     def worker_service(self) -> DocumentProcessingWorker:
         return self.document_module.worker_service
+
+    @property
+    def processing_queue(self) -> ProcessingQueue:
+        return self.document_module.processing_queue
+
+    @property
+    def queue_worker_service(self) -> QueueProcessingWorker:
+        return self.document_module.queue_worker_service
 
     @property
     def review_service(self) -> ReviewService:
@@ -243,6 +252,7 @@ class AppContainer:
         return _module_readiness(self.document_module, self.persistence)
 
     def close(self) -> None:
+        self.document_module.processing_queue.close()
         if self.persistence.store is not None:
             self.persistence.store.close()
 
@@ -286,6 +296,7 @@ def _module_readiness(
     return {
         "database": _repository_ready(persistence.documents.documents),
         "storage": _storage_ready(documents.storage),
+        "queue": documents.processing_queue.is_ready(),
     }
 
 
@@ -299,6 +310,9 @@ def _repository_ready(repository: DocumentRepository) -> bool:
 
 def _storage_ready(storage: DocumentStorage) -> bool:
     try:
+        readiness = getattr(storage, "is_ready", None)
+        if readiness is not None:
+            return bool(readiness())
         upload_root = getattr(storage, "upload_root", None)
         if upload_root is not None:
             return cast(Path, upload_root).exists()

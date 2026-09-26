@@ -243,6 +243,65 @@ class SqliteJobRepository:
             )
             return job if cursor.rowcount == 1 else None
 
+    def claim_processable(
+        self,
+        job_id: UUID,
+        *,
+        stale_before: datetime | None = None,
+        now: datetime | None = None,
+    ) -> ProcessingJob | None:
+        connection = self.store.connection
+        current = now or datetime.now(UTC)
+        with self.store.transaction():
+            row = connection.execute(
+                "SELECT * FROM jobs WHERE id = ?",
+                (str(job_id),),
+            ).fetchone()
+            if row is None:
+                raise NotFoundError(f"Processing job not found: {job_id}")
+            job = job_from_row(row)
+            processable = (
+                job.status == ProcessingJobStatus.QUEUED
+                or (
+                    job.status == ProcessingJobStatus.RETRYING
+                    and (job.next_attempt_at is None or job.next_attempt_at <= current)
+                )
+                or (
+                    stale_before is not None
+                    and job.status == ProcessingJobStatus.RUNNING
+                    and job.updated_at <= stale_before
+                )
+            )
+            if not processable:
+                return None
+            previous_status = job.status.value
+            if job.status == ProcessingJobStatus.RUNNING:
+                job.retry("worker_lease_expired")
+            job.start()
+            cursor = connection.execute(
+                """
+                UPDATE jobs SET status = ?, attempt_count = ?, started_at = ?,
+                finished_at = ?, error_message = ?, provider_name = ?,
+                provider_trace_id = ?, next_attempt_at = ?, lease_token = ?, updated_at = ?
+                WHERE id = ? AND status = ?
+                """,
+                (
+                    job.status.value,
+                    job.attempt_count,
+                    cast(datetime, job.started_at).isoformat(),
+                    None,
+                    job.error_message,
+                    job.provider_name,
+                    job.provider_trace_id,
+                    None,
+                    job.lease_token,
+                    job.updated_at.isoformat(),
+                    str(job.id),
+                    previous_status,
+                ),
+            )
+            return job if cursor.rowcount == 1 else None
+
     def renew_lease(
         self,
         job_id: UUID,

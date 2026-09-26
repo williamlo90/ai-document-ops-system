@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
+
+
+def default_migrations_dir() -> Path:
+    repository_path = Path("backend/migrations/postgres")
+    return repository_path if repository_path.exists() else Path("migrations/postgres")
 
 
 def apply_migrations(database_url: str, migrations_dir: Path) -> list[int]:
@@ -14,6 +20,9 @@ def apply_migrations(database_url: str, migrations_dir: Path) -> list[int]:
     applied: list[int] = []
     with psycopg.connect(database_url) as connection:
         with connection.cursor() as cursor:
+            # Serialize deploy-time migration runners for the lifetime of this
+            # transaction. A failed migration rolls the whole batch back.
+            cursor.execute("SELECT pg_advisory_xact_lock(786234901)")
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -42,13 +51,19 @@ def apply_migrations(database_url: str, migrations_dir: Path) -> list[int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Apply ordered PostgreSQL migrations.")
-    parser.add_argument("--database-url", required=True)
+    parser.add_argument(
+        "--database-url",
+        default=os.getenv("DATABASE_URL"),
+        help="PostgreSQL URL. Defaults to DATABASE_URL so credentials do not appear in argv.",
+    )
     parser.add_argument(
         "--migrations-dir",
         type=Path,
-        default=Path("backend/migrations/postgres"),
+        default=default_migrations_dir(),
     )
     args = parser.parse_args()
+    if not args.database_url:
+        parser.error("DATABASE_URL or --database-url is required")
     versions = apply_migrations(args.database_url, args.migrations_dir)
     print("Applied:", ", ".join(map(str, versions)) if versions else "none")
     return 0

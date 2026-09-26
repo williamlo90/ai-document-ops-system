@@ -31,6 +31,19 @@ class SettingsTests(unittest.TestCase):
                 "S3_REGION",
                 "S3_ACCESS_KEY_ID",
                 "S3_SECRET_ACCESS_KEY",
+                "AZURE_STORAGE_ACCOUNT_URL",
+                "AZURE_STORAGE_CONNECTION_STRING",
+                "AZURE_STORAGE_CONTAINER",
+                "AZURE_MANAGED_IDENTITY_CLIENT_ID",
+                "AZURE_STORAGE_TIMEOUT_SECONDS",
+                "AZURE_STORAGE_CREATE_CONTAINER",
+                "PROCESSING_QUEUE_BACKEND",
+                "AZURE_SERVICE_BUS_NAMESPACE",
+                "AZURE_SERVICE_BUS_CONNECTION_STRING",
+                "AZURE_SERVICE_BUS_QUEUE_NAME",
+                "AZURE_SERVICE_BUS_TIMEOUT_SECONDS",
+                "AZURE_SERVICE_BUS_MAX_LOCK_RENEWAL_SECONDS",
+                "AZURE_SERVICE_BUS_MAX_DELIVERY_COUNT",
                 "MALWARE_SCANNER_BACKEND",
                 "CLAMAV_HOST",
                 "DOCUMENT_RETENTION_DAYS",
@@ -78,6 +91,17 @@ class SettingsTests(unittest.TestCase):
                         "S3_REGION=us-east-1",
                         "S3_ACCESS_KEY_ID=minio",
                         "S3_SECRET_ACCESS_KEY=minio-secret",
+                        "AZURE_STORAGE_ACCOUNT_URL=https://docs.blob.core.windows.net",
+                        "AZURE_STORAGE_CONTAINER=private-documents",
+                        "AZURE_MANAGED_IDENTITY_CLIENT_ID=managed-client-id",
+                        "AZURE_STORAGE_TIMEOUT_SECONDS=20",
+                        "AZURE_STORAGE_CREATE_CONTAINER=true",
+                        "PROCESSING_QUEUE_BACKEND=azure-service-bus",
+                        "AZURE_SERVICE_BUS_NAMESPACE=docs.servicebus.windows.net",
+                        "AZURE_SERVICE_BUS_QUEUE_NAME=invoice-jobs",
+                        "AZURE_SERVICE_BUS_TIMEOUT_SECONDS=15",
+                        "AZURE_SERVICE_BUS_MAX_LOCK_RENEWAL_SECONDS=240",
+                        "AZURE_SERVICE_BUS_MAX_DELIVERY_COUNT=7",
                         "MALWARE_SCANNER_BACKEND=clamav",
                         "CLAMAV_HOST=clamav.internal",
                         "DOCUMENT_RETENTION_DAYS=45",
@@ -120,6 +144,23 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(settings.s3_region, "us-east-1")
         self.assertEqual(settings.s3_access_key_id, "minio")
         self.assertEqual(settings.s3_secret_access_key, "minio-secret")
+        self.assertEqual(
+            settings.azure_storage_account_url,
+            "https://docs.blob.core.windows.net",
+        )
+        self.assertEqual(settings.azure_storage_container, "private-documents")
+        self.assertEqual(settings.azure_managed_identity_client_id, "managed-client-id")
+        self.assertEqual(settings.azure_storage_timeout_seconds, 20)
+        self.assertTrue(settings.azure_storage_create_container)
+        self.assertEqual(settings.processing_queue_backend, "azure-service-bus")
+        self.assertEqual(
+            settings.azure_service_bus_namespace,
+            "docs.servicebus.windows.net",
+        )
+        self.assertEqual(settings.azure_service_bus_queue_name, "invoice-jobs")
+        self.assertEqual(settings.azure_service_bus_timeout_seconds, 15)
+        self.assertEqual(settings.azure_service_bus_max_lock_renewal_seconds, 240)
+        self.assertEqual(settings.azure_service_bus_max_delivery_count, 7)
         self.assertEqual(settings.malware_scanner_backend, "clamav")
         self.assertEqual(settings.clamav_host, "clamav.internal")
         self.assertEqual(settings.document_retention_days, 45)

@@ -6,6 +6,7 @@ from app.core.security import SecurityContext, require_admin
 from app.core.transactions import TransactionManager
 from app.documents.jobs import ProcessingJob, ProcessingJobStatus
 from app.documents.models import DocumentRecord
+from app.documents.processing_queue import NullProcessingQueue, ProcessingQueue, publish_wakeup
 from app.documents.repositories import DocumentRepository, JobRepository, NotFoundError
 from app.documents.state_writer import DocumentStateWriter
 from app.documents.status import DocumentStatus, InvalidStatusTransition
@@ -19,22 +20,36 @@ class DocumentLifecycleCommandService:
         jobs: JobRepository,
         state_writer: DocumentStateWriter,
         transactions: TransactionManager,
+        processing_queue: ProcessingQueue | None = None,
     ) -> None:
         self.documents = documents
         self.jobs = jobs
         self.state_writer = state_writer
         self.transactions = transactions
+        self.processing_queue = processing_queue or NullProcessingQueue()
 
-    def retry_failed(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
+    def retry_failed(
+        self,
+        document_id: UUID,
+        context: SecurityContext,
+        *,
+        reason: str = "manual retry requested",
+    ) -> DocumentRecord:
         return self._enqueue(
             document_id,
             context,
             allowed_statuses={DocumentStatus.FAILED},
             invalid_status_message="Only failed documents can be retried",
-            audit_summary="manual retry requested",
+            audit_summary=reason,
         )
 
-    def reprocess(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
+    def reprocess(
+        self,
+        document_id: UUID,
+        context: SecurityContext,
+        *,
+        reason: str = "manual reprocess requested",
+    ) -> DocumentRecord:
         return self._enqueue(
             document_id,
             context,
@@ -47,7 +62,7 @@ class DocumentLifecycleCommandService:
             invalid_status_message=(
                 "Only extracted, review, failed, or cancelled documents can be reprocessed"
             ),
-            audit_summary="manual reprocess requested",
+            audit_summary=reason,
         )
 
     def cancel(self, document_id: UUID, context: SecurityContext) -> DocumentRecord:
@@ -95,7 +110,8 @@ class DocumentLifecycleCommandService:
                 actor=context.actor,
                 payload_summary=audit_summary,
             )
-            self.jobs.add(ProcessingJob(document_id=document.id))
+            job = self.jobs.add(ProcessingJob(document_id=document.id))
+        publish_wakeup(self.processing_queue, job, document, context)
         return document
 
     def _document_for_workspace(

@@ -1,0 +1,35 @@
+# Manual, single-replica migration job. Phase F replaces placeholders and manages it with Bicep.
+location: <AZURE_REGION>
+name: ai-document-migrate
+type: Microsoft.App/jobs
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    "<MIGRATION_IDENTITY_RESOURCE_ID>": {}
+properties:
+  environmentId: <CONTAINER_APPS_ENVIRONMENT_RESOURCE_ID>
+  configuration:
+    triggerType: Manual
+    replicaTimeout: 1800
+    replicaRetryLimit: 1
+    manualTriggerConfig:
+      parallelism: 1
+      replicaCompletionCount: 1
+    registries:
+      - server: <ACR_LOGIN_SERVER>
+        identity: <MIGRATION_IDENTITY_RESOURCE_ID>
+    secrets:
+      - name: database-url
+        keyVaultUrl: <DATABASE_URL_KEY_VAULT_SECRET_URI>
+        identity: <MIGRATION_IDENTITY_RESOURCE_ID>
+  template:
+    containers:
+      - name: migrate
+        image: <ACR_LOGIN_SERVER>/ai-document-ops@sha256:<IMAGE_DIGEST>
+        command: [python, scripts/postgres_migrate.py]
+        env:
+          - name: DATABASE_URL
+            secretRef: database-url
+        resources:
+          cpu: 0.5
+          memory: 1Gi

@@ -65,6 +65,13 @@ def integration_status(
             "document_storage",
             settings.document_storage_backend,
             settings.document_storage_backend == "local"
+            or (
+                settings.document_storage_backend in {"azure", "azure-blob", "azure_blob"}
+                and bool(settings.azure_storage_container)
+                and bool(
+                    settings.azure_storage_account_url or settings.azure_storage_connection_string
+                )
+            )
             or all(
                 (
                     settings.s3_endpoint_url,
@@ -73,11 +80,16 @@ def integration_status(
                     settings.s3_secret_access_key,
                 )
             ),
-            settings.document_storage_backend == "local",
+            settings.document_storage_backend == "local"
+            or bool(settings.azure_storage_connection_string),
             (
                 "Private local storage."
                 if settings.document_storage_backend == "local"
-                else "S3-compatible credentials loaded."
+                else (
+                    "Private Azure Blob storage configured."
+                    if settings.document_storage_backend in {"azure", "azure-blob", "azure_blob"}
+                    else "S3-compatible credentials loaded."
+                )
             ),
         ),
         _status(
@@ -89,6 +101,27 @@ def integration_status(
                 "Local persistence."
                 if settings.storage_backend != "postgres"
                 else "PostgreSQL connection configured."
+            ),
+        ),
+        _status(
+            "processing_queue",
+            settings.processing_queue_backend,
+            settings.processing_queue_backend in {"", "none", "polling", "memory"}
+            or (
+                settings.processing_queue_backend
+                in {"azure", "azure-service-bus", "azure_service_bus", "service-bus"}
+                and bool(settings.azure_service_bus_queue_name)
+                and bool(
+                    settings.azure_service_bus_namespace
+                    or settings.azure_service_bus_connection_string
+                )
+            ),
+            settings.processing_queue_backend in {"", "none", "polling", "memory"}
+            or bool(settings.azure_service_bus_connection_string),
+            (
+                "Database polling fallback is active."
+                if settings.processing_queue_backend in {"", "none", "polling"}
+                else "Azure Service Bus wake-up queue configured; PostgreSQL remains authoritative."
             ),
         ),
     ]
