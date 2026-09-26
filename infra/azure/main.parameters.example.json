@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": { "value": "validation" },
+    "location": { "value": "southeastasia" },
+    "resourceGroupName": { "value": "rg-ai-document-validation-sea" },
+    "sourceRevision": { "value": "0000000000000000000000000000000000000000" },
+    "expiresAt": { "value": "2030-01-01T00:00:00Z" }
+  }
+}

@@ -1,8 +1,8 @@
 # Azure Container Apps runtime contract
 
-These YAML files define the Phase E runtime contract for the API, worker, and manual migration
-job. They deliberately contain placeholders and are not deployment evidence. Phase F will replace
-them with parameterized Bicep resources and least-privilege role assignments.
+These YAML files preserve the Phase E runtime contract for the API, worker, and manual migration
+job. They deliberately contain placeholders and are not deployment evidence. The deployable,
+parameterized Phase F implementation is now in the parent `infra/azure/` directory.
 
 All three workloads use the same digest-pinned image. A user-assigned managed identity pulls from
 ACR and authenticates to Blob Storage, Service Bus, and Key Vault. Only values that are inherently

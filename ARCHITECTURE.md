@@ -229,8 +229,16 @@ container build inputs, and deployment references use registry digests rather th
 Azure Container Apps keeps the API on a single active revision with HTTP liveness/readiness probes.
 The worker has no ingress and scales on Service Bus backlog with Managed Identity authentication.
 The migration path is a manual, single-replica Container Apps Job; PostgreSQL advisory locking is
-the final concurrency fence. A user-assigned identity pulls from ACR and accesses Blob, Service Bus,
-and Key Vault, while database/provider credentials remain Key Vault-backed secrets.
+the final concurrency fence. API, worker, migration, and ingestion each use a separate user-assigned
+identity with scoped ACR, Blob, Service Bus, Key Vault, and monitoring roles. Database and provider
+credentials remain Key Vault-backed secrets.
+
+The optional external-drop path uses a Flex Consumption Azure Function and Event Grid. The Function
+accepts only Blob-created events from the configured account and container, enforces PDF and size
+limits, downloads through Managed Identity, and forwards the file through the authenticated
+application upload boundary. The API—not the Function—creates the authoritative PostgreSQL job,
+audit trail, private document object, and Service Bus wake-up message. This avoids duplicating domain
+and idempotency rules in an event adapter.
 
 ## Reliability and evaluation
 

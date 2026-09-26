@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": { "value": "docintel-validation-abc123" },
+    "location": { "value": "southeastasia" },
+    "sourceRevision": { "value": "0000000000000000000000000000000000000000" },
+    "expiresAt": { "value": "2030-01-01T00:00:00Z" },
+    "registryName": { "value": "crabc123" },
+    "storageAccountName": { "value": "stabc123" },
+    "serviceBusNamespaceName": { "value": "sb-abc123" },
+    "keyVaultName": { "value": "kv-abc123" },
+    "containerAppsEnvironmentName": { "value": "docintel-validation-abc123-env" },
+    "apiIdentityName": { "value": "docintel-validation-abc123-api-id" },
+    "workerIdentityName": { "value": "docintel-validation-abc123-worker-id" },
+    "migrationIdentityName": { "value": "docintel-validation-abc123-migration-id" },
+    "imageReference": { "value": "cr.example/ai-document-ops@sha256:0000000000000000000000000000000000000000000000000000000000000000" },
+    "clamavImageReference": { "value": "registry.example/clamav@sha256:0000000000000000000000000000000000000000000000000000000000000000" },
+    "useRealProviders": { "value": false }
+  }
+}

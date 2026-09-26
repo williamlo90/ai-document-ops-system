@@ -300,11 +300,25 @@ runs the same smoke before scanning the frozen image with Trivy. Fixed HIGH or C
 fail the build; unfixed findings are reported but cannot be remediated in the image and follow the
 documented dependency-review process.
 
-The Phase E Azure runtime templates are under `infra/azure/container-apps/`. They define a
-single-revision API, Service Bus-scaled worker, and manual single-replica migration job. A
-user-assigned Managed Identity is the contract for ACR pull, Blob, Service Bus, and Key Vault.
-The templates require an image digest and contain no deployable secret values. Phase F will render
-the same contract as parameterized Bicep with concrete role assignments.
+The Phase E Azure runtime templates under `infra/azure/container-apps/` remain a readable contract.
+The deployable Phase F implementation is under `infra/azure/`: subscription-scope foundation,
+resource-group runtime, Event Grid activation, small Bicep modules, a Flex Consumption ingestion
+Function, and guarded PowerShell operations. API, worker, migration, and ingestion have separate
+Managed Identities and role assignments. Runtime image references must be registry digests, and no
+deployment output contains a secret value.
+
+Start with `infra/azure/ACCOUNT_SETUP.md` only after local Bicep validation is complete. The scripts
+have three deliberate safety levels: `preflight.ps1` is read-only, `provision.ps1` and
+`deploy-runtime.ps1` default to Azure `what-if`, and billable mutations require both `-Apply` and
+`-ConfirmBillable`. Teardown accepts only a narrowly named AI Document resource group and requires
+`-ConfirmDestroy`; use `-Wait` to prove that Azure reports the group absent.
+
+The validation profile favors short lifetime and evidence collection over production HA. The API
+stays at one replica, the worker scales from zero, PostgreSQL uses a small Burstable SKU, and every
+taggable resource carries a source revision plus expiration timestamp. The PostgreSQL
+Azure-services-only firewall is a documented short-run compromise; a long-running production
+environment should use private networking. Expiration tags do not delete resources automatically.
+Always collect sanitized evidence, inventory the exact group, and run guarded teardown.
 
 ### Azure Blob storage profile
 

@@ -10,6 +10,30 @@ permissions:
   contents: read
 
 jobs:
+  azure-infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11.14"
+      - name: Install pinned Bicep compiler
+        run: |
+          curl --fail --silent --show-error --location \
+            --output /tmp/bicep \
+            https://github.com/Azure/bicep/releases/download/v0.45.15/bicep-linux-x64
+          echo "ff5b194b042c220df4a50d6768ed1d6c39a32894bfdc4ff83d62b115d966a7ce  /tmp/bicep" | sha256sum --check
+          chmod +x /tmp/bicep
+          /tmp/bicep --version
+      - name: Compile Azure infrastructure
+        run: |
+          mkdir -p /tmp/docintel-bicep
+          /tmp/bicep build infra/azure/main.bicep --outfile /tmp/docintel-bicep/main.json
+          /tmp/bicep build infra/azure/runtime.bicep --outfile /tmp/docintel-bicep/runtime.json
+          /tmp/bicep build infra/azure/event-grid.bicep --outfile /tmp/docintel-bicep/event-grid.json
+      - name: Validate generated ARM safety contracts
+        run: python scripts/validate_azure_iac.py --compiled-dir /tmp/docintel-bicep
+
   secret-scan:
     runs-on: ubuntu-latest
     steps:

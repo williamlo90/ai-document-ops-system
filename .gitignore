@@ -23,6 +23,8 @@ frontend/coverage/
 docs/assets/demo/*.webm
 backups/
 _local_docs/
+infra/azure/*.parameters.local.json
+infra/azure/*.zip
 /_private_data/
 outputs/*-rendered/
 outputs/*-screenshots/
