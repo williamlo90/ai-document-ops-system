@@ -16,9 +16,6 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
     networkRuleBypassOptions: 'AzureServices'
     publicNetworkAccess: 'Enabled'
     policies: {
-      exportPolicy: {
-        status: 'disabled'
-      }
       quarantinePolicy: {
         status: 'disabled'
       }
