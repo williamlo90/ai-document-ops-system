@@ -86,6 +86,9 @@ def validate_sources(root: Path = AZURE_ROOT) -> list[str]:
         errors.append("migration job name must stay within the 32-character Container Apps limit")
     if "external: true" not in api_module or "allowInsecure: false" not in api_module:
         errors.append("API ingress must be explicit HTTPS-only external ingress")
+    for module_name, module_text in (("API", api_module), ("worker", worker_module)):
+        if "name: 'UPLOAD_ROOT'" not in module_text or "value: '/tmp/docintel/uploads'" not in module_text:
+            errors.append(f"{module_name} must use a writable ephemeral upload cache")
     if "ingress:" in worker_module:
         errors.append("worker must not expose ingress")
     if "scope: resourceGroup()" in role_module:

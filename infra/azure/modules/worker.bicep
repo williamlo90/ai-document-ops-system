@@ -114,6 +114,10 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
               value: 'azure-validation'
             }
             {
+              name: 'UPLOAD_ROOT'
+              value: '/tmp/docintel/uploads'
+            }
+            {
               name: 'STORAGE_BACKEND'
               value: 'postgres'
             }
