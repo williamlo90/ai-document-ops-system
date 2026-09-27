@@ -90,7 +90,10 @@ def validate_sources(root: Path = AZURE_ROOT) -> list[str]:
         if marker not in api_module:
             errors.append(f"ClamAV deterministic startup contract is missing: {marker}")
     for module_name, module_text in (("API", api_module), ("worker", worker_module)):
-        if "name: 'UPLOAD_ROOT'" not in module_text or "value: '/tmp/docintel/uploads'" not in module_text:
+        if (
+            "name: 'UPLOAD_ROOT'" not in module_text
+            or "value: '/tmp/docintel/uploads'" not in module_text
+        ):
             errors.append(f"{module_name} must use a writable ephemeral upload cache")
     if "ingress:" in worker_module:
         errors.append("worker must not expose ingress")
