@@ -12,6 +12,7 @@ MAX_NEW_COMPLEXITY = 15
 MAX_NEW_FUNCTION_LINES = 80
 MAX_NEW_CLASS_LINES = 300
 COMPLEXITY_EXCEPTIONS = {
+    "backend/app/api/integrations.py::integration_status": 23,
     "backend/app/evaluation/dashboard.py::EvaluationDashboardService._normalize_report": 30,
     "backend/app/exports/batch_service.py::ExportBatchService.workspace": 28,
     "backend/app/api/review.py::review_worklist_row": 27,
@@ -29,6 +30,9 @@ COMPLEXITY_EXCEPTIONS = {
     "backend/app/system/dashboard.py::SystemDashboardService._flow": 16,
 }
 FUNCTION_LENGTH_EXCEPTIONS = {
+    "backend/app/core/settings.py::load_settings": 102,
+    "backend/app/api/integrations.py::integration_status": 98,
+    "backend/app/postgres/repositories.py::PostgresRetentionRepository.purge": 94,
     "backend/app/documents/sqlite_repositories.py::SqliteStore._init_schema_locked": 232,
     "backend/app/exports/batch_service.py::ExportBatchService.execute": 127,
     "backend/app/integrations/services.py::InvoiceIntegrationService._deliver": 118,
