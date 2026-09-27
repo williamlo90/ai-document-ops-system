@@ -36,6 +36,7 @@ contains reproducible technical evidence and deeper implementation notes.
 - [Supply-chain controls](security/supply-chain.md)
 - [Security evidence](security/security-evidence-v1.md)
 - [AWS deployment notes](aws_deployment.md)
+- [Controlled Azure live validation](azure-live-validation.md)
 - [Docker profile](docker_profile.md)
 
 ## Demo

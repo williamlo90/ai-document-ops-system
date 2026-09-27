@@ -51,8 +51,11 @@ flowchart LR
     READ --> QUALITY["Labeled scenario evaluation"]
 ```
 
-The local stack uses React, TypeScript, FastAPI, SQLite, and private local file storage. Mock
-providers make the full workflow available without paid credentials. The tested real-provider
+The default local stack uses React, TypeScript, FastAPI, SQLite, and private local file storage. Mock
+providers make the full workflow available without paid credentials. A temporary production-shaped
+Azure profile has also been validated with Container Apps, PostgreSQL, private Blob Storage, Service
+Bus, Functions/Event Grid, Key Vault, and Managed Identity, then fully torn down. See the
+[controlled Azure live validation](docs/azure-live-validation.md). The tested real-provider
 configuration uses Mistral OCR and an OpenAI structured extraction model.
 
 ## Results
@@ -77,6 +80,9 @@ configuration uses Mistral OCR and an OpenAI structured extraction model.
   diff.
 - Supporting release evidence records 521 backend tests, 23 frontend tests, 29 fixture-browser
   tests, and one browser journey against the local full stack.
+- A controlled Azure run successfully migrated PostgreSQL, reached a healthy API revision, and
+  processed a synthetic PDF through Blob Storage and Service Bus to `needs_review` before verified
+  zero-resource teardown.
 
 One unsupported due date remained in the sealed holdout and is documented in the evaluation
 record. These results describe fixed synthetic datasets and local verification, not production
@@ -96,6 +102,7 @@ accuracy or customer outcomes.
 | Retained localized-number failure       | [Failed diagnostic JSON](docs/evidence/current-provider-diagnostic.failed-20260728T080824Z.json) |
 | One-minute evidence path                | [Recruiter evidence pack](docs/recruiter-evidence-pack.md)                                       |
 | Product walkthrough                     | [Captioned demo video](docs/assets/demo/invoice-review-demo.mp4)                                 |
+| Controlled Azure deployment             | [Azure live validation](docs/azure-live-validation.md)                                           |
 
 ## Current limitations
 
@@ -103,8 +110,10 @@ The evaluation uses small synthetic datasets. The workflow-time comparison cover
 six known synthetic draft cases. The 10-case outcome record combines those reruns with four
 retained blocker observations; it is not one same-session 20-trial run and does not measure
 production accuracy, multi-user time savings, cost savings, or customer impact. Invoice is the only
-complete document workflow. SQLite, local storage, and seeded roles are used for local evaluation;
-they are not a production tenancy setup. Every approval still requires a reviewer.
+complete document workflow. SQLite, local storage, and seeded roles remain the default local
+evaluation profile. The Azure result is a temporary mock-provider integration validation, not a
+production tenancy, sustained hosting, or customer deployment. Every approval still requires a
+reviewer.
 
 ## Quick start
 
