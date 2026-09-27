@@ -80,6 +80,10 @@ def validate_sources(root: Path = AZURE_ROOT) -> list[str]:
         errors.append("destroy script must confirm and constrain its exact resource-group target")
     if re.search(r"(?:imageReference|clamavImageReference)\s*=.*:latest", runtime, re.IGNORECASE):
         errors.append("runtime template contains a mutable latest image")
+    if "name: '${take(namePrefix, 25)}-worker'" not in runtime:
+        errors.append("worker name must stay within the 32-character Container Apps limit")
+    if "name: '${take(namePrefix, 24)}-migrate'" not in runtime:
+        errors.append("migration job name must stay within the 32-character Container Apps limit")
     if "external: true" not in api_module or "allowInsecure: false" not in api_module:
         errors.append("API ingress must be explicit HTTPS-only external ingress")
     if "ingress:" in worker_module:

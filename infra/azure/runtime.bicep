@@ -99,7 +99,7 @@ module worker 'modules/worker.bicep' = {
   name: 'worker-runtime'
   params: {
     location: location
-    name: '${namePrefix}-worker'
+    name: '${take(namePrefix, 25)}-worker'
     environmentId: environment.id
     imageReference: imageReference
     registryServer: registry.properties.loginServer
@@ -122,7 +122,7 @@ module migration 'modules/migration-job.bicep' = {
   name: 'migration-runtime'
   params: {
     location: location
-    name: '${namePrefix}-migrate'
+    name: '${take(namePrefix, 24)}-migrate'
     environmentId: environment.id
     imageReference: imageReference
     registryServer: registry.properties.loginServer
