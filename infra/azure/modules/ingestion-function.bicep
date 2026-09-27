@@ -79,7 +79,6 @@ resource appSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     AzureWebJobsStorage__clientId: identityClientId
     AzureWebJobsStorage__credential: 'managedidentity'
     FUNCTIONS_EXTENSION_VERSION: '~4'
-    FUNCTIONS_WORKER_RUNTIME: 'python'
     API_BASE_URL: 'https://pending.invalid'
     KEY_VAULT_URI: keyVaultUri
     STORAGE_ACCOUNT_URL: storageAccountUrl
