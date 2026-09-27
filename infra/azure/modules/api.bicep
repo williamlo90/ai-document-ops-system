@@ -247,6 +247,33 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
         {
           name: 'clamav'
           image: clamavImageReference
+          env: [
+            {
+              name: 'CLAMAV_NO_FRESHCLAMD'
+              value: 'true'
+            }
+          ]
+          probes: [
+            {
+              type: 'Startup'
+              tcpSocket: {
+                port: 3310
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 5
+              timeoutSeconds: 3
+              failureThreshold: 60
+            }
+            {
+              type: 'Readiness'
+              tcpSocket: {
+                port: 3310
+              }
+              periodSeconds: 5
+              timeoutSeconds: 3
+              failureThreshold: 3
+            }
+          ]
           resources: {
             cpu: json('0.5')
             memory: '1Gi'
