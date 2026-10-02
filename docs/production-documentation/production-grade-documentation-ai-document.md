@@ -1,10 +1,11 @@
 # AI Document Production-Grade Testing Documentation
 
-Status: draft baseline and results template  
-Created: 2026-10-02  
-Last updated: 2026-10-02  
-Repository: `ai-document-ops-system`  
-Related implementation plan: local ignored `_local_docs/production-grade/production-grade-testing-todo.md`  
+- Status: draft baseline and results template
+- Created: 2026-10-02
+- Last updated: 2026-10-02
+- Repository: `ai-document-ops-system`
+- Related implementation plan: local ignored
+  `_local_docs/production-grade/production-grade-testing-todo.md`
 
 ## 1. Purpose
 
@@ -65,12 +66,12 @@ implemented and executed:
 
 ### Current verdict
 
-**Foundation status:** strong production-oriented test foundation.  
-**Live production-grade test status:** incomplete.  
-**Permitted claim today:** production-shaped Azure deployment with controlled integration
-validation.  
-**Claim blocked today:** production-grade reliability, proven scalability, highly available, or
-production-ready.
+- **Foundation status:** strong production-oriented test foundation.
+- **Live production-grade test status:** incomplete.
+- **Permitted claim today:** production-shaped Azure deployment with controlled integration
+  validation.
+- **Claim blocked today:** production-grade reliability, proven scalability, highly available, or
+  production-ready.
 
 ## 4. System and Evidence Boundary
 
@@ -205,11 +206,11 @@ Copy this subsection once for every `PG-xx` scenario.
 
 ### PG-XX — Test name
 
-**Status:** Planned  
-**Started:** TBD  
-**Completed:** TBD  
-**Source revision/image:** TBD  
-**Scenario trace/run ID:** TBD
+- **Status:** Planned
+- **Started:** TBD
+- **Completed:** TBD
+- **Source revision/image:** TBD
+- **Scenario trace/run ID:** TBD
 
 #### Objective
 
@@ -375,15 +376,15 @@ the blocked claim.
 
 ## 18. Final Verdict Template
 
-**Overall status:** TBD  
-**Passed scenarios:** TBD  
-**Failed scenarios:** TBD  
-**Blocked scenarios:** TBD  
-**Residual risks:** TBD  
-**Required remediation:** TBD  
-**Optional improvements:** TBD  
-**Permitted portfolio claim:** TBD  
-**Claims still prohibited:** TBD
+- **Overall status:** TBD
+- **Passed scenarios:** TBD
+- **Failed scenarios:** TBD
+- **Blocked scenarios:** TBD
+- **Residual risks:** TBD
+- **Required remediation:** TBD
+- **Optional improvements:** TBD
+- **Permitted portfolio claim:** TBD
+- **Claims still prohibited:** TBD
 
 ## 19. Evidence Inventory
 
