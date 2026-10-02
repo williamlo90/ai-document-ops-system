@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from scripts.production_validation.queue_probe import (
@@ -48,6 +49,22 @@ class ProductionValidationQueueProbeTests(unittest.TestCase):
         self.assertFalse(message_belongs_to_run(foreign, "pg01-20261002t120000z-abcd1234"))
         with self.assertRaisesRegex(RuntimeError, "refusing replay"):
             require_owned_inventory([owned, foreign], "pg01-20261002t120000z-abcd1234")
+
+    @patch("scripts.production_validation.queue_probe.ServiceBusClient.from_connection_string")
+    def test_local_emulator_connection_does_not_create_azure_credential(
+        self, from_connection_string: MagicMock
+    ) -> None:
+        from scripts.production_validation.queue_probe import QueueProbe
+
+        probe = QueueProbe(
+            namespace="",
+            queue_name="document-processing",
+            connection_string="Endpoint=sb://localhost;UseDevelopmentEmulator=true;",
+        )
+        probe.close()
+
+        from_connection_string.assert_called_once()
+        self.assertIsNone(probe.credential)
 
 
 if __name__ == "__main__":

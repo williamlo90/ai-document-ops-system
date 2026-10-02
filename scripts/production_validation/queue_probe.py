@@ -90,11 +90,24 @@ def require_owned_inventory(messages: list[object], run_id: str) -> None:
 
 
 class QueueProbe:
-    def __init__(self, *, namespace: str, queue_name: str, client_id: str = "") -> None:
-        if not namespace or not queue_name:
-            raise ValueError("namespace and queue name are required")
-        self.credential = DefaultAzureCredential(managed_identity_client_id=client_id or None)
-        self.client = ServiceBusClient(namespace, self.credential)
+    def __init__(
+        self,
+        *,
+        namespace: str,
+        queue_name: str,
+        client_id: str = "",
+        connection_string: str = "",
+    ) -> None:
+        if not queue_name:
+            raise ValueError("queue name is required")
+        if not namespace and not connection_string:
+            raise ValueError("namespace is required when a connection string is not configured")
+        self.credential = None
+        if connection_string:
+            self.client = ServiceBusClient.from_connection_string(connection_string)
+        else:
+            self.credential = DefaultAzureCredential(managed_identity_client_id=client_id or None)
+            self.client = ServiceBusClient(namespace, self.credential)
         self.queue_name = queue_name
 
     def publish(self, envelope: ProbeEnvelope) -> None:
@@ -156,7 +169,8 @@ class QueueProbe:
 
     def close(self) -> None:
         self.client.close()
-        self.credential.close()
+        if self.credential is not None:
+            self.credential.close()
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -169,6 +183,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         namespace=args.namespace,
         queue_name=args.queue_name,
         client_id=args.managed_identity_client_id,
+        connection_string=os.environ.get("AZURE_SERVICE_BUS_CONNECTION_STRING", ""),
     )
     try:
         if args.command == "publish-poison":
@@ -196,7 +211,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Guarded Azure Service Bus validation probe.")
-    parser.add_argument("--namespace", required=True)
+    parser.add_argument("--namespace", default=os.environ.get("AZURE_SERVICE_BUS_NAMESPACE", ""))
     parser.add_argument("--queue-name", required=True)
     parser.add_argument("--managed-identity-client-id", default="")
     parser.add_argument("--run-id", required=True)

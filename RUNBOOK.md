@@ -324,6 +324,11 @@ DLQ replay refuses to proceed if any inspected dead-letter message is not tagged
 validation run ID. `trace_probe.py` requires API completion, queue publication, worker disposition,
 and terminal processing evidence for the same trace ID before it passes.
 
+For a local Service Bus Emulator rehearsal, set the ignored
+`AZURE_SERVICE_BUS_CONNECTION_STRING` environment variable before running `queue_probe.py`; the
+namespace argument is then optional. Omit the connection string in Azure so the probe requires the
+namespace and uses `DefaultAzureCredential`.
+
 ### Immutable image and runtime verification
 
 Every image carries OCI source, revision, and creation labels. A release candidate must be built
