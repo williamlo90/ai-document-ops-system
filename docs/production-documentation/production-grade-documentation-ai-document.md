@@ -22,15 +22,15 @@ identified revision, environment, procedure, result artifact, and acceptance thr
 
 ## 2. Status Vocabulary
 
-| Status | Meaning |
-| --- | --- |
-| Passed | Executed evidence satisfies the frozen acceptance threshold. |
-| Failed | Executed evidence violates one or more acceptance thresholds. |
-| Partial | Some behavior is proven, but the complete target scenario was not executed. |
+| Status            | Meaning                                                                       |
+| ----------------- | ----------------------------------------------------------------------------- |
+| Passed            | Executed evidence satisfies the frozen acceptance threshold.                  |
+| Failed            | Executed evidence violates one or more acceptance thresholds.                 |
+| Partial           | Some behavior is proven, but the complete target scenario was not executed.   |
 | Locally validated | Proven in deterministic unit, integration, emulator, or container tests only. |
-| Live validated | Proven against the disposable Azure deployment. |
-| Planned | Defined in the TODO but not yet implemented or executed. |
-| Not applicable | Explicitly excluded with a documented reason. |
+| Live validated    | Proven against the disposable Azure deployment.                               |
+| Planned           | Defined in the TODO but not yet implemented or executed.                      |
+| Not applicable    | Explicitly excluded with a documented reason.                                 |
 
 ## 3. Executive Summary
 
@@ -104,103 +104,103 @@ implemented and executed:
 The rows below describe the baseline as of repository revision `b156e03`. “Locally validated” does
 not imply live Azure validation.
 
-| Area | Status | What is already demonstrated | Primary evidence |
-| --- | --- | --- | --- |
-| Retry and job idempotency | Locally validated | Retryable jobs use bounded attempts and guarded state transitions; duplicate queue delivery does not create a second logical processing effect. | `backend/app/tests/test_processing_queue.py`, worker/repository tests |
-| Export idempotency | Locally validated | Repeated export commands are protected by idempotency keys and conflict rules. | export service/API and transaction-boundary tests |
-| Worker claim concurrency | Locally validated | Atomic claim and lease semantics prevent two workers from owning the same processable job. | `backend/app/tests/test_postgres_persistence.py`, `test_transaction_boundaries.py` |
-| Lease recovery | Locally validated | Expired/stale lease paths can be reclaimed and processing can resume. | job/repository/processing queue tests |
-| Queue duplicate handling | Locally validated | A duplicate message for terminal, future-retry, or already-leased work is safely completed. | `backend/app/tests/test_processing_queue.py` |
-| Poison-message handling | Locally validated | Invalid envelope and rejected processing paths choose dead-letter disposition. | `backend/app/tests/test_processing_queue.py`, `test_azure_service_bus.py` |
-| Queue transport contract | Locally validated | Service Bus publish/receive, correlation ID, lock renewal, complete, abandon, and dead-letter calls are covered. | `backend/app/tests/test_azure_service_bus.py` |
-| Database concurrency | Locally validated | PostgreSQL API/worker state sharing and atomic job claim contracts are exercised. | `backend/app/tests/test_postgres_persistence.py` |
-| Upload and workflow concurrency smoke | Locally validated | Concurrent upload/process requests, pagination isolation, and concurrent approval responses have a runnable smoke harness. | `scripts/load_workflows.py` |
-| Read concurrency smoke | Locally validated | A dependency-free concurrent read smoke reports response statuses, median, p95, and maximum latency. | `scripts/load_smoke.py` |
-| Production-validation harness | Locally validated | A paced Docker/PostgreSQL rehearsal records p50/p90/p95/p99, throughput, one-minute windows, status distribution, frozen gates, document convergence, and sanitized JSON/Markdown reports. The 30-second harness rehearsal passed with 100% expected responses, 0% HTTP 5xx, and its synthetic document converged to `needs_review`; this validates the harness, not PG-01. | `scripts/production_validation/`, `docker-compose.validation.yml`, ignored local report |
-| Live-test safety controls | Locally validated, not Azure-live | Guarded claim-and-exit, run-owned queue/DLQ probing, complete-chain trace verification, optional Azure Monitor alerts, and an internal idempotent ambiguous-outcome sink are implemented behind explicit validation switches. A Service Bus Emulator rehearsal proved tagged poison -> `invalid_envelope` DLQ -> guarded replay -> empty DLQ; this does not count as PG-03 through PG-06 until the controlled Azure run executes them. | `backend/app/production_validation_*.py`, `scripts/production_validation/`, `infra/azure/modules/production-validation-*.bicep` |
-| Dependency readiness | Locally validated | Readiness reports failed database/storage dependencies and queue degradation separately. | runtime observability/release tests |
-| Container runtime recovery | Locally validated | API, worker, and migration modes, read-only filesystems, PostgreSQL outage behavior, and graceful termination are exercised. | `scripts/container_runtime_smoke.py`, CI `container-security` job |
-| Structured application logs | Locally validated | JSON logs include timestamp, level, logger, event, request ID, trace ID, path, status, and duration where relevant. | `backend/app/core/observability.py`, `test_runtime_observability.py` |
-| Basic HTTP metrics | Locally validated | Per-route/status request counters and duration sums are exposed through the protected metrics endpoint. | `backend/app/core/observability.py`, `/internal/metrics` tests |
-| Trace identifier propagation | Partial | API accepts/creates trace IDs and Service Bus messages carry the trace ID into worker operation logs. Automated complete-chain proof is not yet present. | observability middleware, processing message, Service Bus adapter, queue worker |
-| Infrastructure as Code | Passed | Azure Bicep compiles and generated ARM is checked for expected security, identity, immutable-image, tagging, and teardown contracts. | CI `azure-infrastructure`, `scripts/validate_azure_iac.py` |
-| Secret scanning | Passed | Full Git history is scanned with redaction in CI. | CI `secret-scan` |
-| Dependency and code quality | Passed | Locked installs, dependency audit, formatting, lint, type checking, coverage, and complexity gates pass on final baseline. | final CI run `36339370216` |
-| Container vulnerability scan | Passed | The candidate image passed the configured fixed HIGH/CRITICAL vulnerability gate. | final CI `container-security`; controlled Azure validation record |
-| Azure database migration | Live validated | One-off PostgreSQL migration completed in the temporary Azure environment. | `docs/azure-live-validation.md` |
-| Azure health/readiness | Live validated | Deployed API liveness and readiness returned HTTP 200 on the healthy revision. | `docs/azure-live-validation.md` |
-| Azure synthetic processing path | Live validated | A synthetic PDF passed ClamAV, private Blob persistence, Service Bus delivery, mock-provider worker processing, and reached `needs_review`. | `docs/azure-live-validation.md` |
-| Malware boundary | Live validated | Exact EICAR payload was detected through the deployed ClamAV INSTREAM path. | `docs/azure-live-validation.md` |
-| Azure teardown | Live validated | Temporary operator access was removed, the validation resource group was deleted, and tagged active project resource count became zero. | `docs/azure-live-validation.md`, ignored teardown evidence |
+| Area                                  | Status                            | What is already demonstrated                                                                                                                                                                                                                                                                                                                                                                                                           | Primary evidence                                                                                                                |
+| ------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Retry and job idempotency             | Locally validated                 | Retryable jobs use bounded attempts and guarded state transitions; duplicate queue delivery does not create a second logical processing effect.                                                                                                                                                                                                                                                                                        | `backend/app/tests/test_processing_queue.py`, worker/repository tests                                                           |
+| Export idempotency                    | Locally validated                 | Repeated export commands are protected by idempotency keys and conflict rules.                                                                                                                                                                                                                                                                                                                                                         | export service/API and transaction-boundary tests                                                                               |
+| Worker claim concurrency              | Locally validated                 | Atomic claim and lease semantics prevent two workers from owning the same processable job.                                                                                                                                                                                                                                                                                                                                             | `backend/app/tests/test_postgres_persistence.py`, `test_transaction_boundaries.py`                                              |
+| Lease recovery                        | Locally validated                 | Expired/stale lease paths can be reclaimed and processing can resume.                                                                                                                                                                                                                                                                                                                                                                  | job/repository/processing queue tests                                                                                           |
+| Queue duplicate handling              | Locally validated                 | A duplicate message for terminal, future-retry, or already-leased work is safely completed.                                                                                                                                                                                                                                                                                                                                            | `backend/app/tests/test_processing_queue.py`                                                                                    |
+| Poison-message handling               | Locally validated                 | Invalid envelope and rejected processing paths choose dead-letter disposition.                                                                                                                                                                                                                                                                                                                                                         | `backend/app/tests/test_processing_queue.py`, `test_azure_service_bus.py`                                                       |
+| Queue transport contract              | Locally validated                 | Service Bus publish/receive, correlation ID, lock renewal, complete, abandon, and dead-letter calls are covered.                                                                                                                                                                                                                                                                                                                       | `backend/app/tests/test_azure_service_bus.py`                                                                                   |
+| Database concurrency                  | Locally validated                 | PostgreSQL API/worker state sharing and atomic job claim contracts are exercised.                                                                                                                                                                                                                                                                                                                                                      | `backend/app/tests/test_postgres_persistence.py`                                                                                |
+| Upload and workflow concurrency smoke | Locally validated                 | Concurrent upload/process requests, pagination isolation, and concurrent approval responses have a runnable smoke harness.                                                                                                                                                                                                                                                                                                             | `scripts/load_workflows.py`                                                                                                     |
+| Read concurrency smoke                | Locally validated                 | A dependency-free concurrent read smoke reports response statuses, median, p95, and maximum latency.                                                                                                                                                                                                                                                                                                                                   | `scripts/load_smoke.py`                                                                                                         |
+| Production-validation harness         | Locally validated                 | A paced Docker/PostgreSQL rehearsal records p50/p90/p95/p99, throughput, one-minute windows, status distribution, frozen gates, document convergence, and sanitized JSON/Markdown reports. The 30-second harness rehearsal passed with 100% expected responses, 0% HTTP 5xx, and its synthetic document converged to `needs_review`; this validates the harness, not PG-01.                                                            | `scripts/production_validation/`, `docker-compose.validation.yml`, ignored local report                                         |
+| Live-test safety controls             | Locally validated, not Azure-live | Guarded claim-and-exit, run-owned queue/DLQ probing, complete-chain trace verification, optional Azure Monitor alerts, and an internal idempotent ambiguous-outcome sink are implemented behind explicit validation switches. A Service Bus Emulator rehearsal proved tagged poison -> `invalid_envelope` DLQ -> guarded replay -> empty DLQ; this does not count as PG-03 through PG-06 until the controlled Azure run executes them. | `backend/app/production_validation_*.py`, `scripts/production_validation/`, `infra/azure/modules/production-validation-*.bicep` |
+| Dependency readiness                  | Locally validated                 | Readiness reports failed database/storage dependencies and queue degradation separately.                                                                                                                                                                                                                                                                                                                                               | runtime observability/release tests                                                                                             |
+| Container runtime recovery            | Locally validated                 | API, worker, and migration modes, read-only filesystems, PostgreSQL outage behavior, and graceful termination are exercised.                                                                                                                                                                                                                                                                                                           | `scripts/container_runtime_smoke.py`, CI `container-security` job                                                               |
+| Structured application logs           | Locally validated                 | JSON logs include timestamp, level, logger, event, request ID, trace ID, path, status, and duration where relevant.                                                                                                                                                                                                                                                                                                                    | `backend/app/core/observability.py`, `test_runtime_observability.py`                                                            |
+| Basic HTTP metrics                    | Locally validated                 | Per-route/status request counters and duration sums are exposed through the protected metrics endpoint.                                                                                                                                                                                                                                                                                                                                | `backend/app/core/observability.py`, `/internal/metrics` tests                                                                  |
+| Trace identifier propagation          | Partial                           | API accepts/creates trace IDs and Service Bus messages carry the trace ID into worker operation logs. Automated complete-chain proof is not yet present.                                                                                                                                                                                                                                                                               | observability middleware, processing message, Service Bus adapter, queue worker                                                 |
+| Infrastructure as Code                | Passed                            | Azure Bicep compiles and generated ARM is checked for expected security, identity, immutable-image, tagging, and teardown contracts.                                                                                                                                                                                                                                                                                                   | CI `azure-infrastructure`, `scripts/validate_azure_iac.py`                                                                      |
+| Secret scanning                       | Passed                            | Full Git history is scanned with redaction in CI.                                                                                                                                                                                                                                                                                                                                                                                      | CI `secret-scan`                                                                                                                |
+| Dependency and code quality           | Passed                            | Locked installs, dependency audit, formatting, lint, type checking, coverage, and complexity gates pass on final baseline.                                                                                                                                                                                                                                                                                                             | final CI run `36339370216`                                                                                                      |
+| Container vulnerability scan          | Passed                            | The candidate image passed the configured fixed HIGH/CRITICAL vulnerability gate.                                                                                                                                                                                                                                                                                                                                                      | final CI `container-security`; controlled Azure validation record                                                               |
+| Azure database migration              | Live validated                    | One-off PostgreSQL migration completed in the temporary Azure environment.                                                                                                                                                                                                                                                                                                                                                             | `docs/azure-live-validation.md`                                                                                                 |
+| Azure health/readiness                | Live validated                    | Deployed API liveness and readiness returned HTTP 200 on the healthy revision.                                                                                                                                                                                                                                                                                                                                                         | `docs/azure-live-validation.md`                                                                                                 |
+| Azure synthetic processing path       | Live validated                    | A synthetic PDF passed ClamAV, private Blob persistence, Service Bus delivery, mock-provider worker processing, and reached `needs_review`.                                                                                                                                                                                                                                                                                            | `docs/azure-live-validation.md`                                                                                                 |
+| Malware boundary                      | Live validated                    | Exact EICAR payload was detected through the deployed ClamAV INSTREAM path.                                                                                                                                                                                                                                                                                                                                                            | `docs/azure-live-validation.md`                                                                                                 |
+| Azure teardown                        | Live validated                    | Temporary operator access was removed, the validation resource group was deleted, and tagged active project resource count became zero.                                                                                                                                                                                                                                                                                                | `docs/azure-live-validation.md`, ignored teardown evidence                                                                      |
 
 ## 6. New Production-Grade Test Matrix
 
 All rows begin as **Planned**. Update them only after execution evidence exists.
 
-| ID | Priority | Test | Current status | Mandatory acceptance summary | Result artifact |
-| --- | --- | --- | --- | --- | --- |
-| PG-01 | P1 | Sustained load and soak | Planned | 60-minute mixed workload; >=99.5% expected-response availability; 5xx <0.5%; latency/resource thresholds pass | TBD |
-| PG-02 | P1 | End-to-end concurrency | Planned | Concurrent upload/approval/export has no lost update, duplicate effect, or inconsistent state | TBD |
-| PG-03 | P1 | Live worker recovery | Planned | Claimed job survives worker termination and converges exactly once within two lease windows | TBD |
-| PG-04 | P1 | Live retry and idempotency | Planned | Duplicate queue message, duplicate export call, and ambiguous external success each produce one logical effect | TBD |
-| PG-05 | P1 | Live queue backlog, DLQ, and replay | Planned | Backlog drains; poison messages are classified in DLQ; corrected replay converges once | TBD |
-| PG-06 | P1 | Alert delivery and trace correlation | Planned | Selected fault opens Azure alert, sends notification, and one trace ID connects API, queue, worker, and final state | TBD |
-| PG-07 | P1 | Worker autoscaling | Planned | Backlog causes >=2 replicas, work remains consistent, backlog reaches zero, worker returns to zero | TBD |
+| ID    | Priority | Test                                 | Current status | Mandatory acceptance summary                                                                                        | Result artifact |
+| ----- | -------- | ------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------- | --------------- |
+| PG-01 | P1       | Sustained load and soak              | Planned        | 60-minute mixed workload; >=99.5% expected-response availability; 5xx <0.5%; latency/resource thresholds pass       | TBD             |
+| PG-02 | P1       | End-to-end concurrency               | Planned        | Concurrent upload/approval/export has no lost update, duplicate effect, or inconsistent state                       | TBD             |
+| PG-03 | P1       | Live worker recovery                 | Planned        | Claimed job survives worker termination and converges exactly once within two lease windows                         | TBD             |
+| PG-04 | P1       | Live retry and idempotency           | Planned        | Duplicate queue message, duplicate export call, and ambiguous external success each produce one logical effect      | TBD             |
+| PG-05 | P1       | Live queue backlog, DLQ, and replay  | Planned        | Backlog drains; poison messages are classified in DLQ; corrected replay converges once                              | TBD             |
+| PG-06 | P1       | Alert delivery and trace correlation | Planned        | Selected fault opens Azure alert, sends notification, and one trace ID connects API, queue, worker, and final state | TBD             |
+| PG-07 | P1       | Worker autoscaling                   | Planned        | Backlog causes >=2 replicas, work remains consistent, backlog reaches zero, worker returns to zero                  | TBD             |
 
 ## 7. Frozen Provisional Acceptance Thresholds
 
 These are the initial portfolio validation thresholds. Freeze or explicitly revise them before the
 live run; do not lower them after observing a failure.
 
-| Signal | Threshold |
-| --- | --- |
-| Steady-load availability | >= 99.5% expected successful responses |
-| Unexpected HTTP 5xx | < 0.5% |
-| Read latency | p50 <= 500 ms; p95 <= 1.5 s; p99 <= 3 s |
-| Upload acknowledgement | p50 <= 1.5 s; p95 <= 4 s; p99 <= 8 s |
-| Approval/export mutation | p95 <= 2 s, excluding expected conflicts |
-| Data loss | 0 |
-| Duplicate processing/export/external effect | 0 |
-| Queue burst drain | <= 15 minutes |
-| Interrupted-work recovery | <= 2 configured lease windows |
-| Worker autoscaling | reaches >=2 replicas and returns to 0 |
-| CPU and memory | <85% p95; no OOM/restart loop |
-| Database pool | no connection exhaustion or pool-timeout transaction failure |
-| Alert | alert state observed and notification receipt confirmed |
-| Trace | API, queue publish, worker, and terminal evidence share one trace ID |
+| Signal                                      | Threshold                                                            |
+| ------------------------------------------- | -------------------------------------------------------------------- |
+| Steady-load availability                    | >= 99.5% expected successful responses                               |
+| Unexpected HTTP 5xx                         | < 0.5%                                                               |
+| Read latency                                | p50 <= 500 ms; p95 <= 1.5 s; p99 <= 3 s                              |
+| Upload acknowledgement                      | p50 <= 1.5 s; p95 <= 4 s; p99 <= 8 s                                 |
+| Approval/export mutation                    | p95 <= 2 s, excluding expected conflicts                             |
+| Data loss                                   | 0                                                                    |
+| Duplicate processing/export/external effect | 0                                                                    |
+| Queue burst drain                           | <= 15 minutes                                                        |
+| Interrupted-work recovery                   | <= 2 configured lease windows                                        |
+| Worker autoscaling                          | reaches >=2 replicas and returns to 0                                |
+| CPU and memory                              | <85% p95; no OOM/restart loop                                        |
+| Database pool                               | no connection exhaustion or pool-timeout transaction failure         |
+| Alert                                       | alert state observed and notification receipt confirmed              |
+| Trace                                       | API, queue publish, worker, and terminal evidence share one trace ID |
 
 ## 8. Test Environment Record
 
 Fill this section immediately before deployment.
 
-| Field | Value |
-| --- | --- |
-| Validation run ID | TBD |
-| Git revision | TBD |
-| OCI image digest | TBD |
-| Execution date/time (WIB) | TBD |
-| Azure region | Southeast Asia, pending preflight confirmation |
-| Runtime duration | TBD |
-| API replica range | 1-1 |
-| Worker replica range | 0-3 |
-| PostgreSQL profile | Validation SKU; exact observed configuration TBD |
-| OCR provider | Mock/deterministic |
-| Extraction provider | Mock/deterministic |
-| Test data | Synthetic PDFs only |
-| Alert receiver | Configured locally; never record address here |
-| Teardown deadline | TBD |
+| Field                     | Value                                            |
+| ------------------------- | ------------------------------------------------ |
+| Validation run ID         | TBD                                              |
+| Git revision              | TBD                                              |
+| OCI image digest          | TBD                                              |
+| Execution date/time (WIB) | TBD                                              |
+| Azure region              | Southeast Asia, pending preflight confirmation   |
+| Runtime duration          | TBD                                              |
+| API replica range         | 1-1                                              |
+| Worker replica range      | 0-3                                              |
+| PostgreSQL profile        | Validation SKU; exact observed configuration TBD |
+| OCR provider              | Mock/deterministic                               |
+| Extraction provider       | Mock/deterministic                               |
+| Test data                 | Synthetic PDFs only                              |
+| Alert receiver            | Configured locally; never record address here    |
+| Teardown deadline         | TBD                                              |
 
 ## 9. Workload Record
 
-| Stage | Planned workload | Actual workload | Status |
-| --- | --- | --- | --- |
-| Warm-up | 5 minutes | TBD | Planned |
-| Read baseline | 10 concurrent users, 10 minutes | TBD | Planned |
-| Workflow steady state | 2 uploads/minute, 10 users, 60 minutes | TBD | Planned |
-| Mutation burst | 20 concurrent approval/export attempts | TBD | Planned |
-| Queue burst | 60 documents in <=3 minutes | TBD | Planned |
-| Recovery | 10-20 queued documents | TBD | Planned |
-| Cool-down | backlog zero and worker zero | TBD | Planned |
+| Stage                 | Planned workload                       | Actual workload | Status  |
+| --------------------- | -------------------------------------- | --------------- | ------- |
+| Warm-up               | 5 minutes                              | TBD             | Planned |
+| Read baseline         | 10 concurrent users, 10 minutes        | TBD             | Planned |
+| Workflow steady state | 2 uploads/minute, 10 users, 60 minutes | TBD             | Planned |
+| Mutation burst        | 20 concurrent approval/export attempts | TBD             | Planned |
+| Queue burst           | 60 documents in <=3 minutes            | TBD             | Planned |
+| Recovery              | 10-20 queued documents                 | TBD             | Planned |
+| Cool-down             | backlog zero and worker zero           | TBD             | Planned |
 
 ## 10. Detailed Result Template
 
@@ -262,17 +262,17 @@ TBD. Distinguish required remediation from optional optimization.
 
 Complete after all scenarios.
 
-| Reliability property | Evidence | Verdict |
-| --- | --- | --- |
-| Capacity under target load | PG-01 | Planned |
-| Concurrent workflow consistency | PG-02 | Planned |
-| Worker interruption recovery | PG-03 | Planned |
-| Duplicate/retry convergence | PG-04 | Planned |
-| Poison-message isolation | PG-05 | Planned |
-| DLQ replay safety | PG-05 | Planned |
-| Alert detection and notification | PG-06 | Planned |
-| Cross-service traceability | PG-06 | Planned |
-| Queue-driven scale-out/scale-in | PG-07 | Planned |
+| Reliability property             | Evidence | Verdict |
+| -------------------------------- | -------- | ------- |
+| Capacity under target load       | PG-01    | Planned |
+| Concurrent workflow consistency  | PG-02    | Planned |
+| Worker interruption recovery     | PG-03    | Planned |
+| Duplicate/retry convergence      | PG-04    | Planned |
+| Poison-message isolation         | PG-05    | Planned |
+| DLQ replay safety                | PG-05    | Planned |
+| Alert detection and notification | PG-06    | Planned |
+| Cross-service traceability       | PG-06    | Planned |
+| Queue-driven scale-out/scale-in  | PG-07    | Planned |
 
 ## 12. Security Result Summary
 
@@ -304,60 +304,60 @@ Complete after all scenarios.
 
 Fill after PG-06.
 
-| Evidence | Result |
-| --- | --- |
-| API request ID visible | TBD |
-| API trace ID visible | TBD |
-| Queue publish event with same trace ID | TBD |
-| Service Bus correlation ID | TBD |
-| Worker event with same trace ID | TBD |
-| Terminal state/audit evidence | TBD |
-| Azure alert opened | TBD |
-| Human notification received | TBD |
-| Alert resolved after recovery | TBD |
+| Evidence                               | Result |
+| -------------------------------------- | ------ |
+| API request ID visible                 | TBD    |
+| API trace ID visible                   | TBD    |
+| Queue publish event with same trace ID | TBD    |
+| Service Bus correlation ID             | TBD    |
+| Worker event with same trace ID        | TBD    |
+| Terminal state/audit evidence          | TBD    |
+| Azure alert opened                     | TBD    |
+| Human notification received            | TBD    |
+| Alert resolved after recovery          | TBD    |
 
 Do not describe correlated log events as distributed tracing spans unless actual span telemetry is
 implemented.
 
 ## 14. Data Integrity and Duplicate-Effect Evidence
 
-| Invariant | Expected | Observed | Verdict |
-| --- | ---: | ---: | --- |
-| Uploaded synthetic documents accounted for | TBD | TBD | Planned |
-| Durable jobs accounted for | TBD | TBD | Planned |
-| One logical processing result per job | 100% | TBD | Planned |
-| Duplicate processing effects | 0 | TBD | Planned |
-| Duplicate export effects | 0 | TBD | Planned |
-| Duplicate external drafts | 0 | TBD | Planned |
-| Lost approval decisions | 0 | TBD | Planned |
-| Documents in conflicting active batches | 0 | TBD | Planned |
-| Unexpected DLQ items | 0 | TBD | Planned |
-| Expected poison-message DLQ items | scenario-defined | TBD | Planned |
+| Invariant                                  |         Expected | Observed | Verdict |
+| ------------------------------------------ | ---------------: | -------: | ------- |
+| Uploaded synthetic documents accounted for |              TBD |      TBD | Planned |
+| Durable jobs accounted for                 |              TBD |      TBD | Planned |
+| One logical processing result per job      |             100% |      TBD | Planned |
+| Duplicate processing effects               |                0 |      TBD | Planned |
+| Duplicate export effects                   |                0 |      TBD | Planned |
+| Duplicate external drafts                  |                0 |      TBD | Planned |
+| Lost approval decisions                    |                0 |      TBD | Planned |
+| Documents in conflicting active batches    |                0 |      TBD | Planned |
+| Unexpected DLQ items                       |                0 |      TBD | Planned |
+| Expected poison-message DLQ items          | scenario-defined |      TBD | Planned |
 
 ## 15. Failure and Recovery Timeline
 
-| Timestamp (WIB) | Event | Expected behavior | Observed behavior | Evidence |
-| --- | --- | --- | --- | --- |
-| TBD | Worker claim-and-exit | Lease remains until stale, then safe reclaim | TBD | TBD |
-| TBD | Worker restart during backlog | Message/job converges once | TBD | TBD |
-| TBD | Duplicate queue replay | Safe completion, no duplicate effect | TBD | TBD |
-| TBD | Poison envelope | DLQ with expected reason | TBD | TBD |
-| TBD | Safe DLQ replay | One corrected result | TBD | TBD |
-| TBD | External success/client timeout | Outcome unknown, then one reconciled result | TBD | TBD |
-| TBD | Alert-triggering fault | Alert and notification | TBD | TBD |
+| Timestamp (WIB) | Event                           | Expected behavior                            | Observed behavior | Evidence |
+| --------------- | ------------------------------- | -------------------------------------------- | ----------------- | -------- |
+| TBD             | Worker claim-and-exit           | Lease remains until stale, then safe reclaim | TBD               | TBD      |
+| TBD             | Worker restart during backlog   | Message/job converges once                   | TBD               | TBD      |
+| TBD             | Duplicate queue replay          | Safe completion, no duplicate effect         | TBD               | TBD      |
+| TBD             | Poison envelope                 | DLQ with expected reason                     | TBD               | TBD      |
+| TBD             | Safe DLQ replay                 | One corrected result                         | TBD               | TBD      |
+| TBD             | External success/client timeout | Outcome unknown, then one reconciled result  | TBD               | TBD      |
+| TBD             | Alert-triggering fault          | Alert and notification                       | TBD               | TBD      |
 
 ## 16. Cost and Teardown Record
 
-| Field | Result |
-| --- | --- |
-| Deployment start | TBD |
-| Test completion | TBD |
-| Teardown start | TBD |
-| Resource group deletion confirmed | TBD |
-| Tagged active project resources after teardown | TBD |
-| Matching resource locks after teardown | TBD |
-| Expected soft-deleted records | TBD |
-| Posted Azure cost | Review later after Cost Management posts usage |
+| Field                                          | Result                                         |
+| ---------------------------------------------- | ---------------------------------------------- |
+| Deployment start                               | TBD                                            |
+| Test completion                                | TBD                                            |
+| Teardown start                                 | TBD                                            |
+| Resource group deletion confirmed              | TBD                                            |
+| Tagged active project resources after teardown | TBD                                            |
+| Matching resource locks after teardown         | TBD                                            |
+| Expected soft-deleted records                  | TBD                                            |
+| Posted Azure cost                              | Review later after Cost Management posts usage |
 
 Budget alerts are notifications, not automatic spending stops. The authoritative cleanup evidence is
 resource-group absence plus a subscription-level tagged-resource inventory.
@@ -409,9 +409,9 @@ payment details, real invoice contents, or customer identifiers in these artifac
 
 ## 20. Change Log
 
-| Date | Change |
-| --- | --- |
-| 2026-10-02 | Created baseline documentation from existing local, CI, container, and controlled Azure evidence; added templates for PG-01 through PG-07. |
-| 2026-10-02 | Implemented and locally rehearsed the Phase A acceptance harness; kept PG-01 through PG-07 planned until controlled live evidence exists. |
-| 2026-10-02 | Implemented Phase B live-test controls and Azure contracts; kept live test rows planned pending deployment and execution evidence. |
+| Date       | Change                                                                                                                                                                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-02 | Created baseline documentation from existing local, CI, container, and controlled Azure evidence; added templates for PG-01 through PG-07.                                                                    |
+| 2026-10-02 | Implemented and locally rehearsed the Phase A acceptance harness; kept PG-01 through PG-07 planned until controlled live evidence exists.                                                                     |
+| 2026-10-02 | Implemented Phase B live-test controls and Azure contracts; kept live test rows planned pending deployment and execution evidence.                                                                            |
 | 2026-10-02 | Completed the Phase C local rehearsal: concurrency smoke, contract-cadence workload/report gates, Service Bus duplicate/poison integration, and run-owned DLQ replay passed; Azure-live gates remain planned. |
