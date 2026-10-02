@@ -39,6 +39,10 @@ contains reproducible technical evidence and deeper implementation notes.
 - [Controlled Azure live validation](azure-live-validation.md)
 - [Docker profile](docker_profile.md)
 
+## Production Readiness
+
+- [Production-grade testing documentation](production-documentation/production-grade-documentation-ai-document.md)
+
 ## Demo
 
 - [Demo script](demo-script.md)
