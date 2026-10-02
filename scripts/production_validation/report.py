@@ -103,4 +103,3 @@ def _dict(value: object) -> dict[str, object]:
 
 def _display(value: object) -> str:
     return "-" if value is None else str(value)
-

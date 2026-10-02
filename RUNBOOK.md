@@ -303,6 +303,27 @@ acceptance checks, and upload-ID invariants. Reports are written below ignored
 are never serialized. A local rehearsal verifies the harness only. The `pg01` profile additionally
 enforces the frozen 60-minute/10-user workload and is reserved for the controlled Azure run.
 
+The live-test controls are opt-in and absent from HTTP routing. Runtime deployment keeps alerts,
+the internal ambiguous-outcome sink, and the manual claim-and-exit job disabled unless their
+individual switches are supplied. The notification address and sink secret are secure/local
+parameters and must never be committed.
+
+The guarded recovery command requires an exact validation run ID, exact job ID, production mode,
+the `azure-validation` workspace, mock providers, and two explicit confirmations:
+
+```powershell
+.\infra\azure\scripts\claim-and-exit.ps1 `
+  -JobId <queued-job-id> `
+  -RunId <validation-run-id> `
+  -ConfirmLeaseAbandonment `
+  -ConfirmBillable
+```
+
+Queue poison/replay and trace checks are operator commands under `scripts/production_validation/`.
+DLQ replay refuses to proceed if any inspected dead-letter message is not tagged with the exact
+validation run ID. `trace_probe.py` requires API completion, queue publication, worker disposition,
+and terminal processing evidence for the same trace ID before it passes.
+
 ### Immutable image and runtime verification
 
 Every image carries OCI source, revision, and creation labels. A release candidate must be built

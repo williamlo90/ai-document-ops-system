@@ -14,8 +14,15 @@
     "apiIdentityName": { "value": "docintel-validation-abc123-api-id" },
     "workerIdentityName": { "value": "docintel-validation-abc123-worker-id" },
     "migrationIdentityName": { "value": "docintel-validation-abc123-migration-id" },
+    "validationSinkIdentityName": { "value": "docintel-validation-abc123-validation-sink-id" },
+    "validationStateContainerName": { "value": "validation-sink-state" },
+    "logAnalyticsWorkspaceId": { "value": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-ai-document-validation-sea/providers/Microsoft.OperationalInsights/workspaces/docintel-validation-logs" },
     "imageReference": { "value": "cr.example/ai-document-ops@sha256:0000000000000000000000000000000000000000000000000000000000000000" },
     "clamavImageReference": { "value": "registry.example/clamav@sha256:0000000000000000000000000000000000000000000000000000000000000000" },
-    "useRealProviders": { "value": false }
+    "useRealProviders": { "value": false },
+    "enableProductionValidationAlerts": { "value": false },
+    "enableProductionValidationSink": { "value": false },
+    "enableProductionValidationClaimJob": { "value": false },
+    "productionValidationRunId": { "value": "" }
   }
 }

@@ -1,6 +1,7 @@
 param registryName string
 param storageAccountName string
 param documentContainerName string
+param validationStateContainerName string
 param serviceBusNamespaceName string
 param serviceBusQueueName string
 param keyVaultName string
@@ -9,6 +10,7 @@ param apiPrincipalId string
 param workerPrincipalId string
 param migrationPrincipalId string
 param ingestionPrincipalId string
+param validationSinkPrincipalId string
 
 var acrPullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var blobDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
@@ -35,6 +37,11 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
 resource documents 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
   parent: blobService
   name: documentContainerName
+}
+
+resource validationState 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' existing = {
+  parent: blobService
+  name: validationStateContainerName
 }
 
 resource serviceBus 'Microsoft.ServiceBus/namespaces@2024-01-01' existing = {
@@ -81,6 +88,26 @@ resource migrationAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' =
     principalId: migrationPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: acrPullRole
+  }
+}
+
+resource validationSinkAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(registry.id, validationSinkPrincipalId, acrPullRole)
+  scope: registry
+  properties: {
+    principalId: validationSinkPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: acrPullRole
+  }
+}
+
+resource validationSinkState 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(validationState.id, validationSinkPrincipalId, blobDataContributorRole)
+  scope: validationState
+  properties: {
+    principalId: validationSinkPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: blobDataContributorRole
   }
 }
 

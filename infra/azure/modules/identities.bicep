@@ -26,6 +26,12 @@ resource ingestion 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31'
   tags: tags
 }
 
+resource validationSink 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${take(namePrefix, 44)}-validation-sink-id'
+  location: location
+  tags: tags
+}
+
 output api object = {
   id: api.id
   clientId: api.properties.clientId
@@ -45,4 +51,9 @@ output ingestion object = {
   id: ingestion.id
   clientId: ingestion.properties.clientId
   principalId: ingestion.properties.principalId
+}
+output validationSink object = {
+  id: validationSink.id
+  clientId: validationSink.properties.clientId
+  principalId: validationSink.properties.principalId
 }

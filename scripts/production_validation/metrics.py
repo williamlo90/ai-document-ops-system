@@ -23,9 +23,7 @@ def nearest_rank(values: Iterable[float], percentile: float) -> float | None:
     return float(ordered[index])
 
 
-def summarize_samples(
-    samples: list[RequestSample], *, elapsed_seconds: float
-) -> dict[str, object]:
+def summarize_samples(samples: list[RequestSample], *, elapsed_seconds: float) -> dict[str, object]:
     operation_names = sorted({sample.operation for sample in samples})
     operations = {
         operation: _summarize_operation(
@@ -86,11 +84,7 @@ def summarize_timeline(
                 "unexpected_5xx": unexpected_5xx,
                 "operations": {
                     operation: _summarize_operation(
-                        [
-                            sample
-                            for sample in bucket_samples
-                            if sample.operation == operation
-                        ],
+                        [sample for sample in bucket_samples if sample.operation == operation],
                         elapsed_seconds=float(interval_seconds),
                     )
                     for operation in operation_names
@@ -183,9 +177,7 @@ def evaluate_document_invariants(
     uploaded_ids = {
         sample.document_id
         for sample in samples
-        if sample.operation == "upload_document"
-        and sample.expected_response
-        and sample.document_id
+        if sample.operation == "upload_document" and sample.expected_response and sample.document_id
     }
     converged_states = {"needs_review", "approved", "rejected", "exported"}
     resolved_ids = {
@@ -243,9 +235,7 @@ def _summarize_operation(
         "expected_responses": expected,
         "unexpected_failures": len(samples) - expected,
         "status_counts": dict(sorted(statuses.items())),
-        "throughput_rps": round(len(samples) / elapsed_seconds, 3)
-        if elapsed_seconds > 0
-        else 0.0,
+        "throughput_rps": round(len(samples) / elapsed_seconds, 3) if elapsed_seconds > 0 else 0.0,
         "p50_ms": _rounded_percentile(durations, 50),
         "p90_ms": _rounded_percentile(durations, 90),
         "p95_ms": _rounded_percentile(durations, 95),
@@ -282,9 +272,7 @@ def _latency_checks(
                 )
             )
         else:
-            checks.append(
-                _maximum_check(f"{operation}_{metric}", float(value), limit, "ms")
-            )
+            checks.append(_maximum_check(f"{operation}_{metric}", float(value), limit, "ms"))
     return checks
 
 
@@ -331,4 +319,3 @@ def _parse_timestamp(value: str) -> datetime:
 def _state_inventory(states: dict[str, str]) -> str:
     counts = Counter(states.values())
     return ", ".join(f"{status}={count}" for status, count in sorted(counts.items())) or "none"
-

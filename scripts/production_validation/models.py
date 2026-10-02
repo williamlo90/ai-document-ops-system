@@ -39,4 +39,3 @@ class CheckResult:
     expected: str
     observed: str
     detail: str
-

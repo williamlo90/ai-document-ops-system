@@ -81,9 +81,7 @@ class ProductionValidationTests(unittest.TestCase):
             self._sample("upload_document", 200, (200,), 110, document_id="doc-2"),
         ]
 
-        checks = evaluate_document_invariants(
-            samples, {"doc-1": "needs_review", "doc-2": "failed"}
-        )
+        checks = evaluate_document_invariants(samples, {"doc-1": "needs_review", "doc-2": "failed"})
 
         failed_codes = {check.code for check in checks if not check.passed}
         self.assertIn("uploaded_documents_converged", failed_codes)
@@ -117,14 +115,10 @@ class ProductionValidationTests(unittest.TestCase):
             "workload": {},
             "thresholds": {},
         }
-        report = build_report(
-            manifest=manifest, summary=summary, checks=checks, samples=samples
-        )
+        report = build_report(manifest=manifest, summary=summary, checks=checks, samples=samples)
 
         with tempfile.TemporaryDirectory() as temporary_directory:
-            json_path, markdown_path = write_report(
-                report, Path(temporary_directory) / "run"
-            )
+            json_path, markdown_path = write_report(report, Path(temporary_directory) / "run")
             serialized = json_path.read_text(encoding="utf-8")
             markdown = markdown_path.read_text(encoding="utf-8")
 
@@ -135,9 +129,7 @@ class ProductionValidationTests(unittest.TestCase):
         self.assertIn("Production Validation Report", markdown)
 
     def test_pg01_profile_rejects_short_rehearsal(self) -> None:
-        args = _parser().parse_args(
-            ["--profile", "pg01", "--confirm-synthetic-target"]
-        )
+        args = _parser().parse_args(["--profile", "pg01", "--confirm-synthetic-target"])
 
         with self.assertRaisesRegex(SystemExit, "duration must be at least 3600"):
             _validate_args(args)

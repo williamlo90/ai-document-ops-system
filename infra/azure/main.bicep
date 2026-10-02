@@ -47,6 +47,7 @@ var postgresServerName = 'pg-${take(resourceToken, 20)}'
 var documentContainerName = 'documents'
 var externalDropContainerName = 'external-drop'
 var functionPackageContainerName = 'function-releases'
+var validationStateContainerName = 'validation-sink-state'
 var serviceBusQueueName = 'document-processing'
 var commonTags = {
   project: 'ai-document-ops'
@@ -105,6 +106,7 @@ module storage 'modules/storage.bicep' = {
     documentContainerName: documentContainerName
     externalDropContainerName: externalDropContainerName
     functionPackageContainerName: functionPackageContainerName
+    validationStateContainerName: validationStateContainerName
   }
 }
 
@@ -169,6 +171,7 @@ module roleAssignments 'modules/role-assignments.bicep' = {
     registryName: registry.outputs.name
     storageAccountName: storage.outputs.name
     documentContainerName: documentContainerName
+    validationStateContainerName: validationStateContainerName
     serviceBusNamespaceName: serviceBus.outputs.namespaceName
     serviceBusQueueName: serviceBus.outputs.queueName
     keyVaultName: keyVault.outputs.name
@@ -177,6 +180,7 @@ module roleAssignments 'modules/role-assignments.bicep' = {
     workerPrincipalId: identities.outputs.worker.principalId
     migrationPrincipalId: identities.outputs.migration.principalId
     ingestionPrincipalId: identities.outputs.ingestion.principalId
+    validationSinkPrincipalId: identities.outputs.validationSink.principalId
   }
 }
 
@@ -213,12 +217,16 @@ output storageAccountName string = storage.outputs.name
 output storageAccountUrl string = storage.outputs.blobEndpoint
 output documentContainerName string = documentContainerName
 output externalDropContainerName string = externalDropContainerName
+output validationStateContainerName string = validationStateContainerName
 output serviceBusNamespaceName string = serviceBus.outputs.namespaceName
 output serviceBusFullyQualifiedNamespace string = serviceBus.outputs.fullyQualifiedNamespace
 output serviceBusQueueName string = serviceBus.outputs.queueName
 output keyVaultName string = keyVault.outputs.name
 output containerAppsEnvironmentName string = containerAppsEnvironment.outputs.name
+output logAnalyticsWorkspaceId string = monitoring.outputs.workspaceId
+output logAnalyticsWorkspaceCustomerId string = monitoring.outputs.workspaceCustomerId
 output functionAppName string = ingestionFunction.outputs.name
 output apiIdentityName string = last(split(identities.outputs.api.id, '/'))
 output workerIdentityName string = last(split(identities.outputs.worker.id, '/'))
 output migrationIdentityName string = last(split(identities.outputs.migration.id, '/'))
+output validationSinkIdentityName string = last(split(identities.outputs.validationSink.id, '/'))

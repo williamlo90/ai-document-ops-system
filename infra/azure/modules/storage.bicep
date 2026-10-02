@@ -5,6 +5,7 @@ param logAnalyticsWorkspaceId string
 param documentContainerName string = 'documents'
 param externalDropContainerName string = 'external-drop'
 param functionPackageContainerName string = 'function-releases'
+param validationStateContainerName string = 'validation-sink-state'
 
 resource account 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: name
@@ -83,6 +84,14 @@ resource functionPackages 'Microsoft.Storage/storageAccounts/blobServices/contai
   }
 }
 
+resource validationState 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobService
+  name: validationStateContainerName
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
 resource blobDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   name: 'send-to-log-analytics'
   scope: blobService
@@ -109,3 +118,4 @@ output blobEndpoint string = account.properties.primaryEndpoints.blob
 output documentsContainerId string = documents.id
 output externalDropContainerId string = externalDrop.id
 output functionPackageContainerUrl string = '${account.properties.primaryEndpoints.blob}${functionPackageContainerName}'
+output validationStateContainerId string = validationState.id

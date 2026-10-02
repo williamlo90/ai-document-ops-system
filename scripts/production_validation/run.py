@@ -115,7 +115,9 @@ def run_workload(
     sample_lock = threading.Lock()
     deadline = time.monotonic() + duration_seconds
     upload_interval = 60.0 / upload_rate_per_minute
-    expected_uploads = max(1, int((duration_seconds + upload_interval - 0.000001) // upload_interval))
+    expected_uploads = max(
+        1, int((duration_seconds + upload_interval - 0.000001) // upload_interval)
+    )
 
     def record(sample: RequestSample) -> None:
         with sample_lock:
@@ -162,9 +164,7 @@ def reconcile_documents(
     document_ids = {
         sample.document_id
         for sample in samples
-        if sample.operation == "upload_document"
-        and sample.expected_response
-        and sample.document_id
+        if sample.operation == "upload_document" and sample.expected_response and sample.document_id
     }
     states = {document_id: "unresolved" for document_id in document_ids}
     if not document_ids:
@@ -194,9 +194,7 @@ def reconcile_documents(
     return states
 
 
-def _read_invoices(
-    client: httpx.Client, access_token: str, user_index: int
-) -> RequestSample:
+def _read_invoices(client: httpx.Client, access_token: str, user_index: int) -> RequestSample:
     request_id, trace_id, headers = _request_identity(access_token, suffix=f"u{user_index}")
     started_at = _now()
     started = time.perf_counter()
@@ -283,11 +281,15 @@ def _request_identity(
         request_id = f"{request_id}-{suffix}"
     trace_id = uuid4().hex
     parent_id = uuid4().hex[:16]
-    return request_id, trace_id, {
-        "X-Access-Token": access_token,
-        "X-Request-ID": request_id,
-        "traceparent": f"00-{trace_id}-{parent_id}-01",
-    }
+    return (
+        request_id,
+        trace_id,
+        {
+            "X-Access-Token": access_token,
+            "X-Request-ID": request_id,
+            "traceparent": f"00-{trace_id}-{parent_id}-01",
+        },
+    )
 
 
 def _synthetic_pdf(run_id: str, upload_index: int) -> bytes:
@@ -305,9 +307,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a paced production-validation workload.")
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--target-label", default="local-rehearsal")
-    parser.add_argument(
-        "--profile", choices=("local-rehearsal", "pg01"), default="local-rehearsal"
-    )
+    parser.add_argument("--profile", choices=("local-rehearsal", "pg01"), default="local-rehearsal")
     parser.add_argument("--duration-seconds", type=float, default=30.0)
     parser.add_argument("--read-users", type=int, default=2)
     parser.add_argument("--read-interval-seconds", type=float, default=6.0)
@@ -408,4 +408,3 @@ def _duration_check(*, observed_seconds: float, expected_seconds: float) -> Chec
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

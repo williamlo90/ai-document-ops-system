@@ -19,6 +19,9 @@ REQUIRED_MODULES = {
     "migration-job.bicep",
     "monitoring.bicep",
     "postgres.bicep",
+    "production-validation-alerts.bicep",
+    "production-validation-claim-job.bicep",
+    "production-validation-sink.bicep",
     "registry.bicep",
     "role-assignments.bicep",
     "service-bus.bicep",
@@ -27,6 +30,7 @@ REQUIRED_MODULES = {
 }
 REQUIRED_SCRIPTS = {
     "collect-evidence.ps1",
+    "claim-and-exit.ps1",
     "deploy-runtime.ps1",
     "destroy.ps1",
     "inventory.ps1",
@@ -51,6 +55,9 @@ def validate_sources(root: Path = AZURE_ROOT) -> list[str]:
     runtime = (root / "runtime.bicep").read_text(encoding="utf-8")
     api_module = (root / "modules" / "api.bicep").read_text(encoding="utf-8")
     worker_module = (root / "modules" / "worker.bicep").read_text(encoding="utf-8")
+    alert_module = (root / "modules" / "production-validation-alerts.bicep").read_text(
+        encoding="utf-8"
+    )
     role_module = (root / "modules" / "role-assignments.bicep").read_text(encoding="utf-8")
     destroy = (root / "scripts" / "destroy.ps1").read_text(encoding="utf-8")
     provision = (root / "scripts" / "provision.ps1").read_text(encoding="utf-8")
@@ -97,6 +104,49 @@ def validate_sources(root: Path = AZURE_ROOT) -> list[str]:
             errors.append(f"{module_name} must use a writable ephemeral upload cache")
     if "ingress:" in worker_module:
         errors.append("worker must not expose ingress")
+    for marker in (
+        "Microsoft.Insights/actionGroups",
+        "DeadletteredMessages",
+        "queue_message_dead_lettered",
+        "enableProductionValidationAlerts",
+    ):
+        if marker not in alert_module and marker not in runtime:
+            errors.append(f"production-validation alert contract is missing: {marker}")
+    if not re.search(
+        r"@secure\(\)\s+(?:@description\([^\n]+\)\s+)?param validationAlertEmail string", runtime
+    ):
+        errors.append("validation alert email must be a secure runtime parameter")
+    for module_name, switch_name in (
+        ("productionValidationSink", "enableProductionValidationSink"),
+        ("productionValidationClaimJob", "enableProductionValidationClaimJob"),
+    ):
+        module_pattern = rf"module {module_name} .*?\n}}"
+        match = re.search(module_pattern, runtime, flags=re.DOTALL)
+        if match is None or f"enabled: {switch_name}" not in match.group(0):
+            errors.append(f"{module_name} must be controlled by {switch_name}")
+    for marker in (
+        "app.production_validation_sink",
+        "VALIDATION_SINK_ENABLED",
+        "external: false",
+        "minReplicas: 1",
+        "maxReplicas: 1",
+    ):
+        sink_module = (root / "modules" / "production-validation-sink.bicep").read_text(
+            encoding="utf-8"
+        )
+        if marker not in sink_module:
+            errors.append(f"production-validation sink contract is missing: {marker}")
+    claim_module = (root / "modules" / "production-validation-claim-job.bicep").read_text(
+        encoding="utf-8"
+    )
+    for marker in (
+        "app.production_validation_claim",
+        "triggerType: 'Manual'",
+        "replicaRetryLimit: 0",
+        "PRODUCTION_VALIDATION_RUN_ID",
+    ):
+        if marker not in claim_module:
+            errors.append(f"production-validation claim-job contract is missing: {marker}")
     if "scope: resourceGroup()" in role_module:
         errors.append("data-plane roles must not be assigned at resource-group scope")
     for marker in ("acquire_lease", "docintel_ingested", "set_blob_metadata"):

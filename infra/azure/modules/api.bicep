@@ -18,6 +18,11 @@ param metricsTokenSecretUri string
 param mistralApiKeySecretUri string
 param extractorApiKeySecretUri string
 param useRealProviders bool = false
+param useProductionValidationSink bool = false
+param productionValidationSinkBaseUrl string = ''
+param productionValidationSinkHost string = ''
+@secure()
+param productionValidationSinkSecret string = ''
 param tags object
 
 var baseSecrets = [
@@ -97,6 +102,44 @@ var providerEnvironment = useRealProviders ? [
   }
 ]
 
+var validationSinkSecrets = useProductionValidationSink ? [
+  {
+    name: 'validation-sink-secret'
+    value: productionValidationSinkSecret
+  }
+] : []
+
+var validationSinkEnvironment = useProductionValidationSink ? [
+  {
+    name: 'ACCOUNTING_PROVIDER'
+    value: 'erpnext'
+  }
+  {
+    name: 'ACCOUNTING_SANDBOX_MODE'
+    value: 'true'
+  }
+  {
+    name: 'ERPNEXT_BASE_URL'
+    value: productionValidationSinkBaseUrl
+  }
+  {
+    name: 'ERPNEXT_ALLOWED_HOSTS'
+    value: productionValidationSinkHost
+  }
+  {
+    name: 'ERPNEXT_API_KEY'
+    value: 'validation'
+  }
+  {
+    name: 'ERPNEXT_API_SECRET'
+    secretRef: 'validation-sink-secret'
+  }
+  {
+    name: 'ERPNEXT_TIMEOUT_SECONDS'
+    value: '2'
+  }
+] : []
+
 resource app 'Microsoft.App/containerApps@2025-01-01' = {
   name: name
   location: location
@@ -124,7 +167,7 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
           identity: identityId
         }
       ]
-      secrets: concat(baseSecrets, providerSecrets)
+      secrets: concat(baseSecrets, providerSecrets, validationSinkSecrets)
     }
     template: {
       containers: [
@@ -212,7 +255,7 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
               name: 'CLAMAV_PORT'
               value: '3310'
             }
-          ], providerEnvironment)
+          ], providerEnvironment, validationSinkEnvironment)
           probes: [
             {
               type: 'Liveness'
