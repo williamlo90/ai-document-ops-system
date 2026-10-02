@@ -111,7 +111,8 @@ resource workerFailureAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' 
     }
     autoMitigate: true
     checkWorkspaceAlertsStorageConfigured: false
-    skipQueryValidation: false
+    // A fresh workspace receives its Container Apps table only after log ingestion.
+    skipQueryValidation: true
   }
 }
 
@@ -154,7 +155,8 @@ ContainerAppConsoleLogs_CL
     }
     autoMitigate: true
     checkWorkspaceAlertsStorageConfigured: false
-    skipQueryValidation: false
+    // Verify the query against live logs after the initial runtime has started.
+    skipQueryValidation: true
   }
 }
 

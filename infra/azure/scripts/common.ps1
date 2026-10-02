@@ -52,6 +52,6 @@ function Invoke-AzChecked {
     param([Parameter(Mandatory)][string[]]$Arguments)
     & az @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "Azure CLI command failed: az $($Arguments -join ' ')"
+        throw "Azure CLI command failed (exit $LASTEXITCODE). Inspect the local diagnostic log; command arguments may contain private values."
     }
 }
