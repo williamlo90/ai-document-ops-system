@@ -273,6 +273,36 @@ The PostgreSQL adapter supports shared API/worker state and atomic job claims. S
 rate limits remain process-local, so production must run exactly one API replica until those two
 controls move to a shared store. Multiple worker replicas are supported.
 
+### Production-validation harness
+
+Use the validation overlay to exercise the paced workload against the local Docker/PostgreSQL
+profile with deterministic providers. It deliberately uses `.env.example`, not a developer `.env`
+that may select paid providers:
+
+```powershell
+$env:DOC_INTEL_ENV_FILE = ".env.example"
+docker compose -f docker-compose.yml -f docker-compose.validation.yml `
+  --profile postgres-target up -d --build postgres-target
+docker compose -f docker-compose.yml -f docker-compose.validation.yml `
+  --profile migrate run --rm migrate
+docker compose -f docker-compose.yml -f docker-compose.validation.yml `
+  --profile postgres-target up -d api worker
+
+$env:PRODUCTION_VALIDATION_ACCESS_TOKEN = "123"
+.\.venv\Scripts\python.exe -m scripts.production_validation.run `
+  --confirm-synthetic-target `
+  --target-label local-postgres `
+  --duration-seconds 60 `
+  --read-users 2
+Remove-Item Env:PRODUCTION_VALIDATION_ACCESS_TOKEN
+```
+
+The runner records p50/p90/p95/p99, status distribution, throughput, one-minute windows, frozen
+acceptance checks, and upload-ID invariants. Reports are written below ignored
+`_local_docs/azure/production-validation/<run-id>/`; authentication credentials and the target URL
+are never serialized. A local rehearsal verifies the harness only. The `pg01` profile additionally
+enforces the frozen 60-minute/10-user workload and is reserved for the controlled Azure run.
+
 ### Immutable image and runtime verification
 
 Every image carries OCI source, revision, and creation labels. A release candidate must be built

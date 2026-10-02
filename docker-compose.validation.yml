@@ -1,0 +1,23 @@
+services:
+  api:
+    environment: &validation-runtime
+      APP_ENV: local
+      STORAGE_BACKEND: postgres
+      DATABASE_URL: postgresql://docintel:docintel@postgres-target:5432/docintel
+      PARSER_PROVIDER: mock
+      EXTRACTOR_PROVIDER: mock
+      PROCESSING_QUEUE_BACKEND: none
+    depends_on:
+      postgres-target:
+        condition: service_healthy
+
+  worker:
+    environment: *validation-runtime
+    depends_on:
+      api:
+        condition: service_started
+      postgres-target:
+        condition: service_healthy
+
+  migrate:
+    environment: *validation-runtime

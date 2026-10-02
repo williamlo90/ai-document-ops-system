@@ -116,6 +116,7 @@ not imply live Azure validation.
 | Database concurrency | Locally validated | PostgreSQL API/worker state sharing and atomic job claim contracts are exercised. | `backend/app/tests/test_postgres_persistence.py` |
 | Upload and workflow concurrency smoke | Locally validated | Concurrent upload/process requests, pagination isolation, and concurrent approval responses have a runnable smoke harness. | `scripts/load_workflows.py` |
 | Read concurrency smoke | Locally validated | A dependency-free concurrent read smoke reports response statuses, median, p95, and maximum latency. | `scripts/load_smoke.py` |
+| Production-validation harness | Locally validated | A paced Docker/PostgreSQL rehearsal records p50/p90/p95/p99, throughput, one-minute windows, status distribution, frozen gates, document convergence, and sanitized JSON/Markdown reports. The 30-second harness rehearsal passed with 100% expected responses, 0% HTTP 5xx, and its synthetic document converged to `needs_review`; this validates the harness, not PG-01. | `scripts/production_validation/`, `docker-compose.validation.yml`, ignored local report |
 | Dependency readiness | Locally validated | Readiness reports failed database/storage dependencies and queue degradation separately. | runtime observability/release tests |
 | Container runtime recovery | Locally validated | API, worker, and migration modes, read-only filesystems, PostgreSQL outage behavior, and graceful termination are exercised. | `scripts/container_runtime_smoke.py`, CI `container-security` job |
 | Structured application logs | Locally validated | JSON logs include timestamp, level, logger, event, request ID, trace ID, path, status, and duration where relevant. | `backend/app/core/observability.py`, `test_runtime_observability.py` |
@@ -397,10 +398,8 @@ Public/tracked evidence:
 Local/ignored evidence:
 
 - `_local_docs/production-grade/production-grade-testing-todo.md`
-- `_local_docs/production-grade/production-grade-documentation-ai-document.md`
-- `_local_docs/azure/production-validation/<run-id>/manifest.json`: TBD
-- `_local_docs/azure/production-validation/<run-id>/results.json`: TBD
-- `_local_docs/azure/production-validation/<run-id>/summary.md`: TBD
+- `_local_docs/azure/production-validation/<run-id>/production-validation-report.json`
+- `_local_docs/azure/production-validation/<run-id>/production-validation-report.md`
 - sanitized metric/log exports: TBD
 - teardown evidence: TBD
 
@@ -412,3 +411,4 @@ payment details, real invoice contents, or customer identifiers in these artifac
 | Date | Change |
 | --- | --- |
 | 2026-10-02 | Created baseline documentation from existing local, CI, container, and controlled Azure evidence; added templates for PG-01 through PG-07. |
+| 2026-10-02 | Implemented and locally rehearsed the Phase A acceptance harness; kept PG-01 through PG-07 planned until controlled live evidence exists. |
