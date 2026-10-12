@@ -469,6 +469,11 @@ Inspect poison messages in the queue's dead-letter subqueue. A valid duplicate m
 complete without increasing the PostgreSQL job attempt count. Retryable provider failures are
 recorded in PostgreSQL with a bounded retry time and are recovered by the polling path.
 
+Azure restore, intentional queue failure/DLQ replay, and live worker interruption are **Not
+Verified** by the temporary integration run. Before production use, perform and record a database
+restore drill, run-owned DLQ replay, and worker interruption recovery, including observed RPO/RTO.
+The configured seven-day PostgreSQL backup retention does not establish restore success.
+
 See `docs/docker_profile.md` for the local service boundary and `docs/aws_deployment.md` for an
 explicitly unimplemented hosted target architecture.
 

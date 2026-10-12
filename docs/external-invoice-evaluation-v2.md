@@ -22,6 +22,10 @@ establish production accuracy, customer value, or robustness across the invoice 
 - The holdout labels and PDFs were sealed with SHA-256 before any V2 provider call.
 - Raw PDFs, OCR, labels, per-document predictions, and the experiment ledger remain outside Git.
 
+The public aggregate report supports the stated arithmetic, but this repository alone is not an
+independently rerunnable evaluation pack. A public rerun would require a separately licensed,
+privacy-safe dataset and its labels or a procedure for generating an equivalent sealed set.
+
 ## Predeclared Holdout Gates
 
 | Gate                        |    Threshold |         Result |

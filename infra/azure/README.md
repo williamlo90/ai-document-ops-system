@@ -1,9 +1,11 @@
 # Azure infrastructure pack
 
-This directory contains the account-independent Phase F infrastructure package. It compiles and is
-tested locally, but it is not evidence that the application has been deployed to Azure. Live claims
-remain blocked until an authenticated `what-if`, controlled deployment, workflow validation, and
-teardown have all passed.
+This directory contains the account-independent Azure infrastructure package. A temporary deployment
+in Southeast Asia passed migration, health/readiness, and one synthetic PDF path through ClamAV,
+Blob Storage, Service Bus, and the worker on 27–28 September 2026. The validation resource group
+was then deleted. See [the observed results and limits](../../docs/azure-live-validation.md).
+This is evidence of a controlled integration run, not continuous hosting or production readiness;
+the later sustained-load, recovery, queue replay, alert, and autoscaling gates remain unverified.
 
 ## Deployment boundary
 
@@ -44,6 +46,11 @@ and Service Bus wake-up message.
 - Every taggable resource includes project, environment, source revision, and expiration metadata.
 - Expiration tags are an operator signal, not an automatic hard stop. The exact resource group must
   still be deleted and verified with `destroy.ps1`.
+
+The earlier run's actual Azure charge is **Not Verified**. Before a future deployment, record a
+dated cost estimate with the Southeast Asia region, selected SKUs, planned runtime, and source
+prices; compare it with posted Cost Management usage afterward. The budget is an alert, not a
+spending cap.
 
 ## Safe execution order
 

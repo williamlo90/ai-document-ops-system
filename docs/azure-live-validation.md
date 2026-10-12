@@ -41,3 +41,7 @@ credits or validate Azure-hosted real-provider accuracy. It did not establish su
 multi-region availability, disaster recovery, customer tenancy, or continuous production operation.
 Replay, forced worker interruption, intentional dead-letter, and cross-service trace demonstrations
 remain separate follow-up evidence items.
+
+Restore from the seven-day PostgreSQL backup retention, intentional queue failure and DLQ replay,
+worker interruption recovery, and measured RPO/RTO are **Not Verified** in this run. The backup
+setting alone is not restore evidence.

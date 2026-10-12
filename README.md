@@ -6,6 +6,12 @@ A human-controlled accounts-payable workflow for comparing invoice PDFs with AI-
 correcting errors, recording reviewer decisions, and exporting only approved records. The concise
 in-product name is **Invoice Review**.
 
+The ERPNext adapter creates Purchase Invoice **Drafts in a local sandbox with provisioned master
+data**. Its benchmark mapping is specific to that sandbox; using another organization's ERPNext
+requires its own company, supplier, item, account, tax, currency, and exchange-rate setup. See
+[ERPNext environment prerequisites](docs/erpnext-environment.md) and the
+[integration boundary](docs/erpnext-integration-design.md).
+
 [![Invoice Review product screenshot](docs/assets/screenshots/invoices.png)](docs/assets/demo/invoice-review-demo.mp4)
 
 ## How it works
@@ -61,11 +67,14 @@ configuration uses Mistral OCR and an OpenAI structured extraction model.
 ## Results
 
 - The sealed holdout of 10 licensed synthetic invoices reached **98.75% exact field match
-  (79/80)**.
+  (79/80)**. Its aggregate artifact is public; source PDFs, labels, OCR, and per-document
+  predictions remain outside Git, so the result cannot be independently reproduced from this
+  repository alone.
 - The same holdout reached **100% validation-code match** and **100% approval-blocker match**.
 - Across six paired draft-eligible synthetic invoices, median elapsed time from opening the source
   to a verified ERPNext draft was **153 seconds for direct entry** and **49 seconds through the
-  application**, a **68.0% reduction** for this single-operator local run.
+  application**, a **68.0% reduction in elapsed workflow time** for this single-operator sandbox
+  run. Active work and waiting time were not measured separately.
 - In the combined 10-case outcome record, the application produced the expected draft or blocker
   outcome in **10/10 cases**, compared with **9/10** for direct manual entry. The four blocker
   observations were retained from the earlier run and excluded from the draft-time median.
@@ -78,8 +87,9 @@ configuration uses Mistral OCR and an OpenAI structured extraction model.
   holdout result.
 - Reviewer corrections retain the original extraction, actor, reason, timestamp, and field-level
   diff.
-- Supporting release evidence records 521 backend tests, 23 frontend tests, 29 fixture-browser
-  tests, and one browser journey against the local full stack.
+- The recorded clean release at commit `8b36ba5` passed 521 backend tests, 23 frontend tests,
+  29 fixture-browser tests, and one browser journey against the local full stack. These are
+  historical release counts, not a count for the current commit.
 - A controlled Azure run successfully migrated PostgreSQL, reached a healthy API revision, and
   processed a synthetic PDF through Blob Storage and Service Bus to `needs_review` before verified
   zero-resource teardown.
@@ -102,6 +112,7 @@ accuracy or customer outcomes.
 | Retained localized-number failure       | [Failed diagnostic JSON](docs/evidence/current-provider-diagnostic.failed-20260728T080824Z.json) |
 | One-minute evidence path                | [Recruiter evidence pack](docs/recruiter-evidence-pack.md)                                       |
 | Product walkthrough                     | [Captioned demo video](docs/assets/demo/invoice-review-demo.mp4)                                 |
+| ERPNext draft UI walkthrough            | [Demo guide](docs/demo-video.md#erpnext-draft-walkthrough)                                       |
 | Controlled Azure deployment             | [Azure live validation](docs/azure-live-validation.md)                                           |
 
 ## Current limitations
