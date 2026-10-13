@@ -1,0 +1,25 @@
+{
+  "checked_on": "2026-10-13",
+  "baseline_commit": "83ffd12b319469c76694a32513ff5941005335c5",
+  "scope": "Phase 0 documentation and planned manifest only",
+  "checks": {
+    "json_schema_draft_2020_12": "pass",
+    "planned_manifest_schema": "pass",
+    "planned_cohort_counts": "pass",
+    "invalid_manifest_cases_rejected": 4,
+    "local_markdown_links_checked": 8,
+    "archive_sha256_files_verified": 17
+  },
+  "erp_preflight": {
+    "method": "GET only plus installed source inspection",
+    "result": "completed_with_access_gaps",
+    "evidence": "erp-capabilities.json",
+    "writes_attempted": 0,
+    "follow_up": {
+      "phase_2": "Scoped PO/receipt read access and fixture verification",
+      "phase_5": "Submit and ledger permissions plus write/read-back/failure tests"
+    }
+  },
+  "phase_gate": "pass",
+  "checkpoint_policy": "One phase-0 commit after verification; Git history is authoritative."
+}

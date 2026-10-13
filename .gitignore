@@ -30,3 +30,6 @@ outputs/*-rendered/
 outputs/*-screenshots/
 outputs/*.inspect.ndjson
 outputs/~$*.pptx
+
+# Local implementation strategy
+/AI-DOCUMENT-IMPLEMENTATION-PLAN.md
