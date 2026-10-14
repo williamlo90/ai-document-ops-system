@@ -195,6 +195,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_backoffice_task_plans_idempotency
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(_BASE_SCHEMA)
+    from app.procurement.repository import SCHEMA as AP_SCHEMA
+
+    connection.executescript(AP_SCHEMA)
     _migrate_schema_columns(connection)
     _backfill_backoffice_idempotency_keys(connection)
     _validate_backoffice_idempotency_uniqueness(connection)
@@ -245,7 +248,7 @@ def _record_schema_migrations(connection: sqlite3.Connection) -> None:
         )
     _backfill_invoice_identities(connection)
     _backfill_work_item_documents(connection)
-    for version in (10, 11, 12):
+    for version in (10, 11, 12, 13):
         connection.execute(
             "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)",
             (version, applied_at),

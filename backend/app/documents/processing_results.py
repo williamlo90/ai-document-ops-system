@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
+
 from app.core.observability import OperationEvent, log_operation
 from app.core.security import SecurityContext
+from app.procurement.service import EvidenceService
+from app.documents.repositories import NotFoundError
 from app.core.transactions import TransactionManager
 from app.documents.jobs import ProcessingJob
 from app.documents.models import AuditEvent, DocumentRecord
@@ -32,6 +36,7 @@ class ProcessingResultRecorder:
         transactions: TransactionManager,
         state_writer: DocumentStateWriter | None = None,
     ) -> None:
+        self.evidence_service: EvidenceService | None = None
         self.documents = documents
         self.jobs = jobs
         self.audits = audits
@@ -57,7 +62,14 @@ class ProcessingResultRecorder:
         security_issues: tuple[ValidationIssue, ...],
         lease_token: str,
     ) -> None:
-        with self.transactions.transaction():
+        with (
+            self.transactions.transaction(),
+            (
+                self.evidence_service.repo.transaction(context.workspace_id)
+                if self.evidence_service is not None
+                else nullcontext()
+            ),
+        ):
             if security_issues:
                 self.audits.add(
                     AuditEvent(
@@ -71,7 +83,21 @@ class ProcessingResultRecorder:
                         ),
                     )
                 )
+            evidence_context = SecurityContext(
+                actor=context.actor, is_admin=True, workspace_id=document.workspace_id
+            )
+            if self.evidence_service is not None:
+                try:
+                    self.evidence_service.capture(document.id, evidence_context)
+                except NotFoundError:
+                    pass
             self.extractions.save(document.id, result, report)
+            if self.evidence_service is not None:
+                self.evidence_service.capture(
+                    document.id,
+                    evidence_context,
+                    reason="Provider extraction; source verification required",
+                )
             self.state_writer.transition(
                 document,
                 DocumentStatus.EXTRACTED,
@@ -115,7 +141,14 @@ class ProcessingResultRecorder:
         lease_token: str,
     ) -> DocumentRecord:
         error_code = self.retry_policy.error_code(error)
-        with self.transactions.transaction():
+        with (
+            self.transactions.transaction(),
+            (
+                self.evidence_service.repo.transaction(context.workspace_id)
+                if self.evidence_service is not None
+                else nullcontext()
+            ),
+        ):
             if self.retry_policy.should_retry(error, job):
                 job.retry(error_code, next_attempt_at=self.retry_policy.next_attempt_at(job))
                 document.error_message = error_code

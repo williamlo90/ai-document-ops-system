@@ -145,6 +145,38 @@ export function InvoiceFieldsPanel({
         )}
       </section>
       <LineItems items={draft.line_items ?? []} currency={draft.currency} total={draft.total} />
+      {canDecide && (
+        <details>
+          <summary>Correct line values</summary>
+          {(draft.line_items ?? []).map((line, index) => (
+            <fieldset key={line.line_id || index}>
+              <legend>Line {index + 1}</legend>
+              {['description', 'uom', 'quantity', 'unit_price', 'amount', 'tax', 'discount'].map(
+                (name) => (
+                  <label key={name}>
+                    {name.replaceAll('_', ' ')}{' '}
+                    <input
+                      aria-label={`Line ${index + 1} ${name}`}
+                      value={line[name] ?? ''}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          line_items: (draft.line_items ?? []).map((item, i) =>
+                            i === index ? { ...item, [name]: event.target.value || null } : item,
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                ),
+              )}
+            </fieldset>
+          ))}
+          <button type="button" disabled={saving} onClick={save}>
+            Save line corrections
+          </button>
+        </details>
+      )}
     </Panel>
   )
 }
@@ -299,6 +331,7 @@ function LineItems({
             <thead>
               <tr>
                 <th>Description</th>
+                <th>UOM</th>
                 <th>Qty</th>
                 <th>Rate</th>
                 <th>Amount</th>
@@ -308,6 +341,7 @@ function LineItems({
               {items.map((item, index) => (
                 <tr key={`${item.description}-${index}`}>
                   <td>{item.description || '-'}</td>
+                  <td>{item.uom || 'Unknown'}</td>
                   <td>{item.quantity || '-'}</td>
                   <td>{formatMoney(item.unit_price, currency)}</td>
                   <td>{formatMoney(item.amount, currency)}</td>
@@ -316,7 +350,7 @@ function LineItems({
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={3}>Total</td>
+                <td colSpan={4}>Total</td>
                 <td>{formatMoney(total, currency)}</td>
               </tr>
             </tfoot>

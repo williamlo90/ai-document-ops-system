@@ -10,7 +10,7 @@ export type NavigationItem = {
   group: 'work' | 'admin'
 }
 
-const allRoles: ProductRole[] = ['uploader', 'reviewer', 'administrator']
+const allRoles: ProductRole[] = ['uploader', 'reviewer', 'ap_approver', 'administrator']
 const reviewers: ProductRole[] = ['reviewer', 'administrator']
 const admins: ProductRole[] = ['administrator']
 
@@ -23,7 +23,7 @@ export const navigationItems: NavigationItem[] = [
 ]
 
 export function defaultRoute(role: ProductRole): AppRoute {
-  return role === 'uploader' ? '/invoices' : '/inbox'
+  return role === 'uploader' || role === 'ap_approver' ? '/invoices' : '/inbox'
 }
 
 export function canAccessPath(role: ProductRole, path: string): boolean {

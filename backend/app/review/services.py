@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
+
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -21,6 +23,7 @@ from app.providers.contracts import ExtractionResult
 from app.validation.document import validate_document_invoice
 from app.review.corrections import CorrectionFeedbackService
 from app.review.models import CorrectionSource
+from app.procurement.service import EvidenceService
 
 
 class ReviewService:
@@ -35,6 +38,7 @@ class ReviewService:
         transactions: TransactionManager | None = None,
         state_writer: DocumentStateWriter | None = None,
     ) -> None:
+        self.evidence_service: EvidenceService | None = None
         self.documents = documents
         self.reviews = reviews
         self.extractions = extractions
@@ -67,8 +71,17 @@ class ReviewService:
         self._require_workspace(document, context)
         if document.status != DocumentStatus.NEEDS_REVIEW:
             raise InvalidStatusTransition("Can only save review notes for needs_review documents")
-        with self.transactions.transaction():
+        with (
+            self.transactions.transaction(),
+            (
+                self.evidence_service.repo.transaction(context.workspace_id)
+                if self.evidence_service is not None
+                else nullcontext()
+            ),
+        ):
             if corrected_data is not None:
+                if self.evidence_service is not None:
+                    self.evidence_service.capture(document_id, context)
                 stored = self.extractions.get_for_document(document_id)
                 if self.correction_feedback is not None:
                     self.correction_feedback.capture(
@@ -96,6 +109,12 @@ class ReviewService:
                     self.extractions,
                 )
                 self.extractions.save(document_id, updated_result, report)
+                if self.evidence_service is not None:
+                    self.evidence_service.capture(
+                        document_id,
+                        context,
+                        reason=notes or "Legacy correction; source reassessment required",
+                    )
                 self.audits.add(
                     AuditEvent(
                         document_id=document_id,
@@ -132,7 +151,14 @@ class ReviewService:
         stored = self.extractions.get_for_document(document_id)
         if stored.validation_report.has_errors:
             raise InvalidStatusTransition("Resolve invoice issues before approving")
-        with self.transactions.transaction():
+        with (
+            self.transactions.transaction(),
+            (
+                self.evidence_service.repo.transaction(context.workspace_id)
+                if self.evidence_service is not None
+                else nullcontext()
+            ),
+        ):
             task = self._get_or_create_task(document_id)
             self.state_writer.transition(
                 document,
@@ -151,7 +177,14 @@ class ReviewService:
         self._require_workspace(document, context)
         if document.status != DocumentStatus.NEEDS_REVIEW:
             raise InvalidStatusTransition("Can only reject needs_review documents")
-        with self.transactions.transaction():
+        with (
+            self.transactions.transaction(),
+            (
+                self.evidence_service.repo.transaction(context.workspace_id)
+                if self.evidence_service is not None
+                else nullcontext()
+            ),
+        ):
             task = self._get_or_create_task(document_id)
             self.state_writer.transition(
                 document,

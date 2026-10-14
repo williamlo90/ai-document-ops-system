@@ -1,0 +1,48 @@
+{
+  "records": [
+    {
+      "company": "Demo Company",
+      "kind": "po",
+      "source_system": "synthetic",
+      "source_id": "PO-DEMO",
+      "source_version": "1",
+      "supplier_id": "SUPPLIER-DEMO",
+      "currency": "USD",
+      "status": "submitted",
+      "source_updated_at": "2026-10-14T00:00:00+00:00",
+      "lines": [
+        {
+          "source_line_id": "po-line-1",
+          "item_id": "WIDGET",
+          "uom": "EA",
+          "quantity": "2",
+          "unit_price": "10.00",
+          "amount": "20.00"
+        }
+      ]
+    },
+    {
+      "company": "Demo Company",
+      "kind": "receipt",
+      "source_system": "synthetic",
+      "source_id": "RECEIPT-DEMO",
+      "source_version": "1",
+      "supplier_id": "SUPPLIER-DEMO",
+      "currency": "USD",
+      "status": "submitted",
+      "source_updated_at": "2026-10-14T00:00:00+00:00",
+      "lines": [
+        {
+          "source_line_id": "receipt-line-1",
+          "item_id": "WIDGET",
+          "uom": "EA",
+          "quantity": "2",
+          "unit_price": "10.00",
+          "amount": "20.00",
+          "po_id": "PO-DEMO",
+          "po_line_id": "po-line-1"
+        }
+      ]
+    }
+  ]
+}

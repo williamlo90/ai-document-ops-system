@@ -15,6 +15,7 @@ class Settings:
     workspace_id: str = "default"
     uploader_token: str | None = None
     reviewer_token: str | None = None
+    ap_approver_token: str | None = None
     document_storage_backend: str = "local"
     storage_backend: str = "memory"
     sqlite_path: Path = Path("backend/data/doc_intel.sqlite3")
@@ -111,6 +112,7 @@ def load_settings() -> Settings:
         workspace_id=_setting(config, "APP_WORKSPACE_ID", "default"),
         uploader_token=_setting(config, "APP_UPLOADER_TOKEN"),
         reviewer_token=_setting(config, "APP_REVIEWER_TOKEN"),
+        ap_approver_token=_setting(config, "APP_AP_APPROVER_TOKEN"),
         document_storage_backend=_setting(config, "DOCUMENT_STORAGE_BACKEND", "local"),
         storage_backend=_setting(config, "STORAGE_BACKEND", "memory"),
         sqlite_path=Path(_setting(config, "SQLITE_PATH", "backend/data/doc_intel.sqlite3")),

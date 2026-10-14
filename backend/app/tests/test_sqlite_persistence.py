@@ -541,7 +541,7 @@ class SqlitePersistenceTests(unittest.TestCase):
         self.assertTrue(evaluation_evidence["checks"]["operation_type"])
         self.assertEqual(
             [row["version"] for row in migration_rows],
-            [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
         )
         self.assertIn("plan_generated", [event.event_type for event in workflow_events])
         self.assertIn("approval_approved", [event.event_type for event in workflow_events])

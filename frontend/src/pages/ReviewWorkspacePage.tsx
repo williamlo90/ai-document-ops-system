@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { ArrowLeft, CheckCircle2, ChevronRight, ShieldCheck, X } from 'lucide-react'
+import { useShell } from '../app/shell-context'
 import { api } from '../api/client'
 import { PdfPreview } from '../components/PdfPreview'
 import { DecisionModal } from '../features/review/components/DecisionModal'
+import { EvidencePanel } from '../features/review/components/EvidencePanel'
 import { DecisionPanel } from '../features/review/components/DecisionPanel'
 import {
   InvoiceFieldsPanel,
@@ -23,6 +25,7 @@ import { formatDate, formatMoney } from '../shared/format'
 import { Button, ErrorState, LoadingState, Panel, StatusBadge } from '../shared/ui'
 
 export function ReviewWorkspacePage() {
+  const { role } = useShell()
   const { documentId = '' } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -141,7 +144,8 @@ export function ReviewWorkspacePage() {
   if (!document || !extraction)
     return <ErrorState message="This invoice does not have extracted data to review." />
   const blockers = extraction.validation.filter((issue) => isApprovalBlocked(issue.severity))
-  const canDecide = canRecordDecision(document.status, workflow.data?.current_stage)
+  const canDecide =
+    role !== 'ap_approver' && canRecordDecision(document.status, workflow.data?.current_stage)
   const latestAudit = [...data.audit_events]
     .reverse()
     .find((event) => ['document_approved', 'document_rejected'].includes(event.event_type))
@@ -206,6 +210,7 @@ export function ReviewWorkspacePage() {
           />
         </Panel>
         <div className="review-side-column">
+          <EvidencePanel documentId={documentId} showPage={setRequestedPdfPage} />
           <InvoiceFieldsPanel
             draft={draft}
             savedDraft={savedDraft}
@@ -256,6 +261,7 @@ export function ReviewWorkspacePage() {
 async function refreshReview(queryClient: ReturnType<typeof useQueryClient>, documentId: string) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['invoice-detail', documentId] }),
+    queryClient.invalidateQueries({ queryKey: ['ap-evidence', documentId] }),
     queryClient.invalidateQueries({ queryKey: ['invoice-workflow', documentId] }),
     queryClient.invalidateQueries({ queryKey: ['review-worklist-v2'] }),
     queryClient.invalidateQueries({ queryKey: ['invoices'] }),

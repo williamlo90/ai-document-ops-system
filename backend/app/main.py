@@ -97,6 +97,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(SpaHistoryFallbackMiddleware)
     app.include_router(documents_router)
     app.include_router(auth_router)
+    from app.api.procurement import router as procurement_router
+    app.include_router(procurement_router)
     app.include_router(review_router)
     app.include_router(exceptions_router)
     app.include_router(exports_router)

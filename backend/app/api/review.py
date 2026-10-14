@@ -22,6 +22,17 @@ router = APIRouter(prefix="/review", tags=["review"])
 
 
 class CorrectedLineItemPayload(BaseModel):
+    @field_validator("quantity", "unit_price", "amount", "tax", "discount", mode="before")
+    @classmethod
+    def strict_decimal(cls, value):
+        from app.procurement.models import decimal_value
+
+        return None if value is None else decimal_value(value)
+
+    line_id: str | None = None
+    uom: str | None = None
+    tax: Decimal | None = None
+    discount: Decimal | None = None
     description: str | None = None
     quantity: Decimal | None = None
     unit_price: Decimal | None = None
@@ -274,6 +285,10 @@ def _invoice_data(payload: CorrectedInvoicePayload) -> InvoiceData:
         currency=payload.currency,
         line_items=tuple(
             InvoiceLineItem(
+                line_id=item.line_id,
+                uom=item.uom,
+                tax=item.tax,
+                discount=item.discount,
                 description=item.description,
                 quantity=item.quantity,
                 unit_price=item.unit_price,

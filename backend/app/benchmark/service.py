@@ -100,6 +100,10 @@ def invoice_data_to_fields(data: InvoiceData) -> dict[str, Any]:
         "currency": data.currency,
         "line_items": [
             {
+                "line_id": item.line_id,
+                "uom": item.uom,
+                "tax": str(item.tax) if item.tax is not None else None,
+                "discount": str(item.discount) if item.discount is not None else None,
                 "description": item.description,
                 "quantity": str(item.quantity) if item.quantity is not None else None,
                 "unit_price": str(item.unit_price) if item.unit_price is not None else None,

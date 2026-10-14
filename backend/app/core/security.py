@@ -69,6 +69,7 @@ def validate_access_token_policy(settings: Settings) -> None:
         "APP_ADMIN_TOKEN": settings.admin_token,
         "APP_UPLOADER_TOKEN": settings.uploader_token,
         "APP_REVIEWER_TOKEN": settings.reviewer_token,
+        "APP_AP_APPROVER_TOKEN": settings.ap_approver_token,
         "APP_METRICS_TOKEN": settings.metrics_token,
     }
     configured = {name: value for name, value in credentials.items() if value}
@@ -128,6 +129,15 @@ def authenticate_access_token(
         raise UnauthorizedError("Access token is required")
     workspace_id = settings.workspace_id.strip() or "default"
     principals = (
+        (
+            settings.ap_approver_token,
+            SecurityContext(
+                actor="AP Approver",
+                workspace_id=workspace_id,
+                user_id="ap_approver",
+                role="ap_approver",
+            ),
+        ),
         (
             settings.admin_token,
             SecurityContext(

@@ -94,7 +94,7 @@ export function InvoicesPage() {
         title="Invoices"
         description="Find, track, and inspect every invoice in one place."
         action={
-          role !== 'reviewer' ? (
+          role === 'uploader' || role === 'administrator' ? (
             <Button variant="primary" onClick={() => setUploadOpen(true)}>
               <Upload size={16} /> Upload invoice
             </Button>

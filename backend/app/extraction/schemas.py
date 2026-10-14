@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal
 
 
-SCHEMA_VERSION = "invoice_v1"
+SCHEMA_VERSION = "invoice_v2"
 
 
 @dataclass(frozen=True)
@@ -14,6 +14,10 @@ class InvoiceLineItem:
     quantity: Decimal | None = None
     unit_price: Decimal | None = None
     amount: Decimal | None = None
+    line_id: str | None = None
+    uom: str | None = None
+    tax: Decimal | None = None
+    discount: Decimal | None = None
 
 
 @dataclass(frozen=True)

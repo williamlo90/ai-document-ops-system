@@ -15,7 +15,7 @@ from app.providers.http_transport import post_json_without_redirects
 
 
 PostJson = Callable[[str, dict[str, Any], dict[str, str]], dict[str, Any]]
-EXTRACTION_PROMPT_VERSION = "invoice-extraction-v3"
+EXTRACTION_PROMPT_VERSION = "invoice-extraction-v4"
 
 
 @dataclass(frozen=True)
@@ -103,6 +103,8 @@ def _payload(model: str, text: str) -> dict[str, Any]:
                     "Return only valid JSON with keys: "
                     "vendor_name, invoice_number, invoice_date, due_date, subtotal, tax, "
                     "total, currency, line_items, field_confidence. "
+                    "Each line includes description, uom, quantity, unit_price, amount, tax, discount; "
+                    "only return UOM, line tax and discount when explicitly present, otherwise null. "
                     "Dates must be YYYY-MM-DD. "
                     "Money and quantities must be JSON strings or numbers. "
                     "field_confidence must be a list of objects, each containing 'field_name', "
@@ -503,6 +505,9 @@ def _line_items(value: Any) -> tuple[InvoiceLineItem, ...]:
     return tuple(
         InvoiceLineItem(
             description=_text(item.get("description")),
+            uom=_text(item.get("uom")),
+            tax=_decimal(item.get("tax")),
+            discount=_decimal(item.get("discount")),
             quantity=_decimal(item.get("quantity")),
             unit_price=_decimal(item.get("unit_price")),
             amount=_decimal(item.get("amount")),

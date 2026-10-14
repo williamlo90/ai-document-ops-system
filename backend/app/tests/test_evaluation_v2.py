@@ -289,7 +289,18 @@ class InvoiceEvaluationV2Tests(unittest.TestCase):
         )
         self.assertEqual(
             fields["line_items"],
-            [{"description": "Bolts", "quantity": "2.5", "unit_price": "0.1234", "amount": None}],
+            [
+                {
+                    "description": "Bolts",
+                    "quantity": "2.5",
+                    "unit_price": "0.1234",
+                    "amount": None,
+                    "line_id": None,
+                    "uom": None,
+                    "tax": None,
+                    "discount": None,
+                }
+            ],
         )
 
 
