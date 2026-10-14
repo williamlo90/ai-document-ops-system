@@ -4,6 +4,8 @@ from app.core.settings import Settings
 from app.core.provider_egress import validate_provider_endpoint
 from app.providers.contracts import ExtractorProvider, ParserProvider
 from app.providers.llm_json import LlmJsonInvoiceExtractor
+from app.providers.ocr_space import OcrSpaceParserProvider
+from app.providers.gemini import GeminiOcrParserProvider
 from app.providers.mistral import MistralOcrParserProvider
 from app.providers.mock import MockInvoiceExtractor, MockParserProvider
 
@@ -12,6 +14,14 @@ def build_parser_provider(settings: Settings) -> ParserProvider:
     provider = settings.parser_provider.strip().lower()
     if provider == "mock":
         return MockParserProvider()
+    if provider == "ocr_space":
+        return OcrSpaceParserProvider(settings.ocr_space_api_key or "", settings.provider_timeout_seconds)
+    if provider == "gemini_ocr":
+        return GeminiOcrParserProvider(
+            api_key=settings.gemini_api_key or "",
+            model=settings.gemini_ocr_model,
+            timeout_seconds=settings.provider_timeout_seconds,
+        )
     if provider == "mistral_ocr":
         validate_provider_endpoint(
             settings.mistral_ocr_endpoint,

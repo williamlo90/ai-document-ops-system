@@ -11,22 +11,60 @@ export function QualitySummary({ run }: { run: EvaluationRun }) {
   return (
     <Panel className="quality-summary" ariaLabel="Selected quality run summary">
       <div>
-        <small>Result</small>
+        <small>Header / validation gate</small>
         <strong className={run.passed ? 'is-positive' : 'is-negative'}>
           {run.verdict_available ? (run.passed ? 'Passed' : 'Below gate') : 'Not scored'}
         </strong>
       </div>
       <div>
-        <small>Field match</small>
+        <small>Header field match</small>
         <strong>{percent(run.field_match)}</strong>
         <span>
-          {run.fields_matched}/{run.fields_total} labeled fields
+          {run.fields_matched}/{run.fields_total} labeled header fields
         </span>
       </div>
       <div>
         <small>Validation match</small>
         <strong>{percent(run.validation_match)}</strong>
         <span>{run.documents} test documents</span>
+      </div>
+      <div>
+        <small>Full-invoice exact match</small>
+        <strong>
+          {run.full_invoice_exact_match == null ? 'N/A' : percent(run.full_invoice_exact_match)}
+        </strong>
+        <span>
+          {run.full_invoice_documents_total
+            ? `${run.full_invoice_documents_matched}/${run.full_invoice_documents_total} fully labeled invoices (${run.documents} total)`
+            : 'Not measured: complete header, line and source labels required'}
+        </span>
+        <span>Includes required source evidence</span>
+      </div>
+      <div>
+        <small>Line-item field match</small>
+        <strong>{run.line_field_match == null ? 'N/A' : percent(run.line_field_match)}</strong>
+        <span>
+          {run.missing_lines ?? 0} missing / {run.extra_lines ?? 0} extra lines
+        </span>
+        <span>
+          {run.ambiguous_line_groups ?? 0} ambiguous groups. Exact-line precision{' '}
+          {percent(run.line_precision)} / recall {percent(run.line_recall)}
+        </span>
+      </div>
+      <div>
+        <small>Processing completed</small>
+        <strong>
+          {run.processing_completion == null ? 'N/A' : percent(run.processing_completion)}
+        </strong>
+        <span>
+          Validation completed:{' '}
+          {run.validation_completion == null ? 'N/A' : percent(run.validation_completion)}
+        </span>
+        <span>
+          {run.evaluation_input === 'original_provider_extraction'
+            ? 'Original extraction, before reviewer corrections'
+            : 'Legacy or supplied results; extraction stage not recorded'}
+        </span>
       </div>
     </Panel>
   )
@@ -44,7 +82,7 @@ export function FieldPerformance({
       <header>
         <div>
           <h2>Field performance</h2>
-          <p>Exact match by labeled field</p>
+          <p>Exact match by labeled header field</p>
         </div>
       </header>
       {fields.length ? (

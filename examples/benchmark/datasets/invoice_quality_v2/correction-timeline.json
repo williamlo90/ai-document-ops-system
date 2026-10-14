@@ -1,0 +1,295 @@
+{
+  "kind": "controlled_correction_replay",
+  "not_actual_user_history": true,
+  "family_id": "supplier-a-inv01",
+  "layout_family": "locale_id",
+  "original_proposal": {
+    "document_id": "dev-locale_id",
+    "vendor_name": "Supplier A",
+    "invoice_number": "INV-01",
+    "invoice_date": "2026-10-01",
+    "due_date": null,
+    "subtotal": "125.00",
+    "tax": "0",
+    "total": "125",
+    "currency": "USD",
+    "expected_validation_codes": [],
+    "line_items": [
+      {
+        "description": "Bolts",
+        "quantity": "200",
+        "unit_price": "50",
+        "amount": "100",
+        "uom": "EA",
+        "provenance": {
+          "description": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "Bolts"
+          },
+          "uom": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "EA"
+          },
+          "quantity": {
+            "kind": "normalized",
+            "page": 1,
+            "excerpt": "2,00",
+            "transform": "decimal_comma_v1"
+          },
+          "unit_price": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "50"
+          },
+          "amount": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "100"
+          }
+        }
+      },
+      {
+        "description": "Nuts",
+        "quantity": "1",
+        "unit_price": "25",
+        "amount": "25",
+        "uom": "EA",
+        "provenance": {
+          "description": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "Nuts"
+          },
+          "uom": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "EA"
+          },
+          "quantity": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "1"
+          },
+          "unit_price": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "25"
+          },
+          "amount": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "25"
+          }
+        }
+      }
+    ],
+    "provenance": {
+      "vendor_name": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "Supplier A"
+      },
+      "invoice_number": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "INV-01"
+      },
+      "invoice_date": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "2026-10-01"
+      },
+      "subtotal": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "125.00"
+      },
+      "tax": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "0"
+      },
+      "total": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "125"
+      },
+      "currency": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "USD"
+      }
+    },
+    "family_id": "supplier-a-inv01",
+    "layout_family": "locale_id",
+    "split": "development",
+    "label_origin": "developer_AI_assisted_synthetic",
+    "revision": "2026-10-13",
+    "source_pages": {
+      "1": "Seller: Supplier A\nInvoice: INV-01\nDate: 2026-10-01\nSubtotal: 125,00\nTax: 0\nTotal: 125 USD\nBolts EA 2,00 50,00 100,00\nNuts EA 1 25 25"
+    }
+  },
+  "corrected_value": "2",
+  "event": {
+    "kind": "corrected",
+    "page": 1,
+    "excerpt": "2,00",
+    "actor": "synthetic-reviewer",
+    "time": "2026-10-13T10:00:00Z",
+    "reason": "Decimal comma in supplier layout"
+  },
+  "path": [
+    "line_items",
+    0,
+    "quantity"
+  ],
+  "corrected_oracle": {
+    "document_id": "dev-locale_id",
+    "vendor_name": "Supplier A",
+    "invoice_number": "INV-01",
+    "invoice_date": "2026-10-01",
+    "due_date": null,
+    "subtotal": "125.00",
+    "tax": "0",
+    "total": "125",
+    "currency": "USD",
+    "expected_validation_codes": [],
+    "line_items": [
+      {
+        "description": "Bolts",
+        "quantity": "2",
+        "unit_price": "50",
+        "amount": "100",
+        "uom": "EA",
+        "provenance": {
+          "description": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "Bolts"
+          },
+          "uom": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "EA"
+          },
+          "quantity": {
+            "kind": "corrected",
+            "page": 1,
+            "excerpt": "2,00",
+            "actor": "synthetic-reviewer",
+            "time": "2026-10-13T10:00:00Z",
+            "reason": "Decimal comma in supplier layout"
+          },
+          "unit_price": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "50"
+          },
+          "amount": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "100"
+          }
+        }
+      },
+      {
+        "description": "Nuts",
+        "quantity": "1",
+        "unit_price": "25",
+        "amount": "25",
+        "uom": "EA",
+        "provenance": {
+          "description": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "Nuts"
+          },
+          "uom": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "EA"
+          },
+          "quantity": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "1"
+          },
+          "unit_price": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "25"
+          },
+          "amount": {
+            "kind": "observed",
+            "page": 1,
+            "excerpt": "25"
+          }
+        }
+      }
+    ],
+    "provenance": {
+      "vendor_name": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "Supplier A"
+      },
+      "invoice_number": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "INV-01"
+      },
+      "invoice_date": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "2026-10-01"
+      },
+      "subtotal": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "125.00"
+      },
+      "tax": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "0"
+      },
+      "total": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "125"
+      },
+      "currency": {
+        "kind": "observed",
+        "page": 1,
+        "excerpt": "USD"
+      }
+    },
+    "family_id": "supplier-a-inv01",
+    "layout_family": "locale_id",
+    "split": "development",
+    "label_origin": "developer_AI_assisted_synthetic",
+    "revision": "2026-10-13",
+    "source_pages": {
+      "1": "Seller: Supplier A\nInvoice: INV-01\nDate: 2026-10-01\nSubtotal: 125,00\nTax: 0\nTotal: 125 USD\nBolts EA 2,00 50,00 100,00\nNuts EA 1 25 25"
+    }
+  },
+  "revisions": [
+    {
+      "id": "r1",
+      "simulated_effective_date": "2026-10-11",
+      "rule": "none"
+    },
+    {
+      "id": "r2",
+      "simulated_effective_date": "2026-10-12",
+      "rule": "decimal_comma_v1"
+    },
+    {
+      "id": "r3",
+      "simulated_effective_date": "2026-10-13",
+      "rule": "decimal_comma_v1"
+    }
+  ]
+}

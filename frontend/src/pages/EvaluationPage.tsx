@@ -143,9 +143,11 @@ export function EvaluationPage() {
               <div className="evaluation-gate-note">
                 <Info size={16} />
                 <span>
-                  Pass gates: Field match &gt;= {percent(dashboard.data.gates.field_match)} and
-                  validation match &gt;= {percent(dashboard.data.gates.validation_match)}. Changes
-                  within +/-{dashboard.data.gates.regression_tolerance_pp.toFixed(1)} pp are stable.
+                  Header / validation gates: Header match &gt;={' '}
+                  {percent(dashboard.data.gates.field_match)} and validation match &gt;={' '}
+                  {percent(dashboard.data.gates.validation_match)}. Changes within +/-
+                  {dashboard.data.gates.regression_tolerance_pp.toFixed(1)} pp are stable. These
+                  gates do not certify full-invoice correctness.
                 </span>
               </div>
             </div>

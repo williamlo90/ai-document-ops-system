@@ -1,17 +1,17 @@
 # Phase status and learning checkpoints
 
-Updated 2026-10-13. One completed phase = one commit, then push to `origin/main`.
+Updated 2026-10-14. One completed phase = one commit, then push to `origin/main`.
 Do not publish a success checkpoint until its gate passes. Local plan remains ignored.
 
-| Phase | Status                                                 | Exit evidence                                                    |
-| ----- | ------------------------------------------------------ | ---------------------------------------------------------------- |
-| 0     | Gate passed; checkpoint prepared       | Contracts, schema validation and erp-capabilities.json           |
-| 1     | Partial implementation archived externally, not active | Review archive selectively against the new contract before reuse |
-| 2–5   | Not started                                            | Procurement, matching, resolution and verified posting           |
-| 6     | Not started                                            | Frozen quality/time/revision evidence                            |
-| 7     | Not started                                            | Docker and release checks                                        |
-| 8     | Optional, not started                                  | Default skip unless needed                                       |
-| 9     | Not started                                            | Public proof and CV claim mapping                                |
+| Phase | Status                                               | Exit evidence                                          |
+| ----- | ---------------------------------------------------- | ------------------------------------------------------ |
+| 0     | Published: 3d36ac3                                   | Contracts, schema validation and erp-capabilities.json |
+| 1     | Gate passed; single phase-1 checkpoint | PHASE-1.md and actual OCR.space diagnostic                   |
+| 2–5   | Not started                                          | Procurement, matching, resolution and verified posting |
+| 6     | Not started                                          | Frozen quality/time/revision evidence                  |
+| 7     | Not started                                          | Docker and release checks                              |
+| 8     | Optional, not started                                | Default skip unless needed                             |
+| 9     | Not started                                          | Public proof and CV claim mapping                      |
 
 ## Phase 0 gate checklist
 

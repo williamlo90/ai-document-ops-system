@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import time
 from collections import Counter
 from dataclasses import asdict
@@ -23,6 +24,7 @@ from app.evaluation.history import (
 from app.evaluation.provider_costs import build_provider_economics
 from app.providers.contracts import DocumentSource, ExtractorProvider, ParserProvider, ProviderError
 from app.validation.invoice import validate_invoice
+from app.extraction.schemas import FieldConfidence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -155,7 +157,15 @@ class EvaluationDashboardService:
                 observations.append(self._run_document(document.document_id, document.source_path))
             economics = build_provider_economics(
                 observations,
-                parser_model=self.settings.mistral_ocr_model,
+                parser_model=(
+                    self.settings.gemini_ocr_model
+                    if self.settings.parser_provider == "gemini_ocr"
+                    else (
+                        "ocr-space-engine-2"
+                        if self.settings.parser_provider == "ocr_space"
+                        else self.settings.mistral_ocr_model
+                    )
+                ),
                 extractor_model=self.settings.extractor_model,
             )
             processed = sum(1 for item in observations if not item.get("error"))
@@ -190,7 +200,7 @@ class EvaluationDashboardService:
                     "experiment": {
                         "experiment_id": str(attempt.id),
                         "started_at": attempt.started_at.isoformat(),
-                        "dataset_fingerprint_sha256": None,
+                        "dataset_fingerprint_sha256": _dataset_fingerprint(dataset),
                     },
                     "limitations": [
                         "Results use a small deterministic synthetic invoice set, not customer traffic.",
@@ -221,7 +231,15 @@ class EvaluationDashboardService:
         except Exception as exc:
             economics = build_provider_economics(
                 observations,
-                parser_model=self.settings.mistral_ocr_model,
+                parser_model=(
+                    self.settings.gemini_ocr_model
+                    if self.settings.parser_provider == "gemini_ocr"
+                    else (
+                        "ocr-space-engine-2"
+                        if self.settings.parser_provider == "ocr_space"
+                        else self.settings.mistral_ocr_model
+                    )
+                ),
                 extractor_model=self.settings.extractor_model,
             )
             failed = self.attempts.save(
@@ -334,7 +352,7 @@ class EvaluationDashboardService:
         split = str(report.get("split") or "diagnostic")
         fingerprint = experiment.get("dataset_fingerprint_sha256")
         observed_at = _observed_datetime(report)
-        field_match = _number(metrics.get("field_accuracy"))
+        field_match = _number(metrics.get("header_field_accuracy", metrics.get("field_accuracy")))
         validation_match = _number(metrics.get("validation_code_exact_match_rate"))
         passed = (
             field_match is not None
@@ -349,7 +367,6 @@ class EvaluationDashboardService:
             if source == "workspace_history"
             else experiment.get("experiment_id") or report.get("id") or fallback_id
         )
-        limitations = [str(item) for item in report.get("limitations", [])]
         return {
             "id": run_id,
             "label": str(report.get("label") or f"{dataset_id} / {split}"),
@@ -365,6 +382,7 @@ class EvaluationDashboardService:
             "fields_matched": _integer(metrics.get("fields_matched")),
             "fields_total": _integer(metrics.get("fields_total")),
             "field_match": field_match,
+            **_quality_projection(report, metrics),
             "validation_match": validation_match,
             "document_exact_match": _number(metrics.get("document_exact_match_rate")),
             "approval_blocker_accuracy": _number(metrics.get("approval_blocker_accuracy")),
@@ -384,9 +402,9 @@ class EvaluationDashboardService:
                 str(key): int(value)
                 for key, value in (report.get("failure_taxonomy") or {}).items()
             },
-            "limitations": limitations,
+            "limitations": [str(item) for item in report.get("limitations", [])],
             "series_key": f"{dataset_id}:{split}",
-            "comparison_key": str(fingerprint or f"{dataset_id}:{dataset_version}:{split}"),
+            "comparison_key": f"{fingerprint or f'{dataset_id}:{dataset_version}:{split}'}:{report.get('report_version', '1.0')}",
             "is_current": False,
         }
 
@@ -607,23 +625,17 @@ class EvaluationDashboardService:
                 )
             )
             invoice = result.extraction.data
-            confidence_fields = sorted({item.field_name for item in result.extraction.confidence})
-            evidence_fields = sorted(
-                {
-                    item.field_name
-                    for item in result.extraction.confidence
-                    if item.source_page is not None
-                    and item.source_text
-                    and _evidence_exists(parsed, item.source_page, item.source_text)
-                }
-            )
+            validation = validate_invoice(invoice)
+            evidence_fields = _evidence_fields(parsed, result.extraction.confidence)
             return {
                 "document_id": document_id,
                 "predicted_fields": invoice_data_to_fields(invoice),
-                "predicted_validation_codes": sorted(
-                    {issue.code for issue in validate_invoice(invoice).issues}
+                "predicted_validation_codes": sorted({issue.code for issue in validation.issues}),
+                "predicted_approval_blocked": validation.has_errors,
+                "validation_completed": True,
+                "confidence_fields": sorted(
+                    {item.field_name for item in result.extraction.confidence}
                 ),
-                "confidence_fields": confidence_fields,
                 "evidence_fields": evidence_fields,
                 "latency_ms": round((time.perf_counter() - started) * 1000, 2),
                 "provider_attempts": attempts,
@@ -775,4 +787,42 @@ def _optional_integer(value: Any) -> int | None:
 def _slug(value: str) -> str:
     return "_".join(
         part for part in "".join(ch if ch.isalnum() else " " for ch in value.casefold()).split()
+    )
+
+
+def _dataset_fingerprint(dataset: EvaluationDataset) -> str:
+    return hashlib.sha256(
+        json.dumps(records_from_dataset(dataset), sort_keys=True).encode()
+    ).hexdigest()
+
+
+def _quality_projection(report: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:
+    report_version = str(report.get("report_version") or "1.0")
+    lines = metrics.get("line_items") or {}
+    return {
+        "report_version": report_version,
+        "evaluation_input": report.get("evaluation_input", "legacy_not_recorded"),
+        "full_invoice_exact_match": _number(metrics.get("full_invoice_exact_match_rate")),
+        "full_invoice_documents_total": _integer(metrics.get("full_invoice_documents_total")),
+        "full_invoice_documents_matched": _integer(metrics.get("full_invoice_documents_matched")),
+        "line_field_match": _number(lines.get("field_accuracy")),
+        "line_precision": _number(lines.get("precision")),
+        "line_recall": _number(lines.get("recall")),
+        "missing_lines": _integer(lines.get("missing_lines")),
+        "extra_lines": _integer(lines.get("extra_lines")),
+        "ambiguous_line_groups": _integer(lines.get("ambiguous_groups")),
+        "processing_completion": _number(metrics.get("provider_success_rate")),
+        "validation_completion": _number(metrics.get("validation_completion_rate")),
+    }
+
+
+def _evidence_fields(parsed: Any, confidence: tuple[FieldConfidence, ...]) -> list[str]:
+    return sorted(
+        {
+            item.field_name
+            for item in confidence
+            if item.source_page is not None
+            and item.source_text
+            and _evidence_exists(parsed, item.source_page, item.source_text)
+        }
     )

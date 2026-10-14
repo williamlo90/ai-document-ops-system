@@ -46,6 +46,9 @@ class Settings:
     mistral_ocr_endpoint: str = "https://api.mistral.ai/v1/ocr"
     mistral_ocr_model: str = "mistral-ocr-latest"
     mistral_allowed_hosts: tuple[str, ...] = ("api.mistral.ai",)
+    ocr_space_api_key: str | None = None
+    gemini_api_key: str | None = None
+    gemini_ocr_model: str = "gemini-3.8-flash"
     extractor_api_key: str | None = None
     extractor_endpoint: str = "https://api.openai.com/v1/chat/completions"
     extractor_model: str = "gpt-5.4-mini-2026-03-17"
@@ -149,6 +152,9 @@ def load_settings() -> Settings:
         ),
         parser_provider=_setting(config, "PARSER_PROVIDER", "mock"),
         extractor_provider=_setting(config, "EXTRACTOR_PROVIDER", "mock"),
+        ocr_space_api_key=_setting(config, "OCR_SPACE_API_KEY"),
+        gemini_api_key=_setting(config, "GEMINI_API_KEY"),
+        gemini_ocr_model=_setting(config, "GEMINI_OCR_MODEL", "gemini-3.8-flash"),
         mistral_api_key=_setting(config, "MISTRAL_API_KEY"),
         mistral_ocr_endpoint=_setting(
             config,

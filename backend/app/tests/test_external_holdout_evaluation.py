@@ -79,7 +79,7 @@ class ExternalHoldoutEvaluationTests(unittest.TestCase):
         self.assertEqual(summary["metrics"]["document_exact_match_rate"], 0.0)
         conditional = summary["metrics"]["conditional_on_provider_success"]
         self.assertEqual(conditional["documents_count"], 0)
-        self.assertEqual(conditional["field_accuracy"], 0.0)
+        self.assertIsNone(conditional["field_accuracy"])
 
     def test_reports_hallucination_validation_mismatch_and_unmeasured_duplicates(self) -> None:
         expected = [_record()]

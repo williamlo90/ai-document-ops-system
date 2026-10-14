@@ -19,6 +19,19 @@ export type EvaluationPreflight = {
 }
 
 export type EvaluationRun = {
+  report_version?: string
+  evaluation_input?: string
+  full_invoice_exact_match?: number | null
+  full_invoice_documents_total?: number
+  full_invoice_documents_matched?: number
+  line_field_match?: number | null
+  line_precision?: number | null
+  line_recall?: number | null
+  missing_lines?: number
+  extra_lines?: number
+  ambiguous_line_groups?: number
+  processing_completion?: number | null
+  validation_completion?: number | null
   id: string
   label: string
   dataset_id: string

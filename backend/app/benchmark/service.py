@@ -54,7 +54,7 @@ def _run_document(
     parser: ParserProvider,
     extractor: ExtractorProvider,
 ) -> ProviderRunResult:
-    predicted_fields: dict[str, str | None] = {}
+    predicted_fields: dict[str, Any] = {}
     latency_ms = 0.0
     error: str | None = None
     trace_id: str | None = None
@@ -98,6 +98,15 @@ def invoice_data_to_fields(data: InvoiceData) -> dict[str, Any]:
         "tax": str(data.tax) if data.tax is not None else None,
         "total": str(data.total) if data.total is not None else None,
         "currency": data.currency,
+        "line_items": [
+            {
+                "description": item.description,
+                "quantity": str(item.quantity) if item.quantity is not None else None,
+                "unit_price": str(item.unit_price) if item.unit_price is not None else None,
+                "amount": str(item.amount) if item.amount is not None else None,
+            }
+            for item in data.line_items
+        ],
     }
 
 

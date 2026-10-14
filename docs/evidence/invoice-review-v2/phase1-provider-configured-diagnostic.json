@@ -1,0 +1,230 @@
+{
+  "preflight": {
+    "checked_on": "2026-10-14",
+    "documents": 1,
+    "pages": 1,
+    "max_calls": 2,
+    "max_output_tokens": 2048,
+    "max_input_token_upper_bound": 20000,
+    "max_estimated_usd": 0.028215999999999998,
+    "parser_billing_assumption": "OCR.space free endpoint",
+    "budget_usd": 1,
+    "automatic_retries": 0,
+    "parser_model": "ocr-space-engine-2",
+    "extractor_model": "gpt-5.4-mini-2026-03-17",
+    "pricing_sources": [
+      "https://developers.openai.com/api/docs/models/gpt-5.4-mini",
+      "https://docs.mistral.ai/inference/pricing",
+      "https://ai.google.dev/gemini-api/docs/pricing",
+      "https://ocr.space/ocrapi"
+    ],
+    "source_sha256": "55a105e5562ad359c3d0ee127786e5b3cf40c35259312a7787d21849e330f4b2",
+    "prompt_sha256": "da0e73b938c035c198befcf68245e13586a07040149887e60b70b5e412b47d5f",
+    "parser_host": "api.ocr.space",
+    "extractor_host": "api.openai.com",
+    "scope": "Existing synthetic service invoice: provider plumbing diagnostic, not goods/PO eligibility"
+  },
+  "status": "completed",
+  "generated_at": "2026-10-14T03:06:27.992817+00:00",
+  "source_commit": "3d36ac365f658cc71022dbaa72931657792406c6",
+  "worktree_dirty": true,
+  "source_hashes": {
+    "scripts\\run_phase1_diagnostic.py": "3fdf1b6b587d97b66de7049c2f9170ffc8505744a04df7261bf3b1409238fd7b",
+    "backend\\app\\evaluation\\dashboard.py": "af91a0fe696d8214cf1045e51718d8492cf78c3579038668b6c6766a15cc5367",
+    "backend\\app\\evaluation\\external_holdout.py": "a3e7be64bf9a5220db7313955f1eddb078cdfa0fa238da75bcbccb5f2caba1d5",
+    "backend\\app\\evaluation\\history.py": "3bcea2ef3c505438aa0a2053580c497813c45e697d0efa443c9c1053b1e7894d",
+    "backend\\app\\evaluation\\invoice.py": "2e6ba3e0c653f3f095b04f88b942496bf2f45d7caeb653b45adee1e5fb6e8178",
+    "backend\\app\\evaluation\\line_items.py": "dff68fa8c7acbabc11293f1317d8a49c6d7f60a4593b7a80cee09b60b069689b",
+    "backend\\app\\evaluation\\provenance.py": "eebd6d346ae1292a611603b23ffb17ce97e55551177572123ce874f61c3469e2",
+    "backend\\app\\evaluation\\provider_costs.py": "ed483b194c838abaf5fa026aa94c9344c59588bfba88d6f9a2f82148f1bbf9d5",
+    "backend\\app\\evaluation\\report_summary.py": "07be5fda755b306a971ade52428b363474bc8f789333fc362ddaf5754ec1ae48",
+    "backend\\app\\evaluation\\__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "backend\\app\\providers\\llm_json.py": "3f0ee51a988d1849505a76720ae5dedb577e74d19364e7a26d88a992af2933fd",
+    "backend\\app\\providers\\mistral.py": "1dad10a7e4229d2cc17d0fa8a3bc295744886e1c08843a50fcc58d0af001dc76",
+    "backend\\app\\providers\\gemini.py": "483f9c07c0377f1b3f59b900d1c3c6988da5dc47341bdda07f15a7b334093a54",
+    "backend\\app\\providers\\ocr_space.py": "c5ef7a93fc5a09e8d8f8b4e48ff5706f3c55e915c2e6fdaa0f49b4979d448bf5"
+  },
+  "stages": [
+    {
+      "stage": "parser",
+      "status": "succeeded",
+      "latency_ms": 1614.2329999711365,
+      "model": "ocr-space-engine-2",
+      "usage": {
+        "input_tokens": null,
+        "cached_input_tokens": null,
+        "output_tokens": null,
+        "total_tokens": null,
+        "pages_processed": 1,
+        "document_size_bytes": 2497
+      }
+    },
+    {
+      "stage": "extractor",
+      "status": "succeeded",
+      "latency_ms": 3054.424799978733,
+      "model": "gpt-5.4-mini-2026-03-17",
+      "usage": {
+        "input_tokens": 616,
+        "cached_input_tokens": 0,
+        "output_tokens": 338,
+        "total_tokens": 954,
+        "pages_processed": null,
+        "document_size_bytes": null
+      }
+    }
+  ],
+  "report": {
+    "report_version": "2.1",
+    "evaluation_input": "original_provider_extraction",
+    "legacy_metric_scope": "header_only",
+    "dataset_class": "external licensed synthetic invoices",
+    "split": "development_diagnostic",
+    "provider": "ocr_space+llm_json",
+    "documents_count": 1,
+    "provider_errors": 0,
+    "metrics": {
+      "header_field_accuracy": 1.0,
+      "header_exact_match_rate": 1.0,
+      "full_invoice_exact_match_rate": null,
+      "full_invoice_documents_matched": 0,
+      "full_invoice_documents_total": 0,
+      "full_invoice_label_coverage": 0.0,
+      "line_items": {
+        "status": "not_labeled",
+        "alignment_version": "reference_description_uom_multiset_v2",
+        "ambiguous_groups": 0,
+        "documents_labeled": 0,
+        "documents_unlabeled": 1,
+        "invalid_or_missing_output_documents": 0,
+        "expected_lines": 0,
+        "predicted_lines": 0,
+        "exact_lines": 0,
+        "missing_lines": 0,
+        "extra_lines": 0,
+        "fields_total": 0,
+        "fields_matched": 0,
+        "field_accuracy": null,
+        "by_field": {
+          "description": null,
+          "uom": null,
+          "quantity": null,
+          "unit_price": null,
+          "amount": null,
+          "tax": null,
+          "discount": null,
+          "purchase_order": null,
+          "purchase_receipt": null,
+          "item_reference": null
+        },
+        "precision": null,
+        "recall": null
+      },
+      "provider_success_rate": 1.0,
+      "documents_succeeded": 1,
+      "documents_incomplete": 0,
+      "validation_documents_total": 1,
+      "validation_documents_completed": 1,
+      "validation_completion_rate": 1.0,
+      "field_accuracy": 1.0,
+      "fields_matched": 8,
+      "fields_total": 8,
+      "by_field": {
+        "vendor_name": 1.0,
+        "invoice_number": 1.0,
+        "invoice_date": 1.0,
+        "due_date": 1.0,
+        "subtotal": 1.0,
+        "tax": 1.0,
+        "total": 1.0,
+        "currency": 1.0
+      },
+      "document_exact_match_rate": 1.0,
+      "validation_code_exact_match_rate": 1.0,
+      "approval_blocker_accuracy": 1.0,
+      "confidence_metadata_coverage": 0.875,
+      "source_evidence_coverage": 0.375,
+      "correct_non_null_fields": 8,
+      "conditional_on_provider_success": {
+        "header_field_accuracy": 1.0,
+        "header_exact_match_rate": 1.0,
+        "full_invoice_exact_match_rate": null,
+        "full_invoice_documents_matched": 0,
+        "full_invoice_documents_total": 0,
+        "full_invoice_label_coverage": 0.0,
+        "line_items": {
+          "status": "not_labeled",
+          "alignment_version": "reference_description_uom_multiset_v2",
+          "ambiguous_groups": 0,
+          "documents_labeled": 0,
+          "documents_unlabeled": 1,
+          "invalid_or_missing_output_documents": 0,
+          "expected_lines": 0,
+          "predicted_lines": 0,
+          "exact_lines": 0,
+          "missing_lines": 0,
+          "extra_lines": 0,
+          "fields_total": 0,
+          "fields_matched": 0,
+          "field_accuracy": null,
+          "by_field": {
+            "description": null,
+            "uom": null,
+            "quantity": null,
+            "unit_price": null,
+            "amount": null,
+            "tax": null,
+            "discount": null,
+            "purchase_order": null,
+            "purchase_receipt": null,
+            "item_reference": null
+          },
+          "precision": null,
+          "recall": null
+        },
+        "documents_count": 1,
+        "validation_documents_total": 1,
+        "field_accuracy": 1.0,
+        "document_exact_match_rate": 1.0,
+        "validation_code_exact_match_rate": 1.0,
+        "approval_blocker_accuracy": 1.0,
+        "confidence_metadata_coverage": 0.875,
+        "source_evidence_coverage": 0.375
+      },
+      "duplicate_detection": {
+        "status": "not_measured_no_positive_pairs",
+        "positive_pairs_expected": 0,
+        "true_positive_pairs": 0,
+        "false_positive_pairs": 0,
+        "false_negative_pairs": 0,
+        "precision": null,
+        "recall": null
+      },
+      "latency_ms": {
+        "average": 4668.87,
+        "minimum": 4668.87,
+        "maximum": 4668.87
+      }
+    },
+    "failure_taxonomy": {
+      "missing_source_evidence": 5
+    },
+    "limitations": [
+      "Dataset class: external licensed synthetic invoices; results apply only to this manifest.",
+      "Results measure this fixed manifest and do not establish global accuracy.",
+      "Legacy field_accuracy and document_exact_match_rate measure headers only.",
+      "Full-invoice accuracy is measured only on records with complete header, line and provenance labels.",
+      "Source-evidence coverage requires both a page reference and an exact source excerpt.",
+      "Duplicate recall is not measured when the split contains no labeled duplicate pair.",
+      "Provider latency depends on the local network and hosted API conditions during the run."
+    ]
+  },
+  "limitations": [
+    "One previously seen synthetic page, not sealed holdout.",
+    "V1 source has no complete goods/UOM/provenance oracle: whole-invoice metric is N/A.",
+    "Sample size one: stage latency is a single observation, not an SLO.",
+    "Configured OCR alias used; provider-reported model recorded when available."
+  ],
+  "cost_basis": "Published standard rates",
+  "estimated_usage_cost_usd": 0.001983
+}

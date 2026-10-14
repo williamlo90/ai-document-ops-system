@@ -24,7 +24,7 @@ class EvaluationDataset:
 class ProviderRunResult:
     document_id: str
     provider_name: str
-    predicted_fields: dict[str, str | None]
+    predicted_fields: dict[str, Any]
     latency_ms: float
     error: str | None = None
     trace_id: str | None = None
