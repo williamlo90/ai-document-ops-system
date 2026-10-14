@@ -78,4 +78,32 @@ describe('AP evidence review', () => {
       screen.queryByRole('button', { name: 'Capture current invoice' }),
     ).not.toBeInTheDocument()
   })
+  it('shows separate price and quantity exceptions with a next action', async () => {
+    mount({
+      ...record,
+      capabilities: { review: false, approve: true },
+      match_status: {
+        status: 'hold',
+        match: {
+          id: 'match-1',
+          basis_hash: 'hash',
+          recommendation: 'hold',
+          policy: { version: 1, record: { mode: 'received', effective_from: '2026-01-01T00:00:00Z' } },
+          lines: [{
+            line_id: 'l1', source_ref: 'PO1:p1', expected_price: '50', actual_price: '55',
+            price_delta: '5', price_threshold: '0', ordered: '100', received: '70',
+            billed: '0', reserved: '0', available: '70', invoice_quantity: '100',
+          }],
+          issues: [
+            { code: 'price_variance', line_id: 'l1', facts: { delta: '5' } },
+            { code: 'quantity_exceeds_available', line_id: null, facts: { requested: '100', available: '70' } },
+          ],
+        },
+      },
+    })
+    expect(await screen.findByText('price variance')).toBeInTheDocument()
+    expect(screen.getByText('quantity exceeds available')).toBeInTheDocument()
+    expect(screen.getByText(/Check accepted receipts and earlier billings/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve match and reserve quantity' })).toBeDisabled()
+  })
 })

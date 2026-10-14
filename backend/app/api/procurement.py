@@ -13,6 +13,8 @@ from app.procurement.models import (
     Policy,
     EvidenceUpdate,
     SnapshotInput,
+    MatchPolicy,
+    CommittedBilling,
 )
 from app.procurement.service import EvidenceConflict
 
@@ -29,6 +31,19 @@ class CsvPayload(StrictModel):
 
 class ApprovalPayload(StrictModel):
     payload_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class MatchApprovalPayload(StrictModel):
+    basis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class BillingPayload(StrictModel):
+    records: list[CommittedBilling] = Field(min_length=1, max_length=100)
+
+
+class ReleasePayload(StrictModel):
+    reason: str = Field(min_length=10, max_length=1000)
+    reconciliation_ref: str = Field(min_length=3, max_length=120)
 
 
 def call(action):
@@ -102,12 +117,19 @@ def evidence(
         snapshot_status = (
             container.ap_service.approval_status(latest["id"], context) if latest else None
         )
+        latest_match = container.ap_service.repo.latest_for_document(
+            context.workspace_id, "match", document_id
+        )
+        current_match = (
+            match_service(container).status(latest_match["id"], context) if latest_match else None
+        )
         return {
             "capabilities": {
                 "review": context.role in {"admin", "reviewer"},
                 "approve": context.role in {"admin", "ap_approver"},
             },
             "snapshot_status": snapshot_status,
+            "match_status": current_match,
             "history": history,
             "current": history[-1] if history else None,
             "needs_capture": not history or history[-1]["extraction_hash"] != digest(values),
@@ -169,6 +191,42 @@ def approval_status(
     container=Depends(get_container),
 ):
     return call(lambda: container.ap_service.approval_status(str(snapshot_id), context))
+
+
+def match_service(container):
+    from app.procurement.matching import MatchService
+
+    return MatchService(container.ap_service)
+
+
+@router.put("/match-policy")
+def configure_match_policy(payload: MatchPolicy, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: match_service(container).configure_policy(payload, context))
+
+
+@router.post("/billings/import")
+def import_billings(payload: BillingPayload, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: match_service(container).import_billings([r.model_dump(mode="json") for r in payload.records], context))
+
+
+@router.post("/snapshots/{snapshot_id}/match")
+def assess_match(snapshot_id: UUID, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: match_service(container).assess(str(snapshot_id), context))
+
+
+@router.get("/matches/{match_id}")
+def match_status(match_id: UUID, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: match_service(container).status(str(match_id), context))
+
+
+@router.post("/matches/{match_id}/approve")
+def approve_match(match_id: UUID, payload: MatchApprovalPayload, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: match_service(container).approve(str(match_id), payload.basis_hash, context))
+
+
+@router.post("/matches/{match_id}/release")
+def release_match(match_id: UUID, payload: ReleasePayload, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: match_service(container).release(str(match_id), payload.reason, payload.reconciliation_ref, context))
 
 
 class SyncPayload(StrictModel):

@@ -41,12 +41,52 @@ type Snapshot = {
   inputs: { sources: { po: Source[]; receipt: Source[] } }
 }
 type Status = { snapshot: Snapshot; status: string; posting_ready: boolean }
+type MatchIssue = { code: string; line_id: string | null; facts: Record<string, string | number | boolean> }
+type MatchLine = {
+  line_id: string
+  source_ref: string
+  expected_price: string
+  actual_price: string
+  price_delta: string
+  price_threshold: string
+  ordered: string
+  received: string
+  billed: string
+  reserved: string
+  available: string
+  invoice_quantity: string
+}
+type MatchStatus = {
+  status: string
+  match: {
+    id: string
+    basis_hash: string
+    recommendation: string
+    lines: MatchLine[]
+    issues: MatchIssue[]
+    policy: { version: number; record: { mode: string; effective_from: string } }
+  }
+}
 type Response = {
   current: Revision | null
   history: Revision[]
   needs_capture: boolean
   capabilities: { review: boolean; approve: boolean }
   snapshot_status: Status | null
+  match_status?: MatchStatus | null
+}
+
+function nextAction(code: string) {
+  if (code === 'price_variance') return 'Check the invoice price or approved PO price.'
+  if (code === 'quantity_exceeds_available' || code === 'receipt_shortfall')
+    return 'Check accepted receipts and earlier billings; reduce or defer the invoice quantity.'
+  if (code === 'evidence_approval_required' || code === 'evidence_blocker')
+    return 'Complete the source evidence review and prepare a current snapshot.'
+  if (code === 'unallocated_line' || code === 'unknown_po_line')
+    return 'Link this invoice line to the correct PO line.'
+  if (code.includes('amount') || code.includes('total'))
+    return 'Check the quantity, price, tax, discount and document total.'
+  return 'Review the source record and reassess the match.'
 }
 
 function fieldLabel(path: string, lineIds: string[]) {
@@ -136,6 +176,19 @@ export function EvidencePanel({
       }),
     onSuccess: refresh,
   })
+  const assessMatch = useMutation({
+    mutationFn: () =>
+      api(`/ap/snapshots/${query.data?.snapshot_status?.snapshot.id}/match`, { method: 'POST' }),
+    onSuccess: refresh,
+  })
+  const approveMatch = useMutation({
+    mutationFn: () =>
+      api(`/ap/matches/${query.data?.match_status?.match.id}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ basis_hash: query.data?.match_status?.match.basis_hash }),
+      }),
+    onSuccess: refresh,
+  })
   if (query.isLoading)
     return (
       <Panel>
@@ -154,7 +207,9 @@ export function EvidencePanel({
   if (!data) return null
   const current = data.current
   const status = data.snapshot_status
-  const error = capture.error || attest.error || prepare.error || approve.error
+  const match = data.match_status
+  const error =
+    capture.error || attest.error || prepare.error || approve.error || assessMatch.error || approveMatch.error
   return (
     <Panel>
       <h2>Source evidence and purchasing</h2>
@@ -297,7 +352,7 @@ export function EvidencePanel({
                 </label>
               ))}
               <Button
-                disabled={prepare.isPending || data.needs_capture || !company || !po || !receipt}
+                disabled={prepare.isPending || data.needs_capture || !company}
                 onClick={() => prepare.mutate()}
               >
                 Prepare evidence snapshot
@@ -349,6 +404,62 @@ export function EvidencePanel({
               Approve this evidence snapshot
             </Button>
           )}
+          <Button
+            disabled={assessMatch.isPending}
+            onClick={() => assessMatch.mutate()}
+          >
+            Assess three-way match
+          </Button>
+        </section>
+      )}
+      {match && (
+        <section>
+          <h3>Three-way match: {match.status.replaceAll('_', ' ')}</h3>
+          <p>
+            Policy revision {match.match.policy.version} · {match.match.policy.record.mode} mode ·
+            effective {new Date(match.match.policy.record.effective_from).toLocaleDateString()}
+          </p>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Invoice line / PO line</th>
+                  <th>Price expected / actual / delta</th>
+                  <th>Ordered / received</th>
+                  <th>Billed / reserved / available</th>
+                  <th>Invoice quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {match.match.lines.map((line) => (
+                  <tr key={line.line_id}>
+                    <td>{fieldLabel(`lines.${line.line_id}.description`, current?.line_ids || [])} / {line.source_ref}</td>
+                    <td>{line.expected_price} / {line.actual_price} / {line.price_delta} (limit {line.price_threshold})</td>
+                    <td>{line.ordered} / {line.received}</td>
+                    <td>{line.billed} / {line.reserved} / {line.available}</td>
+                    <td>{line.invoice_quantity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {match.match.issues.map((issue, i) => (
+            <article key={`${issue.code}-${issue.line_id || 'invoice'}-${i}`}>
+              <strong>{issue.code.replaceAll('_', ' ')}</strong>
+              {issue.line_id && <span> · {fieldLabel(`lines.${issue.line_id}.description`, current?.line_ids || [])}</span>}
+              <p>{Object.entries(issue.facts).map(([k, v]) => `${k}: ${v}`).join(' · ')}</p>
+              <p>Next: {nextAction(issue.code)}</p>
+            </article>
+          ))}
+          {data.capabilities.approve && (
+            <Button
+              disabled={approveMatch.isPending || match.status !== 'ready_for_approval'}
+              onClick={() => approveMatch.mutate()}
+            >
+              Approve match and reserve quantity
+            </Button>
+          )}
+          {match.status === 'stale' && <p>Source or policy changed. Run a new match assessment.</p>}
         </section>
       )}
       {error && <p role="alert">{error.message}</p>}

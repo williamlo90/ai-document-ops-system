@@ -138,8 +138,56 @@ class EvidenceUpdate(StrictModel):
 class SnapshotInput(StrictModel):
     company: str = Field(min_length=1, max_length=120)
     expected_revision: int = Field(ge=1)
-    po_ids: list[str] = Field(min_length=1, max_length=30)
-    receipt_ids: list[str] = Field(min_length=1, max_length=30)
+    po_ids: list[str] = Field(default_factory=list, max_length=30)
+    receipt_ids: list[str] = Field(default_factory=list, max_length=30)
     source_system: str = Field(min_length=1, max_length=80)
     # Phase 3 will calculate allocations; these are explicit proposed references only.
     allocations: dict[str, str] = Field(default_factory=dict)
+
+
+class MatchPolicy(StrictModel):
+    company: str = Field(min_length=1, max_length=120)
+    effective_from: datetime
+    mode: Literal["received", "ordered"] = "received"
+    price_tolerance_absolute: Decimal = Field(default=Decimal("0"), ge=0)
+    price_tolerance_relative: Decimal = Field(default=Decimal("0"), ge=0, le=1)
+    quantity_tolerance: Decimal = Field(default=Decimal("0"), ge=0)
+    amount_tolerance: Decimal = Field(default=Decimal("0"), ge=0)
+    rounding_places: int = Field(default=2, ge=0, le=4)
+    approver_role: Literal["ap_approver", "admin"] = "ap_approver"
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("price_tolerance_absolute", "price_tolerance_relative", "quantity_tolerance", "amount_tolerance", mode="before")
+    @classmethod
+    def strict_decimal(cls, value):
+        return decimal_value(value)
+
+    @model_validator(mode="after")
+    def timezone_required(self):
+        if self.effective_from.tzinfo is None:
+            raise ValueError("Policy effective date requires timezone")
+        return self
+
+
+class CommittedBilling(StrictModel):
+    company: str = Field(min_length=1, max_length=120)
+    source_system: str = Field(min_length=1, max_length=80)
+    billing_id: str = Field(min_length=1, max_length=120)
+    source_version: str = Field(min_length=1, max_length=120)
+    source_updated_at: datetime
+    po_id: str = Field(min_length=1, max_length=120)
+    po_line_id: str = Field(min_length=1, max_length=120)
+    uom: str = Field(min_length=1, max_length=40)
+    quantity: Decimal = Field(ge=0)
+    status: Literal["committed", "cancelled"]
+
+    @field_validator("quantity", mode="before")
+    @classmethod
+    def strict_quantity(cls, value):
+        return decimal_value(value)
+
+    @model_validator(mode="after")
+    def timestamp_required(self):
+        if self.source_updated_at.tzinfo is None:
+            raise ValueError("Billing timestamp requires timezone")
+        return self

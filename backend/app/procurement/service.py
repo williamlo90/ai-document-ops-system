@@ -276,8 +276,8 @@ class EvidenceService:
             if len(ids) != len(set(ids)):
                 raise EvidenceConflict("Duplicate source reference")
             sources[kind] = [
-                self._source(context.workspace_id, kind, request.company, request.source_system, i)
-                for i in ids
+                found for i in ids
+                if (found := self.repo.latest(context.workspace_id, kind, key(request.company, request.source_system, i))) is not None
             ]
         return {
             "invoice": revision,
@@ -290,6 +290,13 @@ class EvidenceService:
 
     def blockers(self, inputs):
         reasons = []
+        for kind, ids in (("po", inputs["request"]["po_ids"]), ("receipt", inputs["request"]["receipt_ids"])):
+            if not ids:
+                reasons.append("missing_" + kind + "_source")
+            present = {r["record"]["source_id"] for r in inputs["sources"][kind]}
+            for source_id in ids:
+                if source_id not in present:
+                    reasons.append("missing_" + kind + "_source:" + source_id)
         invoice = inputs["invoice"]
         fields = invoice["fields"]
         policy = inputs["policy"]["record"]

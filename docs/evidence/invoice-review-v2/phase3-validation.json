@@ -1,0 +1,61 @@
+{
+  "checked_at": "2026-10-14T04:22:29.460747+00:00",
+  "scope": "Phase 3 deterministic match and reservation; posting remains disabled",
+  "base_commit": "1c7cfd3",
+  "backend_full_suite": {
+    "tests": 666,
+    "skipped": 13,
+    "status": "pass"
+  },
+  "phase3_focused_suite": {
+    "tests": 14,
+    "status": "pass"
+  },
+  "postgres_live": {
+    "tests": 14,
+    "skipped": 0,
+    "status": "pass",
+    "temporary_database_removed": true
+  },
+  "frontend": {
+    "tests": 29,
+    "files": 8,
+    "status": "pass",
+    "build": "pass",
+    "lint": "no errors; existing warnings"
+  },
+  "ruff": "pass",
+  "gates": {
+    "separate_price_quantity_variance": "pass",
+    "prior_billing_and_reservation_ceiling": "pass",
+    "simultaneous_approvals": "pass",
+    "policy_revision_replay": "pass",
+    "missing_or_stale_source_block": "pass",
+    "cross_workspace_authority": "pass",
+    "restart_persistence": "pass",
+    "source_uom_verification": "pass",
+    "split_receipts_multi_po": "pass",
+    "tax_review_and_price_threshold": "pass"
+  },
+  "live_erp_read": {
+    "status": "pass",
+    "sources": "synthetic draft Purchase Order and Purchase Receipt",
+    "match_recommendation": "assessment_incomplete",
+    "approval_rejected": true
+  },
+  "limitations": [
+    "No live submitted PO/receipt approval test; positive and concurrent approvals used synthetic SQLite/PostgreSQL fixtures.",
+    "No ERP posting or OCR/LLM call in Phase 3."
+  ],
+  "posting_ready": false,
+  "source_hashes": {
+    "backend/app/procurement/matching.py": "880f1140bfdf8b3a9daae2a985a4269cccb9b40fba4a976e48b42ae643c5f28a",
+    "backend/app/procurement/models.py": "29974b0510cba242db4881fa9710bd30dba2e664431a433aa04bc90ae15d7f6d",
+    "backend/app/procurement/repository.py": "007751bc134b2aa7a01dd4f4d784dacecf0667dcb14fa46915a82840d7606c74",
+    "backend/app/procurement/service.py": "11cba977c759c0805f73c154909d721dcdde836a94ab6f5cff2ab715e4009bbc",
+    "backend/app/api/procurement.py": "6bbc4d446c5bdcdf953afecb91f5068558a778a18e85d6f8e13b5614d4f3dbcd",
+    "backend/app/tests/test_ap_matching.py": "274ef1e389248857f07a28bf79d7d25884f330b3f5bc8e690229434296e62804",
+    "frontend/src/features/review/components/EvidencePanel.tsx": "920deaa08a9d78cf4c07267f94bb5907a38a43149742d4a523a524c123f8ccff",
+    "frontend/src/features/review/components/EvidencePanel.test.tsx": "9c2158e688bc4434a6ff5705673f84562956c31d5b3fe81931310d142caae943"
+  }
+}
