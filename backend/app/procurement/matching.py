@@ -8,6 +8,7 @@ from uuid import uuid4
 from app.core.security import require_any_role
 from app.documents.repositories import NotFoundError
 from app.procurement.models import CommittedBilling, MatchPolicy
+from app.procurement.duplicates import detect_duplicates
 from app.procurement.service import EvidenceConflict, digest, key, now
 
 
@@ -95,6 +96,15 @@ class MatchService:
         if snapshot["blockers"]:
             for blocker in snapshot["blockers"]:
                 issue("evidence_blocker", detail=blocker)
+        duplicate_result = detect_duplicates(self.repo, context.workspace_id, snapshot)
+        for duplicate in duplicate_result["confirmed"]:
+            issue("duplicate_confirmed", other_document_id=duplicate["document_id"],
+                  other_snapshot_id=duplicate["snapshot_id"], number_relation=duplicate["number_relation"],
+                  days_apart=duplicate["days_apart"], same_amount=duplicate["same_amount"])
+        for duplicate in duplicate_result["candidates"]:
+            issue("duplicate_candidate", other_document_id=duplicate["document_id"],
+                  other_snapshot_id=duplicate["snapshot_id"], number_relation=duplicate["number_relation"],
+                  days_apart=duplicate["days_apart"], same_amount=duplicate["same_amount"], po_overlap=duplicate["po_overlap"])
         po_lines = {(r["record"]["source_id"], line["source_line_id"]): line
                     for r in inputs["sources"]["po"] for line in r["record"]["lines"]}
         receipt_lines = {}
@@ -220,9 +230,11 @@ class MatchService:
                 issue("invoice_total_mismatch", expected=number(expected_total), actual=str(total))
         basis = {"snapshot_hash": snapshot["payload_hash"], "evidence_approval": evidence_status["approval"],
                  "policy": policy, "billings": billings, "reservations": [r for r in reservations if r["match_id"] != exclude_match],
-                 "sources": inputs["sources"], "invoice_revision": inputs["invoice"]["version"]}
+                 "sources": inputs["sources"], "invoice_revision": inputs["invoice"]["version"],
+                 "duplicate_corpus_hash": duplicate_result["corpus_hash"],
+                 "exception_policy": self.repo.latest(context.workspace_id, "exception_policy", company)}
         incomplete = {"evidence_approval_required", "evidence_blocker", "unallocated_line", "unknown_po_line", "ambiguous_po_line", "missing_invoice_value"}
-        reviewable = {"unverified_line_tax", "unverified_line_discount"}
+        reviewable = {"unverified_line_tax", "unverified_line_discount", "duplicate_candidate"}
         recommendation = ("assessment_incomplete" if any(i["code"] in incomplete for i in issues)
                           else "needs_review" if issues and all(i["code"] in reviewable or
                               (i["code"] == "quantity_exceeds_available" and i["facts"]["within_tolerance"]) for i in issues)
@@ -236,9 +248,12 @@ class MatchService:
         with self.repo.transaction(context.workspace_id):
             evaluation = self._evaluate(snapshot_id, context)
             match_id = str(uuid4())
-            return self.repo.append(context.workspace_id, "match", match_id, {
+            result = self.repo.append(context.workspace_id, "match", match_id, {
                 **evaluation, "id": match_id, "actor": context.actor, "at": now().isoformat()
             })
+            from app.procurement.exceptions import ExceptionService
+            ExceptionService(self.evidence).sync_for_match(result, context)
+            return result
 
     def status(self, match_id, context):
         require_any_role(context, {"admin", "reviewer", "ap_approver"})
@@ -254,8 +269,11 @@ class MatchService:
             stale = current["basis_hash"] != record["basis_hash"] or current["recommendation"] != record["recommendation"]
         except (EvidenceConflict, NotFoundError):
             stale = True
+        from app.procurement.exceptions import ExceptionService
+        cleared = ExceptionService(self.evidence).all_issues_cleared(record, context)
+        decision = "ready_for_approval" if cleared else record["recommendation"]
         return {"match": record, "approval": approval,
-                "status": "released" if approval and not active_own else ("stale" if stale else ("approved" if approval else record["recommendation"])),
+                "status": "released" if approval and not active_own else ("stale" if stale else ("approved" if approval else decision)),
                 "posting_ready": False}
 
     def approve(self, match_id, expected_hash, context):
@@ -267,14 +285,16 @@ class MatchService:
             self.evidence.document(record["document_id"], context)
             if record["policy"]["record"]["approver_role"] == "admin":
                 require_any_role(context, {"admin"})
-            if record["basis_hash"] != expected_hash or record["recommendation"] != "ready_for_approval":
+            from app.procurement.exceptions import ExceptionService
+            exceptions = ExceptionService(self.evidence)
+            if record["basis_hash"] != expected_hash or not exceptions.all_issues_cleared(record, context):
                 raise EvidenceConflict("Match is not ready or hash differs")
             if self.repo.latest(context.workspace_id, "match_approval", match_id):
                 raise EvidenceConflict("Match already approved")
             if any(r["status"] == "active" and r["document_id"] == record["document_id"] for r in self.repo.all_latest(context.workspace_id, "reservation")):
                 raise EvidenceConflict("Invoice already has an active reservation")
             current = self._evaluate(record["snapshot_id"], context)
-            if current["basis_hash"] != expected_hash or current["recommendation"] != "ready_for_approval":
+            if current["basis_hash"] != expected_hash or not exceptions.all_issues_cleared(current, context):
                 raise EvidenceConflict("Match changed; reassess")
             approval = self.repo.append(context.workspace_id, "match_approval", match_id, {
                 "match_id": match_id, "document_id": record["document_id"], "basis_hash": expected_hash,

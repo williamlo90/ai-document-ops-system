@@ -15,6 +15,8 @@ from app.procurement.models import (
     SnapshotInput,
     MatchPolicy,
     CommittedBilling,
+    ExceptionPolicy,
+    ExceptionUpdate,
 )
 from app.procurement.service import EvidenceConflict
 
@@ -127,6 +129,7 @@ def evidence(
             "capabilities": {
                 "review": context.role in {"admin", "reviewer"},
                 "approve": context.role in {"admin", "ap_approver"},
+                "admin": context.role == "admin",
             },
             "snapshot_status": snapshot_status,
             "match_status": current_match,
@@ -197,6 +200,27 @@ def match_service(container):
     from app.procurement.matching import MatchService
 
     return MatchService(container.ap_service)
+
+
+def exception_service(container):
+    from app.procurement.exceptions import ExceptionService
+
+    return ExceptionService(container.ap_service)
+
+
+@router.put("/exception-policy")
+def configure_exception_policy(payload: ExceptionPolicy, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: exception_service(container).configure_policy(payload, context))
+
+
+@router.get("/exceptions")
+def list_ap_exceptions(document_id: UUID | None = None, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: {"items": exception_service(container).list_cases(context, document_id=document_id)})
+
+
+@router.put("/exceptions/{exception_id}")
+def update_ap_exception(exception_id: str, payload: ExceptionUpdate, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: exception_service(container).update(exception_id, payload, context, match_service(container)))
 
 
 @router.put("/match-policy")

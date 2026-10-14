@@ -11,6 +11,7 @@ import {
 } from '../features/inbox/components/InboxTables'
 import { categoryLabels, type InboxState } from '../features/inbox/selectors'
 import type { ReviewWorklist } from '../features/review/types'
+import { ApExceptionInbox } from '../features/review/components/ApExceptions'
 import { updateSearchParams } from '../shared/searchParams'
 import { ErrorState, PageHeader, Panel, SearchField, SkeletonRows } from '../shared/ui'
 
@@ -206,6 +207,7 @@ export function InboxPage() {
           />
         ) : null}
       </Panel>
+      {state === 'blocked' && <ApExceptionInbox />}
     </div>
   )
 }

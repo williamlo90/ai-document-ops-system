@@ -191,3 +191,36 @@ class CommittedBilling(StrictModel):
         if self.source_updated_at.tzinfo is None:
             raise ValueError("Billing timestamp requires timezone")
         return self
+
+
+class ExceptionPolicy(StrictModel):
+    company: str = Field(min_length=1, max_length=120)
+    allowed_waivers: list[Literal["price_variance", "duplicate_candidate"]] = Field(default_factory=list)
+    max_price_delta: Decimal = Field(default=Decimal("0"), ge=0)
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("max_price_delta", mode="before")
+    @classmethod
+    def strict_maximum(cls, value):
+        return decimal_value(value)
+
+    @model_validator(mode="after")
+    def no_duplicate_codes(self):
+        if len(self.allowed_waivers) != len(set(self.allowed_waivers)):
+            raise ValueError("Duplicate waiver code")
+        return self
+
+
+class ExceptionUpdate(StrictModel):
+    expected_version: int = Field(ge=1)
+    expected_match_id: str = Field(min_length=1, max_length=120)
+    state: Literal["open", "needs_info", "resolved", "waived"]
+    owner: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=10, max_length=1000)
+    evidence_refs: list[str] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def evidence_for_terminal_decision(self):
+        if self.state in {"resolved", "waived"} and not any(ref.strip() for ref in self.evidence_refs):
+            raise ValueError("Resolution and waiver require an evidence reference")
+        return self

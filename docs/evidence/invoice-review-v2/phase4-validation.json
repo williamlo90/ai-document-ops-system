@@ -1,0 +1,38 @@
+{
+  "checked_at": "2026-10-14T04:41:05Z",
+  "scope": "Phase 4 duplicate and exception workflow; posting disabled",
+  "base_commit": "5f3fc59",
+  "backend_full_suite": {"tests": 674, "skipped": 13, "status": "pass"},
+  "phase4_focused_suite": {"tests": 7, "status": "pass"},
+  "postgres_isolated": {"tests": 7, "skipped": 0, "status": "pass", "temporary_database_removed": true},
+  "frontend": {"tests": 31, "files": 9, "build": "pass", "lint": "no errors; existing warnings"},
+  "labeled_fixture": {
+    "source": "actual MatchService.assess output from synthetic invoices",
+    "categories": {
+      "quantity": {"TP": 1, "FN": 0, "FP": 0, "TN": 1},
+      "price": {"TP": 1, "FN": 0, "FP": 0, "TN": 1},
+      "receipt": {"TP": 1, "FN": 0, "FP": 0, "TN": 1},
+      "duplicate": {"TP": 1, "FN": 0, "FP": 0, "TN": 1}
+    },
+    "clean_transactions": 4,
+    "false_holds": 0
+  },
+  "gates": {
+    "confirmed_duplicate_hard_block": "pass",
+    "ocr_candidate_review": "pass",
+    "different_number_and_supplier_negative": "pass",
+    "recurring_different_po_negative": "pass",
+    "receipt_adjustment_reassessment": "pass",
+    "recurring_outside_window_negative": "pass",
+    "note_does_not_clear_blocker": "pass",
+    "waiver_requires_admin_and_policy": "pass",
+    "correction_reassessment_and_audit": "pass",
+    "new_data_stales_prior_approval": "pass",
+    "posting_disabled": "pass"
+  },
+  "limitations": [
+    "Small synthetic regression fixture; category matrices are not production precision or recall.",
+    "No live ERP posting, live submitted-source approval, or OCR provider call in Phase 4."
+  ],
+  "posting_ready": false
+}

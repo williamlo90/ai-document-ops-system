@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../../api/client'
 import { Button, Panel } from '../../../shared/ui'
+import { ApExceptionDecisions } from './ApExceptions'
 
 type Evidence = {
   kind: string
@@ -71,12 +72,14 @@ type Response = {
   current: Revision | null
   history: Revision[]
   needs_capture: boolean
-  capabilities: { review: boolean; approve: boolean }
+  capabilities: { review: boolean; approve: boolean; admin: boolean }
   snapshot_status: Status | null
   match_status?: MatchStatus | null
 }
 
 function nextAction(code: string) {
+  if (code === 'duplicate_confirmed') return 'Compare both source invoices and correct the duplicate record.'
+  if (code === 'duplicate_candidate') return 'Compare invoice number, supplier, amount, date and PO before deciding.'
   if (code === 'price_variance') return 'Check the invoice price or approved PO price.'
   if (code === 'quantity_exceeds_available' || code === 'receipt_shortfall')
     return 'Check accepted receipts and earlier billings; reduce or defer the invoice quantity.'
@@ -451,6 +454,8 @@ export function EvidencePanel({
               <p>Next: {nextAction(issue.code)}</p>
             </article>
           ))}
+          <ApExceptionDecisions documentId={documentId} canReview={data.capabilities.review}
+            isAdmin={data.capabilities.admin} matchId={match.match.id} />
           {data.capabilities.approve && (
             <Button
               disabled={approveMatch.isPending || match.status !== 'ready_for_approval'}
