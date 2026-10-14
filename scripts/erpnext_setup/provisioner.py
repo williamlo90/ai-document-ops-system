@@ -46,6 +46,7 @@ READ_ONLY_DOCTYPES = (
     "Supplier",
     "Supplier Group",
     "UOM",
+    "GL Entry",
 )
 
 
@@ -158,9 +159,18 @@ class MasterDataProvisioner:
             raise ERPNextAPIError("Purchase Invoice integration permission is missing.")
         _require_values(
             purchase_permission,
-            {"read": 1, "write": 1, "create": 1, "submit": 0, "cancel": 0, "delete": 0},
+            {"read": 1, "write": 1, "create": 1, "submit": 1, "cancel": 0, "delete": 0},
             "Purchase Invoice integration permission",
         )
+        ledger_permission = self.client.find_one(
+            "Custom DocPerm", {"parent": "GL Entry", "role": INTEGRATION_ROLE, "permlevel": 0},
+            fields=("name", "read", "write", "create", "submit", "cancel", "delete"),
+        )
+        if ledger_permission is None:
+            raise ERPNextAPIError("GL Entry read permission is missing.")
+        _require_values(ledger_permission,
+                        {"read": 1, "write": 0, "create": 0, "submit": 0, "cancel": 0, "delete": 0},
+                        "GL Entry integration permission")
         payment_permissions = self.client.list_documents(
             "Custom DocPerm",
             filters={"parent": "Payment Entry", "role": INTEGRATION_ROLE},
@@ -340,6 +350,7 @@ class MasterDataProvisioner:
             read=1,
             write=1,
             create=1,
+            submit=1,
         )
         for doctype in READ_ONLY_DOCTYPES:
             self._ensure_custom_permission(doctype, read=1, select=1)
@@ -368,7 +379,10 @@ class MasterDataProvisioner:
         fields = ("name", *expected.keys())
         existing = self.client.find_one("Custom DocPerm", filters, fields=fields)
         if existing:
-            _require_values(existing, expected, f"{doctype} integration permission")
+            if any(existing.get(key) != value for key, value in expected.items()):
+                self.client.update_document("Custom DocPerm", str(existing["name"]), expected)
+                updated = self.client.get_document("Custom DocPerm", str(existing["name"]))
+                _require_values(updated, expected, f"{doctype} integration permission")
             return
         self.client.create_document("Custom DocPerm", {**filters, **expected})
 

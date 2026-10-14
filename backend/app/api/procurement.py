@@ -6,6 +6,7 @@ from pydantic import Field, field_validator
 from app.api.dependencies import get_container, require_authenticated_context
 from app.core.security import UnauthorizedError, require_any_role
 from app.documents.repositories import NotFoundError
+from app.integrations.models import IntegrationDeliveryError
 from app.procurement.models import (
     StrictModel,
     ProcurementRecord,
@@ -17,6 +18,10 @@ from app.procurement.models import (
     CommittedBilling,
     ExceptionPolicy,
     ExceptionUpdate,
+    ERPPostingProfile,
+    ERPCreateDraft,
+    ERPSubmitApproval,
+    ERPSubmitDraft,
 )
 from app.procurement.service import EvidenceConflict
 
@@ -57,6 +62,8 @@ def call(action):
         raise HTTPException(404, "Not found") from exc
     except (EvidenceConflict, ValueError) as exc:
         raise HTTPException(409, str(exc)) from exc
+    except IntegrationDeliveryError as exc:
+        raise HTTPException(502, {"code": exc.code, "outcome_unknown": exc.outcome_unknown}) from exc
 
 
 @router.post("/sources/import")
@@ -206,6 +213,63 @@ def exception_service(container):
     from app.procurement.exceptions import ExceptionService
 
     return ExceptionService(container.ap_service)
+
+
+def posting_service(container):
+    from app.integrations.erpnext_client import ERPNextClient
+    from app.procurement.posting import PostingService
+
+    settings = container.settings
+    enabled = (settings.accounting_provider == "erpnext" and settings.accounting_sandbox_mode
+               and settings.erpnext_sandbox_posting_enabled)
+    if enabled and (not settings.erpnext_api_key or not settings.erpnext_api_secret):
+        raise EvidenceConflict("ERP credentials are not configured")
+    client = ERPNextClient(settings.erpnext_base_url, api_key=settings.erpnext_api_key,
+                           api_secret=settings.erpnext_api_secret,
+                           timeout_seconds=settings.erpnext_timeout_seconds,
+                           allowed_hosts=settings.erpnext_allowed_hosts)
+    return PostingService(container.ap_service, client, sandbox_enabled=enabled)
+
+
+@router.put("/posting-profile")
+def configure_posting_profile(payload: ERPPostingProfile, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: posting_service(container).configure_profile(payload, context))
+
+
+@router.get("/posting/{match_id}")
+def posting_status(match_id: UUID, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: posting_service(container).status(str(match_id), context))
+
+
+@router.post("/posting/{match_id}/draft")
+def create_posting_draft(match_id: UUID, payload: ERPCreateDraft, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    def action():
+        if payload.match_id != str(match_id):
+            raise EvidenceConflict("Match ID differs from request path")
+        return posting_service(container).create_draft(str(match_id), payload.expected_basis_hash,
+                                                       payload.receipt_allocations, context)
+    return call(action)
+
+
+@router.post("/posting/{match_id}/approve-submit")
+def approve_posting_submit(match_id: UUID, payload: ERPSubmitApproval, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: posting_service(container).approve_submit(str(match_id), payload.operation_id,
+                payload.draft_verification_hash, payload.reason, context))
+
+
+@router.post("/posting/{match_id}/submit")
+def submit_posting_draft(match_id: UUID, payload: ERPSubmitDraft, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: posting_service(container).submit_draft(str(match_id), payload.approval_hash, context))
+
+
+@router.post("/posting/{match_id}/reconcile/{kind}")
+def reconcile_posting(match_id: UUID, kind: str, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: posting_service(container).reconcile(str(match_id), kind, context))
+
+
+@router.post("/posting/{match_id}/confirm-draft-absent")
+def confirm_draft_absent(match_id: UUID, context=Depends(require_authenticated_context), container=Depends(get_container)):
+    return call(lambda: posting_service(container).confirm_create_absent_for_retry(str(match_id), context))
 
 
 @router.put("/exception-policy")

@@ -1,0 +1,31 @@
+{
+  "checked_at": "2026-10-14T06:54:46Z",
+  "scope": "Phase 5 local ERPNext sandbox synthetic posting",
+  "backend_full_suite": {"tests": 683, "skipped": 13, "status": "pass"},
+  "phase5_focused_suite": {"tests": 9, "status": "pass"},
+  "postgres_isolated": {"tests": 9, "skipped": 0, "status": "pass", "temporary_database_removed": true},
+  "frontend": {"tests": 33, "files": 10, "build": "pass", "lint": "no errors; existing warnings"},
+  "live_sandbox": {
+    "synthetic_purchase_invoice": "ACC-PINV-2026-00015",
+    "draft_verified": true,
+    "separate_submit_approval": true,
+    "submitted_docstatus": 1,
+    "gl_entries_verified": 2,
+    "posted_verified": true,
+    "restart_replay_same_target": true,
+    "remote_targets_for_delivery_key": 1
+  },
+  "gates": {
+    "draft_and_posted_are_distinct": "pass",
+    "readback_checks_invoice_and_ledger": "pass",
+    "unknown_outcome_reconciliation": "pass",
+    "injected_failures_create_no_duplicate": "pass",
+    "submit_uses_same_target": "pass",
+    "stale_source_and_policy_block_command": "pass",
+    "sandbox_and_role_guard": "pass"
+  },
+  "limitations": [
+    "One live zero-tax, single-line synthetic posted invoice; not a production correctness estimate.",
+    "Tax, discount, non-unit exchange and multiple receipt posting require further live ERP validation."
+  ]
+}

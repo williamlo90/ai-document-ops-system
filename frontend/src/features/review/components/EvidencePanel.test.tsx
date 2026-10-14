@@ -51,7 +51,7 @@ describe('AP evidence review', () => {
     const showPage = mount(record)
     fireEvent.click(await screen.findByRole('button', { name: 'Page 3' }))
     expect(showPage).toHaveBeenCalledWith(3)
-    expect(screen.getByText(/Posting is not enabled/)).toBeInTheDocument()
+    expect(screen.getByText(/ERP submit approval are separate decisions/)).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Approve this evidence snapshot' }),
     ).not.toBeInTheDocument()

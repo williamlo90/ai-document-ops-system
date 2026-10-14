@@ -224,3 +224,48 @@ class ExceptionUpdate(StrictModel):
         if self.state in {"resolved", "waived"} and not any(ref.strip() for ref in self.evidence_refs):
             raise ValueError("Resolution and waiver require an evidence reference")
         return self
+
+
+class ERPPostingProfile(StrictModel):
+    company: str = Field(min_length=1, max_length=120)
+    erp_company: str = Field(min_length=1, max_length=120)
+    supplier_ids: dict[str, str] = Field(min_length=1)
+    item_codes: dict[str, str] = Field(min_length=1)
+    expense_accounts: dict[str, str] = Field(min_length=1)
+    payable_accounts: dict[str, str] = Field(min_length=1)
+    tax_accounts: dict[str, str] = Field(default_factory=dict)
+    exchange_rates: dict[str, Decimal] = Field(min_length=1)
+    reason: str = Field(min_length=10, max_length=1000)
+
+    @field_validator("exchange_rates", mode="before")
+    @classmethod
+    def strict_rates(cls, values):
+        if not isinstance(values, dict):
+            raise ValueError("Exchange rates must be a mapping")
+        return {key: decimal_value(value) for key, value in values.items()}
+
+    @model_validator(mode="after")
+    def complete_profile(self):
+        mappings = (self.supplier_ids, self.item_codes, self.expense_accounts,
+                    self.payable_accounts, self.tax_accounts)
+        if any(not key.strip() or not value.strip() for mapping in mappings for key, value in mapping.items()):
+            raise ValueError("ERP mapping keys and values must be nonempty")
+        if any(rate <= 0 for rate in self.exchange_rates.values()):
+            raise ValueError("ERP exchange rates must be positive")
+        return self
+
+
+class ERPCreateDraft(StrictModel):
+    match_id: str = Field(min_length=1, max_length=120)
+    expected_basis_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    receipt_allocations: dict[str, str] = Field(default_factory=dict)
+
+
+class ERPSubmitApproval(StrictModel):
+    operation_id: str = Field(min_length=1, max_length=120)
+    draft_verification_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    reason: str = Field(min_length=10, max_length=1000)
+
+
+class ERPSubmitDraft(StrictModel):
+    approval_hash: str = Field(pattern=r"^[0-9a-f]{64}$")

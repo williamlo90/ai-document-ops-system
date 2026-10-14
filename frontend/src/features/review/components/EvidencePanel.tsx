@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../../api/client'
 import { Button, Panel } from '../../../shared/ui'
 import { ApExceptionDecisions } from './ApExceptions'
+import { PostingPanel } from './PostingPanel'
 
 type Evidence = {
   kind: string
@@ -216,7 +217,7 @@ export function EvidencePanel({
   return (
     <Panel>
       <h2>Source evidence and purchasing</h2>
-      <p>Evidence approval is separate from the existing draft approval. Posting is not enabled.</p>
+      <p>Evidence approval, match approval, and ERP submit approval are separate decisions.</p>
       {data.needs_capture && <p>Current invoice values need a new evidence review.</p>}
       {data.capabilities.review && (
         <Button onClick={() => capture.mutate()} disabled={capture.isPending}>
@@ -465,6 +466,9 @@ export function EvidencePanel({
             </Button>
           )}
           {match.status === 'stale' && <p>Source or policy changed. Run a new match assessment.</p>}
+          <PostingPanel matchId={match.match.id} basisHash={match.match.basis_hash}
+            canApprove={data.capabilities.approve} isAdmin={data.capabilities.admin}
+            lineIds={current?.line_ids ?? []} />
         </section>
       )}
       {error && <p role="alert">{error.message}</p>}

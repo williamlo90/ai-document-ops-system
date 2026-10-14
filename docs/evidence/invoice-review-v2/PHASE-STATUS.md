@@ -10,7 +10,7 @@ Do not publish a success checkpoint until its gate passes. Local plan remains ig
 | 2 | Published: 1c7cfd3 | PHASE-2.md and phase2-validation.json; later live ERP/PostgreSQL checks retained locally |
 | 3 | Gate passed; single phase-3 checkpoint | PHASE-3.md and phase3-validation.json; live draft ERP read, SQLite/PostgreSQL matching |
 | 4 | Gate passed; single phase-4 checkpoint | PHASE-4.md and phase4-validation.json; SQLite/PostgreSQL exception workflow |
-| 5 | Not started | Verified posting |
+| 5 | Gate passed; single phase-5 checkpoint | PHASE-5.md and phase5-validation.json; synthetic sandbox draft, submit and ledger read-back |
 | 6     | Not started                                          | Frozen quality/time/revision evidence                  |
 | 7     | Not started                                          | Docker and release checks                              |
 | 8     | Optional, not started                                | Default skip unless needed                             |

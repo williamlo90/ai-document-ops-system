@@ -6,9 +6,12 @@ A human-controlled accounts-payable workflow for comparing invoice PDFs with AI-
 correcting errors, recording reviewer decisions, and exporting only approved records. The concise
 in-product name is **Invoice Review**.
 
-The ERPNext adapter creates Purchase Invoice **Drafts in a local sandbox with provisioned master
-data**. Its benchmark mapping is specific to that sandbox; using another organization's ERPNext
+The AP workflow can create a verified Purchase Invoice draft and, after a separate approval,
+submit it in an explicitly enabled **local ERPNext sandbox**. It reads back the submitted invoice
+and GL entries before marking posting verified. The earlier benchmark draft adapter remains
+separate; the new workflow uses a versioned per-company posting profile. Another ERPNext site
 requires its own company, supplier, item, account, tax, currency, and exchange-rate setup. See
+[Phase 5 posting evidence](docs/evidence/invoice-review-v2/PHASE-5.md),
 [ERPNext environment prerequisites](docs/erpnext-environment.md) and the
 [integration boundary](docs/erpnext-integration-design.md).
 
