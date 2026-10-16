@@ -5,6 +5,7 @@ from typing import Any
 import hashlib
 import io
 import json
+import re
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4, uuid5, NAMESPACE_URL
@@ -28,6 +29,15 @@ def key(*values):
 
 def now() -> datetime:
     return datetime.now(UTC)
+
+
+def invoice_anchors(confidence, line_ids):
+    anchors = {item.field_name: item for item in confidence}
+    for item in confidence:
+        match = re.fullmatch(r"line_items\[(\d+)\]\.(\w+)", item.field_name)
+        if match and int(match[1]) < len(line_ids):
+            anchors[f"lines.{line_ids[int(match[1])]}.{match[2]}"] = item
+    return anchors
 
 
 class EvidenceConflict(ValueError):
@@ -69,7 +79,7 @@ class EvidenceService:
         with self.repo.transaction(context.workspace_id):
             values, lines, _ = self.invoice_values(document_id, context)
             stored = self.extractions.get_for_document(UUID(str(document_id)))
-            anchors = {c.field_name: c for c in stored.extraction_result.extraction.confidence}
+            anchors = invoice_anchors(stored.extraction_result.extraction.confidence, lines)
             previous = self.repo.latest(context.workspace_id, "invoice", str(document_id))
             fingerprint = digest(values)
             if previous and previous["extraction_hash"] == fingerprint:
@@ -276,8 +286,14 @@ class EvidenceService:
             if len(ids) != len(set(ids)):
                 raise EvidenceConflict("Duplicate source reference")
             sources[kind] = [
-                found for i in ids
-                if (found := self.repo.latest(context.workspace_id, kind, key(request.company, request.source_system, i))) is not None
+                found
+                for i in ids
+                if (
+                    found := self.repo.latest(
+                        context.workspace_id, kind, key(request.company, request.source_system, i)
+                    )
+                )
+                is not None
             ]
         return {
             "invoice": revision,
@@ -290,7 +306,10 @@ class EvidenceService:
 
     def blockers(self, inputs):
         reasons = []
-        for kind, ids in (("po", inputs["request"]["po_ids"]), ("receipt", inputs["request"]["receipt_ids"])):
+        for kind, ids in (
+            ("po", inputs["request"]["po_ids"]),
+            ("receipt", inputs["request"]["receipt_ids"]),
+        ):
             if not ids:
                 reasons.append("missing_" + kind + "_source")
             present = {r["record"]["source_id"] for r in inputs["sources"][kind]}

@@ -51,8 +51,15 @@ class ExtractionResult:
 
 
 class ProviderError(RuntimeError):
-    def __init__(self, message: str, provider_name: str, retryable: bool = False, *,
-                 http_status: int | None = None, retry_after_seconds: float | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        provider_name: str,
+        retryable: bool = False,
+        *,
+        http_status: int | None = None,
+        retry_after_seconds: float | None = None,
+    ) -> None:
         super().__init__(message)
         self.provider_name = provider_name
         self.retryable = retryable

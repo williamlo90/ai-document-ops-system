@@ -88,15 +88,33 @@ describe('AP evidence review', () => {
           id: 'match-1',
           basis_hash: 'hash',
           recommendation: 'hold',
-          policy: { version: 1, record: { mode: 'received', effective_from: '2026-01-01T00:00:00Z' } },
-          lines: [{
-            line_id: 'l1', source_ref: 'PO1:p1', expected_price: '50', actual_price: '55',
-            price_delta: '5', price_threshold: '0', ordered: '100', received: '70',
-            billed: '0', reserved: '0', available: '70', invoice_quantity: '100',
-          }],
+          policy: {
+            version: 1,
+            record: { mode: 'received', effective_from: '2026-01-01T00:00:00Z' },
+          },
+          lines: [
+            {
+              line_id: 'l1',
+              source_ref: 'PO1:p1',
+              expected_price: '50',
+              actual_price: '55',
+              price_delta: '5',
+              price_threshold: '0',
+              ordered: '100',
+              received: '70',
+              billed: '0',
+              reserved: '0',
+              available: '70',
+              invoice_quantity: '100',
+            },
+          ],
           issues: [
             { code: 'price_variance', line_id: 'l1', facts: { delta: '5' } },
-            { code: 'quantity_exceeds_available', line_id: null, facts: { requested: '100', available: '70' } },
+            {
+              code: 'quantity_exceeds_available',
+              line_id: null,
+              facts: { requested: '100', available: '70' },
+            },
           ],
         },
       },
@@ -104,6 +122,8 @@ describe('AP evidence review', () => {
     expect(await screen.findByText('price variance')).toBeInTheDocument()
     expect(screen.getByText('quantity exceeds available')).toBeInTheDocument()
     expect(screen.getByText(/Check accepted receipts and earlier billings/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Approve match and reserve quantity' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Approve match and reserve quantity' }),
+    ).toBeDisabled()
   })
 })

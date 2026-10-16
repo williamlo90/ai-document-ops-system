@@ -82,8 +82,11 @@ class OcrSpaceParserProvider:
             except (ValueError, TypeError):
                 pass
             raise ProviderError(
-                "ocr_http_error", self.provider_name, retryable=exc.code == 429 or exc.code >= 500,
-                http_status=exc.code, retry_after_seconds=delay,
+                "ocr_http_error",
+                self.provider_name,
+                retryable=exc.code == 429 or exc.code >= 500,
+                http_status=exc.code,
+                retry_after_seconds=delay,
             ) from exc
         except (OSError, ValueError) as exc:
             raise ProviderError("ocr_request_failed", self.provider_name, retryable=True) from exc
@@ -93,7 +96,8 @@ class OcrSpaceParserProvider:
                 message = " ".join(str(part)[:512] for part in message[:10])
             if isinstance(message, str) and re.search(
                 r"(?:api\s*key).{0,40}(?:invalid|expired|not valid)|(?:invalid|expired).{0,40}(?:api\s*key)",
-                message[:4096], re.I,
+                message[:4096],
+                re.I,
             ):
                 raise ProviderError("ocr_auth_failed", self.provider_name, http_status=401)
             if data.get("IsErroredOnProcessing") is not False or data.get("OCRExitCode") != 1:
@@ -105,7 +109,11 @@ class OcrSpaceParserProvider:
             for number, row in enumerate(rows, 1):
                 if row.get("FileParseExitCode") != 1 or not isinstance(row.get("ParsedText"), str):
                     raise ValueError("Failed page")
-                pages.append(ParsedPage(number, _positional_table_text(row["ParsedText"], row.get("TextOverlay"))))
+                pages.append(
+                    ParsedPage(
+                        number, _positional_table_text(row["ParsedText"], row.get("TextOverlay"))
+                    )
+                )
             text = "\n\n".join(p.text for p in pages).strip()
             if not text:
                 raise ValueError("Empty OCR")
@@ -114,7 +122,8 @@ class OcrSpaceParserProvider:
                 tuple(pages),
                 self.provider_name,
                 source.storage_key,
-                f"ocr-space-engine-{self.engine}" + ("+positional-table-v1" if self.engine == 2 else "+markdown"),
+                f"ocr-space-engine-{self.engine}"
+                + ("+positional-table-v1" if self.engine == 2 else "+markdown"),
                 ProviderUsage(pages_processed=len(pages), document_size_bytes=len(content)),
             )
         except (KeyError, TypeError, ValueError, AttributeError) as exc:
@@ -130,7 +139,9 @@ class OcrSpaceKeyPool:
         unique = tuple(dict.fromkeys(key.strip() for key in keys if key.strip()))
         if not unique or len(unique) > 10:
             raise ValueError("Configure between one and ten unique OCR.space keys")
-        self._providers = tuple(OcrSpaceParserProvider(key, timeout_seconds, post_form, engine) for key in unique)
+        self._providers = tuple(
+            OcrSpaceParserProvider(key, timeout_seconds, post_form, engine) for key in unique
+        )
         self._cooldowns = [0.0] * len(unique)
         self._disabled = set()
         self._clock = clock
@@ -150,13 +161,25 @@ class OcrSpaceKeyPool:
             started = self._clock()
             try:
                 result = provider.parse(source)
-                self._local.attempts.append({"credential_slot": index + 1, "status": "succeeded",
-                    "latency_ms": round((self._clock() - started) * 1000, 2)})
+                self._local.attempts.append(
+                    {
+                        "credential_slot": index + 1,
+                        "status": "succeeded",
+                        "latency_ms": round((self._clock() - started) * 1000, 2),
+                    }
+                )
                 return result
             except ProviderError as exc:
-                self._local.attempts.append({"credential_slot": index + 1, "status": "failed",
-                    "http_status": exc.http_status, "retry_after_seconds": exc.retry_after_seconds,
-                    "error_code": str(exc), "latency_ms": round((self._clock() - started) * 1000, 2)})
+                self._local.attempts.append(
+                    {
+                        "credential_slot": index + 1,
+                        "status": "failed",
+                        "http_status": exc.http_status,
+                        "retry_after_seconds": exc.retry_after_seconds,
+                        "error_code": str(exc),
+                        "latency_ms": round((self._clock() - started) * 1000, 2),
+                    }
+                )
                 auth_failure = exc.http_status in {401, 403}
                 if not auth_failure and not exc.retryable:
                     raise  # A malformed document/answer is not a credential failure.
@@ -167,12 +190,20 @@ class OcrSpaceKeyPool:
                         delay = exc.retry_after_seconds or (60 if exc.http_status == 429 else 30)
                         self._cooldowns[index] = self._clock() + max(1, min(delay, 86400))
         with self._lock:
-            waits = [max(0, self._cooldowns[i] - self._clock())
-                     for i in range(len(self._providers)) if i not in self._disabled]
+            waits = [
+                max(0, self._cooldowns[i] - self._clock())
+                for i in range(len(self._providers))
+                if i not in self._disabled
+            ]
         if not waits:
             raise ProviderError("ocr_keys_rejected", self.provider_name, http_status=401)
-        raise ProviderError("ocr_keys_cooling_down", self.provider_name, retryable=True,
-                            http_status=429, retry_after_seconds=max(1, min(waits)))
+        raise ProviderError(
+            "ocr_keys_cooling_down",
+            self.provider_name,
+            retryable=True,
+            http_status=429,
+            retry_after_seconds=max(1, min(waits)),
+        )
 
 
 def _positional_table_text(text: str, overlay) -> str:
@@ -191,23 +222,34 @@ def _positional_table_text(text: str, overlay) -> str:
             words = line.get("Words", [])
             if not words or not line.get("LineText"):
                 continue
-            cells.append({"text": line["LineText"].strip(),
-                          "x": min(float(w["Left"]) for w in words),
-                          "y": min(float(w["Top"]) for w in words),
-                          "h": max(float(w.get("Height", 12)) for w in words)})
+            cells.append(
+                {
+                    "text": line["LineText"].strip(),
+                    "x": min(float(w["Left"]) for w in words),
+                    "y": min(float(w["Top"]) for w in words),
+                    "h": max(float(w.get("Height", 12)) for w in words),
+                }
+            )
     except (ValueError, TypeError, KeyError):
         return text
-    aliases = ({"description", "item"}, {"uom", "unit"}, {"quantity", "qty"},
-               {"unit price", "rate"}, {"line total", "amount"})
+    aliases = (
+        {"description", "item"},
+        {"uom", "unit"},
+        {"quantity", "qty"},
+        {"unit price", "rate"},
+        {"line total", "amount"},
+    )
+
     def normalize(value):
         return " ".join(value.lower().split())
+
     headers = []
     for names in aliases:
         matches = [cell for cell in cells if normalize(cell["text"]) in names]
         if len(matches) != 1:
             return text
         headers.append(matches[0])
-    tolerance = max(6.0, median(cell["h"] for cell in headers) * .65)
+    tolerance = max(6.0, median(cell["h"] for cell in headers) * 0.65)
     if max(cell["y"] for cell in headers) - min(cell["y"] for cell in headers) > tolerance:
         return text
     xs = [cell["x"] for cell in headers]
@@ -215,12 +257,20 @@ def _positional_table_text(text: str, overlay) -> str:
         return text
     y = max(cell["y"] for cell in headers)
     totals = {"subtotal", "sub total", "tax", "total", "total due", "grand total"}
-    footer = min((cell["y"] for cell in cells if cell["y"] > y + tolerance
-                  and normalize(cell["text"]) in totals), default=None)
+    footer = min(
+        (
+            cell["y"]
+            for cell in cells
+            if cell["y"] > y + tolerance and normalize(cell["text"]) in totals
+        ),
+        default=None,
+    )
     if footer is None:
         return text
-    body = sorted((cell for cell in cells if y + tolerance < cell["y"] < footer - tolerance),
-                  key=lambda cell: (cell["y"], cell["x"]))
+    body = sorted(
+        (cell for cell in cells if y + tolerance < cell["y"] < footer - tolerance),
+        key=lambda cell: (cell["y"], cell["x"]),
+    )
     groups = []
     for cell in body:
         if not groups or abs(cell["y"] - groups[-1][0]["y"]) > tolerance:
@@ -234,17 +284,32 @@ def _positional_table_text(text: str, overlay) -> str:
             columns[column].append(cell)
         if not columns[0] or any(len(column) > 1 for column in columns[1:]):
             return text
-        rows.append([" ".join(cell["text"] for cell in sorted(column, key=lambda item: item["x"]))
-                     for column in columns])
+        rows.append(
+            [
+                " ".join(cell["text"] for cell in sorted(column, key=lambda item: item["x"]))
+                for column in columns
+            ]
+        )
     original = text.splitlines()
-    starts = [i for i, line in enumerate(original) if all(
-        any(re.search(rf"\b{re.escape(name)}\b", normalize(line)) for name in names)
-        for names in aliases)]
+    starts = [
+        i
+        for i, line in enumerate(original)
+        if all(
+            any(re.search(rf"\b{re.escape(name)}\b", normalize(line)) for name in names)
+            for names in aliases
+        )
+    ]
     if len(starts) != 1 or not rows:
         return text
     start = starts[0]
-    end = next((i for i in range(start + 1, len(original))
-                if re.match(r"^\s*(subtotal|sub total|tax|total|grand total)\b", original[i], re.I)), None)
+    end = next(
+        (
+            i
+            for i in range(start + 1, len(original))
+            if re.match(r"^\s*(subtotal|sub total|tax|total|grand total)\b", original[i], re.I)
+        ),
+        None,
+    )
     if end is None:
         return text
     table = ["| Description | UOM | Quantity | Unit price | Amount |"]

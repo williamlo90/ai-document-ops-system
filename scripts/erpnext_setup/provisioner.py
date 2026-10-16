@@ -163,14 +163,17 @@ class MasterDataProvisioner:
             "Purchase Invoice integration permission",
         )
         ledger_permission = self.client.find_one(
-            "Custom DocPerm", {"parent": "GL Entry", "role": INTEGRATION_ROLE, "permlevel": 0},
+            "Custom DocPerm",
+            {"parent": "GL Entry", "role": INTEGRATION_ROLE, "permlevel": 0},
             fields=("name", "read", "write", "create", "submit", "cancel", "delete"),
         )
         if ledger_permission is None:
             raise ERPNextAPIError("GL Entry read permission is missing.")
-        _require_values(ledger_permission,
-                        {"read": 1, "write": 0, "create": 0, "submit": 0, "cancel": 0, "delete": 0},
-                        "GL Entry integration permission")
+        _require_values(
+            ledger_permission,
+            {"read": 1, "write": 0, "create": 0, "submit": 0, "cancel": 0, "delete": 0},
+            "GL Entry integration permission",
+        )
         payment_permissions = self.client.list_documents(
             "Custom DocPerm",
             filters={"parent": "Payment Entry", "role": INTEGRATION_ROLE},

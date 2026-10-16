@@ -157,7 +157,13 @@ class MatchPolicy(StrictModel):
     approver_role: Literal["ap_approver", "admin"] = "ap_approver"
     reason: str = Field(min_length=3, max_length=1000)
 
-    @field_validator("price_tolerance_absolute", "price_tolerance_relative", "quantity_tolerance", "amount_tolerance", mode="before")
+    @field_validator(
+        "price_tolerance_absolute",
+        "price_tolerance_relative",
+        "quantity_tolerance",
+        "amount_tolerance",
+        mode="before",
+    )
     @classmethod
     def strict_decimal(cls, value):
         return decimal_value(value)
@@ -195,7 +201,9 @@ class CommittedBilling(StrictModel):
 
 class ExceptionPolicy(StrictModel):
     company: str = Field(min_length=1, max_length=120)
-    allowed_waivers: list[Literal["price_variance", "duplicate_candidate"]] = Field(default_factory=list)
+    allowed_waivers: list[Literal["price_variance", "duplicate_candidate"]] = Field(
+        default_factory=list
+    )
     max_price_delta: Decimal = Field(default=Decimal("0"), ge=0)
     reason: str = Field(min_length=3, max_length=1000)
 
@@ -221,7 +229,9 @@ class ExceptionUpdate(StrictModel):
 
     @model_validator(mode="after")
     def evidence_for_terminal_decision(self):
-        if self.state in {"resolved", "waived", "rejected"} and not any(ref.strip() for ref in self.evidence_refs):
+        if self.state in {"resolved", "waived", "rejected"} and not any(
+            ref.strip() for ref in self.evidence_refs
+        ):
             raise ValueError("Resolution and waiver require an evidence reference")
         return self
 
@@ -246,9 +256,18 @@ class ERPPostingProfile(StrictModel):
 
     @model_validator(mode="after")
     def complete_profile(self):
-        mappings = (self.supplier_ids, self.item_codes, self.expense_accounts,
-                    self.payable_accounts, self.tax_accounts)
-        if any(not key.strip() or not value.strip() for mapping in mappings for key, value in mapping.items()):
+        mappings = (
+            self.supplier_ids,
+            self.item_codes,
+            self.expense_accounts,
+            self.payable_accounts,
+            self.tax_accounts,
+        )
+        if any(
+            not key.strip() or not value.strip()
+            for mapping in mappings
+            for key, value in mapping.items()
+        ):
             raise ValueError("ERP mapping keys and values must be nonempty")
         if any(rate <= 0 for rate in self.exchange_rates.values()):
             raise ValueError("ERP exchange rates must be positive")

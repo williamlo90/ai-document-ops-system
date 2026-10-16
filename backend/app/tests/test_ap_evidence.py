@@ -16,7 +16,7 @@ from app.documents.repositories import (
     NotFoundError,
 )
 from app.documents.sqlite_store import SqliteStore
-from app.extraction.schemas import InvoiceData, InvoiceExtraction, InvoiceLineItem
+from app.extraction.schemas import InvoiceData, InvoiceExtraction, InvoiceLineItem, FieldConfidence
 from app.providers.contracts import ExtractionResult
 from app.validation.invoice import validate_invoice
 from app.procurement.repository import VersionRepository
@@ -76,6 +76,31 @@ class EvidenceTests(unittest.TestCase):
         self.extractions.save(
             self.doc.id, ExtractionResult(InvoiceExtraction(data), "test"), validate_invoice(data)
         )
+
+    def test_capture_preserves_line_provider_anchor_without_auto_attestation(self):
+        self.extractions.save(
+            self.doc.id,
+            ExtractionResult(
+                InvoiceExtraction(
+                    self.invoice,
+                    confidence=(
+                        FieldConfidence(
+                            "line_items[0].quantity",
+                            Decimal("1"),
+                            source_page=1,
+                            source_text="Qty 1",
+                        ),
+                    ),
+                ),
+                "test",
+            ),
+            validate_invoice(self.invoice),
+        )
+        revision = self.service.capture(self.doc.id, self.reviewer)
+        value = revision["fields"]["lines.line-1.quantity"]
+        self.assertEqual((value["page"], value["excerpt"]), (1, "Qty 1"))
+        self.assertEqual(value["kind"], "unknown")
+        self.assertNotEqual(value.get("attestation"), "reviewer_verified")
 
     def source(self, kind="po", version="1", status="submitted"):
         return {

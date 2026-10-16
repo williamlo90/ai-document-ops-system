@@ -12,6 +12,15 @@ gates, and safe cleanup.
 
 Run commands from the repository root.
 
+## Bounded Docker release demo
+
+Run `.\scripts\start_release.ps1 -Seed` after local dependency setup and starting Docker Desktop.
+The command starts the capped API/worker profile with mock providers, seeds synthetic AP
+review data and disables ERP writes. The database/uploads persist in a named volume.
+See [Docker profile](docs/docker_profile.md) for roles, the evaluator, PostgreSQL checks,
+ERP sandbox setup, write-flag rollback, backup/restore and teardown.
+Current release evidence is [Phase 7](docs/evidence/invoice-review-v2/PHASE-7.md).
+
 ## Local Mock Demo
 
 The mock profile requires no paid service or provider credential.
@@ -64,11 +73,10 @@ Copy-Item .env.example .env
 Set these values in `.env` without placing credentials in commands or documentation:
 
 ```dotenv
-PARSER_PROVIDER=mistral_ocr
-MISTRAL_API_KEY=
-MISTRAL_OCR_ENDPOINT=https://api.mistral.ai/v1/ocr
-MISTRAL_OCR_MODEL=mistral-ocr-latest
-MISTRAL_ALLOWED_HOSTS=api.mistral.ai
+PARSER_PROVIDER=ocr_space
+OCR_SPACE_ENGINE=3
+OCR_SPACE_API_KEY=
+OCR_SPACE_API_KEYS=
 
 EXTRACTOR_PROVIDER=llm_json
 EXTRACTOR_API_KEY=

@@ -145,7 +145,18 @@
   "technical_evidence_sha256": "ffafaa6e50564b2c0600c18f8f54c8dd207046f2a87b5e7c2fe2d9ce05ad6787",
   "claims": {
     "technical_quality_and_posting": "supported within the documented controlled synthetic sandbox scope",
-    "time_reduction": "unmeasured; no claim",
-    "production_readiness": "not established by Phase 6"
+    "time_reduction": "Not measured by Phase 6; existing verified-draft timing is retained separately.",
+    "production_readiness": "not established by Phase 6",
+    "retained_draft_timing": {
+      "median_elapsed_reduction_percent": 68.0,
+      "manual_median_elapsed_seconds": 153,
+      "assisted_median_elapsed_seconds": 49,
+      "paired_invoices": 6,
+      "operators": 1,
+      "outcome": "verified ERPNext Purchase Invoice Draft",
+      "scope": "synthetic invoices, local ERPNext sandbox",
+      "evidence": "../../erpnext-paired-draft-timing-results.md",
+      "source_result": "../erpnext-paired-draft-timing-v2.json"
+    }
   }
 }

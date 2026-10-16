@@ -23,6 +23,7 @@ def assert_clean_worktree() -> None:
         "frontend",
         "examples",
         "scripts/postgres_migrate.py",
+        "scripts/phase7_sandbox_bridge.py",
     )
     if status:
         raise RuntimeError(

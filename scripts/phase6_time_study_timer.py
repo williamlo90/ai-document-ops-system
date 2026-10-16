@@ -1,4 +1,5 @@
 """Record the next human-operated study condition; never generate invoice answers or timings."""
+
 from __future__ import annotations
 
 import argparse
@@ -29,17 +30,23 @@ def main():
             raise SystemExit("The frozen study operator cannot be changed")
         data["operator_id"] = args.operator
         if not data.get("operator_familiarity"):
-            data["operator_familiarity"] = input("Pengalaman Anda dengan aplikasi dan ERPNext: ").strip()
+            data["operator_familiarity"] = input(
+                "Pengalaman Anda dengan aplikasi dan ERPNext: "
+            ).strip()
             if not data["operator_familiarity"]:
                 raise SystemExit("Operator familiarity must be recorded")
         scheduled = [(pair, run) for pair in data["pairs"] for run in pair["runs"]]
-        pending = next(((pair, run) for pair, run in scheduled if run.get("elapsed_seconds") is None), None)
+        pending = next(
+            ((pair, run) for pair, run in scheduled if run.get("elapsed_seconds") is None), None
+        )
         if pending is None:
             print("Semua kondisi sudah dicatat. Selanjutnya verifikasi output dan scoring.")
             return
         pair, run = pending
         if run.get("attempt_started_at"):
-            raise SystemExit("Attempt sebelumnya terputus; catat sebagai gagal sebelum melanjutkan agar denominator tetap utuh.")
+            raise SystemExit(
+                "Attempt sebelumnya terputus; catat sebagai gagal sebelum melanjutkan agar denominator tetap utuh."
+            )
         print(f"Invoice: {pair['document_id']} | Kondisi: {run['condition']}")
         print(f"PDF: {pair['source_pdf']}")
         print("Sumber ERP:", pair["procurement_sources"][run["condition"]])
@@ -50,7 +57,9 @@ def main():
         interval_started = stamp()
         state = "active"
         intervals = []
-        print("p = pause menunggu sistem, r = lanjut bekerja, done = outcome tercapai, skip = gagal/dilewati")
+        print(
+            "p = pause menunggu sistem, r = lanjut bekerja, done = outcome tercapai, skip = gagal/dilewati"
+        )
         while True:
             command = input("> ").strip().casefold()
             if command not in {"p", "r", "done", "skip"}:
@@ -58,14 +67,22 @@ def main():
             if (command == "p" and state == "waiting") or (command == "r" and state == "active"):
                 continue
             now = time.perf_counter()
-            intervals.append({"kind": state, "started_at": interval_started,
-                              "ended_at": stamp(), "seconds": round(now - tick, 3)})
+            intervals.append(
+                {
+                    "kind": state,
+                    "started_at": interval_started,
+                    "ended_at": stamp(),
+                    "seconds": round(now - tick, 3),
+                }
+            )
             tick, interval_started = now, stamp()
             if command in {"done", "skip"}:
                 break
             state = "waiting" if command == "p" else "active"
         run["timer_intervals"] = intervals
-        run["active_seconds"] = round(sum(row["seconds"] for row in intervals if row["kind"] == "active"), 3)
+        run["active_seconds"] = round(
+            sum(row["seconds"] for row in intervals if row["kind"] == "active"), 3
+        )
         run["elapsed_seconds"] = round(sum(row["seconds"] for row in intervals), 3)
         if command == "skip":
             run["terminal_outcome"] = "skipped"
@@ -74,13 +91,18 @@ def main():
             if outcome not in {"posted_verified", "exception_resolved", "failed"}:
                 outcome = "failed"
             run["terminal_outcome"] = outcome
-        run["erp_readback_reference"] = input("ID invoice ERP atau referensi bukti hold (kosong jika tidak ada): ").strip() or None
+        run["erp_readback_reference"] = (
+            input("ID invoice ERP atau referensi bukti hold (kosong jika tidak ada): ").strip()
+            or None
+        )
         run["operator_notes"] = input("Catatan/kendala (boleh kosong): ").strip() or None
         temporary = worksheet.with_suffix(".writing.json")
         temporary.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         temporary.replace(worksheet)
         count = sum(item.get("elapsed_seconds") is not None for _, item in scheduled)
-        print(f"Tercatat {count}/{len(scheduled)} kondisi. Output invoice dan read-back tetap harus diverifikasi sebelum scoring.")
+        print(
+            f"Tercatat {count}/{len(scheduled)} kondisi. Output invoice dan read-back tetap harus diverifikasi sebelum scoring."
+        )
     finally:
         lock.unlink()
 

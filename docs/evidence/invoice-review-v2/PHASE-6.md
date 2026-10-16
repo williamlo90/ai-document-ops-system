@@ -96,16 +96,16 @@ The sealed quality run completed all 50 scheduled transactions. Original extract
 matched 50/50 whole invoices, including required page/excerpt provenance. All
 processing and validation completed; validation-code sets matched 50/50.
 
-| Check | Result |
-| --- | --- |
-| Quantity / price / receipt discrepancy recall | 30/30; 10/10; 20/20 |
-| Duplicate transactions detected | 10/10; no false positives |
-| Eligible invoices posted with independent invoice and GL checks | 20/20 |
-| Authorized exception dispositions completed | 30/30 |
-| False holds / unsafe approvals / unsafe submissions | 0 / 0 / 0 |
-| Restart replay to the same ERP target | 20/20 |
-| Duplicate ERP effects | 0 |
-| Actual upload, queue and worker development samples | 3/3 succeeded |
+| Check                                                           | Result                    |
+| --------------------------------------------------------------- | ------------------------- |
+| Quantity / price / receipt discrepancy recall                   | 30/30; 10/10; 20/20       |
+| Duplicate transactions detected                                 | 10/10; no false positives |
+| Eligible invoices posted with independent invoice and GL checks | 20/20                     |
+| Authorized exception dispositions completed                     | 30/30                     |
+| False holds / unsafe approvals / unsafe submissions             | 0 / 0 / 0                 |
+| Restart replay to the same ERP target                           | 20/20                     |
+| Duplicate ERP effects                                           | 0                         |
+| Actual upload, queue and worker development samples             | 3/3 succeeded             |
 
 The backend suite passed 717 tests with 13 skipped; the frontend suite passed
 34 tests across ten files. Frontend build, Ruff and diff hygiene checks passed.
@@ -126,8 +126,12 @@ cannot establish a posted outcome. The scorer withholds a time-reduction claim
 unless both conditions complete all 20 correctly with full evidence.
 
 The [operator protocol](PHASE-6-STUDY.md) is available for a later study. It does
-not block Phase 6 completion or Phase 7. No operator time reduction or combined
-CV time/quality claim is currently available.
+not block Phase 6 completion or Phase 7. The existing six-invoice verified-draft
+benchmark remains the timing evidence: median elapsed time fell from 153s to 49s
+(68.0%) for one operator in the local sandbox. See the
+[paired draft timing report](../../erpnext-paired-draft-timing-results.md).
+That timing result is separate from this phase's 50-invoice whole-invoice quality
+and submitted-posting results; it does not measure the extended posting workflow.
 
 ## Scope
 

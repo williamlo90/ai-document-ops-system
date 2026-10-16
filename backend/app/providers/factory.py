@@ -16,10 +16,16 @@ def build_parser_provider(settings: Settings) -> ParserProvider:
         return MockParserProvider()
     if provider == "ocr_space":
         if settings.ocr_space_api_keys:
-            return OcrSpaceKeyPool((settings.ocr_space_api_key or "", *settings.ocr_space_api_keys),
-                                  settings.provider_timeout_seconds, engine=settings.ocr_space_engine)
-        return OcrSpaceParserProvider(settings.ocr_space_api_key or "", settings.provider_timeout_seconds,
-                                      engine=settings.ocr_space_engine)
+            return OcrSpaceKeyPool(
+                (settings.ocr_space_api_key or "", *settings.ocr_space_api_keys),
+                settings.provider_timeout_seconds,
+                engine=settings.ocr_space_engine,
+            )
+        return OcrSpaceParserProvider(
+            settings.ocr_space_api_key or "",
+            settings.provider_timeout_seconds,
+            engine=settings.ocr_space_engine,
+        )
     if provider == "gemini_ocr":
         return GeminiOcrParserProvider(
             api_key=settings.gemini_api_key or "",

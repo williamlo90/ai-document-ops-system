@@ -193,7 +193,9 @@ def load_settings() -> Settings:
         email_test_recipient=_setting(config, "EMAIL_TEST_RECIPIENT"),
         accounting_provider=_setting(config, "ACCOUNTING_PROVIDER", "csv_download"),
         accounting_sandbox_mode=_boolean(_setting(config, "ACCOUNTING_SANDBOX_MODE", "true")),
-        erpnext_sandbox_posting_enabled=_boolean(_setting(config, "ERPNEXT_SANDBOX_POSTING_ENABLED", "false")),
+        erpnext_sandbox_posting_enabled=_boolean(
+            _setting(config, "ERPNEXT_SANDBOX_POSTING_ENABLED", "false")
+        ),
         erpnext_base_url=_setting(config, "ERPNEXT_BASE_URL", "http://127.0.0.1:8080"),
         erpnext_site=_setting(config, "ERPNEXT_SITE", "frontend"),
         erpnext_api_user=_setting(config, "ERPNEXT_API_USER"),

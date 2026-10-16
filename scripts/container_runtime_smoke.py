@@ -64,6 +64,12 @@ def wait_for_status(url: str, expected: int, timeout_seconds: float = 30) -> Non
 
 def secure_runtime_args() -> list[str]:
     return [
+        "--memory",
+        "384m",
+        "--cpus",
+        "0.5",
+        "--pids-limit",
+        "128",
         "--read-only",
         "--tmpfs",
         "/tmp:rw,noexec,nosuid,uid=100,gid=101,mode=1770,size=64m",
@@ -154,6 +160,12 @@ def run_smoke(image: str, expected_revision: str | None = None) -> None:
         docker(
             "run",
             "--detach",
+            "--memory",
+            "384m",
+            "--cpus",
+            "0.5",
+            "--pids-limit",
+            "128",
             "--name",
             postgres,
             "--network",

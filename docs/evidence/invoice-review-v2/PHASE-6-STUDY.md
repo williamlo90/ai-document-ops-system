@@ -5,8 +5,9 @@ this study does not block Phase 6 completion or Phase 7.
 
 The technical evaluation and the operator study have separate cohorts. The study
 uses 20 sealed synthetic invoice families and one operator, with 40 timed conditions:
-manual first for ten invoices and assisted first for ten. No time reduction is
-claimed before all scheduled conditions have been scored.
+manual first for ten invoices and assisted first for ten. No time reduction for
+this extended workflow is claimed before all scheduled conditions are scored.
+The existing six-invoice verified-draft timing benchmark remains separate.
 
 ## Preparation outside the clock
 

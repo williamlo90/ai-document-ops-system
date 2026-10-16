@@ -1,0 +1,52 @@
+# Bounded local release profile. Secrets remain in an ignored env file when enabled.
+x-release-environment: &release-environment
+  APP_ENV: local
+  STORAGE_BACKEND: sqlite
+  SQLITE_PATH: /data/invoice-review.sqlite3
+  UPLOAD_ROOT: /data/uploads
+  DOCUMENT_STORAGE_BACKEND: local
+  PROCESSING_QUEUE_BACKEND: none
+  PARSER_PROVIDER: ${RELEASE_PARSER_PROVIDER:-mock}
+  EXTRACTOR_PROVIDER: ${RELEASE_EXTRACTOR_PROVIDER:-mock}
+  APP_WORKSPACE_ID: release-validation
+  APP_ADMIN_TOKEN: release-admin
+  APP_UPLOADER_TOKEN: release-uploader
+  APP_REVIEWER_TOKEN: release-reviewer
+  APP_AP_APPROVER_TOKEN: release-approver
+  WORKER_POLL_SECONDS: "1"
+  ACCOUNTING_PROVIDER: ${RELEASE_ACCOUNTING_PROVIDER:-csv_download}
+  ACCOUNTING_SANDBOX_MODE: "true"
+  ERPNEXT_SANDBOX_POSTING_ENABLED: ${RELEASE_POSTING_ENABLED:-false}
+  ERPNEXT_BASE_URL: http://127.0.0.1:18080
+  ERPNEXT_ALLOWED_HOSTS: 127.0.0.1
+
+services:
+  api:
+    image: invoice-review:${RELEASE_TAG:-phase7-local}
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 128
+    environment: *release-environment
+  worker:
+    image: invoice-review:${RELEASE_TAG:-phase7-local}
+    cpus: 0.5
+    mem_limit: 384m
+    pids_limit: 128
+    environment: *release-environment
+  postgres-target:
+    cpus: 0.5
+    mem_limit: 384m
+    pids_limit: 128
+  erp-bridge:
+    image: invoice-review:${RELEASE_TAG:-phase7-local}
+    profiles: ["erp-sandbox"]
+    network_mode: service:api
+    command: ["python", "scripts/phase7_sandbox_bridge.py"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 64
+    environment:
+      DROP_SUBMIT_ONCE: ${RELEASE_DROP_SUBMIT_ONCE:-false}

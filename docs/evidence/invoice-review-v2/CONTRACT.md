@@ -16,9 +16,12 @@ original measurement check is [technical-validation.json](technical-validation.j
 
 The manual-versus-assisted operator study is **optional and deferred**. Its absence
 does not block the Phase 6 checkpoint or Phase 7 release validation. Prepared study
-inputs and tooling remain available for a later study. No human time saving,
-productivity improvement or manual-versus-assisted advantage is claimed without
-that study. Technical results describe their controlled synthetic sandbox scope;
+inputs and tooling remain available for a later study. The existing verified-draft
+timing claim remains supported by its own [paired benchmark](../../erpnext-paired-draft-timing-results.md):
+68.0% lower median elapsed time (153s manual, 49s assisted), six synthetic invoices,
+one operator, local ERPNext sandbox. It is reported separately from Phase 6 quality
+and submitted-posting measurements. No additional full-posting time saving is
+claimed without a corresponding study. Technical results describe their controlled synthetic sandbox scope;
 production readiness remains subject to separate release validation.
 
 ## Scope

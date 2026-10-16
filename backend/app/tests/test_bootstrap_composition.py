@@ -57,7 +57,9 @@ class ProcessingRetryPolicyTests(unittest.TestCase):
         policy = ProcessingRetryPolicy(max_seconds=300)
         job = ProcessingJob(document_id=uuid4())
         job.start()
-        error = ProviderError("quota", "ocr", retryable=True, http_status=429, retry_after_seconds=1766)
+        error = ProviderError(
+            "quota", "ocr", retryable=True, http_status=429, retry_after_seconds=1766
+        )
         before = datetime.now(UTC)
         scheduled = policy.next_attempt_at(job, error)
         self.assertGreaterEqual((scheduled - before).total_seconds(), 1766)

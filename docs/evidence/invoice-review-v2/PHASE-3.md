@@ -26,7 +26,7 @@ of 30, available quantity is 20 and approval is blocked.
   snapshot. The conservative quantity ceiling is always the smaller of ordered
   and accepted received quantity, including in ordered comparison mode.
 - Available quantity per PO line is `min(ordered, accepted_received) -
-  committed_billings - active_reservations`. Several invoice lines aimed at
+committed_billings - active_reservations`. Several invoice lines aimed at
   the same PO line are summed before the ceiling check. A configured quantity
   tolerance can classify a small overage as `needs_review`; it never permits
   reserving more than the available quantity.

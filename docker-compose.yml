@@ -11,7 +11,7 @@ services:
       - /tmp:rw,noexec,nosuid,uid=100,gid=101,mode=1770,size=64m
     stop_grace_period: 35s
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${DOC_INTEL_PORT:-8000}:8000"
     volumes:
       - docintel-data:/data
     env_file:

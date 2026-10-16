@@ -82,28 +82,36 @@ across 40 quality-holdout families, with ten duplicate pairs:
 - Three dated rule/mapping revisions recovered with verified posting and retained all
   previously correct development cases.
 
-Phase 6 is complete under its technical acceptance contract. Manual-versus-assisted
-operator timing is an optional follow-up; no workflow-time reduction is claimed.
+The paired draft benchmark measured a **68.0% lower median elapsed workflow time**:
+**153 seconds manually versus 49 seconds assisted**, across six synthetic invoices
+and one operator in the local ERPNext sandbox. Both workflows ended at a verified
+Purchase Invoice Draft. See [paired timing evidence](docs/erpnext-paired-draft-timing-results.md).
+
+Phase 6 is complete under its technical acceptance contract. Its 50-invoice quality
+and submitted-posting results are separate from the six-invoice draft timing study.
+A new study of the full posting workflow remains an optional follow-up.
 
 ## Evidence at a glance
 
-| Evidence | Direct record |
-| --- | --- |
-| Evaluation scope and method | [Phase 6](docs/evidence/invoice-review-v2/PHASE-6.md) |
-| Original whole-invoice quality | [Quality report](docs/evidence/invoice-review-v2/quality-holdout/report.json) |
-| Discrepancy detection | [Discrepancy report](docs/evidence/invoice-review-v2/discrepancies/report.json) |
-| ERP posting and restart verification | [Posting report](docs/evidence/invoice-review-v2/posting/report.json) |
-| Rule changes and regression retention | [Replay report](docs/evidence/invoice-review-v2/replay/report.json) |
-| Local runtime samples | [Runtime report](docs/evidence/invoice-review-v2/runtime/report.json) |
-| Completion gates | [Phase 6 acceptance](docs/evidence/invoice-review-v2/phase6-validation.json) |
-| Product walkthrough | [Captioned demo video](docs/assets/demo/invoice-review-demo.mp4) |
+| Evidence                              | Direct record                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------- |
+| Evaluation scope and method           | [Phase 6](docs/evidence/invoice-review-v2/PHASE-6.md)                           |
+| Original whole-invoice quality        | [Quality report](docs/evidence/invoice-review-v2/quality-holdout/report.json)   |
+| Discrepancy detection                 | [Discrepancy report](docs/evidence/invoice-review-v2/discrepancies/report.json) |
+| ERP posting and restart verification  | [Posting report](docs/evidence/invoice-review-v2/posting/report.json)           |
+| Rule changes and regression retention | [Replay report](docs/evidence/invoice-review-v2/replay/report.json)             |
+| Paired verified-draft workflow timing | [Timing report](docs/erpnext-paired-draft-timing-results.md)                    |
+| Local runtime samples                 | [Runtime report](docs/evidence/invoice-review-v2/runtime/report.json)           |
+| Completion gates                      | [Phase 6 acceptance](docs/evidence/invoice-review-v2/phase6-validation.json)    |
+| Product walkthrough                   | [Captioned demo video](docs/assets/demo/invoice-review-demo.mp4)                |
 
 ## Current limitations
 
 The technical quality cohort contains controlled, one-line USD invoices with explicit
-zero tax. It does not establish accuracy on arbitrary customer invoices, human time
-savings, production concurrency or production readiness. Docker/release validation
-is the next phase. Invoice is the complete document workflow; SQLite, private local
+zero tax. The timing result covers six synthetic draft cases and one operator;
+active human time and system waiting were not measured separately. These samples
+do not establish accuracy on arbitrary customer invoices, production time savings,
+production concurrency or production readiness. Docker/release checks cover local synthetic behavior. Invoice is the complete document workflow; SQLite, private local
 storage and seeded roles remain the default evaluation profile. The earlier Azure
 exercise was temporary integration validation and has been torn down. Every approval
 still requires a reviewer.
@@ -148,6 +156,18 @@ For a provider-backed run, copy `.env.example` to the ignored `.env`, set
 `PARSER_PROVIDER=mistral_ocr` and `EXTRACTOR_PROVIDER=llm_json`, and add the documented provider
 credentials. Never commit `.env` or real invoice files. See [RUNBOOK.md](RUNBOOK.md) for the full
 setup.
+
+## Bounded Docker demo
+
+After dependency setup and starting Docker Desktop:
+
+```powershell
+.\scripts\start_release.ps1 -Seed
+```
+
+This starts the capped API/worker profile and seeds a synthetic AP review with mock
+providers and ERP writes disabled. See [Docker instructions](docs/docker_profile.md)
+and [Phase 7 release evidence](docs/evidence/invoice-review-v2/PHASE-7.md).
 
 ## Tests and release checks
 

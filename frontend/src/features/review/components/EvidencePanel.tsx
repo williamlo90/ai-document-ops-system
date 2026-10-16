@@ -102,7 +102,7 @@ function nextAction(code: string) {
 function fieldLabel(path: string, lineIds: string[]) {
   if (!path.startsWith('lines.')) return path.replaceAll('_', ' ')
   const index = lineIds.findIndex((id) => path.startsWith(`lines.${id}.`))
-  return `Line ${index + 1} � ${path.split('.').at(-1)?.replaceAll('_', ' ')}`
+  return `Line ${index + 1} · ${path.split('.').at(-1)?.replaceAll('_', ' ')}`
 }
 
 export function EvidencePanel({

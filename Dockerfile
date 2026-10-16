@@ -8,16 +8,6 @@ RUN npm run build
 
 FROM python:3.11-slim-bookworm@sha256:a36c24f9cbdf4fd0f52d67f0823eeac19c2028c637cecc392d97f980d4fec56b
 
-ARG BUILD_CREATED_AT="unknown"
-ARG SOURCE_REVISION="unknown"
-ARG SOURCE_URL="https://github.com/williamlo90/ai-document-ops-system"
-
-LABEL org.opencontainers.image.created="${BUILD_CREATED_AT}" \
-      org.opencontainers.image.description="AI-assisted invoice intake and review runtime" \
-      org.opencontainers.image.revision="${SOURCE_REVISION}" \
-      org.opencontainers.image.source="${SOURCE_URL}" \
-      org.opencontainers.image.title="AI Document Ops System"
-
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -35,6 +25,7 @@ RUN pip install --no-cache-dir --require-hashes -r requirements.txt \
 
 COPY backend/ .
 COPY scripts/postgres_migrate.py ./scripts/postgres_migrate.py
+COPY scripts/phase7_sandbox_bridge.py ./scripts/phase7_sandbox_bridge.py
 COPY examples/ ./examples/
 COPY --from=frontend-build /frontend/dist /app/frontend/dist
 
@@ -46,5 +37,16 @@ RUN addgroup --system docintel \
 
 USER docintel
 EXPOSE 8000
+
+ARG BUILD_CREATED_AT="unknown"
+ARG SOURCE_REVISION="unknown"
+ARG SOURCE_URL="https://github.com/williamlo90/ai-document-ops-system"
+
+LABEL org.opencontainers.image.created="${BUILD_CREATED_AT}" \
+      org.opencontainers.image.description="AI-assisted invoice intake and review runtime" \
+      org.opencontainers.image.revision="${SOURCE_REVISION}" \
+      org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.title="AI Document Ops System"
+
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "30", "--no-access-log"]

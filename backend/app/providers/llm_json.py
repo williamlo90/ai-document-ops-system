@@ -233,23 +233,38 @@ def _invoice_data(data: dict[str, Any]) -> InvoiceData:
 def _ground_vendor(invoice: InvoiceData, source_text: str) -> InvoiceData:
     if invoice.vendor_name and _has_vendor_context(source_text, invoice.vendor_name):
         return invoice
-    candidates = list(dict.fromkeys(_explicit_supplier_names(source_text)
-        + _columnar_supplier_names(source_text) + _business_mastheads(source_text)))
+    candidates = list(
+        dict.fromkeys(
+            _explicit_supplier_names(source_text)
+            + _columnar_supplier_names(source_text)
+            + _business_mastheads(source_text)
+        )
+    )
     return replace(invoice, vendor_name=candidates[0] if len(candidates) == 1 else None)
 
 
 def _explicit_supplier_names(source_text: str) -> list[str]:
     candidates = []
-    lines = [re.sub(r"[*`]", "", line).strip().strip("#| ")
-             for line in source_text.splitlines() if line.strip()]
+    lines = [
+        re.sub(r"[*`]", "", line).strip().strip("#| ")
+        for line in source_text.splitlines()
+        if line.strip()
+    ]
     for index, line in enumerate(lines):
         found = re.fullmatch(r"(?:supplier|seller|vendor|from)\s*:\s*(.+)", line, re.I)
         if not found:
             continue
         name = found[1].strip()
-        context = " ".join(lines[max(0, index - 1):index + 1])
-        if (_looks_like_postal_address(name) or re.search(r"[|:@]|https?://|www\.|\b(?:bill\s*to|buyer|ship\s*to|demo|platform|fixture|template)\b", name, re.I)
-                or re.search(r"\b(?:bill\s*to|buyer|ship\s*to)\b", context, re.I)):
+        context = " ".join(lines[max(0, index - 1) : index + 1])
+        if (
+            _looks_like_postal_address(name)
+            or re.search(
+                r"[|:@]|https?://|www\.|\b(?:bill\s*to|buyer|ship\s*to|demo|platform|fixture|template)\b",
+                name,
+                re.I,
+            )
+            or re.search(r"\b(?:bill\s*to|buyer|ship\s*to)\b", context, re.I)
+        ):
             continue
         candidates.append(name)
     return list(dict.fromkeys(candidates))
@@ -269,17 +284,30 @@ def _business_mastheads(source_text: str) -> list[str]:
         return []
     candidates = []
     for line in lines[:10]:
-        if re.search(r"\b(bill[ _-]*to|buyer|ship[ _-]*to|invoice\s*(?:no\.?|number|date|#)|description|item|subtotal)\b",
-                     line, re.IGNORECASE):
+        if re.search(
+            r"\b(bill[ _-]*to|buyer|ship[ _-]*to|invoice\s*(?:no\.?|number|date|#)|description|item|subtotal)\b",
+            line,
+            re.IGNORECASE,
+        ):
             break
         for segment in re.split(r"\t+|\s{2,}", line):
             name = re.sub(r"\s+INVOICE\s*$", "", segment, flags=re.IGNORECASE).strip()
-            if (not name or _looks_like_postal_address(name)
-                    or re.search(r"(?:https?://|www\.|@|:|\b(?:demo|platform|fixture|template|synthetic)\b)", name, re.IGNORECASE)):
+            if (
+                not name
+                or _looks_like_postal_address(name)
+                or re.search(
+                    r"(?:https?://|www\.|@|:|\b(?:demo|platform|fixture|template|synthetic)\b)",
+                    name,
+                    re.IGNORECASE,
+                )
+            ):
                 continue
-            if re.search(r"\b(?:supply|supplies|logistics|components|industries|industrial|services|"
-                         r"trading|manufacturing|precision|equipment|limited|ltd|llc|inc|corp|corporation|gmbh)\b",
-                         name, re.IGNORECASE):
+            if re.search(
+                r"\b(?:supply|supplies|logistics|components|industries|industrial|services|"
+                r"trading|manufacturing|precision|equipment|limited|ltd|llc|inc|corp|corporation|gmbh)\b",
+                name,
+                re.IGNORECASE,
+            ):
                 candidates.append(name)
     return list(dict.fromkeys(candidates))
 
@@ -291,9 +319,19 @@ def _columnar_supplier_names(source_text: str) -> list[str]:
     values validate in the same order. A standalone supplier label is insufficient.
     """
     lines = [line.strip() for line in source_text.splitlines() if line.strip()]
-    aliases = {"supplier": "vendor", "seller": "vendor", "vendor": "vendor", "from": "vendor",
-               "invoice no.": "number", "invoice no": "number", "invoice number": "number",
-               "invoice date": "date", "issue date": "date", "due date": "date", "currency": "currency"}
+    aliases = {
+        "supplier": "vendor",
+        "seller": "vendor",
+        "vendor": "vendor",
+        "from": "vendor",
+        "invoice no.": "number",
+        "invoice no": "number",
+        "invoice number": "number",
+        "invoice date": "date",
+        "issue date": "date",
+        "due date": "date",
+        "currency": "currency",
+    }
     candidates = []
     for start in range(len(lines)):
         labels = []
@@ -304,7 +342,7 @@ def _columnar_supplier_names(source_text: str) -> list[str]:
         if not {"vendor", "number", "date"}.issubset(labels) or labels.count("vendor") != 1:
             continue
         for offset in range(end, len(lines) - len(labels) + 1):
-            values = lines[offset:offset + len(labels)]
+            values = lines[offset : offset + len(labels)]
             valid = True
             for name, value in zip(labels, values, strict=True):
                 if name == "date":
@@ -317,7 +355,9 @@ def _columnar_supplier_names(source_text: str) -> list[str]:
                 elif name == "currency":
                     valid &= bool(re.fullmatch(r"[A-Z]{3}", value))
                 elif name == "vendor":
-                    valid &= not bool(re.search(r"(?:[|:@]|\b(?:demo|platform|fixture|template)\b)", value, re.I))
+                    valid &= not bool(
+                        re.search(r"(?:[|:@]|\b(?:demo|platform|fixture|template)\b)", value, re.I)
+                    )
                     valid &= not _looks_like_postal_address(value)
             if valid:
                 candidates.append(values[labels.index("vendor")])
@@ -329,7 +369,9 @@ def _has_vendor_context(source_text: str, vendor_name: str) -> bool:
         return False
     lines = [line.strip() for line in source_text.splitlines() if line.strip()]
     normalized_vendor = _searchable_text(vendor_name)
-    if vendor_name in _business_mastheads(source_text) or vendor_name in _columnar_supplier_names(source_text):
+    if vendor_name in _business_mastheads(source_text) or vendor_name in _columnar_supplier_names(
+        source_text
+    ):
         return True
     for index, line in enumerate(lines):
         if not _line_matches_vendor_identity(line, normalized_vendor):
@@ -419,11 +461,14 @@ def _columnar_facts(parsed_document):
             while end < len(lines) and (field := _header_kind(lines[end])):
                 labels.append(field)
                 end += 1
-            if (not {"invoice_number", "invoice_date"}.issubset(labels) or len(labels) < 3
-                    or len(set(labels)) != len(labels)):
+            if (
+                not {"invoice_number", "invoice_date"}.issubset(labels)
+                or len(labels) < 3
+                or len(set(labels)) != len(labels)
+            ):
                 continue
             for offset in range(end, len(lines) - len(labels) + 1):
-                values = lines[offset:offset + len(labels)]
+                values = lines[offset : offset + len(labels)]
                 valid = True
                 for field, value in zip(labels, values, strict=True):
                     if field in {"invoice_date", "due_date"}:
@@ -434,7 +479,9 @@ def _columnar_facts(parsed_document):
                     elif field == "invoice_number":
                         valid &= bool(re.fullmatch(r"(?=.*\d)[A-Za-z0-9._/-]+", value))
                     else:
-                        valid &= _source_currency(value) == value and bool(re.fullmatch(r"[A-Z]{3}", value))
+                        valid &= _source_currency(value) == value and bool(
+                            re.fullmatch(r"[A-Z]{3}", value)
+                        )
                 if valid:
                     candidates.append((page, dict(zip(labels, values, strict=True))))
     unique = {(page, tuple(sorted(values.items()))) for page, values in candidates}
@@ -448,27 +495,46 @@ def _columnar_money(parsed_document):
     it never supplies a missing tax/subtotal/total value. Ambiguous blocks fail.
     """
     candidates = []
-    labels = (r"sub[\s_-]*total\s*:?", r"(?:tax|vat|gst)(?:\s*\(\s*\d+(?:[.,]\d+)?\s*%\s*\))?\s*:?",
-              r"(?:total(?:\s+due)?|grand\s+total|amount\s+due|balance\s+due)\s*:?")
+    labels = (
+        r"sub[\s_-]*total\s*:?",
+        r"(?:tax|vat|gst)(?:\s*\(\s*\d+(?:[.,]\d+)?\s*%\s*\))?\s*:?",
+        r"(?:total(?:\s+due)?|grand\s+total|amount\s+due|balance\s+due)\s*:?",
+    )
     for page, text in _document_pages(parsed_document):
         lines = [_plain_markdown_line(line) for line in text.splitlines() if line.strip()]
-        starts = [i for i in range(len(lines) - 2) if all(
-            re.fullmatch(pattern, lines[i + j], re.I) for j, pattern in enumerate(labels))]
+        starts = [
+            i
+            for i in range(len(lines) - 2)
+            if all(re.fullmatch(pattern, lines[i + j], re.I) for j, pattern in enumerate(labels))
+        ]
         if len(starts) != 1:
             continue
         for offset in range(starts[0] + 3, len(lines) - 2):
-            raw = lines[offset:offset + 3]
-            matches = [re.fullmatch(r"(?:(?:[A-Z]{3}|[$€£¥₹])\s*)?(-?\d[\d,. ]*[.,]\d{2})(?:\s*[A-Z]{3})?", value)
-                       for value in raw]
+            raw = lines[offset : offset + 3]
+            matches = [
+                re.fullmatch(
+                    r"(?:(?:[A-Z]{3}|[$€£¥₹])\s*)?(-?\d[\d,. ]*[.,]\d{2})(?:\s*[A-Z]{3})?", value
+                )
+                for value in raw
+            ]
             if not all(matches):
                 continue
             values = [_source_decimal(match[1]) for match in matches]
             currencies = {_source_currency(value) for value in raw} - {None}
-            if (any(value is None or value < 0 for value in values) or len(currencies) > 1
-                    or values[0] + values[1] != values[2]):
+            if (
+                any(value is None or value < 0 for value in values)
+                or len(currencies) > 1
+                or values[0] + values[1] != values[2]
+            ):
                 continue
-            candidates.append({field: _MoneyEvidence(value, next(iter(currencies), None), page, token)
-                for field, value, token in zip(("subtotal", "tax", "total"), values, raw, strict=True)})
+            candidates.append(
+                {
+                    field: _MoneyEvidence(value, next(iter(currencies), None), page, token)
+                    for field, value, token in zip(
+                        ("subtotal", "tax", "total"), values, raw, strict=True
+                    )
+                }
+            )
     return candidates[0] if len(candidates) == 1 else {}
 
 
@@ -484,15 +550,30 @@ def _header_anchor(parsed_document, field, value, columnar):
         lines = [line for line in text.splitlines() if line.strip()]
         for index, raw in enumerate(lines):
             plain = _plain_markdown_line(raw)
-            if (_header_kind(plain) == field and index + 1 < len(lines)
-                    and _plain_markdown_line(lines[index + 1]) == wanted):
+            if (
+                _header_kind(plain) == field
+                and index + 1 < len(lines)
+                and _plain_markdown_line(lines[index + 1]) == wanted
+            ):
                 pages.add(page)
-            cells = [_plain_markdown_line(cell).strip() for cell in re.split(r"\||\t", raw) if cell.strip()]
+            cells = [
+                _plain_markdown_line(cell).strip()
+                for cell in re.split(r"\||\t", raw)
+                if cell.strip()
+            ]
             for col, cell in enumerate(cells):
-                if col + 1 < len(cells) and _header_kind(cell) == field and cells[col + 1] == wanted:
+                if (
+                    col + 1 < len(cells)
+                    and _header_kind(cell) == field
+                    and cells[col + 1] == wanted
+                ):
                     pages.add(page)
                 labeled_cell = re.fullmatch(r"(.+?)(?:\s*:\s*|\s{2,})(.+)", cell)
-                if labeled_cell and _header_kind(labeled_cell[1]) == field and labeled_cell[2] == wanted:
+                if (
+                    labeled_cell
+                    and _header_kind(labeled_cell[1]) == field
+                    and labeled_cell[2] == wanted
+                ):
                     pages.add(page)
             inline = re.fullmatch(r"(.+?)(?:\s*:\s*|\s{2,})(.+)", plain)
             if inline and _header_kind(inline[1]) == field and inline[2] == wanted:
@@ -509,11 +590,20 @@ def _ground_extraction(
     grounded_confidence = list(_ground_confidence(confidence, parsed_document))
     grounded_confidence = [item for item in grounded_confidence if item.field_name != "vendor_name"]
     if invoice.vendor_name:
-        pages = [(page, text) for page, text in _document_pages(parsed_document)
-                 if invoice.vendor_name in text and _has_vendor_context(text, invoice.vendor_name)]
+        pages = [
+            (page, text)
+            for page, text in _document_pages(parsed_document)
+            if invoice.vendor_name in text and _has_vendor_context(text, invoice.vendor_name)
+        ]
         if len(pages) == 1:
-            grounded_confidence.append(FieldConfidence(field_name="vendor_name", score=1.0,
-                source_page=pages[0][0], source_text=invoice.vendor_name))
+            grounded_confidence.append(
+                FieldConfidence(
+                    field_name="vendor_name",
+                    score=1.0,
+                    source_page=pages[0][0],
+                    source_text=invoice.vendor_name,
+                )
+            )
     subtotal = _find_labeled_money(parsed_document, "subtotal")
     tax = _find_labeled_money(parsed_document, "tax")
     total = _find_labeled_money(parsed_document, "total")
@@ -532,7 +622,9 @@ def _ground_extraction(
         if updates:
             invoice = replace(invoice, **updates)
     if not labeled_currency and facts and facts[0][1].get("currency"):
-        labeled_currency = _CurrencyEvidence(facts[0][1]["currency"], facts[0][0], facts[0][1]["currency"])
+        labeled_currency = _CurrencyEvidence(
+            facts[0][1]["currency"], facts[0][0], facts[0][1]["currency"]
+        )
     money_currency = next(
         (evidence for evidence in (total, subtotal, tax) if evidence and evidence.currency),
         None,
@@ -565,7 +657,9 @@ def _ground_extraction(
             )
     currency_evidence = labeled_currency or money_currency
     if currency_evidence is not None and invoice.currency is not None:
-        grounded_confidence = [item for item in grounded_confidence if item.field_name != "currency"]
+        grounded_confidence = [
+            item for item in grounded_confidence if item.field_name != "currency"
+        ]
         grounded_confidence.append(
             FieldConfidence(
                 field_name="currency",
@@ -576,11 +670,22 @@ def _ground_extraction(
         )
     for field in _HEADER_ALIASES:
         anchor = _header_anchor(parsed_document, field, getattr(invoice, field), facts)
-        if anchor and not any(item.field_name == field and item.source_page == anchor[0]
-                              and item.source_text and anchor[1] in item.source_text for item in grounded_confidence):
+        if anchor and not any(
+            item.field_name == field
+            and item.source_page == anchor[0]
+            and item.source_text
+            and anchor[1] in item.source_text
+            for item in grounded_confidence
+        ):
             grounded_confidence = [item for item in grounded_confidence if item.field_name != field]
-            grounded_confidence.append(FieldConfidence(field_name=field, score=Decimal("1.0"),
-                source_page=anchor[0], source_text=anchor[1]))
+            grounded_confidence.append(
+                FieldConfidence(
+                    field_name=field,
+                    score=Decimal("1.0"),
+                    source_page=anchor[0],
+                    source_text=anchor[1],
+                )
+            )
     grounded_confidence = _ground_line_confidence(invoice, grounded_confidence, parsed_document)
     return invoice, tuple(grounded_confidence)
 
@@ -599,32 +704,58 @@ def _ground_line_confidence(
             # A four-column header/value block can be reflowed away from its
             # description. Require the complete ordered row and exactly one match.
             column_rows = []
-            labels = ({"unit", "uom"}, {"qty", "quantity"}, {"rate", "unit price"}, {"amount", "line total"})
+            labels = (
+                {"unit", "uom"},
+                {"qty", "quantity"},
+                {"rate", "unit price"},
+                {"amount", "line total"},
+            )
             wanted = (item.uom, item.quantity, item.unit_price, item.amount)
             if all(value is not None for value in wanted):
                 for page, text in _document_pages(parsed_document):
                     if text.count(item.description) != 1:
                         continue
-                    lines = [_plain_markdown_line(line) for line in text.splitlines() if line.strip()]
-                    starts = [n for n in range(len(lines) - 3) if all(
-                        lines[n + col].casefold() in names for col, names in enumerate(labels))]
+                    lines = [
+                        _plain_markdown_line(line) for line in text.splitlines() if line.strip()
+                    ]
+                    starts = [
+                        n
+                        for n in range(len(lines) - 3)
+                        if all(
+                            lines[n + col].casefold() in names for col, names in enumerate(labels)
+                        )
+                    ]
                     if len(starts) != 1:
                         continue
                     for offset in range(starts[0] + 4, len(lines) - 3):
-                        values = lines[offset:offset + 4]
-                        if values[0] == wanted[0] and all(_source_decimal(value) == target
-                                for value, target in zip(values[1:], wanted[1:], strict=True)):
+                        values = lines[offset : offset + 4]
+                        if values[0] == wanted[0] and all(
+                            _source_decimal(value) == target
+                            for value, target in zip(values[1:], wanted[1:], strict=True)
+                        ):
                             column_rows.append((page, values))
             if len(column_rows) == 1:
                 page, values = column_rows[0]
-                for field, value in zip(("uom", "quantity", "unit_price", "amount"), values, strict=True):
+                for field, value in zip(
+                    ("uom", "quantity", "unit_price", "amount"), values, strict=True
+                ):
                     name = f"line_items[{index}].{field}"
                     if name not in existing:
-                        confidence.append(FieldConfidence(field_name=name, score=Decimal("1.0"),
-                            source_page=page, source_text=value))
+                        confidence.append(
+                            FieldConfidence(
+                                field_name=name,
+                                score=Decimal("1.0"),
+                                source_page=page,
+                                source_text=value,
+                            )
+                        )
                         existing.add(name)
-        candidates = [(page, raw_line) for page, page_text in _document_pages(parsed_document)
-                      for raw_line in page_text.splitlines() if item.description in raw_line]
+        candidates = [
+            (page, raw_line)
+            for page, page_text in _document_pages(parsed_document)
+            for raw_line in page_text.splitlines()
+            if item.description in raw_line
+        ]
         if len(candidates) != 1:
             continue
         page, raw_line = candidates[0]
@@ -645,8 +776,11 @@ def _ground_line_confidence(
             else:
                 present = value in raw_line
             if present:
-                confidence.append(FieldConfidence(field_name=name, score=Decimal("1.0"),
-                                                  source_page=page, source_text=value))
+                confidence.append(
+                    FieldConfidence(
+                        field_name=name, score=Decimal("1.0"), source_page=page, source_text=value
+                    )
+                )
                 existing.add(name)
     return confidence
 
@@ -688,10 +822,16 @@ def _find_labeled_money(
             if next_index is None:
                 continue
             candidate = _plain_markdown_line(lines[next_index])
-            value = re.fullmatch(r"(?:(?:[A-Z]{3}|[$€£¥₹])\s*)?(-?\d(?:[\d,. ]*\d)?)(?:\s*[A-Z]{3})?", candidate)
+            value = re.fullmatch(
+                r"(?:(?:[A-Z]{3}|[$€£¥₹])\s*)?(-?\d(?:[\d,. ]*\d)?)(?:\s*[A-Z]{3})?", candidate
+            )
             if value and (amount := _source_decimal(value[1])) is not None:
-                return _MoneyEvidence(amount, _source_currency(candidate), page_number,
-                    "\n".join(lines[index:next_index + 1]).strip())
+                return _MoneyEvidence(
+                    amount,
+                    _source_currency(candidate),
+                    page_number,
+                    "\n".join(lines[index : next_index + 1]).strip(),
+                )
     patterns = _money_label_patterns(field_name)
     for pattern in patterns:
         for page_number, page_text in _document_pages(parsed_document):
@@ -727,9 +867,11 @@ def _find_labeled_currency(parsed_document: ParsedDocument) -> _CurrencyEvidence
             # Metadata cards can be serialized as a Markdown row containing
             # several independent label:value cells. Only the labeled cell counts.
             if "|" in raw_line:
-                cell_values = [_source_currency(_plain_markdown_line(cell))
-                               for cell in re.split(r"\||\t", raw_line)
-                               if pattern.match(_plain_markdown_line(cell))]
+                cell_values = [
+                    _source_currency(_plain_markdown_line(cell))
+                    for cell in re.split(r"\||\t", raw_line)
+                    if pattern.match(_plain_markdown_line(cell))
+                ]
                 cell_values = {value for value in cell_values if value}
                 if len(cell_values) > 1:
                     continue
@@ -737,7 +879,9 @@ def _find_labeled_currency(parsed_document: ParsedDocument) -> _CurrencyEvidence
                     currency = next(iter(cell_values))
             if currency is None:
                 cells = [cell.strip() for cell in raw_line.strip().split("\t")]
-                columns = [column for column, cell in enumerate(cells) if cell.casefold() == "currency"]
+                columns = [
+                    column for column, cell in enumerate(cells) if cell.casefold() == "currency"
+                ]
                 if len(columns) == 1 and index + 1 < len(lines):
                     values = [cell.strip() for cell in lines[index + 1].strip().split("\t")]
                     column = columns[0]

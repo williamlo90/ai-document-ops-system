@@ -1,4 +1,5 @@
 """Provision and bind synthetic Phase 6 sources in the explicitly enabled local ERP sandbox."""
+
 from __future__ import annotations
 
 import argparse
@@ -30,11 +31,18 @@ def write(path, data):
 def configure_price_policy(pack: Path):
     """The AP policy enforces tolerance; ERP retains its rate-variance warning."""
     pack = pack.resolve()
-    if ROOT not in pack.parents or "_local_docs" not in pack.parts or load_json(pack / "manifest.json")["status"] != "planned":
+    if (
+        ROOT not in pack.parents
+        or "_local_docs" not in pack.parts
+        or load_json(pack / "manifest.json")["status"] != "planned"
+    ):
         raise ValueError("Price policy setup requires an unsealed local pack")
     settings = load_settings()
-    if (urlparse(settings.erpnext_base_url).hostname not in {"localhost", "127.0.0.1"}
-            or not settings.accounting_sandbox_mode or not settings.erpnext_sandbox_posting_enabled):
+    if (
+        urlparse(settings.erpnext_base_url).hostname not in {"localhost", "127.0.0.1"}
+        or not settings.accounting_sandbox_mode
+        or not settings.erpnext_sandbox_posting_enabled
+    ):
         raise ValueError("Explicit local ERP sandbox required")
     admin = ERPNextAdminClient(settings.erpnext_base_url, timeout=60)
     admin.login(_read_env_value(ROOT / ".env", "ERPNEXT_ADMIN_PASSWORD"))
@@ -53,24 +61,52 @@ def configure_price_policy(pack: Path):
                 directory = pack / "development" / family["family_id"]
                 for revision in load_json(directory / "corrections.json")["events"]:
                     if revision["kind"] == "price_tolerance_change":
-                        line = load_json(directory / "procurement.json")["purchase_order"]["lines"][0]
-                        allowance = (Decimal(revision["absolute_tolerance"]) / Decimal(line["unit_price"]) * 100).quantize(Decimal("1"), rounding=ROUND_CEILING)
-                        admin.update_document("Item", line["item_id"], {"over_billing_allowance": str(allowance)})
+                        line = load_json(directory / "procurement.json")["purchase_order"]["lines"][
+                            0
+                        ]
+                        allowance = (
+                            Decimal(revision["absolute_tolerance"])
+                            / Decimal(line["unit_price"])
+                            * 100
+                        ).quantize(Decimal("1"), rounding=ROUND_CEILING)
+                        admin.update_document(
+                            "Item", line["item_id"], {"over_billing_allowance": str(allowance)}
+                        )
                         allowances[line["item_id"]] = str(allowance)
-        account_settings = {"over_billing_allowance": max((Decimal(value) for value in allowances.values()), default=Decimal(0))}
-        admin.update_document("Accounts Settings", "Accounts Settings", {key: str(value) for key, value in account_settings.items()})
-        write(pack / "erp-environment.json", {"site_timezone": "Asia/Jakarta", "buying_settings": fields,
-            "accounts_settings": {key: str(value) for key, value in account_settings.items()},
-            "item_billing_allowances_percent": allowances,
-            "previous_buying_settings": {key: before.get(key) for key in fields},
-            "scope": "local synthetic sandbox; AP approval policy enforces exact or explicitly versioned tolerance"})
+        account_settings = {
+            "over_billing_allowance": max(
+                (Decimal(value) for value in allowances.values()), default=Decimal(0)
+            )
+        }
+        admin.update_document(
+            "Accounts Settings",
+            "Accounts Settings",
+            {key: str(value) for key, value in account_settings.items()},
+        )
+        write(
+            pack / "erp-environment.json",
+            {
+                "site_timezone": "Asia/Jakarta",
+                "buying_settings": fields,
+                "accounts_settings": {key: str(value) for key, value in account_settings.items()},
+                "item_billing_allowances_percent": allowances,
+                "previous_buying_settings": {key: before.get(key) for key in fields},
+                "scope": "local synthetic sandbox; AP approval policy enforces exact or explicitly versioned tolerance",
+            },
+        )
         return {"status": "configured", "buying_settings": fields}
     finally:
         admin.logout()
 
 
-def prepare(pack: Path, *, splits=("quality_holdout", "time_study"), max_families=None,
-            development_probes=False, development_revisions=False) -> dict:
+def prepare(
+    pack: Path,
+    *,
+    splits=("quality_holdout", "time_study"),
+    max_families=None,
+    development_probes=False,
+    development_revisions=False,
+) -> dict:
     pack = pack.resolve()
     if ROOT not in pack.parents or "_local_docs" not in pack.parts:
         raise ValueError("ERP fixtures must remain inside ignored local evidence")
@@ -79,17 +115,31 @@ def prepare(pack: Path, *, splits=("quality_holdout", "time_study"), max_familie
         raise ValueError("Cannot change ERP bindings after seal")
     audit(pack, inspect_pdf_text=False)
     settings = load_settings()
-    if (urlparse(settings.erpnext_base_url).hostname not in {"localhost", "127.0.0.1"}
-            or not settings.accounting_sandbox_mode or not settings.erpnext_sandbox_posting_enabled):
+    if (
+        urlparse(settings.erpnext_base_url).hostname not in {"localhost", "127.0.0.1"}
+        or not settings.accounting_sandbox_mode
+        or not settings.erpnext_sandbox_posting_enabled
+    ):
         raise ValueError("Explicit local ERP sandbox flags are required")
     admin = ERPNextAdminClient(settings.erpnext_base_url, timeout=60)
     admin.login(_read_env_value(ROOT / ".env", "ERPNEXT_ADMIN_PASSWORD"))
-    runtime = ERPNextClient(settings.erpnext_base_url, api_key=settings.erpnext_api_key,
-        api_secret=settings.erpnext_api_secret, allowed_hosts=settings.erpnext_allowed_hosts,
-        timeout_seconds=60)
-    profile = {"company": COMPANY, "erp_company": COMPANY, "supplier_ids": {}, "item_codes": {},
-               "expense_accounts": {}, "payable_accounts": {"USD": PAYABLE},
-               "exchange_rates": {"USD": "1"}, "reason": "Verified Phase 6 local synthetic sandbox master data"}
+    runtime = ERPNextClient(
+        settings.erpnext_base_url,
+        api_key=settings.erpnext_api_key,
+        api_secret=settings.erpnext_api_secret,
+        allowed_hosts=settings.erpnext_allowed_hosts,
+        timeout_seconds=60,
+    )
+    profile = {
+        "company": COMPANY,
+        "erp_company": COMPANY,
+        "supplier_ids": {},
+        "item_codes": {},
+        "expense_accounts": {},
+        "payable_accounts": {"USD": PAYABLE},
+        "exchange_rates": {"USD": "1"},
+        "reason": "Verified Phase 6 local synthetic sandbox master data",
+    }
     if (pack / "erp-profile.json").exists():
         profile = load_json(pack / "erp-profile.json")
     journal_path = pack / "erp-provision-journal.json"
@@ -117,14 +167,29 @@ def prepare(pack: Path, *, splits=("quality_holdout", "time_study"), max_familie
                 supplier = original["supplier_id"]
                 item = original["lines"][0]["item_id"]
                 if not admin.find_one("Supplier", {"name": supplier}):
-                    created = admin.create_document("Supplier", {"supplier_name": supplier,
-                        "supplier_group": "All Supplier Groups", "supplier_type": "Company"})
+                    created = admin.create_document(
+                        "Supplier",
+                        {
+                            "supplier_name": supplier,
+                            "supplier_group": "All Supplier Groups",
+                            "supplier_type": "Company",
+                        },
+                    )
                     if created["name"] != supplier:
                         raise ValueError("Supplier naming differs from fixture identity")
                 if not admin.find_one("Item", {"name": item}):
-                    admin.create_document("Item", {"item_code": item, "item_name": item,
-                        "item_group": "Services", "stock_uom": "EA", "is_stock_item": 0,
-                        "is_purchase_item": 1, "is_sales_item": 0})
+                    admin.create_document(
+                        "Item",
+                        {
+                            "item_code": item,
+                            "item_name": item,
+                            "item_group": "Services",
+                            "stock_uom": "EA",
+                            "is_stock_item": 0,
+                            "is_purchase_item": 1,
+                            "is_sales_item": 0,
+                        },
+                    )
                 profile["supplier_ids"][supplier] = supplier
                 profile["item_codes"][item] = item
                 profile["expense_accounts"][item] = EXPENSE
@@ -140,11 +205,28 @@ def prepare(pack: Path, *, splits=("quality_holdout", "time_study"), max_familie
                     date = load_json(directory / "invoice-labels.json")[0]["invoice_date"]
                     line = original["lines"][0]
                     if po is None:
-                        po = admin.create_document("Purchase Order", {"company": COMPANY, "supplier": supplier,
-                            "transaction_date": date, "schedule_date": date, "currency": "USD", "terms": tag,
-                            "items": [{"item_code": item, "qty": line["quantity"], "rate": line["unit_price"],
-                                       "uom": "EA", "schedule_date": date, "expense_account": EXPENSE,
-                                       "cost_center": "Main - IRA"}]})
+                        po = admin.create_document(
+                            "Purchase Order",
+                            {
+                                "company": COMPANY,
+                                "supplier": supplier,
+                                "transaction_date": date,
+                                "schedule_date": date,
+                                "currency": "USD",
+                                "terms": tag,
+                                "items": [
+                                    {
+                                        "item_code": item,
+                                        "qty": line["quantity"],
+                                        "rate": line["unit_price"],
+                                        "uom": "EA",
+                                        "schedule_date": date,
+                                        "expense_account": EXPENSE,
+                                        "cost_center": "Main - IRA",
+                                    }
+                                ],
+                            },
+                        )
                     po = admin.get_document("Purchase Order", po["name"])
                     saved["po"] = po["name"]
                     write(journal_path, journal)
@@ -154,55 +236,124 @@ def prepare(pack: Path, *, splits=("quality_holdout", "time_study"), max_familie
                     receipt = admin.find_one("Purchase Receipt", {"remarks": tag})
                     receipt_line = sources["purchase_receipt"]["lines"][0]
                     if receipt is None:
-                        receipt = admin.create_document("Purchase Receipt", {"company": COMPANY, "supplier": supplier,
-                            "posting_date": date, "set_posting_time": 1, "currency": "USD", "remarks": tag,
-                            "items": [{"item_code": item, "qty": receipt_line["quantity"], "rate": line["unit_price"],
-                                "uom": "EA", "purchase_order": po["name"], "purchase_order_item": po["items"][0]["name"],
-                                "expense_account": EXPENSE, "cost_center": "Main - IRA"}]})
+                        receipt = admin.create_document(
+                            "Purchase Receipt",
+                            {
+                                "company": COMPANY,
+                                "supplier": supplier,
+                                "posting_date": date,
+                                "set_posting_time": 1,
+                                "currency": "USD",
+                                "remarks": tag,
+                                "items": [
+                                    {
+                                        "item_code": item,
+                                        "qty": receipt_line["quantity"],
+                                        "rate": line["unit_price"],
+                                        "uom": "EA",
+                                        "purchase_order": po["name"],
+                                        "purchase_order_item": po["items"][0]["name"],
+                                        "expense_account": EXPENSE,
+                                        "cost_center": "Main - IRA",
+                                    }
+                                ],
+                            },
+                        )
                     receipt = admin.get_document("Purchase Receipt", receipt["name"])
                     saved["receipt"] = receipt["name"]
                     write(journal_path, journal)
                     if receipt["docstatus"] == 0:
-                        admin.call_method("frappe.client.submit", values={"doc": json.dumps(receipt)})
-                    live_po = read_procurement(runtime, "po", po["name"], "Asia/Jakarta").model_dump(mode="json")
-                    live_pr = read_procurement(runtime, "receipt", receipt["name"], "Asia/Jakarta").model_dump(mode="json")
+                        admin.call_method(
+                            "frappe.client.submit", values={"doc": json.dumps(receipt)}
+                        )
+                    live_po = read_procurement(
+                        runtime, "po", po["name"], "Asia/Jakarta"
+                    ).model_dump(mode="json")
+                    live_pr = read_procurement(
+                        runtime, "receipt", receipt["name"], "Asia/Jakarta"
+                    ).model_dump(mode="json")
                     # Verify business semantics against the authored specification,
                     # before replacing only ERP identity/version fields in the pack.
-                    for live, authored in ((live_po, original), (live_pr, sources["purchase_receipt"])):
-                        if live["status"] != "submitted" or live["supplier_id"] != supplier or live["company"] != COMPANY:
-                            raise ValueError("ERP source identity/status differs from authored fixture")
+                    for live, authored in (
+                        (live_po, original),
+                        (live_pr, sources["purchase_receipt"]),
+                    ):
+                        if (
+                            live["status"] != "submitted"
+                            or live["supplier_id"] != supplier
+                            or live["company"] != COMPANY
+                        ):
+                            raise ValueError(
+                                "ERP source identity/status differs from authored fixture"
+                            )
                         for field in ("quantity", "unit_price", "amount"):
-                            if Decimal(live["lines"][0][field]) != Decimal(authored["lines"][0][field]):
-                                raise ValueError("ERP source arithmetic differs from authored fixture")
+                            if Decimal(live["lines"][0][field]) != Decimal(
+                                authored["lines"][0][field]
+                            ):
+                                raise ValueError(
+                                    "ERP source arithmetic differs from authored fixture"
+                                )
                     key_prefix = "manual_" if condition == "manual" else ""
                     sources[key_prefix + "purchase_order"] = live_po
                     sources[key_prefix + "purchase_receipt"] = live_pr
                     if condition != "manual":
                         for match in matches:
-                            match["po_allocation"] = f"{live_po['source_id']}:{live_po['lines'][0]['source_line_id']}"
-                            match["receipt_allocation"] = f"{live_pr['source_id']}:{live_pr['lines'][0]['source_line_id']}"
+                            match["po_allocation"] = (
+                                f"{live_po['source_id']}:{live_po['lines'][0]['source_line_id']}"
+                            )
+                            match["receipt_allocation"] = (
+                                f"{live_pr['source_id']}:{live_pr['lines'][0]['source_line_id']}"
+                            )
                 revisions = load_json(directory / "corrections.json")["events"]
                 for revision in revisions:
                     if revision["kind"] != "receipt_quantity_correction":
                         continue
-                    old_receipt = admin.get_document("Purchase Receipt", sources["purchase_receipt"]["source_id"])
+                    old_receipt = admin.get_document(
+                        "Purchase Receipt", sources["purchase_receipt"]["source_id"]
+                    )
                     tag = f"Phase6:{family_id}:corrected"
                     corrected = admin.find_one("Purchase Receipt", {"remarks": tag})
                     if old_receipt["docstatus"] == 1:
-                        admin.call_method("frappe.client.cancel", values={"doctype": "Purchase Receipt", "name": old_receipt["name"]})
+                        admin.call_method(
+                            "frappe.client.cancel",
+                            values={"doctype": "Purchase Receipt", "name": old_receipt["name"]},
+                        )
                     if corrected is None:
-                        corrected = admin.create_document("Purchase Receipt", {
-                            "company": COMPANY, "supplier": supplier, "posting_date": date, "set_posting_time": 1,
-                            "currency": "USD", "remarks": tag, "amended_from": old_receipt["name"],
-                            "items": [{"item_code": item, "qty": revision["corrected_received_quantity"],
-                                "rate": line["unit_price"], "uom": "EA", "purchase_order": po["name"],
-                                "purchase_order_item": po["items"][0]["name"], "expense_account": EXPENSE,
-                                "cost_center": "Main - IRA"}]})
+                        corrected = admin.create_document(
+                            "Purchase Receipt",
+                            {
+                                "company": COMPANY,
+                                "supplier": supplier,
+                                "posting_date": date,
+                                "set_posting_time": 1,
+                                "currency": "USD",
+                                "remarks": tag,
+                                "amended_from": old_receipt["name"],
+                                "items": [
+                                    {
+                                        "item_code": item,
+                                        "qty": revision["corrected_received_quantity"],
+                                        "rate": line["unit_price"],
+                                        "uom": "EA",
+                                        "purchase_order": po["name"],
+                                        "purchase_order_item": po["items"][0]["name"],
+                                        "expense_account": EXPENSE,
+                                        "cost_center": "Main - IRA",
+                                    }
+                                ],
+                            },
+                        )
                     corrected = admin.get_document("Purchase Receipt", corrected["name"])
                     if corrected["docstatus"] == 0:
-                        admin.call_method("frappe.client.submit", values={"doc": json.dumps(corrected)})
-                    sources["corrected_purchase_receipt"] = read_procurement(runtime, "receipt", corrected["name"], "Asia/Jakarta").model_dump(mode="json")
-                    sources["corrected_purchase_order"] = read_procurement(runtime, "po", po["name"], "Asia/Jakarta").model_dump(mode="json")
+                        admin.call_method(
+                            "frappe.client.submit", values={"doc": json.dumps(corrected)}
+                        )
+                    sources["corrected_purchase_receipt"] = read_procurement(
+                        runtime, "receipt", corrected["name"], "Asia/Jakarta"
+                    ).model_dump(mode="json")
+                    sources["corrected_purchase_order"] = read_procurement(
+                        runtime, "po", po["name"], "Asia/Jakarta"
+                    ).model_dump(mode="json")
                     journal["families"][family_id]["corrected_receipt"] = corrected["name"]
                     write(journal_path, journal)
                 write(directory / "expected-match.json", matches)
@@ -213,7 +364,11 @@ def prepare(pack: Path, *, splits=("quality_holdout", "time_study"), max_familie
                 print(f"ERP sources bound: {split}/{family_id}", flush=True)
         write(pack / "erp-profile.json", profile)
         audit(pack, inspect_pdf_text=False)
-        return {"status": "prepared", "families": len(journal["families"]), "profile": "erp-profile.json"}
+        return {
+            "status": "prepared",
+            "families": len(journal["families"]),
+            "profile": "erp-profile.json",
+        }
     finally:
         admin.logout()
 
@@ -235,9 +390,18 @@ def main():
     if (args.development_probes or args.development_revisions) and args.split != "development":
         raise SystemExit("Scenario probes are development only")
     splits = (args.split,) if args.split else ("quality_holdout", "time_study")
-    print(json.dumps(prepare(args.pack, splits=splits, max_families=args.max_families,
-                             development_probes=args.development_probes,
-                             development_revisions=args.development_revisions), indent=2))
+    print(
+        json.dumps(
+            prepare(
+                args.pack,
+                splits=splits,
+                max_families=args.max_families,
+                development_probes=args.development_probes,
+                development_revisions=args.development_revisions,
+            ),
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

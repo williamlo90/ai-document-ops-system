@@ -105,7 +105,13 @@ class VersionRepository:
     def all_latest(self, workspace, kind):
         if self.store is None:
             with self._lock:
-                return deepcopy([history[-1] for (w, k, _), history in self._rows.items() if w == workspace and k == kind and history])
+                return deepcopy(
+                    [
+                        history[-1]
+                        for (w, k, _), history in self._rows.items()
+                        if w == workspace and k == kind and history
+                    ]
+                )
         rows = self.store.query(
             "SELECT entity_id, payload FROM ap_versions WHERE workspace_id = ? AND kind = ? ORDER BY entity_id, version",
             (workspace, kind),

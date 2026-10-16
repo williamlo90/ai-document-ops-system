@@ -42,7 +42,7 @@ the current evidence and policy. ERP posting remains disabled.
    purchasing evidence as needed; prepare a new snapshot, approve its
    evidence and reassess. A stale match cannot be approved.
 4. `GET /ap/exceptions?document_id={id}` returns case history. `PUT
-   /ap/exceptions/{id}` records an owner, reason, evidence reference and
+/ap/exceptions/{id}` records an owner, reason, evidence reference and
    optimistic `expected_version`/`expected_match_id`. Reviewers can request
    information or record a resolution after reassessment. Admins may use
    `PUT /ap/exception-policy` and authorize only allowed waivers.
@@ -52,7 +52,7 @@ the current evidence and policy. ERP posting remains disabled.
 ## Validation and limits
 
 The labeled fixture executes the actual match detector: quantity, price,
-  receipt and duplicate categories each have one positive and one negative;
+receipt and duplicate categories each have one positive and one negative;
 all four category matrices are TP 1, FN 0, FP 0, TN 1. No clean fixture was
 held (0/4). Separate tests cover punctuation, OCR candidates, supplier alias
 boundaries, recurring invoices, unauthorized waivers, source correction,

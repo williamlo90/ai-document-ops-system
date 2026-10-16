@@ -11,9 +11,16 @@ from app.core.settings import load_settings
 
 class SettingsTests(unittest.TestCase):
     def test_ocr_backup_keys_load_as_trimmed_list_without_changing_primary(self):
-        with patch("app.core.settings._load_env_file", return_value={
-            "OCR_SPACE_API_KEY": "primary", "OCR_SPACE_API_KEYS": "backup-a, backup-b, "}), \
-                patch.dict(os.environ, {"OCR_SPACE_API_KEY": "", "OCR_SPACE_API_KEYS": ""}):
+        with (
+            patch(
+                "app.core.settings._load_env_file",
+                return_value={
+                    "OCR_SPACE_API_KEY": "primary",
+                    "OCR_SPACE_API_KEYS": "backup-a, backup-b, ",
+                },
+            ),
+            patch.dict(os.environ, {"OCR_SPACE_API_KEY": "", "OCR_SPACE_API_KEYS": ""}),
+        ):
             settings = load_settings()
         self.assertEqual(settings.ocr_space_api_key, "primary")
         self.assertEqual(settings.ocr_space_api_keys, ("backup-a", "backup-b"))

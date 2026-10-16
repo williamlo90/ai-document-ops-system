@@ -3,18 +3,18 @@
 Updated 2026-10-16. One completed phase = one commit, then push to `origin/main`.
 Do not publish a success checkpoint until its gate passes. Local plan remains ignored.
 
-| Phase | Status                                               | Exit evidence                                          |
-| ----- | ---------------------------------------------------- | ------------------------------------------------------ |
-| 0     | Published: 3d36ac3                                   | Contracts, schema validation and erp-capabilities.json |
-| 1     | Published: 672a71a | PHASE-1.md and actual OCR.space diagnostic                   |
-| 2 | Published: 1c7cfd3 | PHASE-2.md and phase2-validation.json; later live ERP/PostgreSQL checks retained locally |
-| 3 | Gate passed; single phase-3 checkpoint | PHASE-3.md and phase3-validation.json; live draft ERP read, SQLite/PostgreSQL matching |
-| 4 | Gate passed; single phase-4 checkpoint | PHASE-4.md and phase4-validation.json; SQLite/PostgreSQL exception workflow |
-| 5 | Gate passed; single phase-5 checkpoint | PHASE-5.md and phase5-validation.json; synthetic sandbox draft, submit and ledger read-back |
-| 6 | Gate passed under contract 2.1.0; single phase-6 checkpoint | PHASE-6.md and phase6-validation.json; optional operator study deferred |
-| 7     | Not started                                          | Docker and release checks                              |
-| 8     | Optional, not started                                | Default skip unless needed                             |
-| 9     | Not started                                          | Public proof and CV claim mapping                      |
+| Phase | Status                                                      | Exit evidence                                                                               |
+| ----- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 0     | Published: 3d36ac3                                          | Contracts, schema validation and erp-capabilities.json                                      |
+| 1     | Published: 672a71a                                          | PHASE-1.md and actual OCR.space diagnostic                                                  |
+| 2     | Published: 1c7cfd3                                          | PHASE-2.md and phase2-validation.json; later live ERP/PostgreSQL checks retained locally    |
+| 3     | Gate passed; single phase-3 checkpoint                      | PHASE-3.md and phase3-validation.json; live draft ERP read, SQLite/PostgreSQL matching      |
+| 4     | Gate passed; single phase-4 checkpoint                      | PHASE-4.md and phase4-validation.json; SQLite/PostgreSQL exception workflow                 |
+| 5     | Gate passed; single phase-5 checkpoint                      | PHASE-5.md and phase5-validation.json; synthetic sandbox draft, submit and ledger read-back |
+| 6     | Gate passed under contract 2.1.0; single phase-6 checkpoint | PHASE-6.md and phase6-validation.json; optional operator study deferred                     |
+| 7     | Gate passed; single phase-7 checkpoint                      | PHASE-7.md and release/report.json; bounded Docker, recovery, restore and canary            |
+| 8     | Optional, not started                                       | Default skip unless needed                                                                  |
+| 9     | Not started                                                 | Public proof and CV claim mapping                                                           |
 
 ## Phase 0 gate checklist
 

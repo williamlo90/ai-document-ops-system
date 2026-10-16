@@ -23,3 +23,15 @@ _private_data/
 *.sqlite3
 *.sqlite
 *.db
+
+# Local engineering records and credentials never enter an image context.
+.git/
+_local_docs/
+AI-DOCUMENT-IMPLEMENTATION-PLAN.md
+attachments/
+frontend/test-results/
+frontend/playwright-report*/
+.coverage
+coverage.xml
+logs/
+outputs/

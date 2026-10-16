@@ -1,4 +1,5 @@
 """Bounded development-only API/queue/worker profiling with real configured providers."""
+
 from __future__ import annotations
 
 import argparse
@@ -37,23 +38,43 @@ def main():
     started_at = datetime.now(UTC).isoformat()
     with tempfile.TemporaryDirectory() as temporary:
         token = uuid4().hex
-        settings = replace(load_settings(), app_env="test", admin_token=token,
-            upload_root=Path(temporary) / "uploads", sqlite_path=Path(temporary) / "profile.db",
-            storage_backend="sqlite", document_storage_backend="local", processing_queue_backend="memory",
-            max_processing_attempts=1, accounting_provider="mock", accounting_sandbox_mode=True)
+        settings = replace(
+            load_settings(),
+            app_env="test",
+            admin_token=token,
+            upload_root=Path(temporary) / "uploads",
+            sqlite_path=Path(temporary) / "profile.db",
+            storage_backend="sqlite",
+            document_storage_backend="local",
+            processing_queue_backend="memory",
+            max_processing_attempts=1,
+            accounting_provider="mock",
+            accounting_sandbox_mode=True,
+        )
         app = create_app(settings)
         service = app.state.container.processing_service
         service.parser = RateAwareParser(service.parser)
-        service.extractor = BoundedExtractor(replace(service.extractor, post_json=bounded_post(service.extractor.post_json)))
+        service.extractor = BoundedExtractor(
+            replace(service.extractor, post_json=bounded_post(service.extractor.post_json))
+        )
         try:
             client = TestClient(app)
             container = app.state.container
             headers = {"X-Access-Token": token}
-            for document in dataset.documents[:args.max_documents]:
+            for document in dataset.documents[: args.max_documents]:
                 row = {}
                 tick = time.perf_counter()
-                response = client.post("/documents/upload", headers=headers,
-                    files={"file": (document.source_path.name, document.source_path.read_bytes(), "application/pdf")})
+                response = client.post(
+                    "/documents/upload",
+                    headers=headers,
+                    files={
+                        "file": (
+                            document.source_path.name,
+                            document.source_path.read_bytes(),
+                            "application/pdf",
+                        )
+                    },
+                )
                 row["api_upload_ms"] = round((time.perf_counter() - tick) * 1000, 2)
                 row["api_upload_status"] = response.status_code
                 if response.status_code == 200:
@@ -63,9 +84,15 @@ def main():
                     container.document_module.queue_worker_service.run_once(max_wait_seconds=0)
                     row["worker_ms"] = round((time.perf_counter() - tick) * 1000, 2)
                     job = container.jobs.get(job_id)
-                    row.update(job_status=str(job.status), attempt_count=job.attempt_count,
-                        queue_wait_ms=round((job.started_at - job.created_at).total_seconds() * 1000, 2)
-                                      if job.started_at else None)
+                    row.update(
+                        job_status=str(job.status),
+                        attempt_count=job.attempt_count,
+                        queue_wait_ms=round(
+                            (job.started_at - job.created_at).total_seconds() * 1000, 2
+                        )
+                        if job.started_at
+                        else None,
+                    )
                     tick = time.perf_counter()
                     detail = client.get(f"/documents/{payload['document']['id']}", headers=headers)
                     row["api_detail_ms"] = round((time.perf_counter() - tick) * 1000, 2)
@@ -73,18 +100,27 @@ def main():
                 observations.append(row)
         finally:
             app.state.container.close()
-    report = {"scope": "development PDFs; in-process FastAPI TestClient + SQLite + memory queue + real OCR/extractor; no ERP writes",
-              "manifest_sha256": file_digest(args.pack / "manifest.json"),
-              "freeze": load_json(args.pack / "manifest.json").get("freeze"),
-              "config_sha256": config_fingerprint(load_settings()),
-              "started_at": started_at, "completed_at": datetime.now(UTC).isoformat(),
-              "scheduled": args.max_documents, "observations": observations,
-              "limitations": ["Small bounded local sample; API times exclude socket/network overhead.",
-                              "Queue wait reflects immediate local consumption and is not a production SLO."]}
+    report = {
+        "scope": "development PDFs; in-process FastAPI TestClient + SQLite + memory queue + real OCR/extractor; no ERP writes",
+        "manifest_sha256": file_digest(args.pack / "manifest.json"),
+        "freeze": load_json(args.pack / "manifest.json").get("freeze"),
+        "config_sha256": config_fingerprint(load_settings()),
+        "started_at": started_at,
+        "completed_at": datetime.now(UTC).isoformat(),
+        "scheduled": args.max_documents,
+        "observations": observations,
+        "limitations": [
+            "Small bounded local sample; API times exclude socket/network overhead.",
+            "Queue wait reflects immediate local consumption and is not a production SLO.",
+        ],
+    }
     report["latency_ms"] = {}
     for stage in ("api_upload", "api_detail", "worker", "queue_wait"):
         values = [row[stage + "_ms"] for row in observations if row.get(stage + "_ms") is not None]
-        report["latency_ms"][stage] = {"N": len(values), **{f"p{p}_ms": _percentile(values, p) for p in (50, 90, 95)}}
+        report["latency_ms"][stage] = {
+            "N": len(values),
+            **{f"p{p}_ms": _percentile(values, p) for p in (50, 90, 95)},
+        }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report["latency_ms"], indent=2))
