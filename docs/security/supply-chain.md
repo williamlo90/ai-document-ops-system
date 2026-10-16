@@ -1,7 +1,7 @@
 # Supply-Chain Controls
 
-The repository keeps direct Python dependencies in `requirements.in` and
-`requirements-dev.in`. Linux and Windows each have complete Python 3.11 lockfiles with package
+The repository keeps direct Python dependencies in `backend/requirements/requirements.in` and
+`backend/requirements/requirements-dev.in`. Linux and Windows each have complete Python 3.11 lockfiles with package
 hashes because platform-specific dependencies differ. Frontend direct versions are exact and
 `package-lock.json` supplies transitive versions and integrity hashes.
 
@@ -13,18 +13,18 @@ development file. That file pins the compatible bootstrap tools (`pip==26.1.2`,
 
 ```powershell
 py -3.11 -m venv .venv-lock
-.\.venv-lock\Scripts\python.exe -m pip install --require-hashes -r requirements-dev-windows.txt
+.\.venv-lock\Scripts\python.exe -m pip install --require-hashes -r backend/requirements/requirements-dev-windows.txt
 .\.venv-lock\Scripts\python.exe -m piptools compile `
   --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe --no-annotate `
-  --no-emit-index-url --output-file=requirements-windows.txt requirements.in
+  --no-emit-index-url --output-file=backend/requirements/requirements-windows.txt backend/requirements/requirements.in
 .\.venv-lock\Scripts\python.exe -m piptools compile `
   --generate-hashes --resolver=backtracking --strip-extras --allow-unsafe --no-annotate `
-  --no-emit-index-url --output-file=requirements-dev-windows.txt requirements-dev.in
-git diff --exit-code -- requirements-windows.txt requirements-dev-windows.txt
+  --no-emit-index-url --output-file=backend/requirements/requirements-dev-windows.txt backend/requirements/requirements-dev.in
+git diff --exit-code -- backend/requirements/requirements-windows.txt backend/requirements/requirements-dev-windows.txt
 ```
 
 The Windows lock files support local PowerShell setup. CI and the container use
-`requirements.txt` and `requirements-dev.txt`, which are generated on Linux. The zero-diff command
+`backend/requirements/requirements.txt` and `backend/requirements/requirements-dev.txt`, which are generated on Linux. The zero-diff command
 is the reproducibility check when no direct dependency changed. Review both the direct input and
 generated transitive diff when updating a dependency. Never hand-edit a generated lockfile. CI
 also performs fresh Linux hash-locked installs on Python 3.11 and 3.12 before the Python quality

@@ -6,7 +6,7 @@ Current size: **1 public/synthetic invoice**.
 
 | Document ID | Source | Expected Fields |
 |---|---|---|
-| `sample_invoice` | `sample_invoice.pdf` - included in the project root | 8 |
+| `sample_invoice` | `sample_invoice.pdf` - included at `examples/sample_invoice.pdf` | 8 |
 
 This one-document bootstrap checks that the evaluation pipeline runs end to end. It is not a
 production benchmark.

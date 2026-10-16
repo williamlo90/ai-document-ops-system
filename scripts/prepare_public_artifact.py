@@ -12,12 +12,6 @@ DEFAULT_OUTPUT = ROOT / "dist" / "public-invoice-review"
 ALLOWLIST_TOP_LEVEL = {
     "README.md",
     "LICENSE",
-    "ROADMAP.md",
-    "PRD.md",
-    "ARCHITECTURE.md",
-    "PORTFOLIO_CASE_STUDY.md",
-    "SCENARIO_COVERAGE_MATRIX.md",
-    "RUNBOOK.md",
     ".env.example",
     ".gitignore",
     ".dockerignore",
@@ -25,15 +19,10 @@ ALLOWLIST_TOP_LEVEL = {
     "Dockerfile",
     "docker-compose.yml",
     "docker-compose.production.yml",
+    "docker-compose.release.yml",
+    "docker-compose.validation.yml",
     "pyproject.toml",
-    "requirements.in",
-    "requirements-dev.in",
-    "requirements.txt",
-    "requirements-dev.txt",
-    "requirements-windows.txt",
-    "requirements-dev-windows.txt",
     "run_tests.py",
-    "sample_invoice.pdf",
 }
 
 ALLOWLIST_DIRECTORIES = {
@@ -46,6 +35,7 @@ ALLOWLIST_DIRECTORIES = {
 }
 
 ALLOWLIST_BACKEND = {
+    "requirements",
     "app",
     "migrations",
     "README.md",

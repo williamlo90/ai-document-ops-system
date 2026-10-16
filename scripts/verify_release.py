@@ -17,7 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 DEFAULT_EVIDENCE = ROOT / "docs" / "evidence" / "release-verification.json"
 RUNTIME_REQUIREMENTS = (
-    ROOT / "requirements-windows.txt" if sys.platform == "win32" else ROOT / "requirements.txt"
+    ROOT / "backend/requirements/requirements-windows.txt"
+    if sys.platform == "win32"
+    else ROOT / "backend/requirements/requirements.txt"
 )
 
 

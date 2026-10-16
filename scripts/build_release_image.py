@@ -18,7 +18,7 @@ def assert_clean_worktree() -> None:
         "--",
         "Dockerfile",
         ".dockerignore",
-        "requirements.txt",
+        "backend/requirements/requirements.txt",
         "backend",
         "frontend",
         "examples",

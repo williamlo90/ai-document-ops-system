@@ -1,10 +1,11 @@
+# Updates are reviewed manually on main; automatic version PRs are disabled.
 version: 2
 updates:
   - package-ecosystem: pip
-    directory: /
+    directory: /backend/requirements
     schedule:
       interval: weekly
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 0
     groups:
       python-minor-and-patch:
         applies-to: version-updates
@@ -21,7 +22,7 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 0
     groups:
       frontend-minor-and-patch:
         applies-to: version-updates
@@ -38,7 +39,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 0
     groups:
       actions-minor-and-patch:
         applies-to: version-updates
@@ -55,7 +56,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 0
     groups:
       containers-minor-and-patch:
         applies-to: version-updates

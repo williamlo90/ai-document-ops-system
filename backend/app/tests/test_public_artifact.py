@@ -88,14 +88,14 @@ class PublicArtifactTests(unittest.TestCase):
     def test_includes_roadmap(self) -> None:
         result = self._run_script(self.output)
         self.assertEqual(result.returncode, 0, msg=result.stderr)
-        self.assertTrue((Path(self.output) / "ROADMAP.md").exists())
+        self.assertTrue((Path(self.output) / "docs/ROADMAP.md").exists())
 
     def test_includes_portfolio_case_study(self) -> None:
         result = self._run_script(self.output)
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         output = Path(self.output)
-        self.assertTrue((output / "PORTFOLIO_CASE_STUDY.md").exists())
-        self.assertTrue((output / "SCENARIO_COVERAGE_MATRIX.md").exists())
+        self.assertTrue((output / "docs/PORTFOLIO_CASE_STUDY.md").exists())
+        self.assertTrue((output / "docs/SCENARIO_COVERAGE_MATRIX.md").exists())
 
     def test_excludes_local_only_planning_documents(self) -> None:
         result = self._run_script(self.output)
@@ -126,11 +126,11 @@ class PublicArtifactTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         output = Path(self.output)
         self.assertTrue((output / "pyproject.toml").exists())
-        self.assertTrue((output / "requirements.in").exists())
-        self.assertTrue((output / "requirements-dev.in").exists())
-        self.assertTrue((output / "requirements-dev.txt").exists())
-        self.assertTrue((output / "requirements-windows.txt").exists())
-        self.assertTrue((output / "requirements-dev-windows.txt").exists())
+        self.assertTrue((output / "backend/requirements/requirements.in").exists())
+        self.assertTrue((output / "backend/requirements/requirements-dev.in").exists())
+        self.assertTrue((output / "backend/requirements/requirements-dev.txt").exists())
+        self.assertTrue((output / "backend/requirements/requirements-windows.txt").exists())
+        self.assertTrue((output / "backend/requirements/requirements-dev-windows.txt").exists())
         self.assertTrue((output / ".gitleaks.toml").exists())
         self.assertTrue((output / ".github" / "workflows" / "ci.yml").exists())
         self.assertTrue((output / "scripts" / "quality_report.py").exists())

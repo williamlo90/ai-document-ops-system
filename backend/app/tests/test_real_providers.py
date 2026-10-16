@@ -28,7 +28,7 @@ def _real_provider_tests_enabled(environment: Mapping[str, str]) -> bool:
 REAL_PROVIDER_TESTS_ENABLED = _real_provider_tests_enabled(os.environ)
 HAVE_REAL_OCR = REAL_PROVIDER_TESTS_ENABLED and bool(MISTRAL_KEY)
 HAVE_REAL_LLM = REAL_PROVIDER_TESTS_ENABLED and bool(EXTRACTOR_KEY and EXTRACTOR_ENDPOINT)
-SAMPLE_INVOICE = Path(__file__).resolve().parents[3] / "sample_invoice.pdf"
+SAMPLE_INVOICE = Path(__file__).resolve().parents[3] / "examples/sample_invoice.pdf"
 
 
 def _settings(**overrides) -> Settings:

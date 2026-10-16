@@ -18,7 +18,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 perl-base \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY backend/requirements/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --require-hashes -r requirements.txt \
     && python -m pip uninstall --yes setuptools wheel \
     && python -m pip uninstall --yes pip

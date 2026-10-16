@@ -53,7 +53,9 @@ def _git(*args: str, capture: bool = True) -> str:
 
 
 def _load_manifest() -> dict[str, Any]:
-    return json.loads((ROOT / "milestones" / "manifest.json").read_text(encoding="utf-8"))
+    return json.loads(
+        (ROOT / "docs" / "history" / "milestones" / "manifest.json").read_text(encoding="utf-8")
+    )
 
 
 def _milestone(manifest: dict[str, Any], number: int) -> dict[str, Any]:

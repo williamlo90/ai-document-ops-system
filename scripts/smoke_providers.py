@@ -33,7 +33,7 @@ def main() -> None:
         )
         sys.exit(_skip_exit_code())
 
-    pdf_path = Path(sys.argv[1]) if len(sys.argv) == 2 else ROOT / "sample_invoice.pdf"
+    pdf_path = Path(sys.argv[1]) if len(sys.argv) == 2 else ROOT / "examples/sample_invoice.pdf"
     if not pdf_path.exists():
         raise SystemExit(f"PDF not found: {pdf_path}")
 

@@ -17,9 +17,9 @@ Run commands from the repository root.
 Run `.\scripts\start_release.ps1 -Seed` after local dependency setup and starting Docker Desktop.
 The command starts the capped API/worker profile with mock providers, seeds synthetic AP
 review data and disables ERP writes. The database/uploads persist in a named volume.
-See [Docker profile](docs/docker_profile.md) for roles, the evaluator, PostgreSQL checks,
+See [Docker profile](docker_profile.md) for roles, the evaluator, PostgreSQL checks,
 ERP sandbox setup, write-flag rollback, backup/restore and teardown.
-Current release evidence is [Phase 7](docs/evidence/invoice-review-v2/PHASE-7.md).
+Current release evidence is [Phase 7](evidence/invoice-review-v2/PHASE-7.md).
 
 ## Local Mock Demo
 
@@ -91,13 +91,13 @@ real invoice PDFs.
 Provider endpoints must use HTTPS on the default port, match an exact host in the corresponding
 allowlist, and contain no URL credential, query, or fragment. HTTP redirects are rejected rather
 than followed. Do not add a proxy or replacement provider host until its data-governance decision is
-recorded in [Provider Data Boundary](docs/security/provider-data-boundary.md).
+recorded in [Provider Data Boundary](security/provider-data-boundary.md).
 
 Verify provider adapters with a safe invoice:
 
 ```powershell
 $env:PYTHONPATH = "backend"
-.\.venv\Scripts\python.exe scripts\smoke_providers.py sample_invoice.pdf
+.\.venv\Scripts\python.exe scripts\smoke_providers.py examples/sample_invoice.pdf
 ```
 
 Then start the app and exercise the full UI flow. A successful extraction must still stop for a

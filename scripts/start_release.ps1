@@ -10,7 +10,7 @@ $demoPort = if ($env:DOC_INTEL_PORT) { $env:DOC_INTEL_PORT } else { '8000' }
 $compose = @('compose', '-p', 'invoice-review-release', '-f', 'docker-compose.yml', '-f', 'docker-compose.release.yml')
 if (-not $SkipBuild) {
     $revision = (git rev-parse HEAD).Trim()
-    if (git status --porcelain -- Dockerfile .dockerignore requirements.txt backend frontend examples scripts/phase7_sandbox_bridge.py) {
+    if (git status --porcelain -- Dockerfile .dockerignore backend/requirements/requirements.txt backend frontend examples scripts/phase7_sandbox_bridge.py) {
         $revision = "$revision-dirty"
     }
     $created = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')

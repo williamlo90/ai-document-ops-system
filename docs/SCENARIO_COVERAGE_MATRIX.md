@@ -64,4 +64,4 @@ provider configuration. They show controlled regression behavior on this dataset
 establish production accuracy, business impact, or robustness across unknown customer data.
 
 Detailed iterations, latency observations, and failure corrections are recorded in
-[invoice scenario evidence](docs/invoice-scenarios-v1-evidence.md).
+[invoice scenario evidence](invoice-scenarios-v1-evidence.md).

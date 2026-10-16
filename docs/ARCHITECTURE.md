@@ -1,5 +1,14 @@
 # Architecture - AI-Powered Invoice Review & Approval System
 
+## Current AP lifecycle
+
+Source-linked review feeds versioned purchase-order/receipt matching, duplicate checks and
+authorized exception resolution. Draft creation and submission require separate approvals.
+Durable operations retain unknown outcomes until independent Purchase Invoice and GL read-back
+confirms the target. ERP writes are sandbox-gated; disabling writes preserves read-only
+reconciliation. See [the current evaluation](evidence/invoice-review-v2/PHASE-6.md) and
+[packaged release](evidence/invoice-review-v2/PHASE-7.md).
+
 ## Design goal
 
 Keep document extraction separate from business rules and reviewer decisions. Each step should

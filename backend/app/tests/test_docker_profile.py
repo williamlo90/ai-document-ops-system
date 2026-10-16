@@ -61,7 +61,7 @@ class DockerProfileTests(unittest.TestCase):
     def test_published_deployment_docs_describe_honest_cloud_path(self) -> None:
         docker_profile = (ROOT / "docs" / "docker_profile.md").read_text(encoding="utf-8")
         aws_deployment = (ROOT / "docs" / "aws_deployment.md").read_text(encoding="utf-8")
-        runbook = (ROOT / "RUNBOOK.md").read_text(encoding="utf-8")
+        runbook = (ROOT / "docs/RUNBOOK.md").read_text(encoding="utf-8")
 
         self.assertIn("self-contained local Docker topology", docker_profile)
         self.assertIn("does not make the system production-ready", docker_profile)
