@@ -48,6 +48,8 @@ class Settings:
     mistral_ocr_model: str = "mistral-ocr-latest"
     mistral_allowed_hosts: tuple[str, ...] = ("api.mistral.ai",)
     ocr_space_api_key: str | None = None
+    ocr_space_api_keys: tuple[str, ...] = ()
+    ocr_space_engine: int = 2
     gemini_api_key: str | None = None
     gemini_ocr_model: str = "gemini-3.8-flash"
     extractor_api_key: str | None = None
@@ -156,6 +158,8 @@ def load_settings() -> Settings:
         parser_provider=_setting(config, "PARSER_PROVIDER", "mock"),
         extractor_provider=_setting(config, "EXTRACTOR_PROVIDER", "mock"),
         ocr_space_api_key=_setting(config, "OCR_SPACE_API_KEY"),
+        ocr_space_api_keys=_csv(_setting(config, "OCR_SPACE_API_KEYS")),
+        ocr_space_engine=int(_setting(config, "OCR_SPACE_ENGINE") or "2"),
         gemini_api_key=_setting(config, "GEMINI_API_KEY"),
         gemini_ocr_model=_setting(config, "GEMINI_OCR_MODEL", "gemini-3.8-flash"),
         mistral_api_key=_setting(config, "MISTRAL_API_KEY"),

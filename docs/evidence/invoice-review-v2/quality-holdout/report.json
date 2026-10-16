@@ -1,0 +1,271 @@
+{
+  "report_version": "2.1",
+  "evaluation_input": "original_provider_extraction",
+  "legacy_metric_scope": "header_only",
+  "dataset_class": "developer/AI-assisted synthetic controlled-print invoices; 40 families / 50 transactions / 10 duplicate pairs",
+  "split": "quality_holdout",
+  "provider": "ocr_space+llm_json",
+  "documents_count": 50,
+  "provider_errors": 0,
+  "metrics": {
+    "header_field_accuracy": 1.0,
+    "header_exact_match_rate": 1.0,
+    "full_invoice_exact_match_rate": 1.0,
+    "full_invoice_documents_matched": 50,
+    "full_invoice_documents_total": 50,
+    "full_invoice_label_coverage": 1.0,
+    "line_items": {
+      "status": "measured",
+      "alignment_version": "reference_description_uom_multiset_v2",
+      "ambiguous_groups": 0,
+      "documents_labeled": 50,
+      "documents_unlabeled": 0,
+      "invalid_or_missing_output_documents": 0,
+      "expected_lines": 50,
+      "predicted_lines": 50,
+      "exact_lines": 50,
+      "missing_lines": 0,
+      "extra_lines": 0,
+      "fields_total": 250,
+      "fields_matched": 250,
+      "field_accuracy": 1.0,
+      "by_field": {
+        "description": 1.0,
+        "uom": 1.0,
+        "quantity": 1.0,
+        "unit_price": 1.0,
+        "amount": 1.0,
+        "tax": null,
+        "discount": null,
+        "purchase_order": null,
+        "purchase_receipt": null,
+        "item_reference": null
+      },
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "provider_success_rate": 1.0,
+    "documents_succeeded": 50,
+    "documents_incomplete": 0,
+    "validation_documents_total": 50,
+    "validation_documents_completed": 50,
+    "validation_completion_rate": 1.0,
+    "field_accuracy": 1.0,
+    "fields_matched": 400,
+    "fields_total": 400,
+    "by_field": {
+      "vendor_name": 1.0,
+      "invoice_number": 1.0,
+      "invoice_date": 1.0,
+      "due_date": 1.0,
+      "subtotal": 1.0,
+      "tax": 1.0,
+      "total": 1.0,
+      "currency": 1.0
+    },
+    "document_exact_match_rate": 1.0,
+    "validation_code_exact_match_rate": 1.0,
+    "approval_blocker_accuracy": 1.0,
+    "confidence_metadata_coverage": 1.0,
+    "source_evidence_coverage": 1.0,
+    "correct_non_null_fields": 400,
+    "conditional_on_provider_success": {
+      "header_field_accuracy": 1.0,
+      "header_exact_match_rate": 1.0,
+      "full_invoice_exact_match_rate": 1.0,
+      "full_invoice_documents_matched": 50,
+      "full_invoice_documents_total": 50,
+      "full_invoice_label_coverage": 1.0,
+      "line_items": {
+        "status": "measured",
+        "alignment_version": "reference_description_uom_multiset_v2",
+        "ambiguous_groups": 0,
+        "documents_labeled": 50,
+        "documents_unlabeled": 0,
+        "invalid_or_missing_output_documents": 0,
+        "expected_lines": 50,
+        "predicted_lines": 50,
+        "exact_lines": 50,
+        "missing_lines": 0,
+        "extra_lines": 0,
+        "fields_total": 250,
+        "fields_matched": 250,
+        "field_accuracy": 1.0,
+        "by_field": {
+          "description": 1.0,
+          "uom": 1.0,
+          "quantity": 1.0,
+          "unit_price": 1.0,
+          "amount": 1.0,
+          "tax": null,
+          "discount": null,
+          "purchase_order": null,
+          "purchase_receipt": null,
+          "item_reference": null
+        },
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "documents_count": 50,
+      "validation_documents_total": 50,
+      "field_accuracy": 1.0,
+      "document_exact_match_rate": 1.0,
+      "validation_code_exact_match_rate": 1.0,
+      "approval_blocker_accuracy": 1.0,
+      "confidence_metadata_coverage": 1.0,
+      "source_evidence_coverage": 1.0
+    },
+    "latency_ms": {
+      "average": 6567.3,
+      "minimum": 4826.89,
+      "maximum": 41964.05
+    },
+    "duplicate_detection": {
+      "input": "actual_match_detector_issue_pairs",
+      "positive_pairs_expected": 10,
+      "true_positive_pairs": 10,
+      "false_positive_pairs": 0,
+      "false_negative_pairs": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    }
+  },
+  "failure_taxonomy": {
+    "missing_source_evidence": 0
+  },
+  "limitations": [
+    "Dataset class: Phase 6 recovery AI-assisted synthetic invoices; results apply only to this manifest.",
+    "Results measure this fixed manifest and do not establish global accuracy.",
+    "Legacy field_accuracy and document_exact_match_rate measure headers only.",
+    "Full-invoice accuracy is measured only on records with complete header, line and provenance labels.",
+    "Source-evidence coverage requires both a page reference and an exact source excerpt.",
+    "Duplicate recall is not measured when the split contains no labeled duplicate pair.",
+    "Provider latency depends on the local network and hosted API conditions during the run.",
+    "Local synchronous service harness with synthetic approval identities; no human correction.",
+    "API, worker queue and queue-wait latency are not measured by this synchronous harness.",
+    "Billed dollar cost is unverified; provider tokens/pages are retained in the private stage records."
+  ],
+  "pipeline": {
+    "scheduled": 50,
+    "observed": 50,
+    "strict_correct_terminal": 50,
+    "eligible_scheduled": 20,
+    "correct_hold_decisions": 30,
+    "completed_exception_dispositions": 30,
+    "false_holds": {
+      "numerator": 0,
+      "denominator": 20
+    },
+    "unsafe_ready": {
+      "numerator": 0,
+      "denominator": 30
+    },
+    "unsafe_submit": 0,
+    "category_matrices": {
+      "quantity": {
+        "TP": 30,
+        "FN": 0,
+        "FP": 0,
+        "TN": 20
+      },
+      "price": {
+        "TP": 10,
+        "FN": 0,
+        "FP": 0,
+        "TN": 40
+      },
+      "receipt": {
+        "TP": 20,
+        "FN": 0,
+        "FP": 0,
+        "TN": 30
+      },
+      "duplicate": {
+        "TP": 10,
+        "FN": 0,
+        "FP": 0,
+        "TN": 40
+      }
+    },
+    "submitted_readbacks": 20,
+    "independently_correct_postings": 20,
+    "posting_correctness": 1.0,
+    "eligible_posting_completion": {
+      "numerator": 20,
+      "denominator": 20
+    },
+    "restart_replay_same_target": 20,
+    "duplicate_erp_effects": 0
+  },
+  "pipeline_latency_ms": {
+    "match": {
+      "N": 50,
+      "p50_ms": 19.53,
+      "p90_ms": 28.86,
+      "p95_ms": 35.39
+    },
+    "erp": {
+      "N": 20,
+      "p50_ms": 548.87,
+      "p90_ms": 638.49,
+      "p95_ms": 714.7
+    },
+    "pipeline_total": {
+      "N": 50,
+      "p50_ms": 6008.62,
+      "p90_ms": 7107.99,
+      "p95_ms": 7326.6
+    }
+  },
+  "stage_latency_ms": {
+    "ocr": {
+      "N": 50,
+      "p50_ms": 2565.75,
+      "p90_ms": 3186.29,
+      "p95_ms": 3486.75
+    },
+    "extraction": {
+      "N": 50,
+      "p50_ms": 3027.52,
+      "p90_ms": 4139.73,
+      "p95_ms": 4233.64
+    },
+    "validation": {
+      "N": 50,
+      "p50_ms": 0.08,
+      "p90_ms": 0.13,
+      "p95_ms": 0.21
+    },
+    "total": {
+      "N": 50,
+      "p50_ms": 5744.33,
+      "p90_ms": 6674.89,
+      "p95_ms": 7234.92
+    }
+  },
+  "provider_usage": {
+    "ocr_attempts": 50,
+    "ocr_rate_limit_responses": 0,
+    "ocr_retry_wait_seconds": 0,
+    "extractor_attempts": 50,
+    "ocr_pages": 50,
+    "extractor_input_tokens": 38655,
+    "extractor_output_tokens": 26034,
+    "billed_cost_usd": null
+  },
+  "manifest_sha256": "4fb4688dba90edebcca5d7c3145b8303101658f8219048b5d1fa57a777de61b4",
+  "run_status": "completed",
+  "started_at": "2026-10-16T14:55:13.730573+00:00",
+  "completed_at": "2026-10-16T15:05:01.595184+00:00",
+  "freeze": {
+    "commit": "15366bc523f6f16671f2d6c6524a58586a2d27f5",
+    "sealed_at": "2026-10-16T14:55:11.794813+00:00",
+    "model_version": "ocr_space:engine3;llm_json:gpt-5.4-mini-2026-03-17",
+    "prompt_sha256": "2816fb97d7b25ca9a73e732e8a187470464eeaeb698b1cd955348134ff6ac4cd",
+    "config_sha256": "07b734a78f99f6d0555fe65209c693f88eb6633f8e9668d538df1147d0188dde",
+    "evaluator_version": "2.1",
+    "oracle_sha256": "71c4d6e148be95610c1f15c70752935708569d523b06ae2bb1f4a9a25f051a9c"
+  },
+  "code_snapshot_sha256": "581ce4a1ebc2e2a3fb1aa8146653fcdf1a1e9b4ee08443fcf8b61ece372ee578",
+  "contract_version": "2.0.0"
+}

@@ -41,7 +41,7 @@ class ExceptionService:
             identifier = case_id(match["document_id"], issue)
             current[identifier] = issue
             prior = existing.get(identifier)
-            retain = prior and prior["basis_hash"] == match["basis_hash"] and prior["state"] in {"needs_info", "waived"}
+            retain = prior and prior["basis_hash"] == match["basis_hash"] and prior["state"] in {"needs_info", "waived", "rejected"}
             self.repo.append(workspace, "ap_exception", identifier, {
                 "id": identifier, "document_id": match["document_id"], "company": match["company"],
                 "code": issue["code"], "line_id": issue.get("line_id"), "issue": issue,
@@ -70,7 +70,7 @@ class ExceptionService:
             self.evidence.document(document_id, context)
         priority = {"duplicate_confirmed": 0, "evidence_blocker": 1, "quantity_exceeds_available": 2,
                     "price_variance": 3, "duplicate_candidate": 4}
-        return sorted(rows, key=lambda r: (r["state"] in {"resolved", "superseded", "waived"},
+        return sorted(rows, key=lambda r: (r["state"] in {"resolved", "superseded", "waived", "rejected"},
                                            priority.get(r["code"], 5), r["created_at"], r["id"]))
 
     def _waiver_allowed(self, case, policy):
@@ -92,6 +92,8 @@ class ExceptionService:
             self.evidence.document(case["document_id"], context)
             if case["version"] != update.expected_version or case["match_id"] != update.expected_match_id:
                 raise EvidenceConflict("Exception changed; reload before decision")
+            if case["state"] == "rejected" and update.state != "rejected":
+                raise EvidenceConflict("Final rejection requires a new evidence revision and reassessment")
             if case["state"] == "superseded" and update.state != "resolved":
                 raise EvidenceConflict("Superseded issue cannot be reopened without a new match")
             match = self.repo.latest_for_document(context.workspace_id, "match", case["document_id"])
@@ -109,15 +111,34 @@ class ExceptionService:
                 require_any_role(context, {"admin"})
                 if not present or not self._waiver_allowed(case, policy):
                     raise EvidenceConflict("This issue cannot be waived by current policy")
+            elif update.state == "rejected":
+                require_any_role(context, {"admin", "ap_approver"})
+                if not present:
+                    raise EvidenceConflict("Only a current blocking issue may receive final rejection")
+                if self.repo.latest(context.workspace_id, "match_approval", match["id"]):
+                    raise EvidenceConflict("Approved match requires reconciliation before rejection")
+                if any(row["document_id"] == case["document_id"] and row["state"] != "failed"
+                       for row in self.repo.all_latest(context.workspace_id, "posting_operation")):
+                    raise EvidenceConflict("ERP operation requires reconciliation before rejection")
             elif update.state in {"open", "needs_info", "resolved"}:
                 require_any_role(context, {"admin", "reviewer"})
             return self.repo.append(context.workspace_id, "ap_exception", identifier, {
                 **case, "state": update.state, "owner": update.owner, "reason": update.reason,
-                "evidence_refs": update.evidence_refs, "authorizer": context.actor if update.state == "waived" else None,
+                "evidence_refs": update.evidence_refs, "authorizer": context.actor if update.state in {"waived", "rejected"} else None,
                 "waiver_policy_version": policy["version"] if update.state == "waived" and policy else None,
                 "match_id": match["id"], "basis_hash": match["basis_hash"],
                 "at": now().isoformat(), "actor": context.actor,
             })
+
+    def final_disposition(self, match, context):
+        if not match["issues"]:
+            return None
+        for issue in match["issues"]:
+            case = self.repo.latest(context.workspace_id, "ap_exception", case_id(match["document_id"], issue))
+            if (not case or case["state"] != "rejected" or not case.get("authorizer")
+                    or not case.get("evidence_refs") or case["basis_hash"] != match["basis_hash"]):
+                return None
+        return "rejected"
 
     def all_issues_cleared(self, match, context):
         if not match["issues"]:

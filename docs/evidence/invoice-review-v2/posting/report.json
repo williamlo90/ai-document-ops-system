@@ -1,0 +1,99 @@
+{
+  "contract_version": "2.0.0",
+  "manifest_sha256": "4fb4688dba90edebcca5d7c3145b8303101658f8219048b5d1fa57a777de61b4",
+  "completed_at": "2026-10-16T15:05:01.595184+00:00",
+  "scope": "local ERPNext sandbox; one-line USD invoices with zero tax",
+  "quality_cohort": {
+    "scheduled": 50,
+    "observed": 50,
+    "strict_correct_terminal": 50,
+    "eligible_scheduled": 20,
+    "correct_hold_decisions": 30,
+    "completed_exception_dispositions": 30,
+    "false_holds": {
+      "numerator": 0,
+      "denominator": 20
+    },
+    "unsafe_ready": {
+      "numerator": 0,
+      "denominator": 30
+    },
+    "unsafe_submit": 0,
+    "category_matrices": {
+      "quantity": {
+        "TP": 30,
+        "FN": 0,
+        "FP": 0,
+        "TN": 20
+      },
+      "price": {
+        "TP": 10,
+        "FN": 0,
+        "FP": 0,
+        "TN": 40
+      },
+      "receipt": {
+        "TP": 20,
+        "FN": 0,
+        "FP": 0,
+        "TN": 30
+      },
+      "duplicate": {
+        "TP": 10,
+        "FN": 0,
+        "FP": 0,
+        "TN": 40
+      }
+    },
+    "submitted_readbacks": 20,
+    "independently_correct_postings": 20,
+    "posting_correctness": 1.0,
+    "eligible_posting_completion": {
+      "numerator": 20,
+      "denominator": 20
+    },
+    "restart_replay_same_target": 20,
+    "duplicate_erp_effects": 0
+  },
+  "development_revisions": [
+    {
+      "revision_id": "supplier-alias-2026-10-10",
+      "verification": {
+        "status": "submit_confirmed",
+        "target": "ACC-PINV-2026-00082",
+        "error_code": null,
+        "error_detail": null,
+        "posted_verified": true,
+        "oracle_mismatches": [],
+        "independently_verified": true,
+        "erp_target_count": 1
+      }
+    },
+    {
+      "revision_id": "price-tolerance-2026-10-11",
+      "verification": {
+        "status": "submit_confirmed",
+        "target": "ACC-PINV-2026-00083",
+        "error_code": null,
+        "error_detail": null,
+        "posted_verified": true,
+        "oracle_mismatches": [],
+        "independently_verified": true,
+        "erp_target_count": 1
+      }
+    },
+    {
+      "revision_id": "receipt-correction-2026-10-12",
+      "verification": {
+        "status": "submit_confirmed",
+        "target": "ACC-PINV-2026-00084",
+        "error_code": null,
+        "error_detail": null,
+        "posted_verified": true,
+        "oracle_mismatches": [],
+        "independently_verified": true,
+        "erp_target_count": 1
+      }
+    }
+  ]
+}

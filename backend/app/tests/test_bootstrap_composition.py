@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
@@ -52,6 +53,16 @@ class BootstrapCompositionTests(unittest.TestCase):
 
 
 class ProcessingRetryPolicyTests(unittest.TestCase):
+    def test_upstream_cooldown_is_not_truncated_to_local_backoff_cap(self):
+        policy = ProcessingRetryPolicy(max_seconds=300)
+        job = ProcessingJob(document_id=uuid4())
+        job.start()
+        error = ProviderError("quota", "ocr", retryable=True, http_status=429, retry_after_seconds=1766)
+        before = datetime.now(UTC)
+        scheduled = policy.next_attempt_at(job, error)
+        self.assertGreaterEqual((scheduled - before).total_seconds(), 1766)
+        self.assertLess((scheduled - before).total_seconds(), 1768)
+
     def test_retryable_provider_errors_respect_attempt_limit(self) -> None:
         policy = ProcessingRetryPolicy(max_attempts=2)
         error = ProviderError("temporary outage", "ocr", retryable=True)

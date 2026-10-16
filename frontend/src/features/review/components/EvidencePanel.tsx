@@ -43,7 +43,11 @@ type Snapshot = {
   inputs: { sources: { po: Source[]; receipt: Source[] } }
 }
 type Status = { snapshot: Snapshot; status: string; posting_ready: boolean }
-type MatchIssue = { code: string; line_id: string | null; facts: Record<string, string | number | boolean> }
+type MatchIssue = {
+  code: string
+  line_id: string | null
+  facts: Record<string, string | number | boolean>
+}
 type MatchLine = {
   line_id: string
   source_ref: string
@@ -79,8 +83,10 @@ type Response = {
 }
 
 function nextAction(code: string) {
-  if (code === 'duplicate_confirmed') return 'Compare both source invoices and correct the duplicate record.'
-  if (code === 'duplicate_candidate') return 'Compare invoice number, supplier, amount, date and PO before deciding.'
+  if (code === 'duplicate_confirmed')
+    return 'Compare both source invoices and correct the duplicate record.'
+  if (code === 'duplicate_candidate')
+    return 'Compare invoice number, supplier, amount, date and PO before deciding.'
   if (code === 'price_variance') return 'Check the invoice price or approved PO price.'
   if (code === 'quantity_exceeds_available' || code === 'receipt_shortfall')
     return 'Check accepted receipts and earlier billings; reduce or defer the invoice quantity.'
@@ -213,7 +219,12 @@ export function EvidencePanel({
   const status = data.snapshot_status
   const match = data.match_status
   const error =
-    capture.error || attest.error || prepare.error || approve.error || assessMatch.error || approveMatch.error
+    capture.error ||
+    attest.error ||
+    prepare.error ||
+    approve.error ||
+    assessMatch.error ||
+    approveMatch.error
   return (
     <Panel>
       <h2>Source evidence and purchasing</h2>
@@ -408,10 +419,7 @@ export function EvidencePanel({
               Approve this evidence snapshot
             </Button>
           )}
-          <Button
-            disabled={assessMatch.isPending}
-            onClick={() => assessMatch.mutate()}
-          >
+          <Button disabled={assessMatch.isPending} onClick={() => assessMatch.mutate()}>
             Assess three-way match
           </Button>
         </section>
@@ -437,10 +445,20 @@ export function EvidencePanel({
               <tbody>
                 {match.match.lines.map((line) => (
                   <tr key={line.line_id}>
-                    <td>{fieldLabel(`lines.${line.line_id}.description`, current?.line_ids || [])} / {line.source_ref}</td>
-                    <td>{line.expected_price} / {line.actual_price} / {line.price_delta} (limit {line.price_threshold})</td>
-                    <td>{line.ordered} / {line.received}</td>
-                    <td>{line.billed} / {line.reserved} / {line.available}</td>
+                    <td>
+                      {fieldLabel(`lines.${line.line_id}.description`, current?.line_ids || [])} /{' '}
+                      {line.source_ref}
+                    </td>
+                    <td>
+                      {line.expected_price} / {line.actual_price} / {line.price_delta} (limit{' '}
+                      {line.price_threshold})
+                    </td>
+                    <td>
+                      {line.ordered} / {line.received}
+                    </td>
+                    <td>
+                      {line.billed} / {line.reserved} / {line.available}
+                    </td>
                     <td>{line.invoice_quantity}</td>
                   </tr>
                 ))}
@@ -450,13 +468,27 @@ export function EvidencePanel({
           {match.match.issues.map((issue, i) => (
             <article key={`${issue.code}-${issue.line_id || 'invoice'}-${i}`}>
               <strong>{issue.code.replaceAll('_', ' ')}</strong>
-              {issue.line_id && <span> · {fieldLabel(`lines.${issue.line_id}.description`, current?.line_ids || [])}</span>}
-              <p>{Object.entries(issue.facts).map(([k, v]) => `${k}: ${v}`).join(' · ')}</p>
+              {issue.line_id && (
+                <span>
+                  {' '}
+                  · {fieldLabel(`lines.${issue.line_id}.description`, current?.line_ids || [])}
+                </span>
+              )}
+              <p>
+                {Object.entries(issue.facts)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(' · ')}
+              </p>
               <p>Next: {nextAction(issue.code)}</p>
             </article>
           ))}
-          <ApExceptionDecisions documentId={documentId} canReview={data.capabilities.review}
-            isAdmin={data.capabilities.admin} matchId={match.match.id} />
+          <ApExceptionDecisions
+            documentId={documentId}
+            canReview={data.capabilities.review}
+            canReject={data.capabilities.approve}
+            isAdmin={data.capabilities.admin}
+            matchId={match.match.id}
+          />
           {data.capabilities.approve && (
             <Button
               disabled={approveMatch.isPending || match.status !== 'ready_for_approval'}
@@ -466,9 +498,13 @@ export function EvidencePanel({
             </Button>
           )}
           {match.status === 'stale' && <p>Source or policy changed. Run a new match assessment.</p>}
-          <PostingPanel matchId={match.match.id} basisHash={match.match.basis_hash}
-            canApprove={data.capabilities.approve} isAdmin={data.capabilities.admin}
-            lineIds={current?.line_ids ?? []} />
+          <PostingPanel
+            matchId={match.match.id}
+            basisHash={match.match.basis_hash}
+            canApprove={data.capabilities.approve}
+            isAdmin={data.capabilities.admin}
+            lineIds={current?.line_ids ?? []}
+          />
         </section>
       )}
       {error && <p role="alert">{error.message}</p>}

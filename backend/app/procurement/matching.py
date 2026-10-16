@@ -270,8 +270,10 @@ class MatchService:
         except (EvidenceConflict, NotFoundError):
             stale = True
         from app.procurement.exceptions import ExceptionService
-        cleared = ExceptionService(self.evidence).all_issues_cleared(record, context)
-        decision = "ready_for_approval" if cleared else record["recommendation"]
+        exceptions = ExceptionService(self.evidence)
+        cleared = exceptions.all_issues_cleared(record, context)
+        disposition = exceptions.final_disposition(record, context)
+        decision = disposition or ("ready_for_approval" if cleared else record["recommendation"])
         return {"match": record, "approval": approval,
                 "status": "released" if approval and not active_own else ("stale" if stale else ("approved" if approval else decision)),
                 "posting_ready": False}

@@ -105,6 +105,8 @@ def expected_invoice(snapshot, match, profile, receipt_allocations):
                 "conversion_rate": str(rate), "credit_to": payable, "items": rows,
                 "subtotal": str(subtotal), "tax": str(tax), "discount": str(discount), "grand_total": str(total),
                 "tax_account": rules["tax_accounts"].get(currency)}
+    if fields.get("due_date", {}).get("effective"):
+        expected["due_date"] = value(fields, "due_date")
     return expected
 
 
@@ -118,6 +120,8 @@ def draft_request(expected, *, operation_key, document_id, payload_hash):
                     "custom_invoice_review_delivery_key": operation_key,
                     "custom_invoice_review_document_id": document_id,
                     "custom_invoice_review_payload_hash": payload_hash})
+    if expected.get("due_date"):
+        request["due_date"] = expected["due_date"]
     if money(expected["tax"]):
         request["taxes"] = [{"charge_type": "Actual", "account_head": expected["tax_account"],
                              "tax_amount": expected["tax"], "description": "Reviewed invoice tax"}]
@@ -133,6 +137,8 @@ def verify_document(actual, expected, *, docstatus, operation_key, document_id, 
         raise EvidenceConflict("ERP Purchase Invoice has the wrong docstatus")
     required = {key: expected[key] for key in ("doctype", "company", "supplier", "posting_date", "bill_date",
                                                 "bill_no", "currency", "credit_to")}
+    if expected.get("due_date"):
+        required["due_date"] = expected["due_date"]
     required.update({"custom_invoice_review_delivery_key": operation_key,
                      "custom_invoice_review_document_id": document_id,
                      "custom_invoice_review_payload_hash": payload_hash})

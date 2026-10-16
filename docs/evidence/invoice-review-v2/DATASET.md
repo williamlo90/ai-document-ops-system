@@ -1,5 +1,8 @@
 # Dataset protocol 2.0.0
 
+Measurement protocol is unchanged. Under contract 2.1.0, the separate operator
+study is deferred and optional; its untouched inputs do not block Phase 6.
+
 This is a planned manifest, not a populated or sealed dataset. No final holdout
 documents or answers are opened in Phase 0.
 

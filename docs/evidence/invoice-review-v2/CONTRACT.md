@@ -1,9 +1,25 @@
 # Invoice Review V2 — outcome and measurement contract
 
-Contract version: **2.0.0**, frozen for development on **2026-10-13**.
-This specifies future work, not achieved product results. Baseline: `83ffd12`.
-Any metric, threshold, scope or dataset change requires a new contract version,
-reason, and a new freeze before inspecting final evaluation outputs.
+Contract version: **2.1.0**, effective **2026-10-16**. Baseline: `83ffd12`.
+Measurement definitions and targets remain **2.0.0**, frozen on **2026-10-13**.
+Measured reports retain their original contract version, freeze and source hashes.
+Changes to metrics, thresholds or evaluation datasets require a new measurement
+version and freeze before inspecting final outputs.
+
+## Phase 6 completion
+
+Phase 6 completes when the frozen technical evaluation passes all extraction,
+validation, discrepancy, duplicate, safe-posting, completion, regression and
+restart gates, with independent ERP invoice/ledger evidence and runtime samples.
+The acceptance record is [phase6-validation.json](phase6-validation.json); the
+original measurement check is [technical-validation.json](technical-validation.json).
+
+The manual-versus-assisted operator study is **optional and deferred**. Its absence
+does not block the Phase 6 checkpoint or Phase 7 release validation. Prepared study
+inputs and tooling remain available for a later study. No human time saving,
+productivity improvement or manual-versus-assisted advantage is claimed without
+that study. Technical results describe their controlled synthetic sandbox scope;
+production readiness remains subject to separate release validation.
 
 ## Scope
 
@@ -106,7 +122,7 @@ Posting correctness does not exclude read-back mismatches from its denominator.
 Unknown/unreadable submissions are reported as unverifiable and fail completion;
 also publish all attempted/submitted/unverified counts to expose selection effects.
 
-Time-study cohort is separate from quality holdout. Report original and final
+If the optional operator study is performed, its cohort is separate from quality holdout. Report original and final
 whole-invoice correctness on that same cohort; a combined CV time/quality bullet
 uses final same-cohort correctness and explicitly says it is after review. Keep
 original extraction correctness visible separately. Report all scheduled pairs,

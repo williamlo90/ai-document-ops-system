@@ -8,13 +8,43 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.core.settings import Settings
+from app.extraction.schemas import InvoiceData
 from app.providers.contracts import DocumentSource, ParsedDocument, ProviderError
 from app.providers.factory import build_extractor_provider, build_parser_provider
 from app.providers.llm_json import LlmJsonInvoiceExtractor, _post_json as llm_post_json
+from app.providers.llm_json import _ground_vendor
 from app.providers.mistral import MistralOcrParserProvider, _post_json as mistral_post_json
 
 
 class ProviderFactoryTests(unittest.TestCase):
+    def test_unlabelled_business_masthead_preserves_full_printed_name(self) -> None:
+        text = ("QH-REV Cedar Supply 01\tINVOICE\nINVOICE NO.\tINV-19\n"
+                "INVOICE DATE\t2026-10-10\nCurrency\tUSD\n")
+        self.assertEqual(_ground_vendor(InvoiceData(vendor_name="Cedar Supply 01"), text).vendor_name,
+                         "QH-REV Cedar Supply 01")
+
+    def test_unique_business_masthead_can_ground_missing_model_vendor(self) -> None:
+        text = "Harbor Precision Components\nINVOICE\nInvoice date 2026-10-10\nInvoice number INV-20"
+        self.assertEqual(_ground_vendor(InvoiceData(), text).vendor_name, "Harbor Precision Components")
+
+    def test_ambiguous_business_mastheads_do_not_choose_a_seller(self) -> None:
+        text = "Harbor Components\nCedar Supply\nINVOICE\nInvoice date 2026-10-10\nInvoice number INV-21"
+        self.assertIsNone(_ground_vendor(InvoiceData(), text).vendor_name)
+
+    def test_recipient_company_and_demo_header_are_not_masthead_fallbacks(self) -> None:
+        for text in (
+            "INVOICE\nBill to\nHarbor Components\nInvoice date 2026-10-10\nInvoice number INV-22",
+            "Demo Supply Platform\nINVOICE\nInvoice date 2026-10-10\nInvoice number INV-23",
+        ):
+            self.assertIsNone(_ground_vendor(InvoiceData(), text).vendor_name)
+
+    def test_columnar_supplier_fact_block_survives_ocr_table_reflow(self) -> None:
+        text = ("# INVOICE\nSupplier\nInvoice no.\nInvoice date\nDue date\nCurrency\n"
+                "| Description | Qty |\n| Kit | 3 |\n"
+                "Harbor Precision Components\nINV-24\n2026-10-10\n2026-11-10\nUSD\nSubtotal 100.00")
+        self.assertEqual(_ground_vendor(InvoiceData(), text).vendor_name, "Harbor Precision Components")
+        self.assertIsNone(_ground_vendor(InvoiceData(), text.replace("2026-10-10", "Unrelated heading")).vendor_name)
+
     def settings(self, **overrides) -> Settings:
         values = {
             "app_env": "test",
@@ -184,6 +214,59 @@ class MistralOcrParserProviderTests(unittest.TestCase):
 
 
 class LlmJsonInvoiceExtractorTests(unittest.TestCase):
+    def test_reflowed_metadata_totals_and_single_line_have_independent_source_anchors(self):
+        data = {"vendor_name": "Development Harbor Components", "invoice_number": "DEV-21",
+                "invoice_date": "2026-10-01", "due_date": "2026-10-31", "currency": None,
+                "subtotal": None, "tax": None, "total": "75.00", "line_items": [
+                    {"description": "Development part", "uom": "EA", "quantity": "3",
+                     "unit_price": "25.00", "amount": "75.00"}]}
+        text = ("Supplier: Development Harbor Components\nInvoice no.\nInvoice date\nDue date\nCurrency\n"
+                "ITEM\nDevelopment part\nSubtotal\nTax\nTotal due\nTraining fixture\n"
+                "DEV-21\n2026-10-01\n2026-10-31\nUSD\nUNIT\nQTY\nRATE\nAMOUNT\nEA\n3\n"
+                "25.00\n75.00\n75.00\n0.00\n75.00")
+        extractor = LlmJsonInvoiceExtractor("secret", "https://example.test/extract", "invoice-model",
+                                           post_json=lambda *_: {"data": data})
+        result = extractor.extract_invoice(ParsedDocument(text=text))
+        self.assertEqual(str(result.extraction.data.tax), "0.00")
+        self.assertEqual(str(result.extraction.data.subtotal), "75.00")
+        self.assertEqual(result.extraction.data.currency, "USD")
+        evidence = {item.field_name: item for item in result.extraction.confidence}
+        self.assertEqual(len(evidence), 13)
+        for anchor in evidence.values():
+            self.assertEqual(anchor.source_page, 1)
+            self.assertIn(anchor.source_text, text)
+
+    def test_columnar_totals_do_not_infer_an_unprinted_tax_or_choose_ambiguous_blocks(self):
+        from app.providers.llm_json import _columnar_money, _columnar_facts
+        self.assertEqual(_columnar_money(ParsedDocument("Subtotal\nTax\nTotal due\n75.00\n75.00")), {})
+        self.assertEqual(_columnar_money(ParsedDocument("Subtotal\nTax\nTotal due\n"
+            "75.00\n0.00\n75.00\nOther block\n75.00\n0.00\n75.00")), {})
+        self.assertEqual(_columnar_facts(ParsedDocument("Invoice no.\nInvoice date\nDue date\nCurrency\n"
+            "DEV-1\n2026-10-01\n2026-10-31\nUSD\nDEV-2\n2026-10-02\n2026-11-01\nUSD")), [])
+
+    def test_stacked_money_labels_require_adjacent_printed_values(self):
+        from decimal import Decimal
+        from app.providers.llm_json import _find_labeled_money
+        from app.providers.contracts import ParsedDocument
+        source = ParsedDocument("Subtotal\n222.00\nTax\n0.00\nTotal due\n**222.00**")
+        self.assertEqual(_find_labeled_money(source, "tax").amount, Decimal("0.00"))
+        self.assertEqual(_find_labeled_money(source, "subtotal").amount, Decimal("222.00"))
+        self.assertEqual(_find_labeled_money(source, "total").amount, Decimal("222.00"))
+        self.assertEqual(_find_labeled_money(ParsedDocument("GST (9%)\nUSD 18.00"), "tax").amount, Decimal("18.00"))
+        for text in ("Tax\nTotal 222.00", "Tax (9%)\nNo printed tax amount", "Tax ID\n123456", "Tax\n3 x 74.00"):
+            with self.subTest(text=text):
+                self.assertIsNone(_find_labeled_money(ParsedDocument(text), "tax"))
+
+    def test_markdown_seller_labels_preserve_full_identity_and_reject_buyer_context(self):
+        from app.providers.llm_json import _ground_vendor, _has_vendor_context
+        from app.extraction.schemas import InvoiceData
+        for text in ("**Supplier:** Harbor Precision LLC", "**Supplier: Harbor Precision LLC**", "Supplier: Harbor Precision LLC"):
+            with self.subTest(text=text):
+                self.assertTrue(_has_vendor_context(text, "Harbor Precision LLC"))
+                self.assertEqual(_ground_vendor(InvoiceData(), text).vendor_name, "Harbor Precision LLC")
+        self.assertIsNone(_ground_vendor(InvoiceData(), "Bill to\n**Supplier:** Harbor Precision LLC").vendor_name)
+        self.assertIsNone(_ground_vendor(InvoiceData(), "Supplier: Harbor Precision LLC\nSeller: Other Supply Inc").vendor_name)
+
     def test_posts_ocr_text_and_maps_invoice_data(self) -> None:
         captured = {}
 
@@ -269,8 +352,9 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         self.assertEqual(result.extraction.data.invoice_number, "INV-001")
         self.assertEqual(str(result.extraction.data.total), "110.00")
         self.assertEqual(len(result.extraction.data.line_items), 1)
-        self.assertEqual(len(result.extraction.confidence), 1)
-        self.assertEqual(result.extraction.confidence[0].source_text, "total 110.00")
+        evidence = {item.field_name: item for item in result.extraction.confidence}
+        self.assertEqual(evidence["total"].source_text, "total 110.00")
+        self.assertEqual(evidence["vendor_name"].source_text, "Acme Logistics")
 
     def test_accepts_chat_completion_json_content(self) -> None:
         extractor = LlmJsonInvoiceExtractor(
@@ -383,7 +467,7 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         self.assertIsNone(result.extraction.data.due_date)
         self.assertIsNone(result.extraction.data.tax)
         self.assertEqual(result.extraction.data.line_items, ())
-        self.assertEqual(result.extraction.confidence[0].field_name, "total")
+        self.assertIn("total", {item.field_name for item in result.extraction.confidence})
 
     def test_invalid_json_mapping_raises_provider_error(self) -> None:
         extractor = LlmJsonInvoiceExtractor(
@@ -713,6 +797,57 @@ class LlmJsonInvoiceExtractorTests(unittest.TestCase):
         )
         self.assertEqual(total_evidence.source_text, "| **Total** | **110.00** |")
         self.assertEqual(currency_evidence.source_text, "| Currency | USD |")
+
+    def test_tab_separated_currency_and_line_values_receive_grounded_anchors(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret", endpoint="https://example.test/extract", model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {"data": {
+                "vendor_name": "Cedar Supply", "invoice_number": "INV-17",
+                "invoice_date": "2026-10-10", "subtotal": "100.00", "tax": "0.00",
+                "total": "100.00", "currency": "USD",
+                "line_items": [{"description": "Part Alpha", "uom": "EA", "quantity": "2",
+                                "unit_price": "50.00", "amount": "100.00"}],
+            }},
+        )
+        result = extractor.extract_invoice(ParsedDocument(text=(
+            "Supplier\tCedar Supply\nInvoice no.\tINV-17\nInvoice date\t2026-10-10\n"
+            "Currency\tUSD\nPart Alpha\tEA\t2\t50.00\t100.00\n"
+            "Subtotal\t100.00\nTax\t0.00\nTotal\t100.00\n")))
+        evidence = {item.field_name: item for item in result.extraction.confidence}
+        self.assertEqual(evidence["currency"].source_text, "Currency\tUSD")
+        self.assertEqual(evidence["line_items[0].quantity"].source_text, "2")
+        self.assertEqual(evidence["line_items[0].unit_price"].source_text, "50.00")
+        self.assertEqual(evidence["line_items[0].amount"].source_text, "100.00")
+
+    def test_currency_in_later_markdown_metadata_cell_gets_source_anchor(self):
+        from app.providers.llm_json import _find_labeled_currency
+        parsed = ParsedDocument(text="| Due date: 2026-11-01 | **Currency: USD** |")
+        evidence = _find_labeled_currency(parsed)
+        self.assertEqual(evidence.currency, "USD")
+        self.assertEqual(evidence.source_text, parsed.text)
+        from app.providers.llm_json import _header_anchor
+        self.assertEqual(_header_anchor(parsed, "due_date", "2026-11-01", []), (1, "2026-11-01"))
+        self.assertEqual(_header_anchor(parsed, "currency", "USD", []), (1, "USD"))
+        self.assertIsNone(_find_labeled_currency(ParsedDocument(text="| Description: USD credit | Qty: 2 |")))
+        self.assertIsNone(_find_labeled_currency(ParsedDocument(text="| Currency: USD | Currency: EUR |")))
+
+    def test_line_anchor_is_not_inferred_from_unrelated_ocr_row(self) -> None:
+        extractor = LlmJsonInvoiceExtractor(
+            api_key="secret", endpoint="https://example.test/extract", model="invoice-model",
+            post_json=lambda _url, _payload, _headers: {"data": {
+                "vendor_name": "Cedar Supply", "invoice_number": "INV-18",
+                "invoice_date": "2026-10-10", "subtotal": "100.00", "tax": "0.00",
+                "total": "100.00", "currency": "USD",
+                "line_items": [{"description": "Part Alpha", "uom": "EA", "quantity": "2",
+                                "unit_price": "50.00", "amount": "100.00"}],
+            }},
+        )
+        result = extractor.extract_invoice(ParsedDocument(text=(
+            "Supplier\tCedar Supply\nInvoice no.\tINV-18\nInvoice date\t2026-10-10\n"
+            "Currency\tUSD\nPart Alpha\tEA\t2\t50.00\n"
+            "Subtotal\t100.00\nTax\t0.00\nTotal\t100.00\n")))
+        evidence = {item.field_name: item for item in result.extraction.confidence}
+        self.assertNotIn("line_items[0].amount", evidence)
 
     def test_inferred_tax_is_removed_without_labeled_tax(self) -> None:
         extractor = LlmJsonInvoiceExtractor(

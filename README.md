@@ -65,69 +65,48 @@ providers make the full workflow available without paid credentials. A temporary
 Azure profile has also been validated with Container Apps, PostgreSQL, private Blob Storage, Service
 Bus, Functions/Event Grid, Key Vault, and Managed Identity, then fully torn down. See the
 [controlled Azure live validation](docs/azure-live-validation.md). The tested real-provider
-configuration uses Mistral OCR and an OpenAI structured extraction model.
+configuration uses OCR.space Engine 3 with API-key failover and an OpenAI structured
+extraction model.
 
 ## Results
 
-- The sealed holdout of 10 licensed synthetic invoices reached **98.75% exact field match
-  (79/80)**. Its aggregate artifact is public; source PDFs, labels, OCR, and per-document
-  predictions remain outside Git, so the result cannot be independently reproduced from this
-  repository alone.
-- The same holdout reached **100% validation-code match** and **100% approval-blocker match**.
-- Across six paired draft-eligible synthetic invoices, median elapsed time from opening the source
-  to a verified ERPNext draft was **153 seconds for direct entry** and **49 seconds through the
-  application**, a **68.0% reduction in elapsed workflow time** for this single-operator sandbox
-  run. Active work and waiting time were not measured separately.
-- In the combined 10-case outcome record, the application produced the expected draft or blocker
-  outcome in **10/10 cases**, compared with **9/10** for direct manual entry. The four blocker
-  observations were retained from the earlier run and excluded from the draft-time median.
-- ERPNext draft delivery is also covered by approval, mapping, idempotency, permission,
-  reconciliation, and retry checks.
-- The recorded clean release passed its backend coverage gate with at least **91.21% line
-  coverage**.
-- A separate clean provider diagnostic matched 160 of 160 fields and all 20 expected validation
-  outcomes. This was a diagnostic on a previously used deterministic synthetic set, not the primary
-  holdout result.
-- Reviewer corrections retain the original extraction, actor, reason, timestamp, and field-level
-  diff.
-- The recorded clean release at commit `8b36ba5` passed 521 backend tests, 23 frontend tests,
-  29 fixture-browser tests, and one browser journey against the local full stack. These are
-  historical release counts, not a count for the current commit.
-- A controlled Azure run successfully migrated PostgreSQL, reached a healthy API revision, and
-  processed a synthetic PDF through Blob Storage and Service Bus to `needs_review` before verified
-  zero-resource teardown.
+The frozen technical evaluation used **50 developer/AI-assisted synthetic invoices**
+across 40 quality-holdout families, with ten duplicate pairs:
 
-One unsupported due date remained in the sealed holdout and is documented in the evaluation
-record. These results describe fixed synthetic datasets and local verification, not production
-accuracy or customer outcomes.
+- **50/50 whole invoices correct**, including required field values and source provenance.
+- **20/20 eligible invoices posted**, with independent submitted invoice and ledger checks.
+- **30/30 non-payable transactions resolved** through authorized exception dispositions.
+- All labeled quantity, price, receipt and duplicate discrepancies detected; no false holds,
+  unsafe submissions or duplicate ERP effects.
+- **20/20 restart replays** returned the same ERP target.
+- Three dated rule/mapping revisions recovered with verified posting and retained all
+  previously correct development cases.
+
+Phase 6 is complete under its technical acceptance contract. Manual-versus-assisted
+operator timing is an optional follow-up; no workflow-time reduction is claimed.
 
 ## Evidence at a glance
 
-| Evidence                                | Direct record                                                                                    |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| External evaluation summary             | [External Invoice Evaluation V2](docs/external-invoice-evaluation-v2.md)                         |
-| Sealed holdout result                   | [Holdout JSON](docs/evidence/external-invoice-v2-holdout-final.json)                             |
-| Clean release checks and counts         | [Release verification JSON](docs/evidence/release-verification.json)                             |
-| ERPNext integration verification        | [Phase 7 verification](docs/erpnext-phase7-verification.md)                                      |
-| ERPNext paired draft timing             | [Timing results](docs/erpnext-paired-draft-timing-results.md)                                    |
-| ERPNext benchmark method                | [Controlled benchmark protocol](docs/erpnext-benchmark-protocol.md)                              |
-| Experiment history and failure analysis | [Evaluation experiment log](docs/evaluation-experiment-log.md)                                   |
-| Retained localized-number failure       | [Failed diagnostic JSON](docs/evidence/current-provider-diagnostic.failed-20260728T080824Z.json) |
-| One-minute evidence path                | [Recruiter evidence pack](docs/recruiter-evidence-pack.md)                                       |
-| Product walkthrough                     | [Captioned demo video](docs/assets/demo/invoice-review-demo.mp4)                                 |
-| ERPNext draft UI walkthrough            | [Demo guide](docs/demo-video.md#erpnext-draft-walkthrough)                                       |
-| Controlled Azure deployment             | [Azure live validation](docs/azure-live-validation.md)                                           |
+| Evidence | Direct record |
+| --- | --- |
+| Evaluation scope and method | [Phase 6](docs/evidence/invoice-review-v2/PHASE-6.md) |
+| Original whole-invoice quality | [Quality report](docs/evidence/invoice-review-v2/quality-holdout/report.json) |
+| Discrepancy detection | [Discrepancy report](docs/evidence/invoice-review-v2/discrepancies/report.json) |
+| ERP posting and restart verification | [Posting report](docs/evidence/invoice-review-v2/posting/report.json) |
+| Rule changes and regression retention | [Replay report](docs/evidence/invoice-review-v2/replay/report.json) |
+| Local runtime samples | [Runtime report](docs/evidence/invoice-review-v2/runtime/report.json) |
+| Completion gates | [Phase 6 acceptance](docs/evidence/invoice-review-v2/phase6-validation.json) |
+| Product walkthrough | [Captioned demo video](docs/assets/demo/invoice-review-demo.mp4) |
 
 ## Current limitations
 
-The evaluation uses small synthetic datasets. The workflow-time comparison covers one operator and
-six known synthetic draft cases. The 10-case outcome record combines those reruns with four
-retained blocker observations; it is not one same-session 20-trial run and does not measure
-production accuracy, multi-user time savings, cost savings, or customer impact. Invoice is the only
-complete document workflow. SQLite, local storage, and seeded roles remain the default local
-evaluation profile. The Azure result is a temporary mock-provider integration validation, not a
-production tenancy, sustained hosting, or customer deployment. Every approval still requires a
-reviewer.
+The technical quality cohort contains controlled, one-line USD invoices with explicit
+zero tax. It does not establish accuracy on arbitrary customer invoices, human time
+savings, production concurrency or production readiness. Docker/release validation
+is the next phase. Invoice is the complete document workflow; SQLite, private local
+storage and seeded roles remain the default evaluation profile. The earlier Azure
+exercise was temporary integration validation and has been torn down. Every approval
+still requires a reviewer.
 
 ## Quick start
 

@@ -1,0 +1,142 @@
+{
+  "contract_version": "2.0.0",
+  "evaluator_version": "2.1",
+  "manifest_sha256": "4fb4688dba90edebcca5d7c3145b8303101658f8219048b5d1fa57a777de61b4",
+  "completed_at": "2026-10-16T15:05:01.595184+00:00",
+  "technical_gates_passed": true,
+  "gates": {
+    "whole_invoice_exact": {
+      "value": 1.0,
+      "target_min": 0.9,
+      "passed": true
+    },
+    "processing_completion": {
+      "value": 1.0,
+      "target_min": 0.95,
+      "passed": true
+    },
+    "validation_completion": {
+      "value": 1.0,
+      "target_min": 0.95,
+      "passed": true
+    },
+    "validation_exact": {
+      "value": 1.0,
+      "target_min": 0.95,
+      "passed": true
+    },
+    "quantity_recall": {
+      "value": 1.0,
+      "target_min": 0.95,
+      "passed": true
+    },
+    "price_recall": {
+      "value": 1.0,
+      "target_min": 0.95,
+      "passed": true
+    },
+    "receipt_recall": {
+      "value": 1.0,
+      "target_min": 0.95,
+      "passed": true
+    },
+    "duplicate_recall": {
+      "value": 1.0,
+      "target_min": 0.95,
+      "passed": true
+    },
+    "duplicate_pair_precision": {
+      "value": 1.0,
+      "target_min": 0.95,
+      "passed": true
+    },
+    "false_holds": {
+      "value": 0.0,
+      "target_max": 0.05,
+      "passed": true
+    },
+    "unsafe_ready": {
+      "value": 0.0,
+      "target_max": 0,
+      "passed": true
+    },
+    "unsafe_submit": {
+      "value": 0,
+      "target_max": 0,
+      "passed": true
+    },
+    "posting_correctness": {
+      "value": 1.0,
+      "target_min": 1,
+      "passed": true
+    },
+    "eligible_posting_completion": {
+      "value": 1.0,
+      "target_min": 0.95,
+      "passed": true
+    },
+    "duplicate_erp_effects": {
+      "value": 0,
+      "target_max": 0,
+      "passed": true
+    },
+    "resolved_end_to_end_completion": {
+      "value": 1.0,
+      "target_min": 0.95,
+      "passed": true
+    },
+    "revision_recovery": {
+      "passed": true
+    },
+    "regression_retention": {
+      "passed": true
+    },
+    "restart_idempotency": {
+      "passed": true
+    }
+  },
+  "human_study": "pending_operator",
+  "phase_complete": false,
+  "written_at": "2026-10-16T15:05:47.124426+00:00",
+  "freeze": {
+    "commit": "15366bc523f6f16671f2d6c6524a58586a2d27f5",
+    "sealed_at": "2026-10-16T14:55:11.794813+00:00",
+    "model_version": "ocr_space:engine3;llm_json:gpt-5.4-mini-2026-03-17",
+    "prompt_sha256": "2816fb97d7b25ca9a73e732e8a187470464eeaeb698b1cd955348134ff6ac4cd",
+    "config_sha256": "07b734a78f99f6d0555fe65209c693f88eb6633f8e9668d538df1147d0188dde",
+    "evaluator_version": "2.1",
+    "oracle_sha256": "71c4d6e148be95610c1f15c70752935708569d523b06ae2bb1f4a9a25f051a9c"
+  },
+  "code_snapshot_sha256": "581ce4a1ebc2e2a3fb1aa8146653fcdf1a1e9b4ee08443fcf8b61ece372ee578",
+  "scope": "technical gates only; human study pending; no production or time-reduction claim",
+  "checks": {
+    "backend": {
+      "command": "python -m unittest discover -s backend/app/tests -t backend -q",
+      "tests": 717,
+      "skipped": 13,
+      "passed": true
+    },
+    "frontend": {
+      "command": "npm test -- --maxWorkers=1",
+      "files": 10,
+      "tests": 34,
+      "passed": true
+    },
+    "frontend_build": true,
+    "ruff": true,
+    "git_diff_check": true,
+    "frozen_source_files": 381,
+    "study_workspace_ready": true,
+    "study_pairs": 20,
+    "study_conditions": 40,
+    "study_attempts_started": 0
+  },
+  "evidence": {
+    "quality": "quality-holdout/report.json",
+    "discrepancies": "discrepancies/report.json",
+    "posting": "posting/report.json",
+    "replay": "replay/report.json",
+    "runtime": "runtime/report.json",
+    "operator_protocol": "PHASE-6-STUDY.md"
+  }
+}

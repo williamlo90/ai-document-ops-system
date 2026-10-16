@@ -44,6 +44,52 @@ class ExceptionTests(unittest.TestCase):
                                state=state, owner=owner, reason="Verified against the source invoice",
                                evidence_refs=[ref])
 
+    def test_final_rejection_requires_approver_and_never_enables_posting(self):
+        doc, snapshot = self.invoice("80")
+        match = self.match.assess(snapshot["id"], self.reviewer)
+        service = ExceptionService(self.evidence)
+        cases = service.list_cases(self.reviewer, document_id=doc.id)
+        self.assertTrue(cases)
+        for case in cases:
+            with self.assertRaises(UnauthorizedError):
+                service.update(case["id"], self.decision(case, "rejected"), self.reviewer, self.match)
+            rejected = service.update(case["id"], self.decision(case, "rejected"), self.approver, self.match)
+            self.assertEqual(rejected["authorizer"], self.approver.actor)
+        status = self.match.status(match["id"], self.reviewer)
+        self.assertEqual(status["status"], "rejected")
+        self.assertFalse(status["posting_ready"])
+        with self.assertRaises(EvidenceConflict):
+            self.match.approve(match["id"], match["basis_hash"], self.approver)
+        with self.assertRaises(ValueError):
+            self.decision(cases[0], "rejected", ref="")
+
+    def test_rejection_survives_same_basis_but_new_revision_reopens_issue(self):
+        doc, snapshot = self.invoice("80")
+        self.match.assess(snapshot["id"], self.reviewer)
+        service = ExceptionService(self.evidence)
+        for case in service.list_cases(self.reviewer, document_id=doc.id):
+            rejected = service.update(case["id"], self.decision(case, "rejected"), self.approver, self.match)
+            with self.assertRaises(EvidenceConflict):
+                service.update(case["id"], self.decision(rejected, "needs_info"), self.reviewer, self.match)
+        repeated = self.match.assess(snapshot["id"], self.reviewer)
+        self.assertEqual(self.match.status(repeated["id"], self.reviewer)["status"], "rejected")
+        revised = self.revise(doc, invoice_number="REVISED-900")
+        self.match.assess(revised["id"], self.reviewer)
+        current = service.list_cases(self.reviewer, document_id=doc.id)
+        self.assertTrue(all(case["state"] == "open" and case["authorizer"] is None for case in current))
+
+    def test_approved_or_remote_operation_requires_reconciliation_before_rejection(self):
+        doc, snapshot = self.invoice("1", "55")
+        service = ExceptionService(self.evidence)
+        service.configure_policy(ExceptionPolicy(company="AC", allowed_waivers=["price_variance"],
+            max_price_delta=Decimal("5"), reason="Controlled price waiver"), self.admin)
+        match = self.match.assess(snapshot["id"], self.reviewer)
+        case = next(case for case in service.list_cases(self.reviewer, document_id=doc.id) if case["code"] == "price_variance")
+        waived = service.update(case["id"], self.decision(case, "waived"), self.admin, self.match)
+        self.match.approve(match["id"], match["basis_hash"], self.approver)
+        with self.assertRaises(EvidenceConflict):
+            service.update(case["id"], self.decision(waived, "rejected"), self.approver, self.match)
+
     def test_exact_punctuation_and_ocr_candidate_with_valid_negative_controls(self):
         first, first_snapshot = self.invoice("10")
         first_match = self.match.assess(first_snapshot["id"], self.reviewer)
@@ -71,6 +117,34 @@ class ExceptionTests(unittest.TestCase):
         fourth, _ = self.invoice("10")
         different = self.match.assess(self.repo.latest_for_document(self.reviewer.workspace_id, "snapshot", fourth.id)["id"], self.reviewer)
         self.assertFalse({"duplicate_confirmed", "duplicate_candidate"} & {i["code"] for i in different["issues"]})
+
+    def test_incomplete_prior_identity_on_same_po_blocks_copy_approval(self):
+        first, _ = self.invoice("10")
+        self.revise(first, invoice_number=None, invoice_date=None)
+        second, snapshot = self.invoice("10")
+        result = self.match.assess(snapshot["id"], self.reviewer)
+        self.assertIn("duplicate_candidate", {issue["code"] for issue in result["issues"]})
+        self.assertNotIn("duplicate_confirmed", {issue["code"] for issue in result["issues"]})
+        with self.assertRaises(EvidenceConflict):
+            self.match.approve(result["id"], result["basis_hash"], self.approver)
+        self.assertFalse(self.match.status(result["id"], self.reviewer)["posting_ready"])
+
+    def test_incomplete_identity_different_po_or_amount_does_not_hold(self):
+        first, _ = self.invoice("10")
+        self.revise(first, invoice_number=None, invoice_date=None)
+        _, different_amount = self.invoice("11")
+        result = self.match.assess(different_amount["id"], self.reviewer)
+        self.assertFalse({"duplicate_confirmed", "duplicate_candidate"} & {i["code"] for i in result["issues"]})
+        self.source("po", "PO2", "p2", "100", "5000")
+        self.source("receipt", "R2", "r2", "70", "3500", po_id="PO2", po_line_id="p2")
+        second, _ = self.invoice("10")
+        revision = self.repo.latest(self.reviewer.workspace_id, "invoice", str(second.id))
+        snapshot = self.evidence.snapshot(second.id, SnapshotInput(company="AC",
+            expected_revision=revision["version"], source_system="manual", po_ids=["PO2"],
+            receipt_ids=["R2"], allocations={"l1": "PO2:p2"}), self.reviewer)
+        self.evidence.approve(snapshot["id"], snapshot["payload_hash"], self.approver)
+        result = self.match.assess(snapshot["id"], self.reviewer)
+        self.assertFalse({"duplicate_confirmed", "duplicate_candidate"} & {i["code"] for i in result["issues"]})
 
     def test_recurring_invoice_outside_window_and_supplier_alias_boundary(self):
         first, _ = self.invoice("10")

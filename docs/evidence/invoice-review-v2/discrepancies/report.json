@@ -1,0 +1,51 @@
+{
+  "contract_version": "2.0.0",
+  "manifest_sha256": "4fb4688dba90edebcca5d7c3145b8303101658f8219048b5d1fa57a777de61b4",
+  "completed_at": "2026-10-16T15:05:01.595184+00:00",
+  "input": "actual deterministic match detector, original provider extraction",
+  "scheduled_transactions": 50,
+  "category_matrices": {
+    "quantity": {
+      "TP": 30,
+      "FN": 0,
+      "FP": 0,
+      "TN": 20
+    },
+    "price": {
+      "TP": 10,
+      "FN": 0,
+      "FP": 0,
+      "TN": 40
+    },
+    "receipt": {
+      "TP": 20,
+      "FN": 0,
+      "FP": 0,
+      "TN": 30
+    },
+    "duplicate": {
+      "TP": 10,
+      "FN": 0,
+      "FP": 0,
+      "TN": 40
+    }
+  },
+  "duplicate_pairs": {
+    "input": "actual_match_detector_issue_pairs",
+    "positive_pairs_expected": 10,
+    "true_positive_pairs": 10,
+    "false_positive_pairs": 0,
+    "false_negative_pairs": 0,
+    "precision": 1.0,
+    "recall": 1.0
+  },
+  "false_holds": {
+    "numerator": 0,
+    "denominator": 20
+  },
+  "unsafe_ready": {
+    "numerator": 0,
+    "denominator": 30
+  },
+  "unsafe_submit": 0
+}

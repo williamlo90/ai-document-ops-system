@@ -65,13 +65,29 @@ def detect_duplicates(repo, workspace: str, snapshot: dict) -> dict:
         other_number = normalize_number(_value(other_fields, "invoice_number"))
         other_amount = _value(other_fields, "total")
         other_date = _value(other_fields, "invoice_date")
-        if other_supplier != supplier or not other_number or other_amount is None or not other_date:
+        if other_supplier != supplier or other_amount is None:
             continue
-        if not all(other_fields.get(path, {}).get("attestation") == "reviewer_verified" for path in ("vendor_name", "invoice_number", "invoice_date", "total")):
+        if not all(other_fields.get(path, {}).get("attestation") == "reviewer_verified"
+                   for path in ("vendor_name", "total")):
             continue
-        days = abs((current_date - date.fromisoformat(other_date)).days)
+        days = abs((current_date - date.fromisoformat(other_date)).days) if other_date else None
         same_amount = Decimal(str(other_amount)) == current_amount
         po_overlap = bool(current_po.intersection(other_inputs["request"]["po_ids"]))
+        identity_reviewed = all(other_fields.get(path, {}).get("attestation") == "reviewer_verified"
+                                for path in ("invoice_number", "invoice_date"))
+        if not other_number or not other_date or not identity_reviewed:
+            # An unresolved invoice on the same PO must not disappear from the
+            # safety corpus merely because OCR omitted its identity. This is a
+            # review candidate, never proof of a confirmed duplicate.
+            if same_amount and po_overlap and (days is None or days <= 30):
+                signal = {"document_id": other["document_id"], "snapshot_id": other["id"],
+                          "invoice_number": other_number, "days_apart": days,
+                          "same_amount": True, "po_overlap": True,
+                          "number_relation": "incomplete_identity",
+                          "invoice_revision": (current_other or other_inputs["invoice"])["version"]}
+                candidates.append(signal)
+                considered.append(signal)
+            continue
         exact = number == other_number
         ocr_like = not exact and len(number) == len(other_number) and ocr_skeleton(number) == ocr_skeleton(other_number)
         if not exact and not ocr_like:

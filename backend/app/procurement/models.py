@@ -214,14 +214,14 @@ class ExceptionPolicy(StrictModel):
 class ExceptionUpdate(StrictModel):
     expected_version: int = Field(ge=1)
     expected_match_id: str = Field(min_length=1, max_length=120)
-    state: Literal["open", "needs_info", "resolved", "waived"]
+    state: Literal["open", "needs_info", "resolved", "waived", "rejected"]
     owner: str = Field(min_length=1, max_length=120)
     reason: str = Field(min_length=10, max_length=1000)
     evidence_refs: list[str] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def evidence_for_terminal_decision(self):
-        if self.state in {"resolved", "waived"} and not any(ref.strip() for ref in self.evidence_refs):
+        if self.state in {"resolved", "waived", "rejected"} and not any(ref.strip() for ref in self.evidence_refs):
             raise ValueError("Resolution and waiver require an evidence reference")
         return self
 

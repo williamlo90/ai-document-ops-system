@@ -150,7 +150,7 @@ class ProcessingResultRecorder:
             ),
         ):
             if self.retry_policy.should_retry(error, job):
-                job.retry(error_code, next_attempt_at=self.retry_policy.next_attempt_at(job))
+                job.retry(error_code, next_attempt_at=self.retry_policy.next_attempt_at(job, error))
                 document.error_message = error_code
                 self.state_writer.transition(
                     document,
