@@ -243,8 +243,6 @@ def _run_document(
     parsed_text = ""
     predicted_fields: dict[str, Any] = {}
     predicted_validation_codes: list[str] = []
-    predicted_approval_blocked = False
-    validation_completed = False
     confidence_fields: list[str] = []
     evidence_fields: list[str] = []
     evidence: list[dict[str, Any]] = []
@@ -281,10 +279,9 @@ def _run_document(
             invoice = result.extraction.data
             error = None
             predicted_fields = invoice_data_to_fields(invoice)
-            validation = validate_invoice(invoice)
-            predicted_validation_codes = sorted({issue.code for issue in validation.issues})
-            predicted_approval_blocked = validation.has_errors
-            validation_completed = True
+            predicted_validation_codes = sorted(
+                {issue.code for issue in validate_invoice(invoice).issues}
+            )
             for item in result.extraction.confidence:
                 if item.field_name not in confidence_fields:
                     confidence_fields.append(item.field_name)
@@ -322,8 +319,6 @@ def _run_document(
         "document_id": document_id,
         "predicted_fields": predicted_fields,
         "predicted_validation_codes": predicted_validation_codes,
-        "predicted_approval_blocked": predicted_approval_blocked,
-        "validation_completed": validation_completed and error is None,
         "confidence_fields": sorted(set(confidence_fields)),
         "evidence_fields": sorted(set(evidence_fields)),
         "field_evidence": evidence,

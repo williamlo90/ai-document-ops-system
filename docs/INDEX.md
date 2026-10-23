@@ -1,43 +1,53 @@
-# Documentation and Evidence
+# Evidence Index
 
-Start with the product narrative, then follow the dated reports for scope and reproducibility.
+The root documentation explains the AI-Powered Invoice Review & Approval System. This directory
+contains reproducible technical evidence and deeper implementation notes.
 
-## Product and Engineering
+## Evaluation
 
-- [Engineering case study](PORTFOLIO_CASE_STUDY.md)
-- [Architecture](ARCHITECTURE.md)
-- [Runbook](RUNBOOK.md)
-- [Docker demo and recovery](docker_profile.md)
-- [Product requirements](PRD.md)
-- [Roadmap](ROADMAP.md)
-- [ERPNext environment](erpnext-environment.md) and [integration boundary](erpnext-integration-design.md)
+- [Scenario evidence](invoice-scenarios-v1-evidence.md)
+- [Scenario coverage matrix](SCENARIO_COVERAGE_MATRIX.md)
+- [External evaluation V2](external-invoice-evaluation-v2.md)
+- [Sealed V2 holdout artifact](evidence/external-invoice-v2-holdout-final.json)
+- [External evaluation V1 and provider failure](external-invoice-evaluation-v1.md)
+- [Experiment protocol](evaluation-experiment-protocol.md)
+- [Experiment log](evaluation-experiment-log.md)
+- [Reliability report](reliability-report.md)
+- [Recorded clean release verification](evidence/release-verification.json)
+- [Raw evaluation records](evidence/)
 
-## Current Invoice-to-ERP Evidence
+## Workflow Evidence
 
-| Area                                                 | Record                                                                                                   |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Acceptance and measurement contract                  | [Contract](evidence/invoice-review-v2/CONTRACT.md) and [claim map](evidence/invoice-review-v2/CLAIMS.md) |
-| Whole-invoice quality, matching and posting          | [Phase 6 evaluation](evidence/invoice-review-v2/PHASE-6.md)                                              |
-| Frozen quality results                               | [Quality holdout](evidence/invoice-review-v2/quality-holdout/report.json)                                |
-| Discrepancy checks and authorized dispositions       | [Discrepancy report](evidence/invoice-review-v2/discrepancies/report.json)                               |
-| Independent ERP verification and restart replay      | [Posting report](evidence/invoice-review-v2/posting/report.json)                                         |
-| Dated supplier/rule revisions                        | [Revision replay](evidence/invoice-review-v2/replay/report.json)                                         |
-| Packaged runtime, response loss and storage recovery | [Phase 7 release](evidence/invoice-review-v2/PHASE-7.md)                                                 |
-| Cloud scope decision                                 | [Phase 8](evidence/invoice-review-v2/PHASE-8.md)                                                         |
-| Six-invoice draft timing, separate cohort            | [Paired draft benchmark](erpnext-paired-draft-timing-results.md)                                         |
+- [ERPNext controlled benchmark protocol](erpnext-benchmark-protocol.md)
+- [ERPNext paired draft timing results](erpnext-paired-draft-timing-results.md)
+- [ERPNext paired draft timing JSON](evidence/erpnext-paired-draft-timing-v2.json)
+- [ERPNext technical verification](erpnext-phase7-verification.md)
+- [ERPNext integration SDLC](erpnext-integration-sdlc.md)
+- [Reviewer correction feedback](reviewer-correction-feedback.md)
+- [Project tour](recruiter-evidence-pack.md)
+- [Usability study protocol](usability-study-protocol.md)
+- [Integration boundaries](integrations.md)
+- [Object storage](object_storage.md)
 
-## Security and Deployment
+## Security And Delivery
 
 - [Security posture](security/SECURITY_POSTURE.md)
 - [Provider data boundary](security/provider-data-boundary.md)
-- [Supply-chain controls and lock regeneration](security/supply-chain.md)
-- [Historical temporary Azure validation](azure-live-validation.md)
+- [Supply-chain controls](security/supply-chain.md)
+- [Security evidence](security/security-evidence-v1.md)
+- [AWS deployment notes](aws_deployment.md)
+- [Controlled Azure live validation](azure-live-validation.md)
+- [Docker profile](docker_profile.md)
 
-## Product Tour
+## Production Readiness
 
-- [Captioned demo](assets/demo/invoice-review-demo.mp4)
-- [Screenshots](assets/screenshots/)
+- [Production-grade testing documentation](production-documentation/production-grade-documentation-ai-document.md)
+
+## Demo
+
 - [Demo script](demo-script.md)
+- [Demo recording procedure](demo-video.md)
+- [Captioned product demo](assets/demo/invoice-review-demo.mp4)
 
-Reports describe their recorded revision and test population. Historical header/draft results,
-current whole-invoice evaluation, local ERP posting and temporary Azure intake are separate scopes.
+Synthetic and external licensed test documents do not establish production accuracy, customer
+outcomes, or permission to process real client data.

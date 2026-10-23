@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from dataclasses import replace
-from uuid import uuid5, NAMESPACE_URL
 
 from app.documents.models import DocumentRecord
 from app.documents.repositories import DocumentRepository, ExtractionRepository
@@ -43,20 +41,6 @@ class DocumentExtractionPipeline:
         if not parsed.text.strip():
             raise ProviderError("empty_document_text", provider_name=self.parser.provider_name)
         result = self.extractor.extract_invoice(parsed)
-        data = result.extraction.data
-        lines = tuple(
-            replace(
-                line,
-                line_id=line.line_id or str(uuid5(NAMESPACE_URL, f"{document.id}:line:{index}")),
-            )
-            for index, line in enumerate(data.line_items)
-        )
-        result = replace(
-            result,
-            extraction=replace(
-                result.extraction, schema_version="invoice_v2", data=replace(data, line_items=lines)
-            ),
-        )
         report = validate_document_invoice(
             result.extraction.data,
             document,

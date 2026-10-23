@@ -93,89 +93,8 @@ class ERPNextClient:
             )
         return data
 
-    def get_procurement_document(self, kind: str, name: str) -> dict[str, Any]:
-        doctype = {"po": "Purchase Order", "receipt": "Purchase Receipt"}.get(kind)
-        if not doctype:
-            raise ValueError("Unknown procurement source kind")
-        response = self._request(
-            "GET",
-            f"/api/resource/{quote(doctype, safe='')}/{quote(name, safe='')}",
-            write_request=False,
-        )
-        data = response.get("data")
-        if not isinstance(data, dict) or data.get("name") != name:
-            raise IntegrationDeliveryError(
-                "ERPNext returned an invalid procurement source",
-                code="erpnext_invalid_source",
-                retryable=True,
-            )
-        return data
-
     def document_url(self, name: str) -> str:
         return f"{self.base_url}/app/purchase-invoice/{quote(name, safe='')}"
-
-    def has_permission(self, doctype: str, action: str, *, name: str = "") -> bool:
-        query = urlencode({"doctype": doctype, "ptype": action, "docname": name})
-        response = self._request(
-            "GET", f"/api/method/frappe.client.has_permission?{query}", write_request=False
-        )
-        message = response.get("message")
-        if not isinstance(message, dict) or not isinstance(message.get("has_permission"), bool):
-            raise IntegrationDeliveryError(
-                "ERPNext permission response is invalid",
-                code="erpnext_invalid_permission",
-                retryable=False,
-            )
-        return bool(message["has_permission"])
-
-    def submit_purchase_invoice(self, document: dict[str, Any]) -> dict[str, Any]:
-        response = self._request(
-            "POST",
-            "/api/method/frappe.client.submit",
-            payload={"doc": document},
-            write_request=True,
-        )
-        result = response.get("message")
-        if not isinstance(result, dict):
-            raise IntegrationDeliveryError(
-                "ERPNext submit outcome is unknown",
-                code="erpnext_invalid_submit_receipt",
-                retryable=False,
-                outcome_unknown=True,
-            )
-        return result
-
-    def get_gl_entries(self, name: str) -> list[dict[str, Any]]:
-        query = urlencode(
-            {
-                "filters": json.dumps(
-                    {"voucher_type": "Purchase Invoice", "voucher_no": name, "is_cancelled": 0},
-                    separators=(",", ":"),
-                ),
-                "fields": json.dumps(
-                    [
-                        "name",
-                        "company",
-                        "account",
-                        "debit",
-                        "credit",
-                        "posting_date",
-                        "voucher_type",
-                        "voucher_no",
-                        "is_cancelled",
-                    ],
-                    separators=(",", ":"),
-                ),
-                "limit_page_length": "100",
-            }
-        )
-        response = self._request("GET", f"/api/resource/GL%20Entry?{query}", write_request=False)
-        rows = response.get("data")
-        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
-            raise IntegrationDeliveryError(
-                "ERPNext ledger response is invalid", code="erpnext_invalid_ledger", retryable=True
-            )
-        return rows
 
     def _request(
         self,

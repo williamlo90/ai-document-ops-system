@@ -7,7 +7,7 @@ export type SessionInfo = {
   is_admin: boolean
 }
 
-export type ProductRole = 'uploader' | 'reviewer' | 'ap_approver' | 'administrator'
+export type ProductRole = 'uploader' | 'reviewer' | 'administrator'
 
 export type WorkspaceSummary = {
   workspace_id: string
@@ -21,7 +21,6 @@ export type AppRoute = '/inbox' | '/invoices' | '/exports' | '/admin/quality' | 
 
 export function productRole(session: SessionInfo): ProductRole {
   if (session.is_admin) return 'administrator'
-  if (session.role === 'ap_approver') return 'ap_approver'
   if (['uploader', 'operator', 'intake'].includes(session.role.toLowerCase())) return 'uploader'
   return 'reviewer'
 }

@@ -39,5 +39,7 @@ establish that the application is free of vulnerabilities.
 
 The documented validation covers synthetic documents and a local ERPNext sandbox. Production
 deployment and real customer data require separate security and operational validation.
+The application supports approval-gated ERPNext drafts; ERP submission and payment execution
+are outside this version's integration boundary.
 See the [security posture](docs/security/SECURITY_POSTURE.md) and
 [runbook](docs/RUNBOOK.md) for controls and deployment prerequisites.

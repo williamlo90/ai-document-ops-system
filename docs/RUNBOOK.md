@@ -12,15 +12,6 @@ gates, and safe cleanup.
 
 Run commands from the repository root.
 
-## Bounded Docker release demo
-
-Run `.\scripts\start_release.ps1 -Seed` after local dependency setup and starting Docker Desktop.
-The command starts the capped API/worker profile with mock providers, seeds synthetic AP
-review data and disables ERP writes. The database/uploads persist in a named volume.
-See [Docker profile](docker_profile.md) for roles, the evaluator, PostgreSQL checks,
-ERP sandbox setup, write-flag rollback, backup/restore and teardown.
-Current release evidence is [Phase 7](evidence/invoice-review-v2/PHASE-7.md).
-
 ## Local Mock Demo
 
 The mock profile requires no paid service or provider credential.
@@ -40,8 +31,16 @@ Open `http://127.0.0.1:8000`. Use `uploader-123` for invoice intake or `reviewer
 review queue. The local admin credential remains `123`. These values are local-only; hosted modes
 reject weak or duplicate credentials.
 
-The startup script uses `.env` when present and `.env.example` otherwise. Local runtime state is
-written under `backend/data/`, which is ignored by Git.
+The startup script prefers the local `_local_docs/runtime-v1.env` profile when present,
+then `.env` and `.env.example`. Use `-EnvFile <path>` to select a profile explicitly.
+Native runtime state is written under `_private_data/runtime-v1/`, separate from retained
+databases and uploads under `backend/data/`. `-DataRoot <path>` selects another data directory;
+the launcher rejects a selected database containing the V2 AP schema.
+
+The prepared V1 validation profile uses mock providers, local SQLite/uploads and CSV export.
+It has no ERP credentials and cannot post or create ERP drafts. Before enabling real ERP
+delivery, verify the integration user's current draft-only permissions in the live sandbox.
+Recorded ERP permission checks describe the dated run, not a new live permission check.
 
 Health checks:
 
@@ -73,10 +72,11 @@ Copy-Item .env.example .env
 Set these values in `.env` without placing credentials in commands or documentation:
 
 ```dotenv
-PARSER_PROVIDER=ocr_space
-OCR_SPACE_ENGINE=3
-OCR_SPACE_API_KEY=
-OCR_SPACE_API_KEYS=
+PARSER_PROVIDER=mistral_ocr
+MISTRAL_API_KEY=
+MISTRAL_OCR_ENDPOINT=https://api.mistral.ai/v1/ocr
+MISTRAL_OCR_MODEL=mistral-ocr-latest
+MISTRAL_ALLOWED_HOSTS=api.mistral.ai
 
 EXTRACTOR_PROVIDER=llm_json
 EXTRACTOR_API_KEY=
@@ -97,7 +97,7 @@ Verify provider adapters with a safe invoice:
 
 ```powershell
 $env:PYTHONPATH = "backend"
-.\.venv\Scripts\python.exe scripts\smoke_providers.py examples/sample_invoice.pdf
+.\.venv\Scripts\python.exe scripts\smoke_providers.py sample_invoice.pdf
 ```
 
 Then start the app and exercise the full UI flow. A successful extraction must still stop for a
@@ -491,8 +491,8 @@ Stop the API and worker before resetting. These files contain only local runtime
 documented configuration is used:
 
 ```powershell
-Remove-Item -LiteralPath "backend\data\doc_intel.sqlite3" -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath "backend\data\uploads" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath "_private_data\runtime-v1\doc_intel.sqlite3" -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath "_private_data\runtime-v1\uploads" -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
 Never run cleanup against an unverified custom `SQLITE_PATH` or `UPLOAD_ROOT`.

@@ -3,28 +3,12 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
 
 from app.core.settings import load_settings
 
 
 class SettingsTests(unittest.TestCase):
-    def test_ocr_backup_keys_load_as_trimmed_list_without_changing_primary(self):
-        with (
-            patch(
-                "app.core.settings._load_env_file",
-                return_value={
-                    "OCR_SPACE_API_KEY": "primary",
-                    "OCR_SPACE_API_KEYS": "backup-a, backup-b, ",
-                },
-            ),
-            patch.dict(os.environ, {"OCR_SPACE_API_KEY": "", "OCR_SPACE_API_KEYS": ""}),
-        ):
-            settings = load_settings()
-        self.assertEqual(settings.ocr_space_api_key, "primary")
-        self.assertEqual(settings.ocr_space_api_keys, ("backup-a", "backup-b"))
-
     def setUp(self) -> None:
         self.original_env = {
             key: os.environ.get(key)

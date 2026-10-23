@@ -7,7 +7,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Any, cast
 
-from app.documents.sqlite_schema import initialize_schema
+from app.documents.sqlite_schema import initialize_schema, require_v1_schema
 
 
 class SqliteStore:
@@ -19,11 +19,12 @@ class SqliteStore:
         self.lock = RLock()
         self._closed = False
         self._transaction_depth = 0
-        self.connection.execute("PRAGMA busy_timeout = 5000")
-        self.connection.execute("PRAGMA foreign_keys = ON")
-        self.connection.execute("PRAGMA journal_mode = WAL")
-        self.connection.execute("PRAGMA synchronous = NORMAL")
         try:
+            require_v1_schema(self.connection)
+            self.connection.execute("PRAGMA busy_timeout = 5000")
+            self.connection.execute("PRAGMA foreign_keys = ON")
+            self.connection.execute("PRAGMA journal_mode = WAL")
+            self.connection.execute("PRAGMA synchronous = NORMAL")
             self._init_schema()
         except Exception:
             self.connection.close()

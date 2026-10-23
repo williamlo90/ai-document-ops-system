@@ -2,11 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from scripts.quality_report import (
-    complexity_violations,
-    function_length_violations,
-    FUNCTION_LENGTH_EXCEPTIONS,
-)
+from scripts.quality_report import complexity_violations, function_length_violations
 
 
 class QualityGateTests(unittest.TestCase):
@@ -69,7 +65,7 @@ class QualityGateTests(unittest.TestCase):
                     "name": "create_app",
                     "complexity": 6,
                     "lineno": 1,
-                    "endline": FUNCTION_LENGTH_EXCEPTIONS["backend/app/main.py::create_app"] + 1,
+                    "endline": 100,
                 }
             ]
         }
@@ -77,7 +73,7 @@ class QualityGateTests(unittest.TestCase):
         violations = function_length_violations(report)
 
         self.assertEqual(len(violations), 1)
-        self.assertIn("increased from allowed", violations[0])
+        self.assertIn("increased from allowed 99 to 100 lines", violations[0])
 
     def test_test_functions_do_not_consume_production_budgets(self) -> None:
         report = {

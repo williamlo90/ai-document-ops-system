@@ -592,10 +592,6 @@ def _stored_extraction_to_dict(stored: StoredExtraction) -> dict[str, Any]:
             "currency": data.currency,
             "line_items": [
                 {
-                    "line_id": item.line_id,
-                    "uom": item.uom,
-                    "tax": _decimal(item.tax),
-                    "discount": _decimal(item.discount),
                     "description": item.description,
                     "quantity": _decimal(item.quantity),
                     "unit_price": _decimal(item.unit_price),
@@ -632,10 +628,6 @@ def _stored_extraction_from_dict(payload: dict[str, Any]) -> StoredExtraction:
             currency=data.get("currency"),
             line_items=tuple(
                 InvoiceLineItem(
-                    line_id=item.get("line_id"),
-                    uom=item.get("uom"),
-                    tax=_parse_decimal(item.get("tax")),
-                    discount=_parse_decimal(item.get("discount")),
                     description=item.get("description"),
                     quantity=_parse_decimal(item.get("quantity")),
                     unit_price=_parse_decimal(item.get("unit_price")),

@@ -15,7 +15,6 @@ class Settings:
     workspace_id: str = "default"
     uploader_token: str | None = None
     reviewer_token: str | None = None
-    ap_approver_token: str | None = None
     document_storage_backend: str = "local"
     storage_backend: str = "memory"
     sqlite_path: Path = Path("backend/data/doc_intel.sqlite3")
@@ -47,11 +46,6 @@ class Settings:
     mistral_ocr_endpoint: str = "https://api.mistral.ai/v1/ocr"
     mistral_ocr_model: str = "mistral-ocr-latest"
     mistral_allowed_hosts: tuple[str, ...] = ("api.mistral.ai",)
-    ocr_space_api_key: str | None = None
-    ocr_space_api_keys: tuple[str, ...] = ()
-    ocr_space_engine: int = 2
-    gemini_api_key: str | None = None
-    gemini_ocr_model: str = "gemini-3.8-flash"
     extractor_api_key: str | None = None
     extractor_endpoint: str = "https://api.openai.com/v1/chat/completions"
     extractor_model: str = "gpt-5.4-mini-2026-03-17"
@@ -69,7 +63,6 @@ class Settings:
     email_test_recipient: str | None = None
     accounting_provider: str = "csv_download"
     accounting_sandbox_mode: bool = True
-    erpnext_sandbox_posting_enabled: bool = False
     erpnext_base_url: str = "http://127.0.0.1:8080"
     erpnext_site: str = "frontend"
     erpnext_api_user: str | None = None
@@ -115,7 +108,6 @@ def load_settings() -> Settings:
         workspace_id=_setting(config, "APP_WORKSPACE_ID", "default"),
         uploader_token=_setting(config, "APP_UPLOADER_TOKEN"),
         reviewer_token=_setting(config, "APP_REVIEWER_TOKEN"),
-        ap_approver_token=_setting(config, "APP_AP_APPROVER_TOKEN"),
         document_storage_backend=_setting(config, "DOCUMENT_STORAGE_BACKEND", "local"),
         storage_backend=_setting(config, "STORAGE_BACKEND", "memory"),
         sqlite_path=Path(_setting(config, "SQLITE_PATH", "backend/data/doc_intel.sqlite3")),
@@ -157,11 +149,6 @@ def load_settings() -> Settings:
         ),
         parser_provider=_setting(config, "PARSER_PROVIDER", "mock"),
         extractor_provider=_setting(config, "EXTRACTOR_PROVIDER", "mock"),
-        ocr_space_api_key=_setting(config, "OCR_SPACE_API_KEY"),
-        ocr_space_api_keys=_csv(_setting(config, "OCR_SPACE_API_KEYS")),
-        ocr_space_engine=int(_setting(config, "OCR_SPACE_ENGINE") or "2"),
-        gemini_api_key=_setting(config, "GEMINI_API_KEY"),
-        gemini_ocr_model=_setting(config, "GEMINI_OCR_MODEL", "gemini-3.8-flash"),
         mistral_api_key=_setting(config, "MISTRAL_API_KEY"),
         mistral_ocr_endpoint=_setting(
             config,
@@ -193,9 +180,6 @@ def load_settings() -> Settings:
         email_test_recipient=_setting(config, "EMAIL_TEST_RECIPIENT"),
         accounting_provider=_setting(config, "ACCOUNTING_PROVIDER", "csv_download"),
         accounting_sandbox_mode=_boolean(_setting(config, "ACCOUNTING_SANDBOX_MODE", "true")),
-        erpnext_sandbox_posting_enabled=_boolean(
-            _setting(config, "ERPNEXT_SANDBOX_POSTING_ENABLED", "false")
-        ),
         erpnext_base_url=_setting(config, "ERPNEXT_BASE_URL", "http://127.0.0.1:8080"),
         erpnext_site=_setting(config, "ERPNEXT_SITE", "frontend"),
         erpnext_api_user=_setting(config, "ERPNEXT_API_USER"),

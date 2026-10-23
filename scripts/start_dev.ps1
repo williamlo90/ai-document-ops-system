@@ -1,3 +1,8 @@
+param(
+    [string]$EnvFile = "",
+    [string]$DataRoot = "_private_data/runtime-v1"
+)
+
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -6,14 +11,41 @@ if (-not (Test-Path $pythonPath)) {
     throw "Local venv not found. Run scripts\setup_local_venv.ps1 first, or use scripts\start_docker.ps1."
 }
 
-$envFile = if (Test-Path (Join-Path $repoRoot ".env")) {
+$resolvedEnvFile = if ($EnvFile) {
+    (Resolve-Path $EnvFile).Path
+}
+elseif (Test-Path (Join-Path $repoRoot "_local_docs/runtime-v1.env")) {
+    (Resolve-Path (Join-Path $repoRoot "_local_docs/runtime-v1.env")).Path
+}
+elseif (Test-Path (Join-Path $repoRoot ".env")) {
     (Resolve-Path (Join-Path $repoRoot ".env")).Path
 }
 else {
     (Resolve-Path (Join-Path $repoRoot ".env.example")).Path
 }
-$uploadRoot = Join-Path $repoRoot "backend\data\uploads"
-$sqlitePath = Join-Path $repoRoot "backend\data\doc_intel.sqlite3"
+$resolvedDataRoot = if ([System.IO.Path]::IsPathRooted($DataRoot)) {
+    [System.IO.Path]::GetFullPath($DataRoot)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $repoRoot $DataRoot))
+}
+$legacyDataRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "backend/data"))
+if ($resolvedDataRoot.TrimEnd('\', '/') -eq $legacyDataRoot.TrimEnd('\', '/')) {
+    throw "Use a separate V1 data directory; backend/data contains preserved runtime data."
+}
+$uploadRoot = Join-Path $resolvedDataRoot "uploads"
+$sqlitePath = Join-Path $resolvedDataRoot "doc_intel.sqlite3"
+if (Test-Path -LiteralPath $sqlitePath) {
+    $checkSchema = @'
+import sqlite3, sys
+from pathlib import Path
+with sqlite3.connect(Path(sys.argv[1]).resolve().as_uri() + '?mode=ro', uri=True) as connection:
+    incompatible = connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name GLOB 'ap_*'").fetchall()
+if incompatible:
+    raise SystemExit('V2 AP schema detected. Choose a separate V1 data directory.')
+'@
+    & $pythonPath -c $checkSchema $sqlitePath
+    if ($LASTEXITCODE -ne 0) { throw "V1 database compatibility check failed." }
+}
 
 function Start-AppJob {
     param(
@@ -27,7 +59,7 @@ function Start-AppJob {
     Start-Job -Name $Name -ArgumentList @(
         $repoRoot,
         $pythonPath,
-        $envFile,
+        $resolvedEnvFile,
         $uploadRoot,
         $sqlitePath,
         $argumentJson
@@ -39,6 +71,9 @@ function Start-AppJob {
         $env:PYTHONPATH = "backend"
         $env:UPLOAD_ROOT = $UploadRoot
         $env:SQLITE_PATH = $SqlitePath
+        $env:STORAGE_BACKEND = "sqlite"
+        $env:DATABASE_URL = ""
+        $env:DOCUMENT_STORAGE_BACKEND = "local"
         $CommandArguments = @($ArgumentJson | ConvertFrom-Json)
         & $Python @CommandArguments
         if ($LASTEXITCODE -ne 0) {

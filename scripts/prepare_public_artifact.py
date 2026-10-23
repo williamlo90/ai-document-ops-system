@@ -11,6 +11,7 @@ DEFAULT_OUTPUT = ROOT / "dist" / "public-invoice-review"
 
 ALLOWLIST_TOP_LEVEL = {
     "README.md",
+    "SECURITY.md",
     "LICENSE",
     ".env.example",
     ".gitignore",
@@ -19,7 +20,6 @@ ALLOWLIST_TOP_LEVEL = {
     "Dockerfile",
     "docker-compose.yml",
     "docker-compose.production.yml",
-    "docker-compose.release.yml",
     "docker-compose.validation.yml",
     "pyproject.toml",
     "run_tests.py",

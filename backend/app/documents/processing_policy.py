@@ -30,11 +30,9 @@ class ProcessingRetryPolicy:
             and job.attempt_count < self.max_attempts
         )
 
-    def next_attempt_at(self, job: ProcessingJob, error: Exception | None = None) -> datetime:
+    def next_attempt_at(self, job: ProcessingJob) -> datetime:
         exponent = max(0, job.attempt_count - 1)
         bounded_delay = min(self.max_seconds, self.base_seconds * (2**exponent))
         jitter_percent = (job.id.int % 21) - 10
         jittered_delay = max(1.0, bounded_delay * (1 + jitter_percent / 100))
-        if isinstance(error, ProviderError) and error.retry_after_seconds is not None:
-            jittered_delay = max(jittered_delay, min(86400, max(0, error.retry_after_seconds)))
         return datetime.now(UTC) + timedelta(seconds=jittered_delay)

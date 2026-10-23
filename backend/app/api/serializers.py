@@ -83,10 +83,6 @@ def extraction_response(stored: StoredExtraction | None) -> dict[str, object] | 
             "currency": data.currency,
             "line_items": [
                 {
-                    "line_id": item.line_id,
-                    "uom": item.uom,
-                    "tax": _decimal(item.tax),
-                    "discount": _decimal(item.discount),
                     "description": item.description,
                     "quantity": _decimal(item.quantity),
                     "unit_price": _decimal(item.unit_price),

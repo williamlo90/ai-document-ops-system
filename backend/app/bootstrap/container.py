@@ -60,8 +60,6 @@ from app.providers.storage import DocumentStorage
 from app.review.corrections import CorrectionFeedbackService
 from app.review.repositories import CorrectionEventRepository
 from app.review.services import ReviewService
-from app.procurement.repository import VersionRepository
-from app.procurement.service import EvidenceService
 
 
 @dataclass
@@ -77,7 +75,6 @@ class AppContainer:
     operations_module: OperationsModule
     agent_module: AgentModule
     backoffice_module: BackofficeModule
-    ap_service: EvidenceService
 
     @property
     def storage(self) -> DocumentStorage:
@@ -277,15 +274,7 @@ def build_container(settings: Settings) -> AppContainer:
         readiness=lambda: _module_readiness(documents, persistence),
     )
     backoffice = build_backoffice_module(agent.tool_executor, persistence)
-    evidence = EvidenceService(
-        VersionRepository(persistence.store),
-        persistence.documents.documents,
-        persistence.documents.extractions,
-    )
-    review.service.evidence_service = evidence
-    documents.processing_service.result_recorder.evidence_service = evidence
     return AppContainer(
-        ap_service=evidence,
         settings=settings,
         sessions=SessionStore(settings.session_ttl_seconds),
         persistence=persistence,

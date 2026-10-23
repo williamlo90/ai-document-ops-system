@@ -1,166 +1,193 @@
-# AI Document — Invoice Review
+<img src="frontend/public/favicon.svg" alt="Invoice Review logo" width="56" height="56">
 
-An evidence-linked accounts-payable workspace, from invoice PDF to verified ERP posting.
+# AI-Powered Invoice Review & Approval System
 
-Invoice Review helps an AP team inspect AI-extracted invoice fields, compare them with purchase
-orders and receipts, resolve discrepancies, and approve controlled ERPNext actions. Every posting
-requires explicit human authority and independent invoice and ledger read-back.
+A human-controlled accounts-payable workflow for comparing invoice PDFs with AI-extracted data,
+correcting errors, recording reviewer decisions, and exporting only approved records. The concise
+in-product name is **Invoice Review**.
 
-> From an invoice PDF to an approved, verifiable accounting outcome.
+The ERPNext adapter creates Purchase Invoice **Drafts in a local sandbox with provisioned master
+data**. Its benchmark mapping is specific to that sandbox; using another organization's ERPNext
+requires its own company, supplier, item, account, tax, currency, and exchange-rate setup. See
+[ERPNext environment prerequisites](docs/erpnext-environment.md) and the
+[integration boundary](docs/erpnext-integration-design.md).
 
-[![Invoice review workspace](docs/assets/screenshots/review.png)](docs/assets/demo/invoice-review-demo.mp4)
+[![Invoice Review product screenshot](docs/assets/screenshots/invoices.png)](docs/assets/demo/invoice-review-demo.mp4)
 
-[Product walkthrough](docs/assets/demo/invoice-review-demo.mp4) · [Engineering case study](docs/PORTFOLIO_CASE_STUDY.md) · [Evidence and documentation](docs/INDEX.md)
-
-## Evidence Snapshot
-
-| Result                                      | Measured scope                                                                                                             | Evidence                                                                       |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| **50/50**                                   | Whole-invoice values and required source provenance correct on frozen synthetic invoices                                   | [Quality results](docs/evidence/invoice-review-v2/quality-holdout/report.json) |
-| **20/20 posted; 30/30 exceptions resolved** | Eligible local ERPNext submissions verified against invoice and ledger; non-payable cases received authorized dispositions | [Technical evaluation](docs/evidence/invoice-review-v2/PHASE-6.md)             |
-| **20/20**                                   | Restart replays returned the same ERP target, with no duplicate posting effects                                            | [Posting verification](docs/evidence/invoice-review-v2/posting/report.json)    |
-| **3 dated revisions**                       | Supplier/rule changes recovered with verified posting and retained previously correct development cases                    | [Revision replay](docs/evidence/invoice-review-v2/replay/report.json)          |
-| **68.0%**                                   | Lower median elapsed time to a verified ERPNext draft: 49 s assisted versus 153 s manual                                   | [Paired draft benchmark](docs/erpnext-paired-draft-timing-results.md)          |
-| **Verified recovery**                       | Packaged Docker workflow recovered a lost submit response, survived restart and restored SQLite/uploads                    | [Release evidence](docs/evidence/invoice-review-v2/PHASE-7.md)                 |
-
-The quality evaluation contains 50 developer/AI-assisted synthetic, one-line USD invoices across
-40 quality families, including ten duplicate pairs. It measures these controlled cases, rather than
-accuracy on arbitrary customer documents. Quantity, price, receipt and duplicate checks recorded
-no false holds, unsafe submissions or duplicate ERP effects in that cohort.
-
-The timing benchmark is a **separate six-invoice, single-operator synthetic study**. Both conditions
-ended at a verified Purchase Invoice Draft; active work and system waiting were not separated.
-It does not measure time savings for the submitted-posting workflow.
-
-## Why It Exists
-
-Reading an invoice is only the beginning. AP work also requires knowing whether the supplier is
-mapped correctly, the quantity was received, the price agrees with the purchase order, and the
-invoice has already been billed. A plausible extraction cannot answer those questions by itself.
-
-Invoice Review keeps the source, matching evidence, exception decision, approval and ERP result
-connected so an operator can explain why a transaction was posted or held.
-
-## Product Workflow
+## How it works
 
 ```text
-Invoice PDF -> OCR and structured extraction -> Source-linked review
-            -> Purchase order and receipt matching -> Exception resolution
-            -> Human approval -> ERP draft -> Separate submit approval
-            -> Submitted invoice and ledger read-back -> Verified posting
+Upload PDF -> Read and extract -> Validate -> Review or correct
+           -> Record decision -> Export approved invoice
 ```
 
-- **Inbox and Invoices** prioritize documents, blocking issues and pending decisions.
-- **Review** connects proposed fields to the PDF and records corrections and evidence attestations.
-- **Matching** checks quantities, prices, receipts, reservations and duplicate signals.
-- **Exceptions** require an authorized disposition bound to the current assessment.
-- **Posting** separates draft creation from submission, with durable operation identity and recovery.
-- **Quality and Operations** expose evaluations, retries, integration state and audit records.
+The main product is organized around three daily tasks:
 
-## Product Tour
+- **Inbox** shows invoices that need a decision or have a blocking issue.
+- **Invoices** shows the full invoice lifecycle and provides the upload entry point.
+- **Exports** contains approved invoices that can be prepared for delivery.
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/assets/screenshots/inbox.png" alt="Invoice inbox with synthetic demo documents"><br><strong>Operational inbox</strong><br>Find documents waiting for review or exception handling.</td>
-    <td width="50%"><img src="docs/assets/screenshots/review.png" alt="PDF and extracted fields in the review workspace"><br><strong>Source-linked review</strong><br>Compare the PDF, inspect proposed fields and record corrections.</td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/assets/screenshots/exports.png" alt="Approved invoice export workspace"><br><strong>Approved delivery</strong><br>Prepare eligible invoices for controlled export.</td>
-    <td width="50%"><img src="docs/evidence/invoice-review-v2/release/posting-verification.png" alt="Packaged application showing verified sandbox ERP posting"><br><strong>Verified ERP outcome</strong><br>Read-back confirms the submitted invoice and ledger.</td>
-  </tr>
-</table>
+Administrators also have **Quality** for labeled evaluation results and **Operations** for failed
+jobs, retries, integrations, and audit events.
 
-The inbox, review and export images illustrate the product with demo data. The posting image
-comes from the packaged local ERPNext validation. Screenshots are navigation aids; the linked
-reports above contain the measured outcomes.
+## Who decides what
 
-## Authority Model
+| Layer              | Responsibility                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| Document providers | Read the PDF and propose invoice fields with source information.                             |
+| Application rules  | Check required fields, totals, duplicates, state transitions, roles, and export eligibility. |
+| Human reviewer     | Compare the PDF with the proposed data and approve, reject, or request a correction.         |
 
-| Layer                | Responsibility                                                                                       |
-| -------------------- | ---------------------------------------------------------------------------------------------------- |
-| AI providers         | Propose structured invoice values and source anchors.                                                |
-| Application controls | Enforce matching, duplicate checks, evidence freshness, permissions and operation identity.          |
-| Human reviewers      | Attest evidence and authorize the exact reviewed transaction and subsequent submission.              |
-| ERPNext              | Return an independently checked invoice and ledger outcome; uncertain writes require reconciliation. |
-
-Confidence never grants approval. A lost submit response produces an unknown outcome until
-read-back resolves it. Turning off ERP writes still permits read-only reconciliation. The sandbox
-adapter does not execute payments.
+Confidence alone cannot approve an invoice. Validation errors block approval in both the UI and the
+API. A correction keeps the original proposal and records the before/after values. Export is
+available only after approval and uses idempotency controls to prevent duplicate execution.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    PDF[Invoice PDF] --> API[FastAPI intake]
-    API --> STORE[Private document storage]
-    API --> WORKER[Durable processing worker]
-    WORKER --> AI[OCR and structured extraction]
-    AI --> REVIEW[React review workspace]
-    SOURCES[Versioned PO and receipt evidence] --> MATCH[Deterministic AP matching]
-    REVIEW --> MATCH
-    MATCH --> APPROVAL[Human approvals]
-    APPROVAL --> ERP[ERPNext sandbox]
-    ERP --> VERIFY[Invoice and GL read-back]
-    VERIFY --> AUDIT[Persisted outcome and audit trail]
+    PDF["Invoice PDF"] --> API["FastAPI intake"]
+    API --> STORE["Private document storage"]
+    API --> READ["OCR and structured extraction"]
+    READ --> RULES["Deterministic validation"]
+    RULES --> UI["React review workspace"]
+    UI --> DECISION["Approve, reject, or correct"]
+    DECISION --> AUDIT["Append-only business events"]
+    DECISION --> EXPORT["Approval-gated export"]
+    READ --> QUALITY["Labeled scenario evaluation"]
 ```
 
-React/TypeScript and FastAPI run with SQLite and private local uploads by default; PostgreSQL is
-also supported. Mock providers allow credential-free development. The validated real-provider
-path uses OCR.space Engine 3 with API-key failover and OpenAI structured extraction.
+The default local stack uses React, TypeScript, FastAPI, SQLite, and private local file storage. Mock
+providers make the full workflow available without paid credentials. A temporary production-shaped
+Azure profile has also been validated with Container Apps, PostgreSQL, private Blob Storage, Service
+Bus, Functions/Event Grid, Key Vault, and Managed Identity, then fully torn down. See the
+[controlled Azure live validation](docs/azure-live-validation.md). The tested real-provider
+configuration uses Mistral OCR and an OpenAI structured extraction model.
 
-The [earlier temporary Azure validation](docs/azure-live-validation.md) covered mock-provider
-intake through `needs_review`, followed by teardown. The current ERP posting and recovery results
-were validated locally. [Phase 8](docs/evidence/invoice-review-v2/PHASE-8.md) records the decision
-to retain that evidence boundary without another cloud deployment.
+## Results
 
-## Run Locally
+- The sealed holdout of 10 licensed synthetic invoices reached **98.75% exact field match
+  (79/80)**. Its aggregate artifact is public; source PDFs, labels, OCR, and per-document
+  predictions remain outside Git, so the result cannot be independently reproduced from this
+  repository alone.
+- The same holdout reached **100% validation-code match** and **100% approval-blocker match**.
+- Across six paired draft-eligible synthetic invoices, median elapsed time from opening the source
+  to a verified ERPNext draft was **153 seconds for direct entry** and **49 seconds through the
+  application**, a **68.0% reduction in elapsed workflow time** for this single-operator sandbox
+  run. Active work and waiting time were not measured separately.
+- In the combined 10-case outcome record, the application produced the expected draft or blocker
+  outcome in **10/10 cases**, compared with **9/10** for direct manual entry. The four blocker
+  observations were retained from the earlier run and excluded from the draft-time median.
+- ERPNext draft delivery is also covered by approval, mapping, idempotency, permission,
+  reconciliation, and retry checks.
+- The recorded clean release passed its backend coverage gate with at least **91.21% line
+  coverage**.
+- A separate clean provider diagnostic matched 160 of 160 fields and all 20 expected validation
+  outcomes. This was a diagnostic on a previously used deterministic synthetic set, not the primary
+  holdout result.
+- Reviewer corrections retain the original extraction, actor, reason, timestamp, and field-level
+  diff.
+- The recorded clean release at commit `8b36ba5` passed 521 backend tests, 23 frontend tests,
+  29 fixture-browser tests, and one browser journey against the local full stack. These are
+  historical release counts, not a count for the current commit.
+- A controlled Azure run successfully migrated PostgreSQL, reached a healthy API revision, and
+  processed a synthetic PDF through Blob Storage and Service Bus to `needs_review` before verified
+  zero-resource teardown.
 
-Install Docker Desktop, Python 3.11+ and the development tooling, then start the seeded release demo:
+One unsupported due date remained in the sealed holdout and is documented in the evaluation
+record. These results describe fixed synthetic datasets and local verification, not production
+accuracy or customer outcomes.
+
+## Evidence at a glance
+
+| Evidence                                | Direct record                                                                                    |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| External evaluation summary             | [External Invoice Evaluation V2](docs/external-invoice-evaluation-v2.md)                         |
+| Sealed holdout result                   | [Holdout JSON](docs/evidence/external-invoice-v2-holdout-final.json)                             |
+| Clean release checks and counts         | [Release verification JSON](docs/evidence/release-verification.json)                             |
+| ERPNext integration verification        | [Phase 7 verification](docs/erpnext-phase7-verification.md)                                      |
+| ERPNext paired draft timing             | [Timing results](docs/erpnext-paired-draft-timing-results.md)                                    |
+| ERPNext benchmark method                | [Controlled benchmark protocol](docs/erpnext-benchmark-protocol.md)                              |
+| Experiment history and failure analysis | [Evaluation experiment log](docs/evaluation-experiment-log.md)                                   |
+| Retained localized-number failure       | [Failed diagnostic JSON](docs/evidence/current-provider-diagnostic.failed-20260728T080824Z.json) |
+| One-minute evidence path                | [Recruiter evidence pack](docs/recruiter-evidence-pack.md)                                       |
+| Product walkthrough                     | [Captioned demo video](docs/assets/demo/invoice-review-demo.mp4)                                 |
+| ERPNext draft UI walkthrough            | [Demo guide](docs/demo-video.md#erpnext-draft-walkthrough)                                       |
+| Controlled Azure deployment             | [Azure live validation](docs/azure-live-validation.md)                                           |
+
+## Current limitations
+
+The evaluation uses small synthetic datasets. The workflow-time comparison covers one operator and
+six known synthetic draft cases. The 10-case outcome record combines those reruns with four
+retained blocker observations; it is not one same-session 20-trial run and does not measure
+production accuracy, multi-user time savings, cost savings, or customer impact. Invoice is the only
+complete document workflow. SQLite, local storage, and seeded roles remain the default local
+evaluation profile. The Azure result is a temporary mock-provider integration validation, not a
+production tenancy, sustained hosting, or customer deployment. Every approval still requires a
+reviewer.
+
+## Quick start
+
+For the fastest setup, use Docker Desktop. This starts both the API and background worker:
+
+```powershell
+.\scripts\start_docker.ps1
+```
+
+Open `http://127.0.0.1:8000` after the API reports ready.
+
+For local source development, install Python 3.11+ and Node.js 22.22+ with npm 10 or 11:
 
 ```powershell
 .\scripts\setup_local_venv.ps1
-.\scripts\start_release.ps1 -Seed
+
+Push-Location frontend
+npm ci
+npm run build
+Pop-Location
+
+.\scripts\start_dev.ps1
 ```
 
-Open `http://127.0.0.1:8000`. The launcher starts bounded API/worker containers, seeds a synthetic
-review, selects mock providers and disables ERP writes. The seed helper uses the host Python
-virtual environment; see [Docker setup](docs/docker_profile.md) for prerequisites and teardown.
+The launcher supervises both the API and worker. Press Ctrl+C in its terminal to stop both.
 
-For a Docker-only unseeded workspace, run `.\scripts\start_docker.ps1`.
-For source development, build the frontend with `npm ci` and `npm run build` in `frontend/`, then
-run `.\scripts\start_dev.ps1`. Demo tokens are documented in [.env.example](.env.example).
-Provider credentials belong in the ignored `.env`; [the runbook](docs/RUNBOOK.md) documents setup.
+Local demo credentials from `.env.example`:
 
-## Verify and Explore
+| Role          | Token          |
+| ------------- | -------------- |
+| Uploader      | `uploader-123` |
+| Reviewer      | `reviewer-123` |
+| Administrator | `123`          |
+
+Each token is exchanged for a server-owned role session. The default mock-provider profile requires
+no external credentials.
+
+For a provider-backed run, copy `.env.example` to the ignored `.env`, set
+`PARSER_PROVIDER=mistral_ocr` and `EXTRACTOR_PROVIDER=llm_json`, and add the documented provider
+credentials. Never commit `.env` or real invoice files. See [RUNBOOK.md](docs/RUNBOOK.md) for the full
+setup.
+
+## Tests and release checks
+
+Run the complete local release check from a clean worktree:
 
 ```powershell
-.\.venv\Scripts\python.exe run_tests.py
-.\.venv\Scripts\python.exe scripts\evaluate_phase1_regressions.py
+.\.venv\Scripts\python.exe scripts\verify_release.py --write-evidence
 ```
 
-The evaluator is a credential-free regression check, not an OCR accuracy benchmark.
-The [release guide](docs/docker_profile.md) covers packaged runtime verification, migrations,
-backup/restore and rollback. The complete local release command is
-`.\.venv\Scripts\python.exe scripts\verify_release.py --write-evidence` from a clean worktree.
+The command records the tested commit, environment, checks, test counts, and reviewed dependency
+exceptions in [release verification](docs/evidence/release-verification.json). Real-provider
+evaluation is separate because it requires credentials and paid API calls.
 
-| Directory   | Contents                                                                   |
-| ----------- | -------------------------------------------------------------------------- |
-| `backend/`  | FastAPI application, migrations, tests and hash-locked Python requirements |
-| `frontend/` | React workspace and browser checks                                         |
-| `docs/`     | Architecture, runbook, case study, screenshots and dated evidence          |
-| `examples/` | Synthetic documents and evaluation fixtures                                |
-| `infra/`    | Azure infrastructure and supporting configuration                          |
-| `scripts/`  | Setup, evaluation, release and recovery commands                           |
+## Documentation
 
-Dependencies remain pinned and hash-locked in `backend/requirements/`. Updates are reviewed
-manually on `main`; automatic dependency PR creation is disabled. Earlier phase checkpoints
-remain available through Git history.
-
-## Scope
-
-Current evidence establishes controlled synthetic workflows and local sandbox accounting outcomes.
-It does not establish customer-production accuracy, sustained production load or full Azure-hosted
-ERP posting. A new full-posting timing study remains optional. Every consequential transition
-continues to require the appropriate human approval.
-
-[MIT License](LICENSE)
+- [Portfolio case study](docs/PORTFOLIO_CASE_STUDY.md)
+- [Project tour](docs/recruiter-evidence-pack.md)
+- [Usability study protocol](docs/usability-study-protocol.md)
+- [Product requirements](docs/PRD.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Runbook](docs/RUNBOOK.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Scenario coverage matrix](docs/SCENARIO_COVERAGE_MATRIX.md)
+- [Technical evidence index](docs/INDEX.md)
+- [Security posture](docs/security/SECURITY_POSTURE.md)

@@ -1,3 +1,5 @@
+name: invoice-review-v1
+
 services:
   api:
     build: .
@@ -11,11 +13,14 @@ services:
       - /tmp:rw,noexec,nosuid,uid=100,gid=101,mode=1770,size=64m
     stop_grace_period: 35s
     ports:
-      - "127.0.0.1:${DOC_INTEL_PORT:-8000}:8000"
+      - "8000:8000"
     volumes:
       - docintel-data:/data
     env_file:
       - ${DOC_INTEL_ENV_FILE:-.env.example}
+    environment: &v1-local-data
+      SQLITE_PATH: /data/v1/doc_intel.sqlite3
+      UPLOAD_ROOT: /data/v1/uploads
     healthcheck:
       test:
         [
@@ -46,6 +51,7 @@ services:
     env_file:
       - ${DOC_INTEL_ENV_FILE:-.env.example}
     environment:
+      <<: *v1-local-data
       WORKER_POLL_SECONDS: "5"
     depends_on:
       api:

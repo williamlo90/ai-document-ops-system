@@ -1,30 +1,138 @@
-# Roadmap
+# AI-Powered Invoice Review & Approval System Roadmap
 
-The implemented product covers source-linked invoice extraction/review, versioned PO/receipt
-matching, duplicate intelligence, authorized exception handling and separately approved, verified
-ERPNext sandbox posting. [Current evidence](INDEX.md) records evaluation and packaged release scope.
+This roadmap tracks the product work that still matters. Superseded implementation plans and old UI
+handoffs are not kept here.
 
-## Completed Release Scope
+## Product goal
 
-- Human review preserves original extraction and records corrections and source evidence.
-- Matching accounts for received, billed and reserved quantities and checks price policy.
-- Exceptions retain ownership, reason, evidence and authority; stale assessments cannot authorize posting.
-- Draft and submit operations have separate approvals, durable identity and invoice/ledger read-back.
-- Packaged local runtime supports restart, unknown-outcome reconciliation and SQLite/upload restore;
-  PostgreSQL persistence and migration checks are available.
-- [Phase 8](evidence/invoice-review-v2/PHASE-8.md) explicitly skips a new optional cloud run.
+Build an invoice-review application that a finance user can understand without a walkthrough and
+that a technical reviewer can inspect without weakening approval and export controls.
 
-## Next Handoff
+```text
+Upload -> Check source and fields -> Resolve blockers -> Decide -> Export approved records
+```
 
-Phase 9 audits the public claim-to-evidence mapping and prepares the CV handoff in its separate task.
-The six-invoice verified-draft timing result keeps its original scope; a new human study of the
-full submitted-posting workflow remains optional.
+## Rules that must stay true
 
-## Future Validation
+1. Extraction confidence never grants approval.
+2. Validation errors block approval in the UI and API.
+3. Approval, rejection, and correction are explicit human actions.
+4. Corrections keep the original value, updated value, actor, reason, and timestamp.
+5. Final decisions and export records are append-only in the application workflow.
+6. The server enforces roles and workspace membership.
+7. Export requires approval, idempotency, and failure-aware retry behavior.
 
-Broader supplier layouts, multiline/tax/currency cases, independent operator studies, concurrency,
-customer-data governance and cloud recovery need their own scoped evidence before related claims.
-A hosted release would require a separately reviewed deployment, resource budget and teardown plan.
+## Completed work
 
-Payment execution, an unrestricted chatbot, production multi-tenancy and a second document type
-are outside the current product scope.
+### Baseline and safety checks
+
+- Recorded backend, frontend, lint, build, and browser baselines.
+- Captured the workflow rules above before changing the UI.
+- Narrowed the product to one complete invoice journey.
+
+### Product cleanup
+
+- Removed labels, recommendations, confidence indicators, utility controls, and animations that did
+  not help reviewers complete a task.
+- Kept functional drawers, modals, toasts, loading states, and reduced-motion behavior.
+
+### Navigation
+
+- Made Inbox, Invoices, and Exports the primary navigation.
+- Grouped Quality and Operations under Admin.
+- Kept redirects for old URLs while preserving useful query parameters.
+
+### Daily review work
+
+- Split Inbox into invoices waiting for a decision and invoices blocked by an issue.
+- Added lifecycle tabs to Invoices and kept the table as the main surface.
+- Removed automatic first-row selection. Details open only after the user selects an invoice.
+
+### Review and export
+
+- Placed the source PDF beside editable fields, validation results, and decision controls.
+- Showed export eligibility and batch controls only when they are needed.
+- Kept approval, blocker, retry, and idempotency rules enforced by the backend.
+
+### Administrator views
+
+- Limited Quality to labeled results, field performance, scenario coverage, and limitations.
+- Made unresolved alerts, failed jobs, retries, service status, and audit records the focus of
+  Operations.
+- Removed duplicate KPIs, charts, funnels, and side panels.
+
+### Repository cleanup
+
+- Removed inactive pages and unused frontend dependencies.
+- Split the large stylesheet by responsibility and added a readable typography floor.
+- Consolidated documentation around the invoice review and approval product.
+- Removed old UI concepts, motion handoffs, screenshot matrices, and remediation diaries.
+
+### Maintainability and scoped reads
+
+- Split backoffice planning, execution, and recovery while preserving the service API.
+- Split export eligibility, execution, and workspace projection while preserving transaction
+  ownership and response contracts.
+- Separated SQLite connection/transaction ownership from schema and migration setup.
+- Expanded Mypy from the original selective scope to the transaction, ownership, worker,
+  persistence, query, and composition modules changed by this hardening pass.
+- Replaced full collection scans in metrics, provider health, and processing-job monitoring with
+  workspace-scoped SQL read models and query-budget tests.
+- Added a Windows hash-lock verification job alongside the Linux Python 3.11/3.12 clean installs.
+- Migrated to the patched React Router package, removed the temporary advisory exception, and kept
+  the dependency allowlist empty.
+
+### Release checks
+
+- Added one cross-platform command for dependency audits, Ruff, backend tests, complexity checks,
+  frontend formatting and lint, unit tests, production build, fixture-browser tests, and one real
+  full-stack browser journey.
+- Added negative role tests for administrator APIs and authenticated shared invoice work.
+- Added a React, FastAPI, SQLite, and worker browser journey covering upload, duplicate detection,
+  correction, approval, and export.
+- Added stale worker-lease recovery so interrupted jobs can be reclaimed without two workers
+  processing the same active job.
+- Added field-level source information and reviewer-correction history beside the PDF.
+- Checked the six product pages for serious accessibility and overflow problems at every tested
+  viewport.
+- Regenerated and reviewed the screenshot matrix and 84-second captioned demo, including rendered
+  PDF frames.
+- Added a machine-readable release record containing the tested commit, counts, environment,
+  durations, and reviewed dependency exceptions.
+
+## Next validation work
+
+### Completed milestone: ERPNext draft integration
+
+The application creates and verifies ERPNext Purchase Invoice Drafts without submitting, posting,
+or paying them. Approval, mapping, duplicate, timeout, reconciliation, restart, field-match,
+permission, and log-redaction boundaries passed technical verification. A workflow-time comparison
+for the six draft-eligible cases was rerun with source verification included in both methods. The
+four intentional blocker outcomes retain their earlier recorded values and remain excluded from the
+draft-time median. See the
+[paired timing result](erpnext-paired-draft-timing-results.md),
+[technical verification](erpnext-phase7-verification.md), and
+[integration SDLC](erpnext-integration-sdlc.md).
+
+Before processing real client data:
+
+1. Run the documented usability study with 3–5 finance users. Record task failures and assistance
+   without inventing results.
+2. Validate 25 private invoices that can be used legally and remain outside Git.
+3. Keep versioned labels and an experiment log for accuracy, latency, provider errors, and estimated
+   cost.
+4. Test messy scans, rotations, multiple pages, totals, currencies, duplicates, and missing values.
+5. Review correction behavior and the failure taxonomy against those cases.
+6. Complete the provider, retention, malware-scanning, and privacy checks listed in the security
+   posture.
+7. Publish a hosted demo or a one-command local demo after the seeded workflow is stable.
+
+## Not planned yet
+
+- a second document type;
+- payment execution;
+- chatbot or document Q&A;
+- production multi-tenancy and billing;
+- ERP submission, posting, payment, or live production delivery beyond the approved draft-only
+  sandbox integration;
+- customer-impact, time-saving, or production-accuracy claims without observed data.

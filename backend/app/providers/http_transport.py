@@ -33,17 +33,8 @@ def post_json_without_redirects(
         with opener.open(request, timeout=timeout_seconds) as response:
             return json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
-        delay = None
-        try:
-            candidate = (exc.headers or {}).get("Retry-After")
-            if candidate is not None and 0 < float(candidate) <= 86400:
-                delay = float(candidate)
-        except (ValueError, TypeError):
-            pass
         raise ProviderError(
             http_error_code,
             provider_name,
             retryable=exc.code == 429 or exc.code >= 500,
-            http_status=exc.code,
-            retry_after_seconds=delay,
         ) from exc

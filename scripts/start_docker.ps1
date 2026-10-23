@@ -9,5 +9,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "Docker is installed but the Docker daemon is not running. Start Docker Desktop and retry."
 }
 
-$env:DOC_INTEL_ENV_FILE = if (Test-Path ".env") { ".env" } else { ".env.example" }
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+Set-Location $repoRoot
+if (-not $env:DOC_INTEL_ENV_FILE) {
+    $env:DOC_INTEL_ENV_FILE = if (Test-Path "_local_docs/runtime-v1.env") {
+        "_local_docs/runtime-v1.env"
+    } else {
+        ".env.example"
+    }
+}
 docker compose up --build

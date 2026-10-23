@@ -27,7 +27,7 @@ INVOICE_FIELDS = (
     "total",
     "currency",
 )
-LINE_ITEM_FIELDS = ("description", "quantity", "unit_price", "amount", "uom", "tax", "discount")
+LINE_ITEM_FIELDS = ("description", "quantity", "unit_price", "amount")
 
 
 class CorrectionFeedbackService:
@@ -132,12 +132,7 @@ def invoice_data_to_dict(data: InvoiceData) -> dict[str, object]:
     return {
         **{field_name: _value(getattr(data, field_name)) for field_name in INVOICE_FIELDS},
         "line_items": [
-            {
-                "line_id": item.line_id,
-                **{
-                    field_name: _value(getattr(item, field_name)) for field_name in LINE_ITEM_FIELDS
-                },
-            }
+            {field_name: _value(getattr(item, field_name)) for field_name in LINE_ITEM_FIELDS}
             for item in data.line_items
         ],
     }
@@ -225,10 +220,6 @@ def _dict_items(value: object) -> Iterable[dict[str, object]]:
 
 def _line_item(value: dict[str, object]) -> InvoiceLineItem:
     return InvoiceLineItem(
-        line_id=_optional_string(value.get("line_id")),
-        uom=_optional_string(value.get("uom")),
-        tax=_optional_decimal(value.get("tax")),
-        discount=_optional_decimal(value.get("discount")),
         description=_optional_string(value.get("description")),
         quantity=_optional_decimal(value.get("quantity")),
         unit_price=_optional_decimal(value.get("unit_price")),

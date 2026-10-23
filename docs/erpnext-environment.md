@@ -22,6 +22,12 @@ into a tracked directory.
 
 ## Access Controls
 
+Draft-only integration permissions were reverified on 23 October 2026 using the
+integration account's API token. Draft read/create/write is allowed; submit, cancel,
+delete, payment and PO/receipt/GL access are denied. This permission check did not
+create or change business transactions. Reverify after any role changes.
+The prepared local V1 validation profile has ERP delivery disabled and no ERP credentials.
+
 - The default ERPNext Administrator password was replaced with a random local password.
 - The application integration uses `invoice.integration@local.test`, not Administrator.
 - The integration user has the custom `Invoice Draft Integration` role. It can read ERP mappings
