@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   azure-infrastructure:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -35,7 +35,7 @@ jobs:
         run: python scripts/validate_azure_iac.py --compiled-dir /tmp/docintel-bicep
 
   secret-scan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,7 +52,7 @@ jobs:
             -c 'git config --global --add safe.directory /repo && gitleaks git --config /repo/.gitleaks.toml --redact=100 --no-banner /repo'
 
   clean-python-install:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -103,7 +103,7 @@ jobs:
           git diff --exit-code -- backend/requirements/requirements-windows.txt backend/requirements/requirements-dev-windows.txt
 
   quality:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: clean-python-install
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -130,7 +130,7 @@ jobs:
         run: python scripts/quality_report.py
 
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
@@ -151,7 +151,7 @@ jobs:
       - run: npm run test:e2e
 
   mock-provider-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: clean-python-install
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -169,7 +169,7 @@ jobs:
         run: python -m unittest app.tests.test_provider_factory app.tests.test_services app.tests.test_backoffice_scenarios
 
   container-security:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [quality, frontend]
     env:
       IMAGE_TAG: ai-document-ops-system:${{ github.sha }}
